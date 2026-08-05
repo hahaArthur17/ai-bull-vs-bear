@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Signal / Counterpoint — Mobile Prototype</title>
+  <style>
+    :root {
+      --bg: #09101d;
+      --surface: #122039;
+      --surface-2: #1a2b47;
+      --surface-3: #203554;
+      --text: #f5f8fc;
+      --muted: #94a8bd;
+      --line: #2c4361;
+      --bull: #6cd8c8;
+      --bear: #f59ba8;
+      --signal: #ffc66f;
+      --shadow: 0 18px 44px rgba(0, 0, 0, .24);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { margin: 0; min-height: 100%; background: #050a12; color: var(--text); font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    body { display: grid; place-items: center; padding: 24px; }
+    button { font: inherit; color: inherit; }
+
+    .phone {
+      width: min(390px, 100vw - 28px);
+      height: min(844px, calc(100vh - 32px));
+      min-height: 720px;
+      overflow: hidden;
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 32px;
+      background: var(--bg);
+      box-shadow: var(--shadow);
+    }
+
+    .screen { display: none; height: 100%; overflow-y: auto; padding: 18px 20px 22px; scrollbar-width: none; }
+    .screen::-webkit-scrollbar { display: none; }
+    .screen.active { display: block; animation: in .24s ease-out; }
+    @keyframes in { from { opacity: .2; transform: translateY(5px); } to { opacity: 1; transform: none; } }
+
+    .topbar, .row, .split, .nav, .chip-row, .metric-row { display: flex; align-items: center; }
+    .topbar { height: 44px; gap: 10px; }
+    .brand { flex: 1; }
+    .brand strong { display: block; font-size: 11px; letter-spacing: .08em; }
+    .brand span { color: var(--muted); display: block; font-size: 10px; margin-top: 2px; }
+    .mark { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: var(--bull); color: var(--bg); font-size: 10px; font-weight: 800; }
+    .badge { border-radius: 999px; padding: 8px 12px; background: var(--surface-2); color: var(--signal); font-size: 10px; font-weight: 700; }
+    .eyebrow { color: var(--muted); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; }
+    h1, h2, h3, p { margin: 0; }
+    h1 { margin-top: 27px; max-width: 330px; font-size: 30px; line-height: 1.08; letter-spacing: -.04em; }
+    h2 { font-size: 20px; line-height: 1.15; letter-spacing: -.02em; }
+    h3 { font-size: 15px; }
+    .sub { margin-top: 10px; max-width: 325px; color: var(--muted); font-size: 14px; line-height: 1.45; }
+    .status { margin-top: 14px; color: var(--bull); font-size: 11px; }
+    .status::before { content: ""; width: 7px; height: 7px; display: inline-block; margin-right: 7px; border-radius: 50%; background: var(--bull); }
+    .status span { color: var(--muted); margin-left: 6px; }
+    .search { display: flex; align-items: center; gap: 10px; height: 52px; margin-top: 18px; padding: 0 15px; border: 1px solid transparent; border-radius: 16px; background: var(--surface); color: var(--muted); font-size: 14px; }
+    .search b { color: var(--signal); font-size: 21px; font-weight: 500; }
+    .search .kbd { margin-left: auto; font-size: 11px; }
+
+    .section-head { display: flex; align-items: center; justify-content: space-between; margin-top: 24px; margin-bottom: 12px; }
+    .section-head span { color: var(--muted); font-size: 11px; }
+    .stock-row { display: flex; align-items: center; gap: 10px; width: 100%; min-height: 78px; margin-bottom: 10px; padding: 13px 14px 13px 16px; border: 1px solid var(--line); border-radius: 18px; background: var(--surface); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
+    .stock-row:hover, .claim:hover, .evidence:hover { transform: translateY(-2px); border-color: var(--signal); }
+    .ticker { flex: 1; }
+    .ticker strong, .quote strong { display: block; font-size: 17px; }
+    .ticker span, .quote span { display: block; margin-top: 4px; color: var(--muted); font-size: 11px; }
+    .quote { text-align: right; }
+    .up { color: var(--bull) !important; }
+    .down { color: var(--bear) !important; }
+    .arrow { color: var(--signal); font-size: 20px; }
+
+    .nav { position: absolute; left: 20px; right: 20px; bottom: 18px; justify-content: space-around; height: 64px; padding: 8px 6px; border-radius: 20px; background: rgba(18, 32, 57, .96); box-shadow: 0 10px 30px rgba(0,0,0,.24); }
+    .nav button { border: 0; background: transparent; cursor: pointer; color: var(--muted); font-size: 10px; }
+    .nav button b { display: block; color: currentColor; font-size: 17px; font-weight: 500; margin-bottom: 2px; }
+    .nav button.active { color: var(--bull); }
+    .disclaimer { position: absolute; left: 0; right: 0; bottom: 2px; color: var(--muted); font-size: 9px; text-align: center; }
+
+    .back { border: 0; padding: 0; background: transparent; color: var(--muted); cursor: pointer; font-size: 13px; }
+    .screen-title { display: flex; align-items: center; justify-content: space-between; margin-top: 22px; }
+    .screen-title .symbol { width: 46px; height: 46px; display: grid; place-items: center; border-radius: 15px; background: var(--surface-2); color: var(--bull); font-size: 17px; font-weight: 800; }
+    .screen-title .title-copy { flex: 1; margin-left: 12px; }
+    .screen-title .title-copy span { display: block; color: var(--muted); font-size: 11px; margin-top: 4px; }
+    .star { border: 0; background: transparent; color: var(--signal); font-size: 23px; cursor: pointer; }
+    .price-line { display: flex; align-items: baseline; gap: 10px; margin-top: 20px; }
+    .price-line strong { font-size: 32px; letter-spacing: -.05em; }
+    .price-line span { color: var(--bull); font-size: 13px; font-weight: 700; }
+    .muted { color: var(--muted); }
+    .chart-card { margin-top: 16px; padding: 14px 12px 10px; border: 1px solid var(--line); border-radius: 20px; background: var(--surface); }
+    .chart-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; color: var(--muted); font-size: 10px; }
+    .chart-head strong { color: var(--text); font-size: 12px; }
+    svg { display: block; width: 100%; height: 126px; }
+    .metric-row { gap: 8px; margin-top: 14px; }
+    .metric { flex: 1; padding: 12px; border-radius: 15px; background: var(--surface); }
+    .metric span { display: block; color: var(--muted); font-size: 10px; }
+    .metric strong { display: block; margin-top: 6px; font-size: 16px; }
+    .signal-card { display: flex; align-items: center; gap: 10px; margin-top: 10px; padding: 13px 14px; border-radius: 17px; background: var(--surface); border: 1px solid var(--line); }
+    .signal-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--signal); }
+    .signal-card strong { flex: 1; font-size: 13px; }
+    .signal-card span { color: var(--signal); font-size: 11px; font-weight: 700; }
+    .primary { width: 100%; height: 48px; margin-top: 18px; border: 0; border-radius: 15px; background: var(--bull); color: var(--bg); cursor: pointer; font-size: 13px; font-weight: 800; }
+    .safe-note { margin-top: 11px; color: var(--muted); font-size: 10px; line-height: 1.45; text-align: center; }
+
+    .arena-header { display: flex; align-items: flex-start; justify-content: space-between; margin-top: 22px; }
+    .arena-header p { margin-top: 5px; color: var(--muted); font-size: 11px; }
+    .live { color: var(--bull); font-size: 10px; font-weight: 700; }
+    .tabs { display: flex; gap: 5px; margin-top: 18px; padding: 4px; border-radius: 13px; background: var(--surface); }
+    .tabs button { flex: 1; height: 32px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); cursor: pointer; font-size: 11px; }
+    .tabs button.active { background: var(--surface-3); color: var(--text); font-weight: 700; }
+    .judge { margin-top: 14px; padding: 14px; border-radius: 18px; background: linear-gradient(135deg, rgba(255,198,111,.16), rgba(108,216,200,.08)); border: 1px solid rgba(255,198,111,.38); }
+    .judge-top { display: flex; justify-content: space-between; color: var(--signal); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .judge h3 { margin-top: 9px; font-size: 15px; line-height: 1.35; }
+    .judge p { margin-top: 7px; color: var(--muted); font-size: 11px; line-height: 1.45; }
+    .claim { margin-top: 11px; padding: 15px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; text-align: left; transition: transform .18s ease, border-color .18s ease; }
+    .claim.bull { border-left: 3px solid var(--bull); }
+    .claim.bear { border-left: 3px solid var(--bear); }
+    .claim-label { display: flex; align-items: center; justify-content: space-between; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .claim-label strong { color: var(--bull); }
+    .claim.bear .claim-label strong { color: var(--bear); }
+    .claim p { margin-top: 10px; font-size: 13px; line-height: 1.45; }
+    .evidence-links { display: flex; gap: 6px; margin-top: 11px; flex-wrap: wrap; }
+    .evidence-links span { padding: 5px 7px; border-radius: 7px; background: var(--surface-2); color: var(--signal); font-size: 10px; }
+    .claim-foot { display: flex; justify-content: space-between; margin-top: 12px; color: var(--muted); font-size: 10px; }
+    .examine { color: var(--text); }
+
+    .evidence { display: block; width: 100%; margin-top: 10px; padding: 14px; border-radius: 17px; border: 1px solid var(--line); background: var(--surface); text-align: left; cursor: pointer; transition: transform .18s ease, border-color .18s ease; }
+    .evidence-top { display: flex; justify-content: space-between; color: var(--signal); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .evidence h3 { margin-top: 8px; font-size: 13px; line-height: 1.35; }
+    .evidence p { margin-top: 6px; color: var(--muted); font-size: 11px; line-height: 1.4; }
+    .evidence small { display: block; margin-top: 10px; color: var(--muted); font-size: 10px; }
+    .source-pill { display: inline-block; margin-top: 14px; padding: 6px 8px; border-radius: 8px; background: rgba(108,216,200,.12); color: var(--bull); font-size: 10px; font-weight: 700; }
+
+    .answer { margin-top: 16px; padding: 16px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+    .answer-label { color: var(--signal); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+    .answer h3 { margin-top: 10px; font-size: 17px; line-height: 1.3; }
+    .answer p { margin-top: 10px; color: var(--muted); font-size: 12px; line-height: 1.55; }
+    .question-grid { display: grid; gap: 8px; margin-top: 14px; }
+    .question { width: 100%; padding: 11px 12px; border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--text); cursor: pointer; text-align: left; font-size: 11px; }
+    .question:hover { border-color: var(--signal); }
+    .evidence-cta { width: 100%; height: 44px; margin-top: 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-2); color: var(--text); cursor: pointer; font-size: 12px; font-weight: 700; }
+
+    .footer-space { height: 106px; }
+    @media (max-height: 760px) { body { padding: 8px; } .phone { min-height: 680px; height: calc(100vh - 16px); } }
+  </style>
+</head>
+<body>
+  <main class="phone" aria-label="Signal Counterpoint mobile prototype">
+    <section class="screen active" id="home">
+      <header class="topbar"><div class="mark">B/B</div><div class="brand"><strong>SIGNAL / COUNTERPOINT</strong><span>AI-assisted stock research</span></div><span class="badge">EDU</span></header>
+      <div class="eyebrow" style="margin-top:30px">A calmer way to read the market</div>
+      <h1>Make the signal legible.</h1>
+      <p class="sub">A calm, evidence-first way to explore what might be moving a stock.</p>
+      <p class="status">Cached market data ready <span>· 2 min ago</span></p>
+      <div class="search"><b>⌕</b><span>Search AAPL, NVDA, GOOG…</span><span class="kbd">⌘K</span></div>
+      <div class="section-head"><h2>Your watchlist</h2><span>4 symbols</span></div>
+      <button class="stock-row" data-go="stock"><div class="ticker"><strong>AAPL</strong><span>Apple Inc.</span></div><div class="quote"><strong>174.62</strong><span class="up">+1.72%</span></div><span class="arrow">→</span></button>
+      <button class="stock-row"><div class="ticker"><strong>NVDA</strong><span>NVIDIA Corp.</span></div><div class="quote"><strong>138.85</strong><span class="down">−0.82%</span></div><span class="arrow">→</span></button>
+      <button class="stock-row"><div class="ticker"><strong>GOOG</strong><span>Alphabet Inc.</span></div><div class="quote"><strong>198.14</strong><span class="up">+0.44%</span></div><span class="arrow">→</span></button>
+      <div class="footer-space"></div>
+      <nav class="nav"><button class="active" data-go="home"><b>⌂</b>Watchlist</button><button data-go="stock"><b>◌</b>Signals</button><button data-go="debate"><b>◷</b>History</button><button><b>?</b>About</button></nav>
+      <div class="disclaimer">Educational only · not financial advice</div>
+    </section>
+
+    <section class="screen" id="stock">
+      <button class="back" data-go="home">← Back to watchlist</button>
+      <div class="screen-title"><div class="symbol">AAPL</div><div class="title-copy"><h2>Apple Inc.</h2><span>NASDAQ · cached daily data</span></div><button class="star">☆</button></div>
+      <div class="price-line"><strong>174.62</strong><span>+1.72% today</span></div>
+      <div class="chart-card"><div class="chart-head"><strong>Price movement</strong><span>3 months</span></div><svg viewBox="0 0 350 126" role="img" aria-label="AAPL price movement chart"><defs><linearGradient id="area" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#6cd8c8" stop-opacity=".26"/><stop offset="1" stop-color="#6cd8c8" stop-opacity="0"/></linearGradient></defs><path d="M0 102 C25 104 28 74 55 83 S91 100 111 76 S145 65 163 77 S187 50 211 59 S240 76 260 48 S286 38 303 49 S330 16 350 23 L350 126 L0 126Z" fill="url(#area)"/><path d="M0 102 C25 104 28 74 55 83 S91 100 111 76 S145 65 163 77 S187 50 211 59 S240 76 260 48 S286 38 303 49 S330 16 350 23" fill="none" stroke="#6cd8c8" stroke-width="3" stroke-linecap="round"/></svg></div>
+      <div class="metric-row"><div class="metric"><span>RSI (14)</span><strong class="up">58.4</strong></div><div class="metric"><span>MACD</span><strong class="up">+1.08</strong></div><div class="metric"><span>Volatility</span><strong>Medium</strong></div></div>
+      <div class="section-head"><h2>Signal snapshot</h2><span>technical agent</span></div>
+      <div class="signal-card"><span class="signal-dot" style="background:var(--bull)"></span><strong>Short-term momentum</strong><span>Medium</span></div>
+      <div class="signal-card"><span class="signal-dot" style="background:var(--signal)"></span><strong>Volume confirmation</strong><span>Mixed</span></div>
+      <div class="signal-card"><span class="signal-dot" style="background:var(--bear)"></span><strong>Downside uncertainty</strong><span>Watch</span></div>
+      <button class="primary" data-go="debate">Start Bull vs Bear debate →</button>
+      <p class="safe-note">The debate surfaces competing interpretations. It does not predict price or recommend an action.</p>
+    </section>
+
+    <section class="screen" id="debate">
+      <button class="back" data-go="stock">← Back to stock</button>
+      <div class="arena-header"><div><h2>Debate Arena</h2><p>AAPL · analysis run #024</p></div><span class="live">● LIVE TRACE</span></div>
+      <div class="tabs"><button class="active" data-tab="arena">Arena</button><button data-go="evidence">Evidence board</button></div>
+      <div class="judge"><div class="judge-top"><span>Judge synthesis</span><span>confidence 0.68</span></div><h3>Evidence leans constructive, with medium uncertainty.</h3><p>Momentum is positive, but the evidence is not strong enough to support a single outcome.</p></div>
+      <button class="claim bull" data-go="exam"><div class="claim-label"><strong>Bull agent</strong><span>medium signal</span></div><p>Short-term positive momentum may continue as price holds above the 20-day moving average.</p><div class="evidence-links"><span>TECH-001</span><span>NEWS-003</span></div><div class="claim-foot"><span>confidence · medium</span><span class="examine">Tap to cross-examine →</span></div></button>
+      <button class="claim bear" data-go="exam"><div class="claim-label"><strong>Bear agent</strong><span>medium risk</span></div><p>Higher volatility and stretched expectations could make the next move less predictable.</p><div class="evidence-links"><span>TECH-004</span><span>10-K-RISK</span></div><div class="claim-foot"><span>confidence · medium</span><span class="examine">Tap to cross-examine →</span></div></button>
+      <div class="footer-space"></div>
+      <p class="safe-note">Guardrail check passed · no buy, sell, hold, or personalised advice.</p>
+    </section>
+
+    <section class="screen" id="evidence">
+      <button class="back" data-go="debate">← Back to debate</button>
+      <div class="screen-title"><div class="symbol" style="color:var(--signal)">◎</div><div class="title-copy"><h2>Evidence Board</h2><span>What the agents actually used</span></div><span class="badge">12 items</span></div>
+      <div class="section-head"><h2>Technical signals</h2><span>3 items</span></div>
+      <button class="evidence" data-go="exam"><div class="evidence-top"><span>TECH-001</span><span>signal</span></div><h3>Price is holding above the 20-day moving average.</h3><p>MA20 is trending upward while RSI remains in a middle range.</p><small>Technical Agent · calculated from cached OHLCV</small></button>
+      <div class="section-head"><h2>News & filings</h2><span>9 items</span></div>
+      <button class="evidence"><div class="evidence-top"><span>NEWS-003</span><span>news</span></div><h3>Services revenue beats the prior-year quarter.</h3><p>Headline and summary retrieved from the cached news corpus.</p><small>Published 14 May 2026 · source: demo RSS feed</small></button>
+      <button class="evidence"><div class="evidence-top"><span>10-K-RISK</span><span>filing</span></div><h3>Competition and supply constraints remain material risks.</h3><p>Excerpt from the selected SEC filing risk factors section.</p><small>Filed 02 May 2026 · source: SEC demo excerpt</small></button>
+      <span class="source-pill">RAG retrieval · 4 chunks surfaced</span>
+      <p class="safe-note">Evidence is shown for interpretation, not as a recommendation.</p>
+    </section>
+
+    <section class="screen" id="exam">
+      <button class="back" data-go="debate">← Back to debate arena</button>
+      <div class="screen-title"><div class="symbol" style="color:var(--bull)">?</div><div class="title-copy"><h2>Cross Examination</h2><span>Ask about a claim, term, or risk</span></div><span class="badge">AAPL</span></div>
+      <div class="answer"><div class="answer-label">Selected Bull claim · TECH-001 + NEWS-003</div><h3>Short-term positive momentum may continue.</h3><p id="answer-copy">The claim is based on price holding above the 20-day moving average, with a middle-range RSI that is positive but not extreme. The signal is medium strength because volatility and filing risks add uncertainty.</p></div>
+      <div class="section-head"><h2>Ask a focused question</h2><span>explanation agent</span></div>
+      <div class="question-grid"><button class="question" data-answer="Evidence support: TECH-001 shows price above MA20; NEWS-003 adds a positive business context. Neither source guarantees that momentum continues.">What evidence supports this?</button><button class="question" data-answer="Momentum means recent price movement is continuing in the same direction. Here it is a technical description, not a prediction.">What does momentum mean?</button><button class="question" data-answer="Signal strength is medium: two supporting items are present, but volatility and risk-factor evidence keep the conclusion uncertain.">How strong is the signal?</button><button class="question" data-answer="The main risk is that higher volatility or a negative filing/news update could overwhelm the current technical pattern.">What is the risk meaning?</button></div>
+      <button class="evidence-cta" data-go="evidence">View linked evidence board →</button>
+      <p class="safe-note">Educational only · focused explanations replace advice.</p>
+    </section>
+  </main>
+  <script>
+    const screens = [...document.querySelectorAll('.screen')];
+    const go = id => { screens.forEach(s => s.classList.toggle('active', s.id === id)); };
+    document.addEventListener('click', event => {
+      const target = event.target.closest('[data-go]');
+      if (target) go(target.dataset.go);
+      const question = event.target.closest('[data-answer]');
+      if (question) document.querySelector('#answer-copy').textContent = question.dataset.answer;
+    });
+  </script>
+</body>
+</html>
