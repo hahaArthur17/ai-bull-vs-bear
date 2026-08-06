@@ -1,32 +1,82 @@
 # AI Bull vs Bear
 
-AI Bull vs Bear is an Agentic RAG mobile application that helps users understand possible reasons behind stock price movements using technical indicators, financial news, company filing evidence, and multi-agent AI debate.
+AI Bull vs Bear is an educational Agentic RAG mobile application that helps
+users examine possible reasons behind stock-price movements using technical
+indicators, cached financial evidence, and a Bull vs Bear debate.
 
-## Project Goal
+The app explains evidence and uncertainty. It does not provide stock
+predictions, buy/sell/hold recommendations, or personalised financial advice.
 
-The goal is to build an educational mobile demo that explains stock movement signals without providing stock predictions or personalised financial advice.
+## What is implemented
 
-## Core Features
+- Expo / React Native mobile flow for Watchlist, Stock Detail, Evidence Board,
+  Debate Arena, Cross Examination, History, and About.
+- FastAPI API contract for stocks, prices, indicators, watchlist, analysis,
+  trace, token usage, and claim examination.
+- Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
+  required for the first run.
+- RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
+- Local lexical-RAG retrieval with overlapping chunks and query-based evidence
+  ranking; the Supabase pgvector schema is prepared for the next persistence
+  milestone.
+- Bull Agent, Bear Agent, Judge Agent, Guardrail Agent, evidence IDs, a trace,
+  and a token ledger in the demo provider.
+- Financial-advice rewrites and a required educational disclaimer.
 
-- Stock watchlist
-- Stock detail dashboard
-- Technical indicators
-- RAG-based evidence retrieval
-- Bull vs Bear AI debate
-- Human-in-the-loop claim examination
-- Evidence citations
-- Guardrails against financial advice
-- Agent trace and token ledger
+## Run the backend
 
-## Tech Stack
+    cd backend
+    python3 -m venv .venv
+    source .venv/bin/activate
+    pip install -r requirements.txt
+    uvicorn app.main:app --reload --port 8000
 
-- React Native + Expo
-- FastAPI
-- Supabase PostgreSQL
-- Supabase pgvector
-- Groq or Gemini API
-- Python + pandas
+Open http://localhost:8000/docs for the interactive API docs.
+
+## Run the mobile app
+
+In another terminal:
+
+    cd apps/mobile
+    npm install
+    npm run start
+
+The mobile app defaults to http://localhost:8000. For a physical device, set
+EXPO_PUBLIC_API_URL to the computer's LAN address, for example
+http://192.168.1.20:8000.
+
+## Test
+
+    cd backend
+    pytest
+
+## Optional credentials
+
+The demo mode works without any keys. When you are ready to add persistence or
+live model providers:
+
+- Create a Supabase project at https://supabase.com/dashboard, run
+  backend/supabase/schema.sql in SQL Editor, then place the project URL and anon
+  key in a local .env file.
+- Create a Groq API key at https://console.groq.com/keys and put it in
+  GROQ_API_KEY.
+- Create a Gemini API key at https://aistudio.google.com/apikey and put it in
+  GEMINI_API_KEY.
+
+Never commit .env or paste secret keys into GitHub issues, README files, or
+chat messages.
+
+## Project layout
+
+- backend/app: FastAPI routes, schemas, demo store, indicators, RAG, analysis,
+  and guardrails.
+- backend/tests: API and service tests.
+- backend/supabase: database schema and setup notes.
+- apps/mobile: Expo application.
+- data/demo: demo-data notes and future seed artifacts.
+- docs: planning, API, database, agent, and safety specifications.
 
 ## Disclaimer
 
-This project is for educational purposes only and does not provide financial advice.
+This project is for educational purposes only and does not constitute financial
+advice.
