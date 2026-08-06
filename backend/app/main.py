@@ -1,0 +1,148 @@
+from __future__ import annotations
+
+from fastapi import FastAPI, Header, HTTPException, Query, Request, status
+from fastapi.middleware.cors import CORSMiddleware
+
+from app.config import get_settings
+from app.schemas import (
+    AnalysisRequest,
+    AnalysisResponse,
+    ExaminationRequest,
+    ExaminationResponse,
+    EvidenceItem,
+    PricePoint,
+    Stock,
+    TechnicalIndicators,
+    WatchlistRequest,
+    WatchlistResponse,
+)
+from app.services.analysis import AnalysisService
+from app.services.demo_store import DemoStore
+from app.services.indicators import calculate_indicators
+
+settings = get_settings()
+store = DemoStore()
+analysis_service = AnalysisService(store)
+
+app = FastAPI(
+    title=settings.app_name,
+    version="0.1.0",
+    description="Educational stock-signal explanations using deterministic demo data.",
+)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_origin_list or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+def current_user_id(x_user_id: str | None) -> str:
+    return x_user_id or "demo-user"
+
+
+@app.get("/health")
+def health() -> dict[str, str]:
+    return {"status": "ok", "environment": settings.environment, "provider": settings.analysis_provider}
+
+
+@app.get("/stocks", response_model=list[Stock])
+def list_stocks(q: str | None = Query(default=None, max_length=40)) -> list[Stock]:
+    return [Stock.model_validate(stock) for stock in store.list_stocks(q)]
+
+
+@app.get("/stocks/{ticker}", response_model=Stock)
+def get_stock(ticker: str) -> Stock:
+    stock = store.get_stock(ticker)
+    if stock is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return Stock.model_validate(stock)
+
+
+@app.get("/stocks/{ticker}/prices", response_model=list[PricePoint])
+def get_prices(ticker: str) -> list[PricePoint]:
+    if store.get_stock(ticker) is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return [PricePoint.model_validate(point) for point in store.get_prices(ticker)]
+
+
+@app.get("/stocks/{ticker}/indicators", response_model=TechnicalIndicators)
+def get_indicators(ticker: str) -> TechnicalIndicators:
+    if store.get_stock(ticker) is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return TechnicalIndicators.model_validate(calculate_indicators(ticker.upper(), store.get_prices(ticker)))
+
+
+@app.get("/stocks/{ticker}/evidence", response_model=list[EvidenceItem])
+def get_evidence(ticker: str) -> list[EvidenceItem]:
+    if store.get_stock(ticker) is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return [EvidenceItem.model_validate(item) for item in store.get_evidence(ticker)]
+
+
+@app.get("/watchlist", response_model=WatchlistResponse)
+def get_watchlist(x_user_id: str | None = Header(default=None)) -> WatchlistResponse:
+    user_id = current_user_id(x_user_id)
+    return WatchlistResponse(user_id=user_id, tickers=store.get_watchlist(user_id))
+
+
+@app.post("/watchlist", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
+def add_watchlist(item: WatchlistRequest, x_user_id: str | None = Header(default=None)) -> WatchlistResponse:
+    ticker = item.ticker.upper()
+    if store.get_stock(ticker) is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    user_id = current_user_id(x_user_id)
+    return WatchlistResponse(user_id=user_id, tickers=store.add_watchlist(user_id, ticker))
+
+
+@app.delete("/watchlist/{ticker}", response_model=WatchlistResponse)
+def remove_watchlist(ticker: str, x_user_id: str | None = Header(default=None)) -> WatchlistResponse:
+    user_id = current_user_id(x_user_id)
+    return WatchlistResponse(user_id=user_id, tickers=store.remove_watchlist(user_id, ticker))
+
+
+@app.post("/analysis/{ticker}", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED)
+def create_analysis(ticker: str, request: AnalysisRequest) -> AnalysisResponse:
+    try:
+        return analysis_service.create(ticker, request.question)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/analysis/{analysis_id}", response_model=AnalysisResponse)
+def get_analysis(analysis_id: str) -> AnalysisResponse:
+    response = analysis_service.get(analysis_id)
+    if response is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return response
+
+
+@app.get("/analysis/{analysis_id}/trace")
+def get_trace(analysis_id: str) -> list[dict[str, object]]:
+    response = analysis_service.get(analysis_id)
+    if response is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return [step.model_dump() for step in response.trace]
+
+
+@app.get("/analysis/{analysis_id}/tokens")
+def get_tokens(analysis_id: str) -> dict[str, object]:
+    response = analysis_service.get(analysis_id)
+    if response is None:
+        raise HTTPException(status_code=404, detail="Analysis not found")
+    return response.token_usage.model_dump()
+
+
+@app.post("/claims/{claim_id}/examine", response_model=ExaminationResponse)
+def examine_claim(claim_id: str, request: ExaminationRequest) -> ExaminationResponse:
+    try:
+        return analysis_service.examine(claim_id, request.question_type)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@app.get("/", include_in_schema=False)
+def root(request: Request) -> dict[str, str]:
+    return {"name": settings.app_name, "docs": str(request.base_url) + "docs"}
+
