@@ -32,7 +32,8 @@ GET /stocks/{ticker}/indicators
 Returns technical indicators.
 
 GET /stocks/{ticker}/evidence
-Returns news and filing evidence.
+Returns technical, news, and filing evidence. Supports an optional q query
+parameter for local lexical-RAG retrieval.
 
 ## AI Analysis
 
@@ -41,6 +42,9 @@ Starts a Bull vs Bear analysis.
 
 GET /analysis/{analysis_id}
 Returns analysis result.
+
+GET /analysis
+Returns analysis runs created during the current runtime.
 
 GET /analysis/{analysis_id}/trace
 Returns agent trace.
