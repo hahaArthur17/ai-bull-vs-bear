@@ -24,3 +24,14 @@ Copy the repository-level .env.example to .env when you are ready to add
 Supabase or model-provider credentials. The deterministic demo provider remains
 the default until a real provider is implemented and selected explicitly.
 
+## Evidence import
+
+The standard-library RSS importer can turn a feed into the same evidence shape
+used by the API:
+
+    PYTHONPATH=backend python scripts/ingest_rss.py \
+      --ticker AAPL \
+      --url https://example.com/feed.xml
+
+The command prints JSON so it can be reviewed before being loaded into a
+database or checked into a demo-data fixture.
