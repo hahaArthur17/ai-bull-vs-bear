@@ -16,6 +16,7 @@ from app.schemas import (
 from app.services.demo_store import DemoStore
 from app.services.guardrails import DISCLAIMER, apply_guardrails
 from app.services.indicators import calculate_indicators
+from app.services.rag import retrieve_evidence
 
 
 class AnalysisService:
@@ -30,7 +31,11 @@ class AnalysisService:
         prices = self.store.get_prices(normalized)
         raw_indicators = calculate_indicators(normalized, prices)
         indicators = TechnicalIndicators.model_validate(raw_indicators)
-        evidence = [EvidenceItem.model_validate(item) for item in self.store.get_evidence(normalized)]
+        evidence_query = question or "technical momentum news filing risk uncertainty"
+        evidence = [
+            EvidenceItem.model_validate(item)
+            for item in retrieve_evidence(self.store.get_evidence(normalized), evidence_query)
+        ]
         technical_id = f"technical-{normalized.lower()}-001"
         bull_evidence = [technical_id, evidence[0].id] if evidence else [technical_id]
         bear_evidence = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
@@ -124,4 +129,3 @@ class AnalysisService:
                 disclaimer=DISCLAIMER,
             )
         raise KeyError(f"Unknown claim: {claim_id}")
-

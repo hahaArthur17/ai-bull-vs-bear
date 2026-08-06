@@ -19,6 +19,7 @@ from app.schemas import (
 from app.services.analysis import AnalysisService
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
+from app.services.rag import retrieve_evidence
 
 settings = get_settings()
 store = DemoStore()
@@ -75,10 +76,16 @@ def get_indicators(ticker: str) -> TechnicalIndicators:
 
 
 @app.get("/stocks/{ticker}/evidence", response_model=list[EvidenceItem])
-def get_evidence(ticker: str) -> list[EvidenceItem]:
+def get_evidence(
+    ticker: str,
+    q: str | None = Query(default=None, max_length=300),
+) -> list[EvidenceItem]:
     if store.get_stock(ticker) is None:
         raise HTTPException(status_code=404, detail="Stock not found")
-    return [EvidenceItem.model_validate(item) for item in store.get_evidence(ticker)]
+    documents = store.get_evidence(ticker)
+    if q:
+        documents = retrieve_evidence(documents, q)
+    return [EvidenceItem.model_validate(item) for item in documents]
 
 
 @app.get("/watchlist", response_model=WatchlistResponse)
