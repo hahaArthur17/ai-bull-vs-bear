@@ -1,0 +1,601 @@
+import { StatusBar } from "expo-status-bar";
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  ActivityIndicator,
+  Pressable,
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  TextInput,
+  View,
+} from "react-native";
+
+import { api } from "./src/api";
+import type {
+  AnalysisResponse,
+  Claim,
+  EvidenceItem,
+  ExaminationResponse,
+  Stock,
+  StockBundle,
+} from "./src/types";
+
+type Screen = "watchlist" | "stock" | "debate" | "evidence" | "examine" | "history" | "about";
+
+const palette = {
+  ink: "#1e2826",
+  muted: "#71807a",
+  paper: "#f5f1e8",
+  card: "#fffdf8",
+  line: "#d8d5ca",
+  signal: "#d95c3b",
+  bull: "#3e8b6d",
+  bear: "#b95455",
+  accent: "#1d5c56",
+};
+
+export default function App() {
+  const [screen, setScreen] = useState<Screen>("watchlist");
+  const [stocks, setStocks] = useState<Stock[]>([]);
+  const [watchlist, setWatchlist] = useState<string[]>([]);
+  const [selectedTicker, setSelectedTicker] = useState("AAPL");
+  const [selectedBundle, setSelectedBundle] = useState<StockBundle | null>(null);
+  const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
+  const [examination, setExamination] = useState<ExaminationResponse | null>(null);
+  const [history, setHistory] = useState<AnalysisResponse[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const loadHome = async () => {
+    try {
+      setError("");
+      const [stockResult, watchlistResult] = await Promise.all([api.listStocks(), api.getWatchlist()]);
+      setStocks(stockResult);
+      setWatchlist(watchlistResult.tickers);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load the demo API.");
+    }
+  };
+
+  useEffect(() => {
+    void loadHome();
+  }, []);
+
+  const openStock = async (ticker: string) => {
+    setSelectedTicker(ticker);
+    setScreen("stock");
+    setSelectedBundle(null);
+    setLoading(true);
+    setError("");
+    try {
+      setSelectedBundle(await api.getStockBundle(ticker));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load stock details.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const toggleWatchlist = async (ticker: string) => {
+    try {
+      const next = watchlist.includes(ticker)
+        ? await api.removeFromWatchlist(ticker)
+        : await api.addToWatchlist(ticker);
+      setWatchlist(next.tickers);
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not update the watchlist.");
+    }
+  };
+
+  const startDebate = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const nextAnalysis = await api.runAnalysis(selectedTicker);
+      setAnalysis(nextAnalysis);
+      setHistory((current) => [nextAnalysis, ...current.filter((item) => item.analysis_id !== nextAnalysis.analysis_id)]);
+      setScreen("debate");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not run the analysis.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const openExamination = (claim: Claim) => {
+    setSelectedClaim(claim);
+    setExamination(null);
+    setScreen("examine");
+  };
+
+  const askQuestion = async (questionType: ExaminationResponse["question_type"]) => {
+    if (!selectedClaim) return;
+    setLoading(true);
+    try {
+      setExamination(await api.examineClaim(selectedClaim.id, questionType));
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const renderScreen = () => {
+    if (screen === "stock") {
+      return (
+        <StockDetailScreen
+          bundle={selectedBundle}
+          loading={loading}
+          onBack={() => setScreen("watchlist")}
+          onEvidence={() => setScreen("evidence")}
+          onDebate={startDebate}
+          isWatched={watchlist.includes(selectedTicker)}
+          onToggleWatchlist={() => void toggleWatchlist(selectedTicker)}
+        />
+      );
+    }
+    if (screen === "debate") {
+      return (
+        <DebateScreen
+          ticker={selectedTicker}
+          analysis={analysis}
+          loading={loading}
+          onBack={() => setScreen("stock")}
+          onExamine={openExamination}
+          onRun={startDebate}
+        />
+      );
+    }
+    if (screen === "evidence") {
+      return (
+        <EvidenceScreen
+          ticker={selectedTicker}
+          evidence={analysis?.evidence || selectedBundle?.evidence || []}
+          onBack={() => setScreen(analysis ? "debate" : "stock")}
+        />
+      );
+    }
+    if (screen === "examine") {
+      return (
+        <ExaminationScreen
+          claim={selectedClaim}
+          result={examination}
+          loading={loading}
+          onBack={() => setScreen("debate")}
+          onAsk={askQuestion}
+        />
+      );
+    }
+    if (screen === "history") {
+      return <HistoryScreen history={history} onOpen={(item) => { setSelectedTicker(item.ticker); setAnalysis(item); setScreen("debate"); }} />;
+    }
+    if (screen === "about") {
+      return <AboutScreen />;
+    }
+    return (
+      <WatchlistScreen
+        stocks={stocks}
+        watchlist={watchlist}
+        error={error}
+        onOpen={openStock}
+        onToggle={toggleWatchlist}
+        onRetry={() => void loadHome()}
+      />
+    );
+  };
+
+  const nav = (next: Screen) => {
+    if (next === "watchlist") setScreen("watchlist");
+    if (next === "history") setScreen("history");
+    if (next === "about") setScreen("about");
+  };
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar style="dark" />
+      <View style={styles.appShell}>
+        {error && screen !== "watchlist" ? (
+          <Pressable style={styles.errorBanner} onPress={() => setError("")}>
+            <Text style={styles.errorText}>{error}</Text>
+          </Pressable>
+        ) : null}
+        {renderScreen()}
+        <View style={styles.bottomNav}>
+          <NavButton label="Watchlist" active={screen === "watchlist"} onPress={() => nav("watchlist")} />
+          <NavButton label="Signals" active={screen === "stock" || screen === "debate" || screen === "evidence" || screen === "examine"} onPress={() => void openStock(selectedTicker)} />
+          <NavButton label="History" active={screen === "history"} onPress={() => nav("history")} />
+          <NavButton label="About" active={screen === "about"} onPress={() => nav("about")} />
+        </View>
+      </View>
+    </SafeAreaView>
+  );
+}
+
+function WatchlistScreen({
+  stocks,
+  watchlist,
+  error,
+  onOpen,
+  onToggle,
+  onRetry,
+}: {
+  stocks: Stock[];
+  watchlist: string[];
+  error: string;
+  onOpen: (ticker: string) => void;
+  onToggle: (ticker: string) => void;
+  onRetry: () => void;
+}) {
+  const [query, setQuery] = useState("");
+  const filtered = useMemo(
+    () => stocks.filter((stock) => (stock.ticker + " " + stock.company_name).toLowerCase().includes(query.toLowerCase())),
+    [query, stocks],
+  );
+  const visible = filtered.filter((stock) => watchlist.includes(stock.ticker));
+
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <Text style={styles.eyebrow}>SIGNAL / COUNTERPOINT</Text>
+      <Text style={styles.heroTitle}>Make the signal legible.</Text>
+      <Text style={styles.heroBody}>Educational context for stock movement, with evidence on both sides.</Text>
+      {error ? (
+        <View style={styles.errorCard}>
+          <Text style={styles.errorText}>{error}</Text>
+          <Pressable style={styles.smallButton} onPress={onRetry}><Text style={styles.smallButtonText}>Retry</Text></Pressable>
+        </View>
+      ) : null}
+      <SectionHeader title="Your watchlist" meta={visible.length + " symbols"} />
+      {visible.map((stock) => (
+        <StockRow key={stock.ticker} stock={stock} watched onOpen={onOpen} onToggle={onToggle} />
+      ))}
+      <SectionHeader title="Supported demo stocks" meta="cached data" />
+      <TextInput
+        placeholder="Search ticker or company"
+        placeholderTextColor={palette.muted}
+        value={query}
+        onChangeText={setQuery}
+        style={styles.search}
+        autoCapitalize="characters"
+      />
+      {filtered.map((stock) => (
+        <StockRow key={stock.ticker} stock={stock} watched={watchlist.includes(stock.ticker)} onOpen={onOpen} onToggle={onToggle} />
+      ))}
+      <View style={styles.disclaimerBox}>
+        <Text style={styles.disclaimerText}>For educational purposes only. This app does not provide financial advice.</Text>
+      </View>
+    </ScrollView>
+  );
+}
+
+function StockRow({
+  stock,
+  watched,
+  onOpen,
+  onToggle,
+}: {
+  stock: Stock;
+  watched: boolean;
+  onOpen: (ticker: string) => void;
+  onToggle: (ticker: string) => void;
+}) {
+  return (
+    <View style={styles.stockRow}>
+      <Pressable style={styles.stockMain} onPress={() => onOpen(stock.ticker)}>
+        <View style={styles.symbolBadge}><Text style={styles.symbolText}>{stock.ticker.slice(0, 1)}</Text></View>
+        <View style={styles.stockCopy}>
+          <Text style={styles.stockTicker}>{stock.ticker}</Text>
+          <Text style={styles.stockCompany}>{stock.company_name}</Text>
+        </View>
+      </Pressable>
+      <Pressable onPress={() => onToggle(stock.ticker)} style={styles.starButton}>
+        <Text style={[styles.star, watched && styles.starActive]}>{watched ? "★" : "☆"}</Text>
+      </Pressable>
+    </View>
+  );
+}
+
+function StockDetailScreen({
+  bundle,
+  loading,
+  onBack,
+  onEvidence,
+  onDebate,
+  isWatched,
+  onToggleWatchlist,
+}: {
+  bundle: StockBundle | null;
+  loading: boolean;
+  onBack: () => void;
+  onEvidence: () => void;
+  onDebate: () => void;
+  isWatched: boolean;
+  onToggleWatchlist: () => void;
+}) {
+  if (loading || !bundle) return <LoadingView label="Loading stock detail..." onBack={onBack} />;
+  const latest = bundle.prices[bundle.prices.length - 1];
+  const chart = bundle.prices.slice(-16);
+  const maxClose = Math.max(...chart.map((item) => item.close));
+  const minClose = Math.min(...chart.map((item) => item.close));
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <BackButton onPress={onBack} />
+      <View style={styles.detailHeader}>
+        <View>
+          <Text style={styles.eyebrow}>{bundle.stock.exchange} · CACHED DAILY DATA</Text>
+          <Text style={styles.detailTitle}>{bundle.stock.company_name}</Text>
+          <Text style={styles.detailTicker}>{bundle.stock.ticker} · {bundle.stock.sector}</Text>
+        </View>
+        <Pressable onPress={onToggleWatchlist}><Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text></Pressable>
+      </View>
+      <View style={styles.priceCard}>
+        <Text style={styles.cardLabel}>LATEST CLOSE</Text>
+        <Text style={styles.priceValue}>{"$"}{latest.close.toFixed(2)}</Text>
+        <Text style={styles.mutedText}>As of {latest.date}</Text>
+        <View style={styles.chart}>
+          {chart.map((point) => {
+            const height = 16 + ((point.close - minClose) / Math.max(1, maxClose - minClose)) * 70;
+            return <View key={point.date} style={[styles.chartBar, { height }]} />;
+          })}
+        </View>
+      </View>
+      <SectionHeader title="Signal snapshot" meta="technical agent" />
+      <View style={styles.metricGrid}>
+        <Metric label="RSI" value={bundle.indicators.rsi.toFixed(1)} />
+        <Metric label="MACD" value={bundle.indicators.macd.toFixed(2)} />
+        <Metric label="MA20" value={bundle.indicators.moving_average_20.toFixed(2)} />
+        <Metric label="Volatility" value={bundle.indicators.volatility.toFixed(1) + "%"} />
+      </View>
+      <View style={styles.signalCard}><Text style={styles.signalText}>{bundle.indicators.signal_summary}</Text></View>
+      <View style={styles.actionRow}>
+        <Pressable style={styles.secondaryButton} onPress={onEvidence}><Text style={styles.secondaryButtonText}>Evidence board</Text></Pressable>
+        <Pressable style={styles.primaryButton} onPress={onDebate}><Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text></Pressable>
+      </View>
+    </ScrollView>
+  );
+}
+
+function DebateScreen({
+  ticker,
+  analysis,
+  loading,
+  onBack,
+  onExamine,
+  onRun,
+}: {
+  ticker: string;
+  analysis: AnalysisResponse | null;
+  loading: boolean;
+  onBack: () => void;
+  onExamine: (claim: Claim) => void;
+  onRun: () => void;
+}) {
+  if (loading && !analysis) return <LoadingView label="Running the evidence workflow..." onBack={onBack} />;
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <BackButton onPress={onBack} />
+      <View style={styles.detailHeader}>
+        <View><Text style={styles.eyebrow}>LIVE TRACE · {ticker}</Text><Text style={styles.detailTitle}>Debate Arena</Text></View>
+        <Text style={styles.liveDot}>●</Text>
+      </View>
+      {!analysis ? (
+        <View style={styles.emptyCard}>
+          <Text style={styles.cardTitle}>No analysis run yet</Text>
+          <Text style={styles.mutedText}>Run the deterministic demo workflow to see the Bull, Bear, Judge, and Guardrail agents.</Text>
+          <Pressable style={styles.primaryButton} onPress={onRun}><Text style={styles.primaryButtonText}>Run analysis</Text></Pressable>
+        </View>
+      ) : (
+        <>
+          <View style={styles.judgeCard}>
+            <View style={styles.rowBetween}><Text style={styles.cardLabel}>JUDGE SYNTHESIS</Text><Text style={styles.confidence}>{analysis.judge.evidence_strength} evidence</Text></View>
+            <Text style={styles.judgeTitle}>{analysis.judge.summary}</Text>
+            <Text style={styles.mutedText}>{analysis.judge.uncertainty}</Text>
+            <Text style={styles.riskPill}>Risk level · {analysis.judge.risk_level}</Text>
+          </View>
+          <ClaimCard claim={analysis.bull} onExamine={onExamine} />
+          <ClaimCard claim={analysis.bear} onExamine={onExamine} />
+          <View style={styles.traceCard}>
+            <View style={styles.rowBetween}><Text style={styles.cardLabel}>AGENT TRACE</Text><Text style={styles.mutedText}>{analysis.token_usage.model_name}</Text></View>
+            {analysis.trace.map((step) => <Text key={step.step} style={styles.traceLine}>✓ {step.step.replace(/_/g, " ")} — {step.detail}</Text>)}
+            <Text style={styles.traceLine}>Token ledger: {analysis.token_usage.total_tokens} demo tokens</Text>
+          </View>
+          <Text style={styles.safeNote}>{analysis.disclaimer}</Text>
+        </>
+      )}
+    </ScrollView>
+  );
+}
+
+function ClaimCard({ claim, onExamine }: { claim: Claim; onExamine: (claim: Claim) => void }) {
+  const isBull = claim.agent === "bull";
+  return (
+    <View style={[styles.claimCard, { borderLeftColor: isBull ? palette.bull : palette.bear }]}>
+      <View style={styles.rowBetween}><Text style={[styles.cardLabel, { color: isBull ? palette.bull : palette.bear }]}>{isBull ? "BULL AGENT" : "BEAR AGENT"}</Text><Text style={styles.mutedText}>{claim.confidence} confidence</Text></View>
+      <Text style={styles.claimText}>{claim.text}</Text>
+      <Text style={styles.evidenceIds}>Evidence · {claim.evidence_ids.join(" + ")}</Text>
+      <Pressable onPress={() => onExamine(claim)}><Text style={styles.examineLink}>Tap to cross-examine →</Text></Pressable>
+    </View>
+  );
+}
+
+function EvidenceScreen({ ticker, evidence, onBack }: { ticker: string; evidence: EvidenceItem[]; onBack: () => void }) {
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <BackButton onPress={onBack} />
+      <Text style={styles.eyebrow}>{ticker} · WHAT THE AGENTS USED</Text>
+      <Text style={styles.detailTitle}>Evidence Board</Text>
+      {evidence.length === 0 ? <Text style={styles.mutedText}>No evidence is available yet.</Text> : evidence.map((item) => (
+        <View key={item.id} style={styles.evidenceCard}>
+          <View style={styles.rowBetween}><Text style={styles.evidenceTag}>{item.id}</Text><Text style={styles.mutedText}>{item.source_type}</Text></View>
+          <Text style={styles.cardTitle}>{item.title}</Text>
+          <Text style={styles.mutedText}>{item.excerpt}</Text>
+          <Text style={styles.sourceText}>{item.metadata.source || "cached demo source"} · {item.published_at || "undated"}</Text>
+        </View>
+      ))}
+      <Text style={styles.safeNote}>Evidence is shown for interpretation, not as a recommendation.</Text>
+    </ScrollView>
+  );
+}
+
+function ExaminationScreen({
+  claim,
+  result,
+  loading,
+  onBack,
+  onAsk,
+}: {
+  claim: Claim | null;
+  result: ExaminationResponse | null;
+  loading: boolean;
+  onBack: () => void;
+  onAsk: (questionType: ExaminationResponse["question_type"]) => void;
+}) {
+  if (!claim) return <LoadingView label="No claim selected." onBack={onBack} />;
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <BackButton onPress={onBack} />
+      <Text style={styles.eyebrow}>SELECTED {claim.agent.toUpperCase()} CLAIM</Text>
+      <Text style={styles.detailTitle}>Cross Examination</Text>
+      <View style={styles.answerCard}><Text style={styles.cardTitle}>{claim.text}</Text><Text style={styles.evidenceIds}>{claim.evidence_ids.join(" + ")}</Text></View>
+      <SectionHeader title="Ask a focused question" meta="explanation agent" />
+      {([
+        ["evidence_support", "What evidence supports this?"],
+        ["explain_term", "What does this term mean?"],
+        ["signal_strength", "How strong is the signal?"],
+        ["risk_meaning", "What is the risk meaning?"],
+      ] as const).map(([type, label]) => (
+        <Pressable key={type} style={styles.questionButton} onPress={() => onAsk(type)}><Text style={styles.questionText}>{label}</Text></Pressable>
+      ))}
+      {loading ? <ActivityIndicator color={palette.accent} style={styles.loader} /> : null}
+      {result ? <View style={styles.answerCard}><Text style={styles.cardLabel}>ANSWER</Text><Text style={styles.answerText}>{result.answer}</Text><Text style={styles.safeNote}>{result.disclaimer}</Text></View> : null}
+    </ScrollView>
+  );
+}
+
+function HistoryScreen({ history, onOpen }: { history: AnalysisResponse[]; onOpen: (item: AnalysisResponse) => void }) {
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <Text style={styles.eyebrow}>ANALYSIS RUNS</Text>
+      <Text style={styles.detailTitle}>History</Text>
+      {history.length === 0 ? <View style={styles.emptyCard}><Text style={styles.cardTitle}>No local runs yet</Text><Text style={styles.mutedText}>Start a Bull vs Bear debate from a stock detail page.</Text></View> : history.map((item) => (
+        <Pressable key={item.analysis_id} style={styles.historyRow} onPress={() => onOpen(item)}>
+          <View><Text style={styles.stockTicker}>{item.ticker}</Text><Text style={styles.mutedText}>{new Date(item.created_at).toLocaleString()}</Text></View>
+          <Text style={styles.examineLink}>Open →</Text>
+        </Pressable>
+      ))}
+    </ScrollView>
+  );
+}
+
+function AboutScreen() {
+  return (
+    <ScrollView contentContainerStyle={styles.page}>
+      <Text style={styles.eyebrow}>ABOUT THIS DEMO</Text>
+      <Text style={styles.detailTitle}>AI Bull vs Bear</Text>
+      <Text style={styles.heroBody}>An educational Agentic RAG demo that places technical signals, news, filing evidence, and two competing explanations side by side.</Text>
+      <View style={styles.aboutCard}><Text style={styles.cardTitle}>Safety by design</Text><Text style={styles.mutedText}>The app is designed to explain evidence and uncertainty. It does not provide buy, sell, hold, or personalised financial advice.</Text></View>
+      <View style={styles.aboutCard}><Text style={styles.cardTitle}>Demo mode</Text><Text style={styles.mutedText}>The default provider uses deterministic cached data so the app can run without API keys. Supabase and model providers can be connected later through environment variables.</Text></View>
+    </ScrollView>
+  );
+}
+
+function SectionHeader({ title, meta }: { title: string; meta: string }) {
+  return <View style={styles.sectionHeader}><Text style={styles.sectionTitle}>{title}</Text><Text style={styles.mutedText}>{meta}</Text></View>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) {
+  return <View style={styles.metric}><Text style={styles.cardLabel}>{label}</Text><Text style={styles.metricValue}>{value}</Text></View>;
+}
+
+function BackButton({ onPress }: { onPress: () => void }) {
+  return <Pressable onPress={onPress} style={styles.backButton}><Text style={styles.backText}>← Back</Text></Pressable>;
+}
+
+function LoadingView({ label, onBack }: { label: string; onBack: () => void }) {
+  return <View style={styles.loading}><BackButton onPress={onBack} /><ActivityIndicator color={palette.accent} size="large" /><Text style={styles.mutedText}>{label}</Text></View>;
+}
+
+function NavButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
+  return <Pressable onPress={onPress} style={styles.navButton}><Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text></Pressable>;
+}
+
+const styles = StyleSheet.create({
+  safeArea: { flex: 1, backgroundColor: palette.paper },
+  appShell: { flex: 1 },
+  page: { padding: 22, paddingBottom: 110 },
+  eyebrow: { color: palette.signal, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, marginBottom: 8 },
+  heroTitle: { color: palette.ink, fontSize: 38, lineHeight: 42, fontWeight: "800", marginBottom: 10 },
+  heroBody: { color: palette.muted, fontSize: 16, lineHeight: 24, marginBottom: 26 },
+  sectionHeader: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginTop: 18, marginBottom: 10 },
+  sectionTitle: { color: palette.ink, fontSize: 17, fontWeight: "800" },
+  mutedText: { color: palette.muted, fontSize: 13, lineHeight: 20 },
+  stockRow: { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.line, borderRadius: 16, padding: 12, flexDirection: "row", alignItems: "center", marginBottom: 10 },
+  stockMain: { flex: 1, flexDirection: "row", alignItems: "center" },
+  symbolBadge: { backgroundColor: palette.accent, borderRadius: 12, width: 42, height: 42, alignItems: "center", justifyContent: "center" },
+  symbolText: { color: "#fff", fontSize: 18, fontWeight: "800" },
+  stockCopy: { marginLeft: 12 },
+  stockTicker: { color: palette.ink, fontSize: 16, fontWeight: "800" },
+  stockCompany: { color: palette.muted, fontSize: 13, marginTop: 3 },
+  starButton: { padding: 8 },
+  star: { color: palette.muted, fontSize: 26 },
+  starActive: { color: palette.signal },
+  search: { borderColor: palette.line, borderWidth: 1, borderRadius: 12, padding: 13, color: palette.ink, backgroundColor: palette.card, marginBottom: 14 },
+  disclaimerBox: { padding: 16, backgroundColor: "#ebe4d3", borderRadius: 14, marginTop: 20 },
+  disclaimerText: { color: palette.ink, fontSize: 12, lineHeight: 18 },
+  errorCard: { padding: 14, backgroundColor: "#fae2db", borderRadius: 12, marginBottom: 14 },
+  errorBanner: { backgroundColor: "#fae2db", paddingHorizontal: 16, paddingVertical: 8 },
+  errorText: { color: "#8d332b", fontSize: 12, lineHeight: 18 },
+  smallButton: { marginTop: 8, alignSelf: "flex-start", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: palette.signal },
+  smallButtonText: { color: "#fff", fontWeight: "700" },
+  backButton: { marginBottom: 18, alignSelf: "flex-start" },
+  backText: { color: palette.accent, fontWeight: "800" },
+  detailHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-start", marginBottom: 20 },
+  detailTitle: { color: palette.ink, fontSize: 30, fontWeight: "800", marginBottom: 6 },
+  detailTicker: { color: palette.muted, fontSize: 14 },
+  priceCard: { backgroundColor: palette.accent, borderRadius: 20, padding: 20, marginBottom: 22 },
+  cardLabel: { color: palette.muted, fontSize: 10, fontWeight: "800", letterSpacing: 1.1, marginBottom: 7 },
+  priceValue: { color: "#fffdf8", fontSize: 36, fontWeight: "800" },
+  chart: { height: 96, flexDirection: "row", alignItems: "flex-end", gap: 4, marginTop: 16 },
+  chartBar: { backgroundColor: "#9bc6ac", flex: 1, borderRadius: 4, minHeight: 8 },
+  metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
+  metric: { width: "47%", backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 14, padding: 14 },
+  metricValue: { color: palette.ink, fontSize: 20, fontWeight: "800" },
+  signalCard: { backgroundColor: "#e9f0e5", padding: 14, borderRadius: 14, marginVertical: 16 },
+  signalText: { color: palette.accent, lineHeight: 20, fontWeight: "700" },
+  actionRow: { gap: 10, marginTop: 8 },
+  primaryButton: { backgroundColor: palette.signal, borderRadius: 12, padding: 15, alignItems: "center", marginTop: 14 },
+  primaryButtonText: { color: "#fff", fontWeight: "800", fontSize: 14 },
+  secondaryButton: { borderColor: palette.accent, borderWidth: 1, borderRadius: 12, padding: 14, alignItems: "center" },
+  secondaryButtonText: { color: palette.accent, fontWeight: "800" },
+  liveDot: { color: palette.signal, fontSize: 20 },
+  judgeCard: { backgroundColor: "#e9f0e5", padding: 18, borderRadius: 18, marginBottom: 14 },
+  rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
+  confidence: { color: palette.bull, fontSize: 12, fontWeight: "700" },
+  judgeTitle: { color: palette.ink, fontSize: 19, lineHeight: 25, fontWeight: "800", marginVertical: 8 },
+  riskPill: { color: palette.bear, fontWeight: "700", marginTop: 10 },
+  claimCard: { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.line, borderLeftWidth: 5, borderRadius: 15, padding: 16, marginBottom: 12 },
+  claimText: { color: palette.ink, fontSize: 15, lineHeight: 22, marginBottom: 12 },
+  evidenceIds: { color: palette.muted, fontSize: 12, marginBottom: 12 },
+  examineLink: { color: palette.accent, fontWeight: "800", fontSize: 13 },
+  traceCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 15, padding: 16, marginTop: 8 },
+  traceLine: { color: palette.muted, fontSize: 12, lineHeight: 19, marginTop: 7 },
+  safeNote: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 16 },
+  evidenceCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 15, padding: 16, marginBottom: 12 },
+  evidenceTag: { color: palette.signal, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
+  cardTitle: { color: palette.ink, fontSize: 16, fontWeight: "800", lineHeight: 22, marginBottom: 6 },
+  sourceText: { color: palette.muted, fontSize: 11, marginTop: 12 },
+  answerCard: { backgroundColor: "#fff5e4", borderRadius: 15, padding: 16, marginBottom: 14 },
+  questionButton: { borderColor: palette.line, borderWidth: 1, backgroundColor: palette.card, borderRadius: 12, padding: 15, marginBottom: 9 },
+  questionText: { color: palette.ink, fontWeight: "700" },
+  answerText: { color: palette.ink, fontSize: 15, lineHeight: 23, marginBottom: 10 },
+  loader: { margin: 14 },
+  emptyCard: { backgroundColor: palette.card, borderRadius: 16, padding: 20, borderColor: palette.line, borderWidth: 1 },
+  historyRow: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 14, padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  aboutCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
+  loading: { flex: 1, padding: 22, alignItems: "center", justifyContent: "center", gap: 14 },
+  bottomNav: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: palette.card, borderTopWidth: 1, borderTopColor: palette.line, flexDirection: "row", justifyContent: "space-around", paddingVertical: 13, paddingBottom: 18 },
+  navButton: { paddingHorizontal: 8 },
+  navLabel: { color: palette.muted, fontSize: 12, fontWeight: "700" },
+  navLabelActive: { color: palette.signal },
+});

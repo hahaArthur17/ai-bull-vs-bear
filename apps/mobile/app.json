@@ -1,0 +1,16 @@
+{
+  "expo": {
+    "name": "AI Bull vs Bear",
+    "slug": "ai-bull-vs-bear",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#f5f1e8"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ]
+  }
+}
