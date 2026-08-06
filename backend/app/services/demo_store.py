@@ -165,7 +165,30 @@ class DemoStore:
         return [point.copy() for point in self._prices.get(ticker.upper(), [])]
 
     def get_evidence(self, ticker: str) -> list[dict[str, object]]:
-        return [item.copy() for item in self._evidence.get(ticker.upper(), [])]
+        normalized = ticker.upper()
+        technical = [
+            {
+                "id": f"technical-{normalized.lower()}-001",
+                "ticker": normalized,
+                "source_type": "technical",
+                "title": "Price and moving-average signal",
+                "url": None,
+                "published_at": None,
+                "excerpt": "Calculated from the cached OHLCV series; this signal is descriptive and not a prediction.",
+                "metadata": {"source": "Technical Agent"},
+            },
+            {
+                "id": f"technical-{normalized.lower()}-004",
+                "ticker": normalized,
+                "source_type": "technical",
+                "title": "Volatility and volume context",
+                "url": None,
+                "published_at": None,
+                "excerpt": "Calculated volatility and volume context add uncertainty to the interpretation.",
+                "metadata": {"source": "Technical Agent"},
+            },
+        ]
+        return technical + [item.copy() for item in self._evidence.get(normalized, [])]
 
     def get_watchlist(self, user_id: str) -> list[str]:
         with self._lock:
@@ -190,4 +213,3 @@ class DemoStore:
 
     def list_analyses(self) -> list[object]:
         return list(self._analyses.values())
-

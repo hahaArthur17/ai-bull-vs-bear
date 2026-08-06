@@ -110,6 +110,11 @@ def create_analysis(ticker: str, request: AnalysisRequest) -> AnalysisResponse:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
+@app.get("/analysis", response_model=list[AnalysisResponse])
+def list_analysis() -> list[AnalysisResponse]:
+    return [item for item in store.list_analyses() if isinstance(item, AnalysisResponse)]
+
+
 @app.get("/analysis/{analysis_id}", response_model=AnalysisResponse)
 def get_analysis(analysis_id: str) -> AnalysisResponse:
     response = analysis_service.get(analysis_id)
@@ -145,4 +150,3 @@ def examine_claim(claim_id: str, request: ExaminationRequest) -> ExaminationResp
 @app.get("/", include_in_schema=False)
 def root(request: Request) -> dict[str, str]:
     return {"name": settings.app_name, "docs": str(request.base_url) + "docs"}
-

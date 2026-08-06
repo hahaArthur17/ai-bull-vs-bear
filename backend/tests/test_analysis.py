@@ -8,7 +8,7 @@ def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
     assert response.ticker == "AAPL"
     assert response.bull.evidence_ids
     assert response.bear.evidence_ids
+    assert {item.id for item in response.evidence} >= set(response.bull.evidence_ids + response.bear.evidence_ids)
     assert len(response.trace) == 8
     examined = service.examine(response.bull.id, "evidence_support")
     assert examined.evidence
-
