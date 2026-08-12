@@ -151,6 +151,7 @@ activemq-data/
 .env
 .envrc
 node_modules/
+.expo/
 .venv
 env/
 venv/
