@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     environment: str = "development"
     auth_mode: str = "demo"
     demo_user_id: str = "demo-user"
+    persistence_mode: str = "demo"
     analysis_provider: str = "demo"
     supabase_url: str | None = None
     supabase_anon_key: str | None = None

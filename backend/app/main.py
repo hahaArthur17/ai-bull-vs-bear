@@ -4,6 +4,7 @@ from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.config import get_settings
 from app.schemas import (
@@ -24,9 +25,15 @@ from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
 from app.services.rag import retrieve_evidence
+from app.services.supabase_store import RepositoryError, SupabaseStore
 
 settings = get_settings()
-store = DemoStore()
+if settings.persistence_mode.lower().strip() == "supabase":
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise RuntimeError("Supabase persistence requires SUPABASE_URL and SUPABASE_ANON_KEY")
+    store = SupabaseStore(settings.supabase_url, settings.supabase_anon_key)
+else:
+    store = DemoStore()
 analysis_service = AnalysisService(store)
 
 app = FastAPI(
@@ -41,6 +48,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.exception_handler(RepositoryError)
+def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResponse:
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Persistence service unavailable"},
+    )
 
 
 def current_auth(
@@ -109,7 +124,10 @@ def get_evidence(
 
 @app.get("/watchlist", response_model=WatchlistResponse)
 def get_watchlist(auth: Annotated[AuthContext, Depends(current_auth)]) -> WatchlistResponse:
-    return WatchlistResponse(user_id=auth.user_id, tickers=store.get_watchlist(auth.user_id))
+    return WatchlistResponse(
+        user_id=auth.user_id,
+        tickers=store.get_watchlist(auth.user_id, auth.access_token),
+    )
 
 
 @app.post("/watchlist", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
@@ -120,7 +138,10 @@ def add_watchlist(
     ticker = item.ticker.upper()
     if store.get_stock(ticker) is None:
         raise HTTPException(status_code=404, detail="Stock not found")
-    return WatchlistResponse(user_id=auth.user_id, tickers=store.add_watchlist(auth.user_id, ticker))
+    return WatchlistResponse(
+        user_id=auth.user_id,
+        tickers=store.add_watchlist(auth.user_id, ticker, auth.access_token),
+    )
 
 
 @app.delete("/watchlist/{ticker}", response_model=WatchlistResponse)
@@ -130,7 +151,7 @@ def remove_watchlist(
 ) -> WatchlistResponse:
     return WatchlistResponse(
         user_id=auth.user_id,
-        tickers=store.remove_watchlist(auth.user_id, ticker),
+        tickers=store.remove_watchlist(auth.user_id, ticker, auth.access_token),
     )
 
 
