@@ -6,7 +6,6 @@ import httpx
 
 from app.schemas import AnalysisResponse
 from app.services.demo_store import DemoStore
-from app.services.rag import embedding_literal, local_embedding
 
 
 class RepositoryError(RuntimeError):
@@ -127,7 +126,7 @@ class SupabaseStore(DemoStore):
         response = self._public_rpc(
             "match_evidence_chunks",
             {
-                "query_embedding": embedding_literal(local_embedding(query)),
+                "query_text": query,
                 "match_count": limit,
                 "filter_ticker": ticker.upper(),
                 "filter_source_type": None,

@@ -7,7 +7,7 @@ from typing import Iterable
 import httpx
 
 from app.services.ingestion import fetch_rss
-from app.services.rag import chunk_text, embedding_literal, local_embedding
+from app.services.rag import chunk_text
 
 
 SEC_CIKS = {
@@ -184,7 +184,6 @@ class EvidenceWriter:
             {
                 "document_id": document_id,
                 "chunk_text": chunk,
-                "embedding": embedding_literal(local_embedding(chunk)),
                 "metadata": {**metadata, "chunk_index": str(index)},
             }
             for index, chunk in enumerate(chunk_text(text), start=1)
