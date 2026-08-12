@@ -1,9 +1,20 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import app, settings
+from app.services.analysis import AnalysisService
+from app.services.demo_store import DemoStore
 
 
 client = TestClient(app)
+settings.auth_mode = "demo"
+
+
+@pytest.fixture(autouse=True)
+def demo_repository(monkeypatch: pytest.MonkeyPatch) -> None:
+    repository = DemoStore()
+    monkeypatch.setattr("app.main.store", repository)
+    monkeypatch.setattr("app.main.analysis_service", AnalysisService(repository))
 
 
 def test_health_and_stock_endpoints() -> None:

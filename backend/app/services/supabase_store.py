@@ -6,6 +6,7 @@ import httpx
 
 from app.schemas import AnalysisResponse
 from app.services.demo_store import DemoStore
+from app.services.rag import embedding_literal, local_embedding
 
 
 class RepositoryError(RuntimeError):
@@ -122,6 +123,35 @@ class SupabaseStore(DemoStore):
         ]
         return technical + live_documents if live_documents else technical
 
+    def search_evidence(self, ticker: str, query: str, limit: int = 6) -> list[dict[str, object]]:
+        response = self._public_rpc(
+            "match_evidence_chunks",
+            {
+                "query_embedding": embedding_literal(local_embedding(query)),
+                "match_count": limit,
+                "filter_ticker": ticker.upper(),
+                "filter_source_type": None,
+            },
+        )
+        return [
+            {
+                "id": f"chunk-{row['chunk_id']}",
+                "ticker": row["ticker"],
+                "source_type": row["source_type"],
+                "title": row["title"],
+                "url": row.get("url"),
+                "published_at": row.get("published_at"),
+                "excerpt": row["chunk_text"],
+                "metadata": {
+                    **(row.get("metadata") or {}),
+                    "document_id": str(row["document_id"]),
+                    "similarity": str(row["similarity"]),
+                    "storage": "supabase",
+                },
+            }
+            for row in response.json()
+        ]
+
     def _public_request(
         self,
         table: str,
@@ -143,6 +173,29 @@ class SupabaseStore(DemoStore):
         if response.status_code >= 400:
             raise RepositoryError(
                 f"Supabase {table} request failed with status {response.status_code}"
+            )
+        return response
+
+    def _public_rpc(self, function: str, payload: object) -> httpx.Response:
+        headers = {
+            "apikey": self.anon_key,
+            "Authorization": f"Bearer {self.anon_key}",
+            "Content-Type": "application/json",
+        }
+        try:
+            requester = self.client.request if self.client is not None else httpx.request
+            response = requester(
+                "POST",
+                f"{self.rest_url}/rpc/{function}",
+                json=payload,
+                headers=headers,
+                timeout=10.0,
+            )
+        except httpx.RequestError as exc:
+            raise RepositoryError("Supabase vector retrieval is unavailable") from exc
+        if response.status_code >= 400:
+            raise RepositoryError(
+                f"Supabase RPC {function} failed with status {response.status_code}"
             )
         return response
 

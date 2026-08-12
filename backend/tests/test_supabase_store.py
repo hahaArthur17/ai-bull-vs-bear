@@ -21,6 +21,24 @@ class FakePostgrest:
         body = __import__("json").loads(request.content or b"null")
         if table == "stocks":
             return httpx.Response(200, json=[{"id": 1}])
+        if table == "match_evidence_chunks":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "chunk_id": 4,
+                        "document_id": 12,
+                        "ticker": "AAPL",
+                        "source_type": "filing",
+                        "title": "AAPL 10-Q",
+                        "url": "https://www.sec.gov/example",
+                        "published_at": "2026-02-01T00:00:00+00:00",
+                        "chunk_text": "Supply chain risk context.",
+                        "metadata": {"source": "SEC EDGAR"},
+                        "similarity": 0.75,
+                    }
+                ],
+            )
         if table == "evidence_documents" and request.method == "GET" and "stock_id" in query:
             return httpx.Response(
                 200,
@@ -101,3 +119,13 @@ def test_supabase_evidence_combines_technical_and_live_documents() -> None:
 
     assert any(item["source_type"] == "technical" for item in evidence)
     assert any(item["id"] == "sec-aapl-example" for item in evidence)
+
+
+def test_supabase_search_uses_vector_rpc() -> None:
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    evidence = store.search_evidence("AAPL", "supply chain risk")
+
+    assert evidence[0]["id"] == "chunk-4"
+    assert evidence[0]["metadata"]["document_id"] == "12"

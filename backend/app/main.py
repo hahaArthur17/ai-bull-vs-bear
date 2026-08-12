@@ -121,7 +121,8 @@ def get_evidence(
         raise HTTPException(status_code=404, detail="Stock not found")
     documents = store.get_evidence(ticker)
     if q:
-        documents = retrieve_evidence(documents, q)
+        search_evidence = getattr(store, "search_evidence", None)
+        documents = search_evidence(ticker, q) if callable(search_evidence) else retrieve_evidence(documents, q)
     return [EvidenceItem.model_validate(item) for item in documents]
 
 

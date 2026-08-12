@@ -64,10 +64,13 @@ class AnalysisService:
         raw_indicators = calculate_indicators(normalized, prices)
         indicators = TechnicalIndicators.model_validate(raw_indicators)
         evidence_query = question or "technical momentum news filing risk uncertainty"
-        evidence = [
-            EvidenceItem.model_validate(item)
-            for item in retrieve_evidence(self.store.get_evidence(normalized), evidence_query)
-        ]
+        search_evidence = getattr(self.store, "search_evidence", None)
+        raw_evidence = (
+            search_evidence(normalized, evidence_query)
+            if callable(search_evidence)
+            else retrieve_evidence(self.store.get_evidence(normalized), evidence_query)
+        )
+        evidence = [EvidenceItem.model_validate(item) for item in raw_evidence]
         technical_id = f"technical-{normalized.lower()}-001"
         fallback_bull = [technical_id, evidence[0].id] if evidence else [technical_id]
         fallback_bear = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
