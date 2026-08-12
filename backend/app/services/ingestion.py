@@ -3,8 +3,9 @@ from __future__ import annotations
 import re
 from hashlib import sha1
 from html import unescape
-from urllib.request import Request, urlopen
 from xml.etree import ElementTree
+
+import httpx
 
 
 def _tag_name(tag: str) -> str:
@@ -69,10 +70,14 @@ def parse_rss(xml_text: str, ticker: str, limit: int = 20) -> list[dict[str, obj
 
 
 def fetch_rss(url: str, ticker: str, limit: int = 20, timeout: int = 15) -> list[dict[str, object]]:
-    request = Request(url, headers={"User-Agent": "AI-Bull-vs-Bear/0.1 educational demo"})
-    with urlopen(request, timeout=timeout) as response:
-        content = response.read().decode("utf-8", errors="replace")
-    return parse_rss(content, ticker, limit=limit)
+    response = httpx.get(
+        url,
+        headers={"User-Agent": "AI-Bull-vs-Bear/0.1 educational demo"},
+        timeout=timeout,
+        follow_redirects=True,
+    )
+    response.raise_for_status()
+    return parse_rss(response.text, ticker, limit=limit)
 
 
 def load_text_evidence(path: str, ticker: str, title: str) -> dict[str, object]:
