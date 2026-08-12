@@ -136,7 +136,8 @@ class EvidenceWriter:
         ingestion_time = datetime.now(timezone.utc).isoformat()
         for document in documents:
             ticker = str(document["ticker"])
-            metadata = dict(document.get("metadata", {}))
+            raw_metadata = document.get("metadata")
+            metadata = dict(raw_metadata) if isinstance(raw_metadata, dict) else {}
             metadata["ingested_at"] = ingestion_time
             payload = {
                 "stock_id": self.stock_id(ticker),
