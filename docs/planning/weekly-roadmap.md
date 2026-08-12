@@ -17,7 +17,7 @@ Last reviewed: 2026-08-12
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
 | Automated checks | Done | Backend unit/API tests and GitHub Actions CI are present. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
-| Supabase | In progress | Database schema and RLS policies exist; a dedicated project, schema deployment, Auth, and backend persistence remain. |
+| Supabase | In progress | Dedicated project, schema deployment, explicit Data API grants, URL/key configuration, and public API verification are done; Auth and backend persistence remain. |
 | Live market/evidence data | Planned | RSS ingestion utility exists; production feeds, SEC EDGAR ingestion, and scheduled refresh remain. |
 | Mobile verification | Planned | Dependency installation, typecheck, and device testing remain. |
 | Deployment | Planned | Backend hosting, mobile build, monitoring, and release checklist remain. |
@@ -69,8 +69,8 @@ Status: In progress
 - [x] Preserve safety guardrails and provider token accounting.
 - [x] Create and configure one real model API key.
 - [x] Run a live model analysis and record the verification result.
-- [ ] Create a dedicated Supabase project for AI Bull vs Bear.
-- [ ] Apply `backend/supabase/schema.sql`.
+- [x] Create a dedicated Supabase project for AI Bull vs Bear.
+- [x] Apply `backend/supabase/schema.sql`.
 - [ ] Enable Supabase Auth and connect persistent watchlists/analysis history.
 
 Completion rule: a real provider analysis succeeds locally, and Supabase stores
@@ -138,3 +138,6 @@ At the end of each week:
 - 2026-08-12: Select Groq as the first live provider; a real
   `llama-3.3-70b-versatile` analysis completed with validated evidence IDs and
   provider token usage.
+- 2026-08-12: Create a dedicated Supabase project, apply the ten-table schema,
+  and use explicit minimum Data API grants because automatic table exposure is
+  disabled.
