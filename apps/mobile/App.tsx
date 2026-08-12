@@ -1,5 +1,6 @@
 import { StatusBar } from "expo-status-bar";
 import React, { useEffect, useMemo, useState } from "react";
+import type { Session } from "@supabase/supabase-js";
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +13,8 @@ import {
 } from "react-native";
 
 import { api } from "./src/api";
+import { AuthScreen } from "./src/AuthScreen";
+import { isSupabaseConfigured, supabase } from "./src/supabase";
 import type {
   AnalysisResponse,
   Claim,
@@ -36,6 +39,8 @@ const palette = {
 };
 
 export default function App() {
+  const [authReady, setAuthReady] = useState(false);
+  const [session, setSession] = useState<Session | null>(null);
   const [screen, setScreen] = useState<Screen>("watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [watchlist, setWatchlist] = useState<string[]>([]);
@@ -60,8 +65,32 @@ export default function App() {
   };
 
   useEffect(() => {
-    void loadHome();
+    if (!supabase) {
+      setAuthReady(true);
+      return;
+    }
+    let active = true;
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) {
+        setSession(data.session);
+        setAuthReady(true);
+      }
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setAuthReady(true);
+    });
+    return () => {
+      active = false;
+      data.subscription.unsubscribe();
+    };
   }, []);
+
+  useEffect(() => {
+    if (authReady && (!isSupabaseConfigured || session)) {
+      void loadHome();
+    }
+  }, [authReady, session?.access_token]);
 
   const openStock = async (ticker: string) => {
     setSelectedTicker(ticker);
@@ -172,7 +201,7 @@ export default function App() {
       return <HistoryScreen history={history} onOpen={(item) => { setSelectedTicker(item.ticker); setAnalysis(item); setScreen("debate"); }} />;
     }
     if (screen === "about") {
-      return <AboutScreen />;
+      return <AboutScreen onSignOut={supabase ? () => void supabase?.auth.signOut() : undefined} />;
     }
     return (
       <WatchlistScreen
@@ -191,6 +220,17 @@ export default function App() {
     if (next === "history") setScreen("history");
     if (next === "about") setScreen("about");
   };
+
+  if (!authReady) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loading}><ActivityIndicator color={palette.accent} size="large" /></View>
+      </SafeAreaView>
+    );
+  }
+  if (isSupabaseConfigured && !session) {
+    return <AuthScreen />;
+  }
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -488,7 +528,7 @@ function HistoryScreen({ history, onOpen }: { history: AnalysisResponse[]; onOpe
   );
 }
 
-function AboutScreen() {
+function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <Text style={styles.eyebrow}>ABOUT THIS DEMO</Text>
@@ -496,6 +536,7 @@ function AboutScreen() {
       <Text style={styles.heroBody}>An educational Agentic RAG demo that places technical signals, news, filing evidence, and two competing explanations side by side.</Text>
       <View style={styles.aboutCard}><Text style={styles.cardTitle}>Safety by design</Text><Text style={styles.mutedText}>The app is designed to explain evidence and uncertainty. It does not provide buy, sell, hold, or personalised financial advice.</Text></View>
       <View style={styles.aboutCard}><Text style={styles.cardTitle}>Demo mode</Text><Text style={styles.mutedText}>The default provider uses deterministic cached data so the app can run without API keys. Supabase and model providers can be connected later through environment variables.</Text></View>
+      {onSignOut ? <Pressable style={styles.secondaryButton} onPress={onSignOut}><Text style={styles.secondaryButtonText}>Sign out</Text></Pressable> : null}
     </ScrollView>
   );
 }
