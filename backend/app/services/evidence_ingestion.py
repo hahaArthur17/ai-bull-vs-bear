@@ -205,7 +205,6 @@ def ingest_live_evidence(
     per_source_limit: int = 4,
 ) -> dict[str, int]:
     feeds = rss_feeds or {
-        "GOOG": "https://blog.google/feed/",
         "NVDA": "https://nvidianews.nvidia.com/releases.xml",
     }
     rss_count = 0
