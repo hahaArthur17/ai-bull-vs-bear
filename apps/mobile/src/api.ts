@@ -5,16 +5,17 @@ import type {
   StockBundle,
   WatchlistResponse,
 } from "./types";
+import { supabase } from "./supabase";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
-const USER_ID = "demo-user";
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const session = supabase ? (await supabase.auth.getSession()).data.session : null;
   const response = await fetch(API_URL + path, {
     ...options,
     headers: {
       "Content-Type": "application/json",
-      "X-User-Id": USER_ID,
+      ...(session ? { Authorization: `Bearer ${session.access_token}` } : {}),
       ...(options.headers || {}),
     },
   });
