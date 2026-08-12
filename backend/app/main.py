@@ -19,6 +19,7 @@ from app.schemas import (
 from app.services.analysis import AnalysisService
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
+from app.services.model_provider import ProviderError
 from app.services.rag import retrieve_evidence
 
 settings = get_settings()
@@ -115,6 +116,8 @@ def create_analysis(ticker: str, request: AnalysisRequest) -> AnalysisResponse:
         return analysis_service.create(ticker, request.question)
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ProviderError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @app.get("/analysis", response_model=list[AnalysisResponse])

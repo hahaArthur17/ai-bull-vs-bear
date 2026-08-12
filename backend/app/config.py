@@ -17,6 +17,8 @@ class Settings(BaseSettings):
     supabase_anon_key: str | None = None
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
+    groq_model: str = "llama-3.3-70b-versatile"
+    gemini_model: str = "gemini-2.0-flash"
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 
     model_config = SettingsConfigDict(
@@ -34,4 +36,3 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-

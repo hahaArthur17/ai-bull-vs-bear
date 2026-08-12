@@ -21,6 +21,8 @@ predictions, buy/sell/hold recommendations, or personalised financial advice.
   milestone.
 - Bull Agent, Bear Agent, Judge Agent, Guardrail Agent, evidence IDs, a trace,
   and a token ledger in the demo provider.
+- Groq and Gemini model-provider adapters with structured JSON validation,
+  evidence-ID filtering, token accounting, and the same safety guardrails.
 - Financial-advice rewrites and a required educational disclaimer.
 
 ## Run the backend
@@ -62,6 +64,21 @@ live model providers:
   GROQ_API_KEY.
 - Create a Gemini API key at https://aistudio.google.com/apikey and put it in
   GEMINI_API_KEY.
+
+To use a real model after adding one of those keys, set exactly one provider in
+the local .env file:
+
+    ANALYSIS_PROVIDER=groq
+    GROQ_API_KEY=your-local-key
+
+or:
+
+    ANALYSIS_PROVIDER=gemini
+    GEMINI_API_KEY=your-local-key
+
+The model name can be changed with GROQ_MODEL or GEMINI_MODEL. The backend
+returns HTTP 503 with a safe configuration message if a selected provider is
+missing its key; it never includes the key in a response.
 
 Never commit .env or paste secret keys into GitHub issues, README files, or
 chat messages.

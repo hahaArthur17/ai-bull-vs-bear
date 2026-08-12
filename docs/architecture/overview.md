@@ -25,10 +25,11 @@ until a Supabase project and authentication flow are configured.
 
 ### Model-provider mode
 
-The analysis service currently uses a deterministic provider. Groq and Gemini
-credentials are reserved in .env.example for the model-provider milestone.
-Any provider response must be parsed into the Claim schema and passed through
-the guardrail policy before it reaches the user.
+The analysis service uses the deterministic provider by default and can select
+Groq or Gemini through ANALYSIS_PROVIDER. The provider adapters return a
+validated Bull/Bear/Judge JSON draft, filter evidence IDs to the retrieved
+corpus, record token usage, and pass all user-facing text through the guardrail
+policy before it reaches the user.
 
 ## Data flow
 

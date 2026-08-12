@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from uuid import uuid4
 
+from app.config import Settings, get_settings
 from app.schemas import (
     AnalysisResponse,
     Claim,
@@ -16,12 +17,37 @@ from app.schemas import (
 from app.services.demo_store import DemoStore
 from app.services.guardrails import DISCLAIMER, apply_guardrails
 from app.services.indicators import calculate_indicators
+from app.services.model_provider import ProviderClaim, build_analysis_provider
 from app.services.rag import retrieve_evidence
 
 
 class AnalysisService:
-    def __init__(self, store: DemoStore) -> None:
+    def __init__(self, store: DemoStore, settings: Settings | None = None) -> None:
         self.store = store
+        self.settings = settings or get_settings()
+
+    @staticmethod
+    def _claim_from_provider(
+        agent: str,
+        claim: ProviderClaim,
+        valid_evidence_ids: set[str],
+        fallback_evidence_ids: list[str],
+    ) -> tuple[Claim, bool]:
+        evidence_ids = [item_id for item_id in claim.evidence_ids if item_id in valid_evidence_ids]
+        if not evidence_ids:
+            evidence_ids = fallback_evidence_ids
+        safe_text, text_status, _ = apply_guardrails(claim.text)
+        safe_risk, risk_status, _ = apply_guardrails(claim.risk_meaning)
+        return Claim(
+            id=f"{agent}-{uuid4().hex[:8]}",
+            agent=agent,  # type: ignore[arg-type]
+            text=safe_text.replace(f"\n\n{DISCLAIMER}", ""),
+            evidence_ids=evidence_ids,
+            signal_strength=claim.signal_strength,  # type: ignore[arg-type]
+            confidence=claim.confidence,  # type: ignore[arg-type]
+            risk_meaning=safe_risk.replace(f"\n\n{DISCLAIMER}", ""),
+            terms=claim.terms[:8],
+        ), text_status == "rewritten" or risk_status == "rewritten"
 
     def create(self, ticker: str, question: str | None = None) -> AnalysisResponse:
         normalized = ticker.upper()
@@ -37,39 +63,57 @@ class AnalysisService:
             for item in retrieve_evidence(self.store.get_evidence(normalized), evidence_query)
         ]
         technical_id = f"technical-{normalized.lower()}-001"
-        bull_evidence = [technical_id, evidence[0].id] if evidence else [technical_id]
-        bear_evidence = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
-        bull = Claim(
-            id=f"bull-{uuid4().hex[:8]}",
-            agent="bull",
-            text=f"{normalized} shows a possible constructive momentum pattern based on price position and supporting context.",
-            evidence_ids=bull_evidence,
-            signal_strength="medium",
-            confidence="medium",
-            risk_meaning="Momentum may continue, but volatility and new information could change the interpretation.",
-            terms=["momentum", "moving average"],
-        )
-        bear = Claim(
-            id=f"bear-{uuid4().hex[:8]}",
-            agent="bear",
-            text=f"{normalized} remains exposed to uncertainty from volatility, competition, and company-specific risks.",
-            evidence_ids=bear_evidence,
-            signal_strength="medium",
-            confidence="medium",
-            risk_meaning="A negative update or a change in market conditions could outweigh the current technical pattern.",
-            terms=["volatility", "risk"],
-        )
-        raw_summary = (
-            f"Evidence for {normalized} is mixed: technical signals are {indicators.signal_summary.lower()} "
-            "while the evidence set includes both supportive context and material risks."
-        )
-        safe_summary, guardrail_status, _ = apply_guardrails(raw_summary)
-        judge = JudgeSummary(
-            summary=safe_summary.replace(f"\n\n{DISCLAIMER}", ""),
-            evidence_strength="medium",
-            uncertainty="The demo evidence is cached and does not establish a future price outcome.",
-            risk_level="medium",
-        )
+        fallback_bull = [technical_id, evidence[0].id] if evidence else [technical_id]
+        fallback_bear = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
+        valid_evidence_ids = {item.id for item in evidence}
+        provider_name = self.settings.analysis_provider.lower().strip()
+        if provider_name == "demo":
+            bull = Claim(
+                id=f"bull-{uuid4().hex[:8]}",
+                agent="bull",
+                text=f"{normalized} shows a possible constructive momentum pattern based on price position and supporting context.",
+                evidence_ids=fallback_bull,
+                signal_strength="medium",
+                confidence="medium",
+                risk_meaning="Momentum may continue, but volatility and new information could change the interpretation.",
+                terms=["momentum", "moving average"],
+            )
+            bear = Claim(
+                id=f"bear-{uuid4().hex[:8]}",
+                agent="bear",
+                text=f"{normalized} remains exposed to uncertainty from volatility, competition, and company-specific risks.",
+                evidence_ids=fallback_bear,
+                signal_strength="medium",
+                confidence="medium",
+                risk_meaning="A negative update or a change in market conditions could outweigh the current technical pattern.",
+                terms=["volatility", "risk"],
+            )
+            raw_summary = (
+                f"Evidence for {normalized} is mixed: technical signals are {indicators.signal_summary.lower()} "
+                "while the evidence set includes both supportive context and material risks."
+            )
+            safe_summary, guardrail_status, _ = apply_guardrails(raw_summary)
+            judge = JudgeSummary(
+                summary=safe_summary.replace(f"\n\n{DISCLAIMER}", ""),
+                evidence_strength="medium",
+                uncertainty="The demo evidence is cached and does not establish a future price outcome.",
+                risk_level="medium",
+            )
+            token_usage = TokenUsage(model_name="demo-deterministic", prompt_tokens=0, completion_tokens=0, total_tokens=0)
+        else:
+            provider = build_analysis_provider(self.settings)
+            provider_result = provider.generate(normalized, question, indicators, evidence)
+            bull, bull_rewritten = self._claim_from_provider("bull", provider_result.draft.bull, valid_evidence_ids, fallback_bull)
+            bear, bear_rewritten = self._claim_from_provider("bear", provider_result.draft.bear, valid_evidence_ids, fallback_bear)
+            safe_summary, summary_status, _ = apply_guardrails(provider_result.draft.judge.summary)
+            judge = JudgeSummary(
+                summary=safe_summary.replace(f"\n\n{DISCLAIMER}", ""),
+                evidence_strength=provider_result.draft.judge.evidence_strength,  # type: ignore[arg-type]
+                uncertainty=provider_result.draft.judge.uncertainty,
+                risk_level=provider_result.draft.judge.risk_level,  # type: ignore[arg-type]
+            )
+            guardrail_status = "rewritten" if summary_status == "rewritten" or bull_rewritten or bear_rewritten else "passed"
+            token_usage = provider_result.token_usage
         analysis_id = f"analysis-{uuid4().hex[:12]}"
         created_at = datetime.now(timezone.utc).isoformat()
         trace = [
@@ -82,7 +126,6 @@ class AnalysisService:
             TraceStep(step="judge_agent", status="completed", detail="Produced a neutral synthesis with uncertainty and risk level."),
             TraceStep(step="guardrail_agent", status="completed", detail="Checked response language against the financial-advice policy."),
         ]
-        token_usage = TokenUsage(model_name="demo-deterministic", prompt_tokens=0, completion_tokens=0, total_tokens=0)
         response = AnalysisResponse(
             analysis_id=analysis_id,
             ticker=normalized,

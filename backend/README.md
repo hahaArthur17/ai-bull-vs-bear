@@ -22,7 +22,17 @@ Open http://localhost:8000/docs for the interactive API documentation.
 
 Copy the repository-level .env.example to .env when you are ready to add
 Supabase or model-provider credentials. The deterministic demo provider remains
-the default until a real provider is implemented and selected explicitly.
+the default until a real provider is selected explicitly.
+
+Supported model providers:
+
+- ANALYSIS_PROVIDER=groq with GROQ_API_KEY and optional GROQ_MODEL.
+- ANALYSIS_PROVIDER=gemini with GEMINI_API_KEY and optional GEMINI_MODEL.
+
+Both providers must return the structured Bull/Bear/Judge JSON shape. The
+backend validates the shape, removes evidence IDs that were not supplied by
+retrieval, records provider token usage, and applies the financial safety
+guardrail before returning the result. No model key is needed in demo mode.
 
 ## Evidence import
 
