@@ -11,6 +11,9 @@
     },
     "assetBundlePatterns": [
       "**/*"
+    ],
+    "plugins": [
+      "expo-asset"
     ]
   }
 }
