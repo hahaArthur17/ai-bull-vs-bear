@@ -15,12 +15,29 @@ class FakePostgrest:
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["apikey"] == "anon-key"
-        assert request.headers["authorization"] == "Bearer user-token"
+        assert request.headers["authorization"] in {"Bearer user-token", "Bearer anon-key"}
         table = request.url.path.rsplit("/", 1)[-1]
         query = parse_qs(request.url.query.decode())
         body = __import__("json").loads(request.content or b"null")
         if table == "stocks":
             return httpx.Response(200, json=[{"id": 1}])
+        if table == "evidence_documents" and request.method == "GET" and "stock_id" in query:
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": 12,
+                        "external_id": "sec-aapl-example",
+                        "source_type": "filing",
+                        "title": "AAPL 10-Q filed 2026-02-01",
+                        "url": "https://www.sec.gov/example",
+                        "published_at": "2026-02-01T00:00:00+00:00",
+                        "raw_text": "Live SEC filing metadata.",
+                        "metadata": {"source": "SEC EDGAR submissions API"},
+                        "created_at": "2026-08-13T00:00:00+00:00",
+                    }
+                ],
+            )
         if table == "watchlists" and request.method == "GET":
             return httpx.Response(
                 200,
@@ -74,3 +91,13 @@ def test_supabase_analysis_round_trip() -> None:
 
     assert store.get_analysis("user-1", response.analysis_id, "user-token") == response
     assert store.list_analyses("user-1", "user-token") == [response]
+
+
+def test_supabase_evidence_combines_technical_and_live_documents() -> None:
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    evidence = store.get_evidence("AAPL")
+
+    assert any(item["source_type"] == "technical" for item in evidence)
+    assert any(item["id"] == "sec-aapl-example" for item in evidence)

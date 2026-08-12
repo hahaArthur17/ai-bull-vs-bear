@@ -85,6 +85,67 @@ class SupabaseStore(DemoStore):
         tickers = [row.get("stocks", {}).get("ticker") for row in response.json()]
         return sorted(ticker for ticker in tickers if isinstance(ticker, str))
 
+    def get_evidence(self, ticker: str) -> list[dict[str, object]]:
+        technical = super().get_evidence(ticker)
+        stock_response = self._public_request(
+            "stocks",
+            params={"select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1"},
+        )
+        stock_rows = stock_response.json()
+        if not stock_rows:
+            return technical
+        evidence_response = self._public_request(
+            "evidence_documents",
+            params={
+                "select": "id,external_id,source_type,title,url,published_at,raw_text,metadata,created_at",
+                "stock_id": f"eq.{stock_rows[0]['id']}",
+                "order": "published_at.desc.nullslast,created_at.desc",
+                "limit": "20",
+            },
+        )
+        live_documents = [
+            {
+                "id": row.get("external_id") or f"evidence-{row['id']}",
+                "ticker": ticker.upper(),
+                "source_type": row["source_type"],
+                "title": row["title"],
+                "url": row.get("url"),
+                "published_at": row.get("published_at"),
+                "excerpt": row["raw_text"],
+                "metadata": {
+                    **(row.get("metadata") or {}),
+                    "storage": "supabase",
+                    "document_id": str(row["id"]),
+                },
+            }
+            for row in evidence_response.json()
+        ]
+        return technical + live_documents if live_documents else technical
+
+    def _public_request(
+        self,
+        table: str,
+        *,
+        params: dict[str, str],
+    ) -> httpx.Response:
+        headers = {"apikey": self.anon_key, "Authorization": f"Bearer {self.anon_key}"}
+        try:
+            requester = self.client.request if self.client is not None else httpx.request
+            response = requester(
+                "GET",
+                f"{self.rest_url}/{table}",
+                params=params,
+                headers=headers,
+                timeout=10.0,
+            )
+        except httpx.RequestError as exc:
+            raise RepositoryError("Supabase evidence retrieval is unavailable") from exc
+        if response.status_code >= 400:
+            raise RepositoryError(
+                f"Supabase {table} request failed with status {response.status_code}"
+            )
+        return response
+
     def add_watchlist(
         self,
         user_id: str,
