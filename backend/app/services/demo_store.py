@@ -190,16 +190,26 @@ class DemoStore:
         ]
         return technical + [item.copy() for item in self._evidence.get(normalized, [])]
 
-    def get_watchlist(self, user_id: str) -> list[str]:
+    def get_watchlist(self, user_id: str, access_token: str | None = None) -> list[str]:
         with self._lock:
             return sorted(self._watchlists.setdefault(user_id, set()))
 
-    def add_watchlist(self, user_id: str, ticker: str) -> list[str]:
+    def add_watchlist(
+        self,
+        user_id: str,
+        ticker: str,
+        access_token: str | None = None,
+    ) -> list[str]:
         with self._lock:
             self._watchlists.setdefault(user_id, set()).add(ticker.upper())
             return sorted(self._watchlists[user_id])
 
-    def remove_watchlist(self, user_id: str, ticker: str) -> list[str]:
+    def remove_watchlist(
+        self,
+        user_id: str,
+        ticker: str,
+        access_token: str | None = None,
+    ) -> list[str]:
         with self._lock:
             self._watchlists.setdefault(user_id, set()).discard(ticker.upper())
             return sorted(self._watchlists[user_id])

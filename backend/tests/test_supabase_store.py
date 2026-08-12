@@ -1,0 +1,76 @@
+from urllib.parse import parse_qs
+
+import httpx
+
+from app.services.analysis import AnalysisService
+from app.services.demo_store import DemoStore
+from app.services.supabase_store import SupabaseStore
+
+
+class FakePostgrest:
+    def __init__(self) -> None:
+        self.watchlist: set[int] = set()
+        self.analysis_ids: list[str] = []
+        self.responses: dict[str, dict[str, object]] = {}
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        assert request.headers["apikey"] == "anon-key"
+        assert request.headers["authorization"] == "Bearer user-token"
+        table = request.url.path.rsplit("/", 1)[-1]
+        query = parse_qs(request.url.query.decode())
+        body = __import__("json").loads(request.content or b"null")
+        if table == "stocks":
+            return httpx.Response(200, json=[{"id": 1}])
+        if table == "watchlists" and request.method == "GET":
+            return httpx.Response(
+                200,
+                json=[{"stocks": {"ticker": "AAPL"}}] if self.watchlist else [],
+            )
+        if table == "watchlists" and request.method == "POST":
+            self.watchlist.add(body["stock_id"])
+            return httpx.Response(201)
+        if table == "watchlists" and request.method == "DELETE":
+            self.watchlist.discard(int(query["stock_id"][0].removeprefix("eq.")))
+            return httpx.Response(204)
+        if table == "analysis_runs" and request.method == "POST":
+            self.analysis_ids.append(body["id"])
+            return httpx.Response(201)
+        if table == "analysis_runs" and request.method == "GET":
+            return httpx.Response(200, json=[{"id": item} for item in self.analysis_ids])
+        if table == "agent_outputs" and request.method == "POST":
+            response_row = next(row for row in body if row["agent_name"] == "response")
+            self.responses[response_row["analysis_run_id"]] = response_row["output_json"]
+            return httpx.Response(201)
+        if table == "agent_outputs" and request.method == "GET":
+            analysis_id = query["analysis_run_id"][0].removeprefix("eq.")
+            payload = self.responses.get(analysis_id)
+            return httpx.Response(200, json=[{"output_json": payload}] if payload else [])
+        if table == "token_usage":
+            return httpx.Response(201)
+        if table == "evidence_documents":
+            return httpx.Response(200, json=[])
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+
+def build_store(fake: FakePostgrest) -> SupabaseStore:
+    client = httpx.Client(transport=httpx.MockTransport(fake))
+    return SupabaseStore("https://example.supabase.co", "anon-key", client)
+
+
+def test_supabase_watchlist_round_trip() -> None:
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    assert store.add_watchlist("user-1", "AAPL", "user-token") == ["AAPL"]
+    assert store.remove_watchlist("user-1", "AAPL", "user-token") == []
+
+
+def test_supabase_analysis_round_trip() -> None:
+    response = AnalysisService(DemoStore()).create("AAPL")
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    store.save_analysis("user-1", response.analysis_id, response, "user-token")
+
+    assert store.get_analysis("user-1", response.analysis_id, "user-token") == response
+    assert store.list_analyses("user-1", "user-token") == [response]
