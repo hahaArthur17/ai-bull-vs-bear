@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import re
 from collections.abc import Iterable
+from hashlib import sha256
+from math import sqrt
 
 
 STOPWORDS = {
@@ -72,3 +74,21 @@ def retrieve_evidence(
     scored = [(score_evidence(document, query), index, document) for index, document in enumerate(documents)]
     scored.sort(key=lambda item: (-item[0], item[1]))
     return [document.copy() for _, _, document in scored[:limit]]
+
+
+def local_embedding(text: str, dimensions: int = 1536) -> list[float]:
+    """Create a deterministic, credit-free hashed term embedding."""
+
+    if dimensions <= 0:
+        raise ValueError("dimensions must be positive")
+    vector = [0.0] * dimensions
+    for term in _terms(text):
+        digest = sha256(term.encode("utf-8")).digest()
+        index = int.from_bytes(digest[:8], "big") % dimensions
+        vector[index] += -1.0 if digest[8] & 1 else 1.0
+    norm = sqrt(sum(value * value for value in vector))
+    return [value / norm for value in vector] if norm else vector
+
+
+def embedding_literal(vector: Iterable[float]) -> str:
+    return "[" + ",".join(f"{value:.8f}" for value in vector) + "]"

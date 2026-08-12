@@ -7,6 +7,7 @@ from typing import Iterable
 import httpx
 
 from app.services.ingestion import fetch_rss
+from app.services.rag import chunk_text, embedding_literal, local_embedding
 
 
 SEC_CIKS = {
@@ -154,10 +155,47 @@ class EvidenceWriter:
                 "evidence_documents",
                 params={"on_conflict": "external_id"},
                 json=payload,
-                prefer="resolution=merge-duplicates,return=minimal",
+                prefer="resolution=merge-duplicates,return=representation",
             )
+            document_response = self._request(
+                "GET",
+                "evidence_documents",
+                params={"select": "id", "external_id": f"eq.{document['id']}", "limit": "1"},
+            )
+            document_rows = document_response.json()
+            if document_rows:
+                self._replace_chunks(int(document_rows[0]["id"]), str(document["excerpt"]), metadata)
             written += 1
         return written
+
+    def _replace_chunks(
+        self,
+        document_id: int,
+        text: str,
+        metadata: dict[str, object],
+    ) -> None:
+        self._request(
+            "DELETE",
+            "evidence_chunks",
+            params={"document_id": f"eq.{document_id}"},
+            prefer="return=minimal",
+        )
+        chunks = [
+            {
+                "document_id": document_id,
+                "chunk_text": chunk,
+                "embedding": embedding_literal(local_embedding(chunk)),
+                "metadata": {**metadata, "chunk_index": str(index)},
+            }
+            for index, chunk in enumerate(chunk_text(text), start=1)
+        ]
+        if chunks:
+            self._request(
+                "POST",
+                "evidence_chunks",
+                json=chunks,
+                prefer="return=minimal",
+            )
 
 
 def ingest_live_evidence(
