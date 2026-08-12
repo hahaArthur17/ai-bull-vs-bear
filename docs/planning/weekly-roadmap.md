@@ -16,7 +16,7 @@ Last reviewed: 2026-08-12
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
 | Automated checks | Done | Backend unit/API tests and GitHub Actions CI are present. |
-| Real LLM provider | In progress | Groq and Gemini adapters are implemented; account keys and live verification remain. |
+| Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | In progress | Database schema and RLS policies exist; a dedicated project, schema deployment, Auth, and backend persistence remain. |
 | Live market/evidence data | Planned | RSS ingestion utility exists; production feeds, SEC EDGAR ingestion, and scheduled refresh remain. |
 | Mobile verification | Planned | Dependency installation, typecheck, and device testing remain. |
@@ -67,8 +67,8 @@ Status: In progress
 - [x] Validate structured Bull/Bear/Judge responses.
 - [x] Filter model citations to retrieved evidence IDs.
 - [x] Preserve safety guardrails and provider token accounting.
-- [ ] Create and configure one real model API key.
-- [ ] Run a live model analysis and record the verification result.
+- [x] Create and configure one real model API key.
+- [x] Run a live model analysis and record the verification result.
 - [ ] Create a dedicated Supabase project for AI Bull vs Bear.
 - [ ] Apply `backend/supabase/schema.sql`.
 - [ ] Enable Supabase Auth and connect persistent watchlists/analysis history.
@@ -135,3 +135,6 @@ At the end of each week:
 - 2026-08-12: Support Groq and Gemini behind the same structured analysis
   contract; demo remains the safe fallback.
 - 2026-08-12: Use small, focused commits for each meaningful change.
+- 2026-08-12: Select Groq as the first live provider; a real
+  `llama-3.3-70b-versatile` analysis completed with validated evidence IDs and
+  provider token usage.
