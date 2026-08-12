@@ -61,6 +61,10 @@ http://192.168.1.20:8000.
 The demo mode works without any keys. When you are ready to add persistence or
 live model providers:
 
+Follow the secure checklist in
+[`docs/setup/live-services.md`](docs/setup/live-services.md). Never place secrets
+in tracked files.
+
 - Create a Supabase project at https://supabase.com/dashboard, run
   backend/supabase/schema.sql in SQL Editor, then place the project URL and anon
   key in a local .env file.
