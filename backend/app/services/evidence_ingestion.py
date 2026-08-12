@@ -1,0 +1,181 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from time import sleep
+from typing import Iterable
+
+import httpx
+
+from app.services.ingestion import fetch_rss
+
+
+SEC_CIKS = {
+    "AAPL": "0000320193",
+    "GOOG": "0001652044",
+    "NVDA": "0001045810",
+    "TSLA": "0001318605",
+}
+
+
+def parse_sec_submissions(
+    payload: dict[str, object],
+    ticker: str,
+    limit: int = 4,
+) -> list[dict[str, object]]:
+    filings = payload.get("filings", {})
+    recent = filings.get("recent", {}) if isinstance(filings, dict) else {}
+    if not isinstance(recent, dict):
+        return []
+    forms = recent.get("form", [])
+    accessions = recent.get("accessionNumber", [])
+    primary_documents = recent.get("primaryDocument", [])
+    filing_dates = recent.get("filingDate", [])
+    reports = recent.get("reportDate", [])
+    documents: list[dict[str, object]] = []
+    cik = SEC_CIKS[ticker.upper()]
+    cik_path = str(int(cik))
+    for index, form in enumerate(forms if isinstance(forms, list) else []):
+        if form not in {"10-K", "10-Q"} or len(documents) >= limit:
+            continue
+        accession = str(accessions[index])
+        primary_document = str(primary_documents[index])
+        compact_accession = accession.replace("-", "")
+        filing_url = (
+            f"https://www.sec.gov/Archives/edgar/data/{cik_path}/"
+            f"{compact_accession}/{primary_document}"
+        )
+        filing_date = str(filing_dates[index])
+        report_date = str(reports[index]) if index < len(reports) else ""
+        documents.append(
+            {
+                "id": f"sec-{ticker.lower()}-{accession}",
+                "ticker": ticker.upper(),
+                "source_type": "filing",
+                "title": f"{ticker.upper()} {form} filed {filing_date}",
+                "url": filing_url,
+                "published_at": filing_date,
+                "excerpt": (
+                    f"SEC EDGAR metadata for {form}, reporting period {report_date or 'not supplied'}. "
+                    "Open the source filing for the complete disclosures and risk factors."
+                ),
+                "metadata": {
+                    "source": "SEC EDGAR submissions API",
+                    "form": str(form),
+                    "accession_number": accession,
+                    "report_date": report_date,
+                    "cik": cik,
+                },
+            }
+        )
+    return documents
+
+
+def fetch_sec_filings(
+    ticker: str,
+    user_agent: str,
+    limit: int = 4,
+    timeout: float = 15.0,
+) -> list[dict[str, object]]:
+    normalized = ticker.upper()
+    cik = SEC_CIKS.get(normalized)
+    if cik is None:
+        raise ValueError(f"Unsupported SEC ticker: {normalized}")
+    response = httpx.get(
+        f"https://data.sec.gov/submissions/CIK{cik}.json",
+        headers={"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"},
+        timeout=timeout,
+    )
+    response.raise_for_status()
+    return parse_sec_submissions(response.json(), normalized, limit=limit)
+
+
+class EvidenceWriter:
+    def __init__(
+        self,
+        supabase_url: str,
+        secret_key: str,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self.rest_url = f"{supabase_url.rstrip('/')}/rest/v1"
+        self.secret_key = secret_key
+        self.client = client
+
+    def _headers(self, prefer: str) -> dict[str, str]:
+        return {
+            "apikey": self.secret_key,
+            "Authorization": f"Bearer {self.secret_key}",
+            "Content-Type": "application/json",
+            "Prefer": prefer,
+        }
+
+    def _request(self, method: str, table: str, **kwargs: object) -> httpx.Response:
+        requester = self.client.request if self.client is not None else httpx.request
+        response = requester(
+            method,
+            f"{self.rest_url}/{table}",
+            headers=self._headers(str(kwargs.pop("prefer", "return=representation"))),
+            timeout=15.0,
+            **kwargs,
+        )
+        response.raise_for_status()
+        return response
+
+    def stock_id(self, ticker: str) -> int:
+        response = self._request(
+            "GET",
+            "stocks",
+            params={"select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1"},
+        )
+        rows = response.json()
+        if not rows:
+            raise RuntimeError(f"Stock {ticker.upper()} is not seeded")
+        return int(rows[0]["id"])
+
+    def upsert_documents(self, documents: Iterable[dict[str, object]]) -> int:
+        written = 0
+        ingestion_time = datetime.now(timezone.utc).isoformat()
+        for document in documents:
+            ticker = str(document["ticker"])
+            metadata = dict(document.get("metadata", {}))
+            metadata["ingested_at"] = ingestion_time
+            payload = {
+                "stock_id": self.stock_id(ticker),
+                "source_type": document["source_type"],
+                "external_id": document["id"],
+                "title": document["title"],
+                "url": document.get("url"),
+                "published_at": document.get("published_at") or None,
+                "raw_text": document["excerpt"],
+                "metadata": metadata,
+            }
+            self._request(
+                "POST",
+                "evidence_documents",
+                params={"on_conflict": "external_id"},
+                json=payload,
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
+            written += 1
+        return written
+
+
+def ingest_live_evidence(
+    writer: EvidenceWriter,
+    sec_user_agent: str,
+    rss_feeds: dict[str, str] | None = None,
+    per_source_limit: int = 4,
+) -> dict[str, int]:
+    feeds = rss_feeds or {
+        "GOOG": "https://blog.google/feed/",
+        "NVDA": "https://nvidianews.nvidia.com/releases.xml",
+    }
+    rss_count = 0
+    for ticker, url in feeds.items():
+        rss_count += writer.upsert_documents(fetch_rss(url, ticker, limit=per_source_limit))
+    sec_count = 0
+    for ticker in SEC_CIKS:
+        sec_count += writer.upsert_documents(
+            fetch_sec_filings(ticker, sec_user_agent, limit=per_source_limit)
+        )
+        sleep(0.11)
+    return {"rss": rss_count, "sec": sec_count}

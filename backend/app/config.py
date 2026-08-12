@@ -22,6 +22,8 @@ class Settings(BaseSettings):
     analysis_provider: str = "demo"
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
+    supabase_secret_key: str | None = None
+    sec_user_agent: str | None = None
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
