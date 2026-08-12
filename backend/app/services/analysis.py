@@ -120,7 +120,7 @@ class AnalysisService:
             )
             guardrail_status = "rewritten" if summary_status == "rewritten" or bull_rewritten or bear_rewritten else "passed"
             token_usage = provider_result.token_usage
-        analysis_id = f"analysis-{uuid4().hex[:12]}"
+        analysis_id = str(uuid4())
         created_at = datetime.now(timezone.utc).isoformat()
         trace = [
             TraceStep(step="technical_agent", status="completed", detail="Calculated RSI, MACD, moving averages, volatility, and volume spike."),
