@@ -30,4 +30,4 @@ def test_parse_provider_payload_rejects_invalid_shape() -> None:
 
 def test_provider_requires_key_when_selected() -> None:
     with pytest.raises(ProviderConfigurationError, match="GROQ_API_KEY"):
-        build_analysis_provider(Settings(analysis_provider="groq"))
+        build_analysis_provider(Settings(analysis_provider="groq", groq_api_key=None))
