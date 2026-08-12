@@ -32,6 +32,8 @@ export const api = {
 
   getWatchlist: (): Promise<WatchlistResponse> => request<WatchlistResponse>("/watchlist"),
 
+  listAnalyses: (): Promise<AnalysisResponse[]> => request<AnalysisResponse[]>("/analysis"),
+
   addToWatchlist: (ticker: string): Promise<WatchlistResponse> =>
     request<WatchlistResponse>("/watchlist", {
       method: "POST",

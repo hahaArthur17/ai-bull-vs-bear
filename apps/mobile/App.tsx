@@ -56,9 +56,14 @@ export default function App() {
   const loadHome = async () => {
     try {
       setError("");
-      const [stockResult, watchlistResult] = await Promise.all([api.listStocks(), api.getWatchlist()]);
+      const [stockResult, watchlistResult, analysisResult] = await Promise.all([
+        api.listStocks(),
+        api.getWatchlist(),
+        api.listAnalyses(),
+      ]);
       setStocks(stockResult);
       setWatchlist(watchlistResult.tickers);
+      setHistory(analysisResult);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load the demo API.");
     }
