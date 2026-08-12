@@ -107,6 +107,27 @@ create table if not exists public.token_usage (
   created_at timestamptz not null default now()
 );
 
+-- The project disables "Automatically expose new tables", so Data API access
+-- is granted explicitly. Public market/evidence data is read-only. User-owned
+-- records still require an authenticated JWT and are constrained by RLS below.
+grant usage on schema public to anon, authenticated;
+
+grant select on table
+  public.stocks,
+  public.stock_prices,
+  public.technical_indicators,
+  public.evidence_documents,
+  public.evidence_chunks
+to anon, authenticated;
+
+grant select, insert, delete on table public.watchlists to authenticated;
+grant select, insert on table public.analysis_runs to authenticated;
+grant select on table
+  public.agent_outputs,
+  public.claim_evidence,
+  public.token_usage
+to authenticated;
+
 alter table public.watchlists enable row level security;
 alter table public.analysis_runs enable row level security;
 alter table public.agent_outputs enable row level security;
