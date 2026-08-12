@@ -80,6 +80,8 @@ and returns data for an authenticated user without exposing secrets.
 
 Status: Planned
 
+Operating checklist: [`week-4-todo.md`](week-4-todo.md)
+
 - Connect at least one production-safe market price source with caching.
 - Ingest news through an approved RSS or API source.
 - Ingest SEC EDGAR filing metadata and selected filing sections.
