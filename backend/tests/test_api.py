@@ -1,6 +1,6 @@
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, settings
 
 
 client = TestClient(app)
@@ -25,3 +25,15 @@ def test_watchlist_and_analysis_flow() -> None:
     assert payload["bull"]["evidence_ids"]
     assert client.get(f"/analysis/{payload['analysis_id']}").status_code == 200
     assert client.get("/analysis").status_code == 200
+
+
+def test_supabase_auth_mode_rejects_missing_bearer_token() -> None:
+    previous_mode = settings.auth_mode
+    settings.auth_mode = "supabase"
+    try:
+        response = client.get("/watchlist")
+    finally:
+        settings.auth_mode = previous_mode
+
+    assert response.status_code == 401
+    assert response.json() == {"detail": "Authentication required"}

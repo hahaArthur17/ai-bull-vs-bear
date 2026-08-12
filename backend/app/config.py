@@ -16,6 +16,8 @@ class Settings(BaseSettings):
 
     app_name: str = "AI Bull vs Bear API"
     environment: str = "development"
+    auth_mode: str = "demo"
+    demo_user_id: str = "demo-user"
     analysis_provider: str = "demo"
     supabase_url: str | None = None
     supabase_anon_key: str | None = None

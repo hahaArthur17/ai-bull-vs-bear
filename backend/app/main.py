@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fastapi import FastAPI, Header, HTTPException, Query, Request, status
+from typing import Annotated
+
+from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import get_settings
@@ -17,6 +19,7 @@ from app.schemas import (
     WatchlistResponse,
 )
 from app.services.analysis import AnalysisService
+from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_token
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
@@ -40,8 +43,23 @@ app.add_middleware(
 )
 
 
-def current_user_id(x_user_id: str | None) -> str:
-    return x_user_id or "demo-user"
+def current_auth(
+    authorization: Annotated[str | None, Header()] = None,
+    x_user_id: Annotated[str | None, Header()] = None,
+) -> AuthContext:
+    if settings.auth_mode.lower().strip() == "demo":
+        return AuthContext(
+            user_id=x_user_id or settings.demo_user_id,
+            access_token=None,
+        )
+    if not settings.supabase_url or not settings.supabase_anon_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Supabase authentication is not configured",
+        )
+    access_token = extract_bearer_token(authorization)
+    verifier = SupabaseAuthVerifier(settings.supabase_url, settings.supabase_anon_key)
+    return verifier.verify(access_token)
 
 
 @app.get("/health")
@@ -90,28 +108,38 @@ def get_evidence(
 
 
 @app.get("/watchlist", response_model=WatchlistResponse)
-def get_watchlist(x_user_id: str | None = Header(default=None)) -> WatchlistResponse:
-    user_id = current_user_id(x_user_id)
-    return WatchlistResponse(user_id=user_id, tickers=store.get_watchlist(user_id))
+def get_watchlist(auth: Annotated[AuthContext, Depends(current_auth)]) -> WatchlistResponse:
+    return WatchlistResponse(user_id=auth.user_id, tickers=store.get_watchlist(auth.user_id))
 
 
 @app.post("/watchlist", response_model=WatchlistResponse, status_code=status.HTTP_201_CREATED)
-def add_watchlist(item: WatchlistRequest, x_user_id: str | None = Header(default=None)) -> WatchlistResponse:
+def add_watchlist(
+    item: WatchlistRequest,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> WatchlistResponse:
     ticker = item.ticker.upper()
     if store.get_stock(ticker) is None:
         raise HTTPException(status_code=404, detail="Stock not found")
-    user_id = current_user_id(x_user_id)
-    return WatchlistResponse(user_id=user_id, tickers=store.add_watchlist(user_id, ticker))
+    return WatchlistResponse(user_id=auth.user_id, tickers=store.add_watchlist(auth.user_id, ticker))
 
 
 @app.delete("/watchlist/{ticker}", response_model=WatchlistResponse)
-def remove_watchlist(ticker: str, x_user_id: str | None = Header(default=None)) -> WatchlistResponse:
-    user_id = current_user_id(x_user_id)
-    return WatchlistResponse(user_id=user_id, tickers=store.remove_watchlist(user_id, ticker))
+def remove_watchlist(
+    ticker: str,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> WatchlistResponse:
+    return WatchlistResponse(
+        user_id=auth.user_id,
+        tickers=store.remove_watchlist(auth.user_id, ticker),
+    )
 
 
 @app.post("/analysis/{ticker}", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED)
-def create_analysis(ticker: str, request: AnalysisRequest) -> AnalysisResponse:
+def create_analysis(
+    ticker: str,
+    request: AnalysisRequest,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> AnalysisResponse:
     try:
         return analysis_service.create(ticker, request.question)
     except ValueError as exc:
@@ -121,12 +149,15 @@ def create_analysis(ticker: str, request: AnalysisRequest) -> AnalysisResponse:
 
 
 @app.get("/analysis", response_model=list[AnalysisResponse])
-def list_analysis() -> list[AnalysisResponse]:
+def list_analysis(auth: Annotated[AuthContext, Depends(current_auth)]) -> list[AnalysisResponse]:
     return [item for item in store.list_analyses() if isinstance(item, AnalysisResponse)]
 
 
 @app.get("/analysis/{analysis_id}", response_model=AnalysisResponse)
-def get_analysis(analysis_id: str) -> AnalysisResponse:
+def get_analysis(
+    analysis_id: str,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> AnalysisResponse:
     response = analysis_service.get(analysis_id)
     if response is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
@@ -134,7 +165,10 @@ def get_analysis(analysis_id: str) -> AnalysisResponse:
 
 
 @app.get("/analysis/{analysis_id}/trace")
-def get_trace(analysis_id: str) -> list[dict[str, object]]:
+def get_trace(
+    analysis_id: str,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> list[dict[str, object]]:
     response = analysis_service.get(analysis_id)
     if response is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
@@ -142,7 +176,10 @@ def get_trace(analysis_id: str) -> list[dict[str, object]]:
 
 
 @app.get("/analysis/{analysis_id}/tokens")
-def get_tokens(analysis_id: str) -> dict[str, object]:
+def get_tokens(
+    analysis_id: str,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> dict[str, object]:
     response = analysis_service.get(analysis_id)
     if response is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
@@ -150,7 +187,11 @@ def get_tokens(analysis_id: str) -> dict[str, object]:
 
 
 @app.post("/claims/{claim_id}/examine", response_model=ExaminationResponse)
-def examine_claim(claim_id: str, request: ExaminationRequest) -> ExaminationResponse:
+def examine_claim(
+    claim_id: str,
+    request: ExaminationRequest,
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> ExaminationResponse:
     try:
         return analysis_service.examine(claim_id, request.question_type)
     except KeyError as exc:
