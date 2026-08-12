@@ -70,14 +70,30 @@ Dashboard: <https://supabase.com/dashboard>
 
 ## Verification checklist
 
-- [ ] `.env` exists locally and remains ignored by Git.
-- [ ] One real model provider is selected.
-- [ ] The selected model provider completes an analysis successfully.
-- [ ] The API response contains real token usage and no secret values.
-- [ ] The Supabase schema has been applied to the dedicated project.
+- [x] `.env` exists locally and remains ignored by Git.
+- [x] One real model provider is selected.
+- [x] The selected model provider completes an analysis successfully.
+- [x] The API response contains real token usage and no secret values.
+- [x] The Supabase schema has been applied to the dedicated project.
 - [ ] Authentication works for a test user.
 - [ ] Watchlist and analysis history survive a backend restart.
 - [ ] Row-level security prevents one user from reading another user's data.
+
+## Current live configuration
+
+Last verified: 2026-08-12
+
+- Groq is the selected local provider, and a real structured analysis completed
+  successfully with provider token usage.
+- The dedicated Supabase project is running in the Asia-Pacific region.
+- The repository schema created ten public tables and explicit minimum Data API
+  grants. An unauthenticated read of the empty `stocks` table returned HTTP 200.
+- Supabase Auth and application persistence are still implementation work; the
+  presence of URL/key configuration does not mean the DemoStore has been
+  replaced.
+- The initially generated database password was exposed during setup and must
+  be rotated in the Supabase Database Settings page before direct Postgres
+  connections are used.
 
 ## Rotation and incident response
 
