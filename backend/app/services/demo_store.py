@@ -21,7 +21,7 @@ class DemoStore:
         self._prices = {stock["ticker"]: self._build_prices(stock["ticker"]) for stock in STOCKS}
         self._evidence = self._build_evidence()
         self._watchlists: dict[str, set[str]] = {"demo-user": {"AAPL"}}
-        self._analyses: dict[str, object] = {}
+        self._analyses: dict[str, dict[str, object]] = {}
 
     @staticmethod
     def _build_prices(ticker: str) -> list[dict[str, object]]:
@@ -204,12 +204,23 @@ class DemoStore:
             self._watchlists.setdefault(user_id, set()).discard(ticker.upper())
             return sorted(self._watchlists[user_id])
 
-    def save_analysis(self, analysis_id: str, response: object) -> None:
+    def save_analysis(
+        self,
+        user_id: str,
+        analysis_id: str,
+        response: object,
+        access_token: str | None = None,
+    ) -> None:
         with self._lock:
-            self._analyses[analysis_id] = response
+            self._analyses.setdefault(user_id, {})[analysis_id] = response
 
-    def get_analysis(self, analysis_id: str) -> object | None:
-        return self._analyses.get(analysis_id)
+    def get_analysis(
+        self,
+        user_id: str,
+        analysis_id: str,
+        access_token: str | None = None,
+    ) -> object | None:
+        return self._analyses.get(user_id, {}).get(analysis_id)
 
-    def list_analyses(self) -> list[object]:
-        return list(self._analyses.values())
+    def list_analyses(self, user_id: str, access_token: str | None = None) -> list[object]:
+        return list(self._analyses.get(user_id, {}).values())

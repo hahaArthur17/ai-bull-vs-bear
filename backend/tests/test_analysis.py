@@ -12,3 +12,11 @@ def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
     assert len(response.trace) == 8
     examined = service.examine(response.bull.id, "evidence_support")
     assert examined.evidence
+
+
+def test_analysis_history_is_isolated_by_user() -> None:
+    service = AnalysisService(DemoStore())
+    response = service.create("AAPL", user_id="user-a")
+
+    assert service.get(response.analysis_id, user_id="user-a") == response
+    assert service.get(response.analysis_id, user_id="user-b") is None

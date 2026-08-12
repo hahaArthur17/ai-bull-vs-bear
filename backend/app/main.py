@@ -141,7 +141,12 @@ def create_analysis(
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> AnalysisResponse:
     try:
-        return analysis_service.create(ticker, request.question)
+        return analysis_service.create(
+            ticker,
+            request.question,
+            auth.user_id,
+            auth.access_token,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ProviderError as exc:
@@ -150,7 +155,11 @@ def create_analysis(
 
 @app.get("/analysis", response_model=list[AnalysisResponse])
 def list_analysis(auth: Annotated[AuthContext, Depends(current_auth)]) -> list[AnalysisResponse]:
-    return [item for item in store.list_analyses() if isinstance(item, AnalysisResponse)]
+    return [
+        item
+        for item in store.list_analyses(auth.user_id, auth.access_token)
+        if isinstance(item, AnalysisResponse)
+    ]
 
 
 @app.get("/analysis/{analysis_id}", response_model=AnalysisResponse)
@@ -158,7 +167,7 @@ def get_analysis(
     analysis_id: str,
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> AnalysisResponse:
-    response = analysis_service.get(analysis_id)
+    response = analysis_service.get(analysis_id, auth.user_id, auth.access_token)
     if response is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return response
@@ -169,7 +178,7 @@ def get_trace(
     analysis_id: str,
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> list[dict[str, object]]:
-    response = analysis_service.get(analysis_id)
+    response = analysis_service.get(analysis_id, auth.user_id, auth.access_token)
     if response is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return [step.model_dump() for step in response.trace]
@@ -180,7 +189,7 @@ def get_tokens(
     analysis_id: str,
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> dict[str, object]:
-    response = analysis_service.get(analysis_id)
+    response = analysis_service.get(analysis_id, auth.user_id, auth.access_token)
     if response is None:
         raise HTTPException(status_code=404, detail="Analysis not found")
     return response.token_usage.model_dump()
@@ -193,7 +202,12 @@ def examine_claim(
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> ExaminationResponse:
     try:
-        return analysis_service.examine(claim_id, request.question_type)
+        return analysis_service.examine(
+            claim_id,
+            request.question_type,
+            auth.user_id,
+            auth.access_token,
+        )
     except KeyError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 

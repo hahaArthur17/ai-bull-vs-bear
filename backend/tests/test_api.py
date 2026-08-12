@@ -23,8 +23,8 @@ def test_watchlist_and_analysis_flow() -> None:
     assert analysis.status_code == 201
     payload = analysis.json()
     assert payload["bull"]["evidence_ids"]
-    assert client.get(f"/analysis/{payload['analysis_id']}").status_code == 200
-    assert client.get("/analysis").status_code == 200
+    assert client.get(f"/analysis/{payload['analysis_id']}", headers=headers).status_code == 200
+    assert client.get("/analysis", headers=headers).status_code == 200
 
 
 def test_supabase_auth_mode_rejects_missing_bearer_token() -> None:

@@ -49,7 +49,13 @@ class AnalysisService:
             terms=claim.terms[:8],
         ), text_status == "rewritten" or risk_status == "rewritten"
 
-    def create(self, ticker: str, question: str | None = None) -> AnalysisResponse:
+    def create(
+        self,
+        ticker: str,
+        question: str | None = None,
+        user_id: str = "demo-user",
+        access_token: str | None = None,
+    ) -> AnalysisResponse:
         normalized = ticker.upper()
         stock = self.store.get_stock(normalized)
         if stock is None:
@@ -141,15 +147,26 @@ class AnalysisService:
             trace=trace,
             token_usage=token_usage,
         )
-        self.store.save_analysis(analysis_id, response)
+        self.store.save_analysis(user_id, analysis_id, response, access_token)
         return response
 
-    def get(self, analysis_id: str) -> AnalysisResponse | None:
-        value = self.store.get_analysis(analysis_id)
+    def get(
+        self,
+        analysis_id: str,
+        user_id: str = "demo-user",
+        access_token: str | None = None,
+    ) -> AnalysisResponse | None:
+        value = self.store.get_analysis(user_id, analysis_id, access_token)
         return value if isinstance(value, AnalysisResponse) else None
 
-    def examine(self, claim_id: str, question_type: str) -> ExaminationResponse:
-        for analysis in self.store.list_analyses():
+    def examine(
+        self,
+        claim_id: str,
+        question_type: str,
+        user_id: str = "demo-user",
+        access_token: str | None = None,
+    ) -> ExaminationResponse:
+        for analysis in self.store.list_analyses(user_id, access_token):
             if not isinstance(analysis, AnalysisResponse):
                 continue
             claim = analysis.bull if analysis.bull.id == claim_id else analysis.bear if analysis.bear.id == claim_id else None
