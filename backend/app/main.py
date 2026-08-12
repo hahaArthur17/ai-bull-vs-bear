@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import Annotated
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
@@ -28,6 +29,7 @@ from app.services.rag import retrieve_evidence
 from app.services.supabase_store import RepositoryError, SupabaseStore
 
 settings = get_settings()
+logger = logging.getLogger(__name__)
 if settings.persistence_mode.lower().strip() == "supabase":
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise RuntimeError("Supabase persistence requires SUPABASE_URL and SUPABASE_ANON_KEY")
@@ -52,6 +54,7 @@ app.add_middleware(
 
 @app.exception_handler(RepositoryError)
 def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResponse:
+    logger.warning("Repository request failed: %s", exc)
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Persistence service unavailable"},
