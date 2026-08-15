@@ -265,6 +265,7 @@ def parse_sec_submissions(
                     "accession_number": accession,
                     "report_date": report_date,
                     "cik": cik,
+                    "content_status": "metadata_only",
                 },
             }
         )
@@ -276,18 +277,45 @@ def fetch_sec_filings(
     user_agent: str,
     limit: int = 4,
     timeout: float = 15.0,
+    edgar_client: SecEdgarClient | None = None,
 ) -> list[dict[str, object]]:
     normalized = ticker.upper()
     cik = SEC_CIKS.get(normalized)
     if cik is None:
         raise ValueError(f"Unsupported SEC ticker: {normalized}")
-    response = httpx.get(
-        f"https://data.sec.gov/submissions/CIK{cik}.json",
-        headers={"User-Agent": user_agent, "Accept-Encoding": "gzip, deflate"},
-        timeout=timeout,
-    )
-    response.raise_for_status()
-    return parse_sec_submissions(response.json(), normalized, limit=limit)
+    client = edgar_client or SecEdgarClient(user_agent, timeout=timeout)
+    response = client.get(f"https://data.sec.gov/submissions/CIK{cik}.json")
+    documents = parse_sec_submissions(response.json(), normalized, limit=limit)
+    for document in documents:
+        url = document.get("url")
+        metadata = document.get("metadata")
+        if not isinstance(url, str) or not isinstance(metadata, dict):
+            continue
+        try:
+            filing_response = client.get(url)
+        except httpx.HTTPError:
+            metadata["filing_fetch_status"] = "unavailable"
+            continue
+        sections = extract_filing_sections(
+            filing_response.text,
+            str(metadata.get("form", "")),
+        )
+        if not sections:
+            metadata["filing_fetch_status"] = "no_selected_sections"
+            continue
+        document["excerpt"] = "\n\n".join(
+            f"{section['title']}\n{section['text']}" for section in sections
+        )
+        metadata.update(
+            {
+                "source": "SEC EDGAR filing archive",
+                "content_status": "selected_sections",
+                "filing_fetch_status": "success",
+                "sections": [section["title"] for section in sections],
+                "fetched_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+    return documents
 
 
 class EvidenceWriter:
@@ -410,9 +438,14 @@ def ingest_live_evidence(
     for ticker, url in feeds.items():
         rss_count += writer.upsert_documents(fetch_rss(url, ticker, limit=per_source_limit))
     sec_count = 0
+    edgar_client = SecEdgarClient(sec_user_agent)
     for ticker in SEC_CIKS:
         sec_count += writer.upsert_documents(
-            fetch_sec_filings(ticker, sec_user_agent, limit=per_source_limit)
+            fetch_sec_filings(
+                ticker,
+                sec_user_agent,
+                limit=per_source_limit,
+                edgar_client=edgar_client,
+            )
         )
-        sleep(0.11)
     return {"rss": rss_count, "sec": sec_count}

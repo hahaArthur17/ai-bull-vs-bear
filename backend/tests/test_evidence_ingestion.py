@@ -3,6 +3,7 @@ import httpx
 from app.services.evidence_ingestion import (
     SecEdgarClient,
     extract_filing_sections,
+    fetch_sec_filings,
     parse_sec_submissions,
 )
 
@@ -25,6 +26,7 @@ def test_parse_sec_submissions_selects_periodic_filings() -> None:
     assert [item["metadata"]["form"] for item in documents] == ["10-Q", "10-K"]
     assert documents[0]["url"].startswith("https://www.sec.gov/Archives/edgar/data/320193/")
     assert documents[0]["id"] == "sec-aapl-000000-26-000002"
+    assert documents[0]["metadata"]["content_status"] == "metadata_only"
 
 
 def test_extract_filing_sections_prefers_full_sections_over_table_of_contents() -> None:
@@ -113,3 +115,85 @@ def test_sec_client_rejects_empty_user_agent() -> None:
         assert "SEC_USER_AGENT" in str(exc)
     else:
         raise AssertionError("Expected an empty SEC user agent to be rejected")
+
+
+def test_fetch_sec_filings_attaches_selected_section_text() -> None:
+    submissions = {
+        "filings": {
+            "recent": {
+                "form": ["10-K"],
+                "accessionNumber": ["000000-26-000003"],
+                "primaryDocument": ["annual.htm"],
+                "filingDate": ["2026-03-01"],
+                "reportDate": ["2025-12-31"],
+            }
+        }
+    }
+    filing_html = """
+    <html><body>
+      <h2>Item 1A. Risk Factors</h2>
+      <p>The company faces changing demand, supply constraints, cybersecurity
+      events, and regulatory requirements that may materially affect results.</p>
+      <h2>Item 1B. Unresolved Staff Comments</h2>
+    </body></html>
+    """
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "data.sec.gov":
+            return httpx.Response(200, json=submissions)
+        return httpx.Response(200, text=filing_html)
+
+    transport = httpx.MockTransport(handler)
+    client = SecEdgarClient(
+        "AI Bull vs Bear admin@example.com",
+        client=httpx.Client(transport=transport),
+        min_interval=0,
+    )
+
+    documents = fetch_sec_filings(
+        "AAPL",
+        "AI Bull vs Bear admin@example.com",
+        limit=1,
+        edgar_client=client,
+    )
+
+    assert "supply constraints" in documents[0]["excerpt"]
+    assert documents[0]["metadata"]["content_status"] == "selected_sections"
+    assert documents[0]["metadata"]["sections"] == ["Item 1A — Risk Factors"]
+
+
+def test_fetch_sec_filings_keeps_metadata_when_filing_is_unavailable() -> None:
+    submissions = {
+        "filings": {
+            "recent": {
+                "form": ["10-Q"],
+                "accessionNumber": ["000000-26-000002"],
+                "primaryDocument": ["quarter.htm"],
+                "filingDate": ["2026-02-01"],
+                "reportDate": ["2025-12-31"],
+            }
+        }
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "data.sec.gov":
+            return httpx.Response(200, json=submissions)
+        return httpx.Response(503)
+
+    transport = httpx.MockTransport(handler)
+    client = SecEdgarClient(
+        "AI Bull vs Bear admin@example.com",
+        client=httpx.Client(transport=transport),
+        min_interval=0,
+        max_attempts=1,
+    )
+
+    documents = fetch_sec_filings(
+        "AAPL",
+        "AI Bull vs Bear admin@example.com",
+        limit=1,
+        edgar_client=client,
+    )
+
+    assert documents[0]["metadata"]["content_status"] == "metadata_only"
+    assert documents[0]["metadata"]["filing_fetch_status"] == "unavailable"
