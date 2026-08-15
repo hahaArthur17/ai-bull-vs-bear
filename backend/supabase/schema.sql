@@ -208,6 +208,17 @@ create table if not exists public.token_usage (
 -- records still require an authenticated JWT and are constrained by RLS below.
 grant usage on schema public to anon, authenticated;
 
+-- Server-only secret keys map to service_role. This role still needs SQL
+-- privileges even though it bypasses RLS.
+grant usage on schema public to service_role;
+grant all privileges on all tables in schema public to service_role;
+grant all privileges on all sequences in schema public to service_role;
+
+alter default privileges in schema public
+  grant all privileges on tables to service_role;
+alter default privileges in schema public
+  grant all privileges on sequences to service_role;
+
 grant select on table
   public.stocks,
   public.stock_prices,
