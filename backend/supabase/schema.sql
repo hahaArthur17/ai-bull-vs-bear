@@ -71,6 +71,63 @@ create index if not exists evidence_chunks_embedding_idx
   on public.evidence_chunks using ivfflat (embedding vector_cosine_ops)
   with (lists = 100);
 
+create table if not exists public.embedding_profiles (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  provider text not null,
+  model text not null,
+  dimensions integer not null check (dimensions between 1 and 16000),
+  distance_metric text not null default 'cosine'
+    check (distance_metric in ('cosine', 'inner_product', 'l2')),
+  normalization text not null default 'none',
+  modality text not null default 'text'
+    check (modality in ('text', 'multimodal')),
+  query_instruction text,
+  document_instruction text,
+  preprocessing_version text not null default 'v1',
+  status text not null default 'test'
+    check (status in ('test', 'active', 'retired')),
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+insert into public.embedding_profiles (
+  id,
+  slug,
+  provider,
+  model,
+  dimensions,
+  distance_metric,
+  normalization,
+  modality,
+  preprocessing_version,
+  status,
+  metadata
+)
+values (
+  '00000000-0000-4000-8000-000000001536',
+  'local-hash-v1',
+  'postgres',
+  'local_text_embedding',
+  1536,
+  'cosine',
+  'none',
+  'text',
+  'word-hash-v1',
+  'active',
+  '{"purpose":"offline integration baseline","semantic_model":false}'::jsonb
+)
+on conflict (slug) do nothing;
+
+create table if not exists public.chunk_embeddings (
+  chunk_id bigint not null references public.evidence_chunks(id) on delete cascade,
+  profile_id uuid not null references public.embedding_profiles(id) on delete cascade,
+  embedding vector not null,
+  input_hash text not null,
+  created_at timestamptz not null default now(),
+  primary key (chunk_id, profile_id)
+);
+
 create table if not exists public.analysis_runs (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -117,7 +174,9 @@ grant select on table
   public.stock_prices,
   public.technical_indicators,
   public.evidence_documents,
-  public.evidence_chunks
+  public.evidence_chunks,
+  public.embedding_profiles,
+  public.chunk_embeddings
 to anon, authenticated;
 
 grant select, insert, delete on table public.watchlists to authenticated;
