@@ -24,6 +24,9 @@ SUPABASE_SECRET_KEY=
 
 SEC_USER_AGENT=AI Bull vs Bear contact@example.com
 
+ALPHA_VANTAGE_API_KEY=
+PRICE_STALE_AFTER_DAYS=5
+
 GROQ_API_KEY=
 GROQ_MODEL=llama-3.3-70b-versatile
 
@@ -101,6 +104,28 @@ are spaced below the SEC limit and retry temporary 429/5xx failures. A filing
 that remains unavailable is retained as metadata-only evidence so one outage
 does not discard the rest of the batch.
 
+## Alpha Vantage daily prices
+
+Official documentation:
+
+- <https://www.alphavantage.co/documentation/#daily>
+- <https://www.alphavantage.co/support/>
+
+`TIME_SERIES_DAILY` with `outputsize=compact` returns the latest 100 daily
+OHLCV points. The free service currently permits 25 requests per day, so the
+application uses a batch cache: one four-ticker refresh consumes four calls,
+and normal API/mobile reads use Supabase instead of calling Alpha Vantage.
+
+After placing the key in `ALPHA_VANTAGE_API_KEY`, run from the repository root:
+
+```shell
+PYTHONPATH=backend python scripts/ingest_live_prices.py
+```
+
+Temporary provider failure leaves the previous cache untouched. Empty,
+unavailable, or older-than-configured caches are identified in the API; an
+unavailable cache falls back to deterministic demo prices.
+
 ## Verification checklist
 
 - [x] `.env` exists locally and remains ignored by Git.
@@ -110,10 +135,13 @@ does not discard the rest of the batch.
 - [x] The Supabase schema has been applied to the dedicated project.
 - [x] Supabase contains public stocks, evidence documents, chunks, and vectors.
 - [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
+- [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
+  mocked tests.
 - [ ] Authentication works for a test user.
 - [ ] Watchlist and analysis history survive a backend restart.
 - [ ] Row-level security prevents one user from reading another user's data.
 - [ ] Refresh live evidence with a server secret and compliant SEC User-Agent.
+- [ ] Populate the price cache with a server secret and Alpha Vantage key.
 
 ## Current live configuration
 
@@ -132,6 +160,9 @@ Last verified: 2026-08-15
 - The current database rows predate the selected-section importer and have no
   `content_status`; rerun ingestion after configuring a server secret and a
   compliant SEC User-Agent to replace the filing metadata with real excerpts.
+- The `stock_prices` table is currently empty. Price ingestion and mobile
+  provenance display are implemented, but the local environment has neither a
+  server secret nor an Alpha Vantage key, so live price refresh is unverified.
 - The initially generated database password was exposed during setup and must
   be rotated in the Supabase Database Settings page before direct Postgres
   connections are used.

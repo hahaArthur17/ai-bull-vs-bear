@@ -25,10 +25,12 @@ Implementation completed:
   pgvector retrieval.
 - SEC 10-K/10-Q Risk Factors and Management's Discussion and Analysis parsing,
   fair-access request spacing, retry handling, and metadata-only fallback.
+- Alpha Vantage daily price parsing, four-ticker Supabase batch upserts,
+  stale-cache provenance, and deterministic price fallback.
 
 Verification evidence:
 
-- Backend: 28 tests pass with mocked external providers.
+- Backend: 37 tests pass with mocked external providers.
 - Mobile: `npm run typecheck` passes.
 - Supabase read-only check: four stocks, six evidence documents, six chunks,
   and six populated vectors.
@@ -38,7 +40,8 @@ Remaining gates:
 - Two-user live Auth/RLS and backend-restart persistence verification.
 - A server-side Supabase secret and compliant SEC User-Agent are required to
   refresh the existing metadata-only filing rows with selected sections.
-- Live price caching and its stale/provider-failure behavior have not started.
+- The live price code is complete, but the empty Supabase price cache needs a
+  server secret and Alpha Vantage key for its first population.
 
 ## Ordered todo list
 
@@ -139,22 +142,25 @@ Acceptance criteria:
 
 - [x] A user question retrieves relevant stored chunks from Supabase.
 - [x] Returned claims can cite only IDs present in the retrieved context.
-- [ ] Retrieval tests cover empty Supabase results and RPC failure fallback.
+- [x] Retrieval tests cover empty Supabase results and RPC failure fallback.
 
 ### 7. Add live price caching and resilience tests
 
 Priority: P2 — start only after P0 work is complete
 
-- [ ] Select one production-safe price source and document its limits.
-- [ ] Cache OHLCV data and preserve deterministic fallback data.
-- [ ] Add timeout, retry, rate-limit, stale-cache, and provider-error behavior.
-- [ ] Mock external providers in automated tests; do not spend API credits in CI.
+Implementation status: complete; first live cache population remains.
+
+- [x] Select one production-safe price source and document its limits.
+- [x] Cache OHLCV data and preserve deterministic fallback data.
+- [x] Add timeout, retry, quota, stale-cache, and provider-error behavior.
+- [x] Mock external providers in automated tests; do not spend API credits in CI.
 
 Acceptance criteria:
 
-- Stock detail identifies live versus fallback price data.
-- Temporary provider failure does not break the main app flow.
-- All backend tests pass without network access.
+- [x] Stock detail identifies live versus fallback price data.
+- [x] Temporary provider failure does not break the main app flow.
+- [x] All backend tests pass without network access.
+- [ ] Populate Supabase `stock_prices` from a real Alpha Vantage response.
 
 ## Recommended execution order
 

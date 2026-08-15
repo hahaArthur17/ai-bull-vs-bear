@@ -59,3 +59,21 @@ Analysis. SEC requests are throttled below 10 requests per second and retry
 temporary rate-limit and server failures. If one filing remains unavailable,
 the ingestion retains its citation-ready metadata with
 `content_status=metadata_only` instead of aborting the whole batch.
+
+## Daily price cache
+
+The price ingestion command fetches the latest 100 daily OHLCV points for each
+supported ticker from Alpha Vantage and upserts them into Supabase:
+
+    PYTHONPATH=backend python scripts/ingest_live_prices.py
+
+It requires `ALPHA_VANTAGE_API_KEY`, `SUPABASE_URL`, and the server-only
+`SUPABASE_SECRET_KEY`. The free Alpha Vantage service currently permits 25
+requests per day, while one full project refresh uses four. Run this as a daily
+batch, not from an API request handler. A failed ticker retains its previous
+Supabase rows; the read API falls back to deterministic demo prices if the
+cache is empty or unavailable.
+
+`PRICE_STALE_AFTER_DAYS` defaults to 5. The price API labels Supabase rows as
+`alpha_vantage_cache` and demo rows as `demo_fallback`, with an `is_stale`
+flag that the mobile stock detail screen displays.

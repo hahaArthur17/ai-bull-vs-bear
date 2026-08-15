@@ -15,10 +15,10 @@ Last reviewed: 2026-08-15
 | Mobile MVP | Done | Expo flow covers watchlist, stock detail, evidence, debate, claim examination, history, and about screens. |
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
-| Automated checks | Done | 28 backend unit/API tests, mobile typecheck, and GitHub Actions CI pass. |
+| Automated checks | Done | 37 backend unit/API tests, mobile typecheck, and GitHub Actions CI pass. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | In progress | Auth/session handling and backend persistence are implemented; two-user RLS and restart verification remain. |
-| Live market/evidence data | In progress | Supabase has RSS/SEC records, chunks, and vectors; selected SEC section refresh and live price caching remain. |
+| Live market/evidence data | In progress | RSS/SEC/vector and price-cache code are complete; selected SEC and Alpha Vantage cache population remain. |
 | Mobile verification | In progress | Dependencies and lockfile are present and typecheck passes; simulator and physical-device testing remain. |
 | Deployment | Planned | Backend hosting, mobile build, monitoring, and release checklist remain. |
 
@@ -85,12 +85,12 @@ Status: In progress
 
 Operating checklist: [`week-4-todo.md`](week-4-todo.md)
 
-- [ ] Connect at least one production-safe market price source with caching.
+- [x] Connect one production-safe daily market price source with caching.
 - [x] Ingest news through an approved RSS source.
 - [x] Ingest SEC EDGAR filing metadata and extract selected filing sections.
 - [x] Store evidence documents/chunks in Supabase.
 - [x] Add embedding generation and pgvector retrieval.
-- [ ] Complete stale-cache and provider-failure handling across live data sources.
+- [x] Complete stale-cache and provider-failure handling across live data sources.
 - [x] Add tests with mocked provider responses; do not call paid APIs in CI.
 
 Progress recorded on 2026-08-15:
@@ -105,9 +105,14 @@ Progress recorded on 2026-08-15:
   for 429, network, and temporary server failures.
 - `3ead176` stores selected sections when available and retains explicit
   metadata-only evidence when an individual filing cannot be fetched.
+- `e00c33d` falls back to deterministic evidence when vector retrieval is empty
+  or unavailable.
+- `a34ab9b`, `170a4a0`, and `461c64b` add Alpha Vantage daily parsing, batch
+  Supabase upserts, stale-cache provenance, and deterministic price fallback.
+- `82880ff` displays live-cache, demo-fallback, and stale status in stock detail.
 - A live read-only check found four supported stocks, six evidence documents
   (two news and four filing records), six chunks, and six populated vectors.
-- Backend verification passes 28 tests; mobile `npm run typecheck` passes.
+- Backend verification passes 37 tests; mobile `npm run typecheck` passes.
 
 Remaining before Week 4 completion:
 
@@ -115,8 +120,8 @@ Remaining before Week 4 completion:
   rerun ingestion so existing filing records contain selected sections.
 - Verify authentication, restart persistence, and RLS isolation with two real
   test users.
-- Add a live price provider with cache provenance, stale fallback, and
-  resilience tests.
+- Configure an Alpha Vantage key and server-side Supabase secret, then populate
+  the currently empty `stock_prices` cache.
 
 Completion rule: the evidence board can distinguish cached/demo evidence from
 live evidence and every generated claim links to retrievable source metadata.
@@ -175,3 +180,5 @@ At the end of each week:
   evidence; keep metadata as an explicit fallback when a filing is unavailable.
 - 2026-08-15: Treat the repository and passing tests as the implementation
   source of truth when the GitHub Project board has not yet been synchronized.
+- 2026-08-15: Use Alpha Vantage compact daily data as a four-call batch into
+  Supabase; never spend the 25-call free quota during normal API requests.

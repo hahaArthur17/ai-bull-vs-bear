@@ -2,7 +2,9 @@
 
 ## Auth
 
-Authentication will be handled through Supabase Auth.
+Supabase mode requires `Authorization: Bearer <access-token>` for user-owned
+watchlist and analysis endpoints. Demo mode retains the local credential-free
+fallback.
 
 ## Stocks
 
@@ -26,14 +28,15 @@ Removes a stock from watchlist.
 ## Stock Detail
 
 GET /stocks/{ticker}/prices
-Returns cached OHLCV data.
+Returns cached daily OHLCV data. Every price point includes `source` with
+`alpha_vantage_cache` or `demo_fallback`, plus `is_stale`.
 
 GET /stocks/{ticker}/indicators
 Returns technical indicators.
 
 GET /stocks/{ticker}/evidence
 Returns technical, news, and filing evidence. Supports an optional q query
-parameter for local lexical-RAG retrieval.
+parameter for Supabase vector retrieval with deterministic lexical fallback.
 
 ## AI Analysis
 
@@ -44,7 +47,8 @@ GET /analysis/{analysis_id}
 Returns analysis result.
 
 GET /analysis
-Returns analysis runs created during the current runtime.
+Returns analysis runs scoped to the authenticated user. Supabase mode persists
+them across backend restarts.
 
 GET /analysis/{analysis_id}/trace
 Returns agent trace.
