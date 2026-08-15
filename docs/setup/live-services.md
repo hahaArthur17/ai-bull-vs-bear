@@ -13,11 +13,16 @@ these variables when the backend starts.
 
 ```dotenv
 ENVIRONMENT=development
+AUTH_MODE=supabase
+PERSISTENCE_MODE=supabase
 ANALYSIS_PROVIDER=groq
 CORS_ORIGINS=http://localhost:8081,http://localhost:19006
 
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
+SUPABASE_SECRET_KEY=
+
+SEC_USER_AGENT=AI Bull vs Bear contact@example.com
 
 GROQ_API_KEY=
 GROQ_MODEL=llama-3.3-70b-versatile
@@ -68,6 +73,34 @@ Dashboard: <https://supabase.com/dashboard>
 6. Verify row-level security with two separate test users before relying on the
    project for persisted user data.
 
+`SUPABASE_SECRET_KEY` is used only by the backend ingestion script. The mobile
+app needs only the publishable/anon key.
+
+## SEC EDGAR evidence
+
+Official guidance:
+
+- <https://www.sec.gov/about/developer-resources>
+- <https://www.sec.gov/search-filings/edgar-search-assistance/accessing-edgar-data>
+
+SEC asks automated clients to declare a User-Agent with identifying contact
+information and currently limits access to 10 requests per second. Set
+`SEC_USER_AGENT` to the project name plus a monitored email address; do not
+commit a personal address if it should remain private.
+
+From the repository root, with the backend virtual environment active, run:
+
+```shell
+PYTHONPATH=backend python scripts/ingest_live_evidence.py
+```
+
+The script imports the configured RSS source and recent supported-ticker 10-K
+and 10-Q filings. Filing HTML is reduced to Risk Factors and Management's
+Discussion and Analysis excerpts before it is chunked in Supabase. Requests
+are spaced below the SEC limit and retry temporary 429/5xx failures. A filing
+that remains unavailable is retained as metadata-only evidence so one outage
+does not discard the rest of the batch.
+
 ## Verification checklist
 
 - [x] `.env` exists locally and remains ignored by Git.
@@ -75,22 +108,30 @@ Dashboard: <https://supabase.com/dashboard>
 - [x] The selected model provider completes an analysis successfully.
 - [x] The API response contains real token usage and no secret values.
 - [x] The Supabase schema has been applied to the dedicated project.
+- [x] Supabase contains public stocks, evidence documents, chunks, and vectors.
+- [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
 - [ ] Authentication works for a test user.
 - [ ] Watchlist and analysis history survive a backend restart.
 - [ ] Row-level security prevents one user from reading another user's data.
+- [ ] Refresh live evidence with a server secret and compliant SEC User-Agent.
 
 ## Current live configuration
 
-Last verified: 2026-08-12
+Last verified: 2026-08-15
 
 - Groq is the selected local provider, and a real structured analysis completed
   successfully with provider token usage.
 - The dedicated Supabase project is running in the Asia-Pacific region.
-- The repository schema created ten public tables and explicit minimum Data API
-  grants. An unauthenticated read of the empty `stocks` table returned HTTP 200.
-- Supabase Auth and application persistence are still implementation work; the
-  presence of URL/key configuration does not mean the DemoStore has been
-  replaced.
+- Supabase authentication, bearer-token forwarding, persistent watchlists, and
+  persistent analysis history are implemented. The local backend selects the
+  Supabase auth and persistence modes, but two-user live RLS verification is
+  still required.
+- A read-only live check returned AAPL, GOOG, NVDA, and TSLA plus six evidence
+  documents (two news and four filing records), six chunks, and six populated
+  vectors.
+- The current database rows predate the selected-section importer and have no
+  `content_status`; rerun ingestion after configuring a server secret and a
+  compliant SEC User-Agent to replace the filing metadata with real excerpts.
 - The initially generated database password was exposed during setup and must
   be rotated in the Supabase Database Settings page before direct Postgres
   connections are used.
