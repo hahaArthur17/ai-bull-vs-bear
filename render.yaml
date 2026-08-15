@@ -5,6 +5,12 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /health
+    buildFilter:
+      paths:
+        - Dockerfile
+        - .dockerignore
+        - backend/app/**
+        - backend/requirements-runtime.txt
     envVars:
       - key: ENVIRONMENT
         value: production
@@ -27,6 +33,9 @@ services:
     rootDir: apps/mobile
     buildCommand: npm ci && npm run build:web
     staticPublishPath: ./dist
+    buildFilter:
+      paths:
+        - apps/mobile/**
     routes:
       - type: rewrite
         source: /*
