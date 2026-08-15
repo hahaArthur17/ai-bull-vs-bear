@@ -17,6 +17,9 @@ or temporary suspension until the quota resets.
   persistent data. No Render database or persistent disk is created.
 - Production sets `ANALYSIS_PROVIDER=demo`. Bull, Bear, and Judge responses are
   deterministic and consume no Groq or Gemini tokens.
+- Pytest forces demo auth, persistence, and analysis settings before importing
+  the application, so a developer's local `.env` cannot make tests call live
+  Supabase or model providers.
 - Prices and evidence are read from Supabase caches. Missing or unavailable
   data falls back to the deterministic demo dataset.
 
@@ -56,6 +59,10 @@ minute. The production frontend therefore uses a 75-second request timeout.
 The price command's three-call cap is enforced in code. The once-per-day rule
 is an operating rule because free Render does not provide free cron jobs. Do
 not expose this command as a public endpoint.
+
+Automated tests are also part of the zero-call boundary. Run provider-specific
+tests only with mocks; use a separate deliberate manual command for any live
+model verification.
 
 ## Deploy without exposing server credentials
 

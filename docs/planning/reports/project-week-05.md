@@ -74,6 +74,10 @@ and multiple embedding providers while preserving a clear handoff record.
 - Recorded the zero-cost architecture, provider budgets, deployment inputs,
   failure behaviour, and presentation acceptance checks in
   `docs/setup/free-deployment.md`.
+- Found that the test process inherited `ANALYSIS_PROVIDER=groq` from the local
+  `.env` and could consume real free-model quota. Added an early test-runtime
+  override for demo auth, persistence, and analysis so all automated tests are
+  credential- and network-independent (`89ac770`).
 
 ## GitHub Project sync
 
@@ -127,7 +131,8 @@ available.
 
 ## Verification
 
-- Backend: 44 tests pass, including current and legacy Supabase key headers.
+- Backend: 44 tests pass in deterministic mode in about 0.2 seconds, including
+  current and legacy Supabase key headers; no live model call is made.
 - Mobile TypeScript typecheck and the production Expo Web export pass.
 - Static Web output is 616 KB across three files.
 - A clean runtime-only virtual environment is 30 MB; its `/health` check peaks
