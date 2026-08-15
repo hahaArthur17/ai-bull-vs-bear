@@ -1,0 +1,16 @@
+.git
+.github
+.env
+**/.env
+**/.venv
+**/__pycache__
+**/.pytest_cache
+**/node_modules
+**/.expo
+**/dist
+docs
+apps
+backend/tests
+backend/supabase
+scripts
+*.md

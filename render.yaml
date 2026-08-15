@@ -1,0 +1,42 @@
+services:
+  - type: web
+    name: ai-bull-vs-bear-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_MODE
+        value: supabase
+      - key: PERSISTENCE_MODE
+        value: supabase
+      - key: ANALYSIS_PROVIDER
+        value: demo
+      - key: CORS_ORIGINS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+
+  - type: web
+    name: ai-bull-vs-bear
+    runtime: static
+    rootDir: apps/mobile
+    buildCommand: npm ci && npm run build:web
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: EXPO_PUBLIC_API_URL
+        value: https://ai-bull-vs-bear-api.onrender.com
+      - key: EXPO_PUBLIC_API_TIMEOUT_MS
+        value: 75000
+      - key: EXPO_PUBLIC_SUPABASE_URL
+        sync: false
+      - key: EXPO_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
