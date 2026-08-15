@@ -47,6 +47,21 @@ and multiple embedding providers while preserving a clear handoff record.
   monitored contact. Submission is intentionally paused at the terms-acceptance
   button.
 
+## 2026-08-16 continuation
+
+- Stored the supplied Apify user ID/token and Finnhub key only in the ignored
+  local `.env`; no credential values were added to source control.
+- Declared `APIFY_USER_ID`, `APIFY_API_TOKEN`, and `FINNHUB_API_KEY` in the
+  backend settings and non-secret environment template, and documented the
+  provider boundary (`f6ccd8b`).
+- Verified the Apify token against the authenticated user endpoint and the
+  Finnhub key with one AAPL quote request; both checks passed.
+- Apify still needs a concrete Actor or saved Task plus an output contract
+  before implementation. Finnhub can be evaluated as a direct price-provider
+  fallback in a later focused change.
+- Because the credentials were supplied through chat, rotate both provider
+  tokens before production deployment and update only the ignored `.env`.
+
 ## GitHub Project sync
 
 The board was synchronized after implementation:
