@@ -31,6 +31,21 @@ and multiple embedding providers while preserving a clear handoff record.
 - Added four ignored-env inputs and a repeatable two-user RLS verifier
   (`0bcf0c2`).
 - Updated schema and live-service documentation (`41bd77e`, `e86c515`).
+- Created a dedicated current-format Supabase backend key and stored it only in
+  the ignored local `.env`; no credential value entered Git or this report.
+- Reset the two existing disposable Auth users to random local-only passwords
+  and passed owner access, cross-user read/write isolation, and reconnect
+  persistence checks.
+- Added current `sb_secret_...` request-header compatibility (`6a59abf`) and
+  restored the live `service_role` SQL privileges required by backend ingestion
+  (`d489330`).
+- Replaced the partial evidence ID index with a PostgREST-compatible unique
+  index (`8f7bb76`). Repeated live ingestion now succeeds idempotently.
+- Refreshed live RSS/SEC evidence to 20 documents and 107 contextual chunks,
+  and populated 611 typed SEC XBRL facts.
+- Prefilled the Alpha Vantage free-key form with the project identity and
+  monitored contact. Submission is intentionally paused at the terms-acceptance
+  button.
 
 ## GitHub Project sync
 
@@ -65,32 +80,31 @@ Final board counts: 5 Todo, 2 In Progress, and 13 Done.
 
 ## Verification
 
-- Backend: 41 tests pass after source-aware chunking and XBRL ingestion.
+- Backend: 43 tests pass, including current and legacy Supabase key headers.
 - Live Supabase migration: `local-hash-v1 | 1536 | active | 6 embeddings`.
 - Live anonymous `match_evidence_chunks` request returned three NVDA vector
   results after the schema migration.
-- Live `financial_facts` table and read policy exist; the table is empty pending
-  credentialed ingestion.
+- Two-user RLS verification passes all four acceptance checks.
+- The current-format backend key successfully reaches both Supabase Auth Admin
+  and the Data API without being sent as an invalid Bearer JWT.
+- Live Supabase contains 20 evidence documents, 107 contextual chunks, and 611
+  structured financial facts after two idempotent ingestion runs.
 - Supabase Dashboard login was already active, so no user login was needed.
 
 ## Exact blockers
 
-- `SUPABASE_SECRET_KEY` is not present locally, so backend ingestion cannot
-  write refreshed SEC sections, XBRL facts, or Alpha Vantage prices.
-- `SEC_USER_AGENT` lacks a real monitored contact email. Do not send automated
-  SEC traffic using the committed placeholder.
-- `ALPHA_VANTAGE_API_KEY` is absent.
-- Two existing RLS users are visible in Supabase, but their passwords are not in
-  the local environment. Dashboard can send recovery email but cannot reveal a
-  password. Fill the four `SUPABASE_RLS_*` variables, then run
-  `PYTHONPATH=backend python scripts/verify_supabase_rls.py`.
+- `ALPHA_VANTAGE_API_KEY` is the only remaining credential gap. The application
+  form is complete, but pressing **Get Free API Key** constitutes acceptance of
+  Alpha Vantage's Terms of Service and Privacy Policy, so the user must perform
+  that final confirmation. The returned key can then be stored locally and the
+  price cache populated without any further code change.
 - Simulator and physical-device verification still require an available device
   or simulator session.
 
 ## Next three tasks
 
-1. Configure only the missing project/test credentials in the ignored `.env`,
-   run RLS verification, and populate SEC/XBRL and price caches.
+1. Confirm the Alpha Vantage free-key terms, save the returned key in the
+   ignored `.env`, and run the four-ticker price-cache refresh.
 2. Create a small finance retrieval benchmark with gold chunks, cells, units,
    periods, and calculations; add the first real 1,024-dimensional profile.
 3. Add lexical retrieval/rank fusion and expose structured financial facts to
