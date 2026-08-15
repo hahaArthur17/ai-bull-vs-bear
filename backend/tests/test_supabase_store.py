@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from urllib.parse import parse_qs
 
 import httpx
@@ -12,6 +13,8 @@ class FakePostgrest:
         self.watchlist: set[int] = set()
         self.analysis_ids: list[str] = []
         self.responses: dict[str, dict[str, object]] = {}
+        self.price_rows: list[dict[str, object]] = []
+        self.price_status = 200
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["apikey"] == "anon-key"
@@ -21,6 +24,8 @@ class FakePostgrest:
         body = __import__("json").loads(request.content or b"null")
         if table == "stocks":
             return httpx.Response(200, json=[{"id": 1}])
+        if table == "stock_prices":
+            return httpx.Response(self.price_status, json=self.price_rows)
         if table == "match_evidence_chunks":
             return httpx.Response(
                 200,
@@ -155,3 +160,36 @@ def test_supabase_search_falls_back_when_vector_rpc_is_unavailable() -> None:
     assert evidence
     assert evidence[0]["metadata"]["retrieval_mode"] == "demo_fallback"
     assert evidence[0]["metadata"]["fallback_reason"] == "rpc_unavailable"
+
+
+def test_supabase_prices_include_live_cache_provenance() -> None:
+    fake = FakePostgrest()
+    fake.price_rows = [
+        {
+            "trading_date": datetime.now(timezone.utc).date().isoformat(),
+            "open": "220.1",
+            "high": "224.5",
+            "low": "219.0",
+            "close": "223.75",
+            "volume": 50_123_456,
+        }
+    ]
+    store = build_store(fake)
+
+    prices = store.get_prices("AAPL")
+
+    assert prices[0]["source"] == "alpha_vantage_cache"
+    assert prices[0]["is_stale"] is False
+    assert prices[0]["close"] == 223.75
+
+
+def test_supabase_prices_fall_back_when_cache_is_unavailable() -> None:
+    fake = FakePostgrest()
+    fake.price_status = 503
+    store = build_store(fake)
+
+    prices = store.get_prices("AAPL")
+
+    assert prices
+    assert all(point["source"] == "demo_fallback" for point in prices)
+    assert all(point["is_stale"] is True for point in prices)

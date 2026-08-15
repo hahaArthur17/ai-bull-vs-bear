@@ -19,6 +19,8 @@ class PricePoint(BaseModel):
     low: float
     close: float
     volume: int
+    source: Literal["alpha_vantage_cache", "demo_fallback"] = "demo_fallback"
+    is_stale: bool = True
 
 
 class TechnicalIndicators(BaseModel):
@@ -123,4 +125,3 @@ class ExaminationResponse(BaseModel):
     answer: str
     evidence: list[EvidenceItem]
     disclaimer: str
-

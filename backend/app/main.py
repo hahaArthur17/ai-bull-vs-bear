@@ -33,7 +33,11 @@ logger = logging.getLogger(__name__)
 if settings.persistence_mode.lower().strip() == "supabase":
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise RuntimeError("Supabase persistence requires SUPABASE_URL and SUPABASE_ANON_KEY")
-    store = SupabaseStore(settings.supabase_url, settings.supabase_anon_key)
+    store = SupabaseStore(
+        settings.supabase_url,
+        settings.supabase_anon_key,
+        price_stale_after_days=settings.price_stale_after_days,
+    )
 else:
     store = DemoStore()
 analysis_service = AnalysisService(store)

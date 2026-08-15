@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date, datetime, timezone
 from typing import Any
 
 import httpx
@@ -21,11 +22,13 @@ class SupabaseStore(DemoStore):
         supabase_url: str,
         anon_key: str,
         client: httpx.Client | None = None,
+        price_stale_after_days: int = 5,
     ) -> None:
         super().__init__()
         self.rest_url = f"{supabase_url.rstrip('/')}/rest/v1"
         self.anon_key = anon_key
         self.client = client
+        self.price_stale_after_days = price_stale_after_days
 
     def _request(
         self,
@@ -85,6 +88,57 @@ class SupabaseStore(DemoStore):
         )
         tickers = [row.get("stocks", {}).get("ticker") for row in response.json()]
         return sorted(ticker for ticker in tickers if isinstance(ticker, str))
+
+    def get_prices(self, ticker: str) -> list[dict[str, object]]:
+        normalized = ticker.upper()
+        try:
+            stock_response = self._public_request(
+                "stocks",
+                params={"select": "id", "ticker": f"eq.{normalized}", "limit": "1"},
+            )
+            stock_rows = stock_response.json()
+            if not stock_rows:
+                return self._demo_prices(normalized)
+            price_response = self._public_request(
+                "stock_prices",
+                params={
+                    "select": "trading_date,open,high,low,close,volume",
+                    "stock_id": f"eq.{stock_rows[0]['id']}",
+                    "order": "trading_date.asc",
+                    "limit": "100",
+                },
+            )
+            rows = price_response.json()
+            if not rows:
+                return self._demo_prices(normalized)
+            latest_date = max(date.fromisoformat(str(row["trading_date"])) for row in rows)
+            age_days = (datetime.now(timezone.utc).date() - latest_date).days
+            is_stale = age_days > self.price_stale_after_days
+            return [
+                {
+                    "date": str(row["trading_date"]),
+                    "open": float(row["open"]),
+                    "high": float(row["high"]),
+                    "low": float(row["low"]),
+                    "close": float(row["close"]),
+                    "volume": int(row["volume"]),
+                    "source": "alpha_vantage_cache",
+                    "is_stale": is_stale,
+                }
+                for row in rows
+            ]
+        except (KeyError, RepositoryError, TypeError, ValueError):
+            return self._demo_prices(normalized)
+
+    def _demo_prices(self, ticker: str) -> list[dict[str, object]]:
+        return [
+            {
+                **point,
+                "source": "demo_fallback",
+                "is_stale": True,
+            }
+            for point in super().get_prices(ticker)
+        ]
 
     def get_evidence(self, ticker: str) -> list[dict[str, object]]:
         technical = super().get_evidence(ticker)
