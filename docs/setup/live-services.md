@@ -75,13 +75,20 @@ Dashboard: <https://supabase.com/dashboard>
 3. Enable the required sign-in method under Authentication.
 4. Copy the project URL and publishable/anon key into `SUPABASE_URL` and
    `SUPABASE_ANON_KEY`.
-5. Keep the service-role key server-side only. It must never be bundled into the
-   Expo application.
+5. Create a dedicated current-format secret key (`sb_secret_...`) for backend
+   jobs and keep it server-side only. It must never be bundled into the Expo
+   application. Legacy JWT `service_role` keys remain supported during
+   migration.
 6. Verify row-level security with two separate test users before relying on the
    project for persisted user data.
 
 `SUPABASE_SECRET_KEY` is used only by the backend ingestion script. The mobile
 app needs only the publishable/anon key.
+
+Current `sb_secret_...` keys are sent only in Supabase's `apikey` header. They
+are opaque API keys, not JWTs, so placing one in `Authorization: Bearer` causes
+Data API requests to fail. The backend request helper adds the Bearer header
+only for a legacy JWT key.
 
 Web-dashboard account passwords must not be stored in the project environment.
 For repeatable RLS verification, use only two disposable, non-production Auth
@@ -162,12 +169,13 @@ unavailable cache falls back to deterministic demo prices.
 - [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
 - [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
   mocked tests.
-- [ ] Authentication works for a test user.
+- [x] Authentication works for two disposable test users.
 - [ ] Watchlist and analysis history survive a backend restart.
-- [ ] Row-level security prevents one user from reading another user's data.
-- [ ] Refresh live evidence with a server secret and compliant SEC User-Agent.
+- [x] Row-level security prevents one user from reading or writing another
+  user's watchlist data.
+- [x] Refresh live evidence with a server secret and compliant SEC User-Agent.
 - [ ] Populate the price cache with a server secret and Alpha Vantage key.
-- [ ] Populate structured SEC XBRL facts with a server secret and compliant
+- [x] Populate structured SEC XBRL facts with a server secret and compliant
   SEC User-Agent.
 
 ## Current live configuration
@@ -178,9 +186,9 @@ Last verified: 2026-08-15
   successfully with provider token usage.
 - The dedicated Supabase project is running in the Asia-Pacific region.
 - Supabase authentication, bearer-token forwarding, persistent watchlists, and
-  persistent analysis history are implemented. The local backend selects the
-  Supabase auth and persistence modes, but two-user live RLS verification is
-  still required.
+  persistent analysis history are implemented. Two disposable users now pass
+  owner read/write, hidden cross-user reads, rejected cross-user writes, and
+  database-reconnect persistence checks.
 - A read-only live check returned AAPL, GOOG, NVDA, and TSLA plus six evidence
   documents (two news and four filing records), six chunks, and six populated
   vectors.
@@ -188,17 +196,15 @@ Last verified: 2026-08-15
   are registered as `local-hash-v1` with 1,536 dimensions, and anonymous vector
   RPC retrieval still succeeds. This profile is a deterministic word-hash
   integration baseline, not a learned semantic model.
-- The `financial_facts` table and public read policy are live but the table is
-  empty until authenticated server-side ingestion runs.
-- Supabase Auth contains the primary user plus two existing non-production RLS
-  users. Their passwords are not available in the local environment, so the
-  repeatable verifier is ready but has not been run against them.
-- The current database rows predate the selected-section importer and have no
-  `content_status`; rerun ingestion after configuring a server secret and a
-  compliant SEC User-Agent to replace the filing metadata with real excerpts.
+- A dedicated server-only current-format secret key is configured locally.
+  Service-role grants and request headers support that key without broadening
+  anon/authenticated privileges.
+- Live ingestion now holds 20 evidence documents, 107 contextual chunks, and
+  611 typed financial facts. Filing records include selected narrative sections
+  when SEC source HTML is available.
 - The `stock_prices` table is currently empty. Price ingestion and mobile
-  provenance display are implemented, but the local environment has neither a
-  server secret nor an Alpha Vantage key, so live price refresh is unverified.
+  provenance display are implemented, but Alpha Vantage terms acceptance and
+  key issuance are still pending, so live price refresh is unverified.
 - The initially generated database password was exposed during setup and must
   be rotated in the Supabase Database Settings page before direct Postgres
   connections are used.
