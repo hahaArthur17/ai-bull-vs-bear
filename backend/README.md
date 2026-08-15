@@ -62,17 +62,22 @@ the ingestion retains its citation-ready metadata with
 
 ## Daily price cache
 
-The price ingestion command fetches the latest 100 daily OHLCV points for each
-supported ticker from Alpha Vantage and upserts them into Supabase:
+The price ingestion command fetches the latest 100 daily OHLCV points for the
+configured demo tickers from Alpha Vantage and upserts them into Supabase:
 
     PYTHONPATH=backend python scripts/ingest_live_prices.py
 
 It requires `ALPHA_VANTAGE_API_KEY`, `SUPABASE_URL`, and the server-only
 `SUPABASE_SECRET_KEY`. The free Alpha Vantage service currently permits 25
-requests per day, while one full project refresh uses four. Run this as a daily
-batch, not from an API request handler. A failed ticker retains its previous
-Supabase rows; the read API falls back to deterministic demo prices if the
-cache is empty or unavailable.
+requests per day. The default batch covers AAPL, NVDA, and TSLA, makes at most
+three provider calls, and disables retries so one invocation cannot exceed its
+three-call budget. Run it no more than once per day and never from an API
+request handler. A failed ticker retains its previous Supabase rows; the read
+API falls back to deterministic demo prices if the cache is empty or
+unavailable.
+
+`PRICE_TICKERS` can select fewer tickers and `PRICE_MAX_CALLS_PER_RUN` can lower
+the cap, but the settings validation does not allow a value above three.
 
 `PRICE_STALE_AFTER_DAYS` defaults to 5. The price API labels Supabase rows as
 `alpha_vantage_cache` and demo rows as `demo_fallback`, with an `is_stale`

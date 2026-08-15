@@ -61,6 +61,19 @@ and multiple embedding providers while preserving a clear handoff record.
   fallback in a later focused change.
 - Because the credentials were supplied through chat, rotate both provider
   tokens before production deployment and update only the ignored `.env`.
+- Fixed live SEC evidence validation so structured metadata such as filing
+  section arrays passes through the API and remains safe to render in Expo
+  (`9df717a`).
+- Reduced the default live price batch to AAPL, NVDA, and TSLA, added a strict
+  three-call-per-run budget, disabled retries in the batch command, and added
+  regression coverage (`a0e153b`).
+- Added the zero-cost Render Blueprint, slim backend Docker image, production
+  runtime dependency set, and static Expo Web build (`54f180f`). Production
+  analysis is deliberately deterministic and consumes zero model-provider
+  calls.
+- Recorded the zero-cost architecture, provider budgets, deployment inputs,
+  failure behaviour, and presentation acceptance checks in
+  `docs/setup/free-deployment.md`.
 
 ## GitHub Project sync
 
@@ -99,7 +112,14 @@ Done.
 
 ## Verification
 
-- Backend: 43 tests pass, including current and legacy Supabase key headers.
+- Backend: 44 tests pass, including current and legacy Supabase key headers.
+- Mobile TypeScript typecheck and the production Expo Web export pass.
+- Static Web output is 616 KB across three files.
+- A clean runtime-only virtual environment is 30 MB; its `/health` check peaks
+  at 56,033,280 bytes (about 53.4 MiB), safely below Render Free's 512 MB RAM.
+- A bundle scan found no Supabase secret, provider token, RLS password, or SEC
+  identity embedded in the Web output. The Supabase anon key is public client
+  configuration by design.
 - Live Supabase migration: `local-hash-v1 | 1536 | active | 6 embeddings`.
 - Live anonymous `match_evidence_chunks` request returned three NVDA vector
   results after the schema migration.
@@ -112,18 +132,20 @@ Done.
 
 ## Exact blockers
 
-- `ALPHA_VANTAGE_API_KEY` is the only remaining credential gap. The application
-  form is complete, but pressing **Get Free API Key** constitutes acceptance of
-  Alpha Vantage's Terms of Service and Privacy Policy, so the user must perform
-  that final confirmation. The returned key can then be stored locally and the
-  price cache populated without any further code change.
+- The repository is deployment-ready, but the actual Render Blueprint import
+  requires an authenticated Render account with access to the GitHub
+  repository. No Render login or API token is currently available to the
+  local environment. This is the only unavoidable user-side deployment step.
+- Alpha Vantage is no longer a demo blocker. Until a free key is available,
+  prices use the explicit deterministic fallback; no paid market-data service
+  should be enabled.
 - Simulator and physical-device verification still require an available device
   or simulator session.
 
 ## Next three tasks
 
-1. Confirm the Alpha Vantage free-key terms, save the returned key in the
-   ignored `.env`, and run the four-ticker price-cache refresh.
+1. Import `render.yaml` through an authenticated Render account, enter only the
+   public Supabase/CORS values, and run the documented live smoke test.
 2. Create a small finance retrieval benchmark with gold chunks, cells, units,
    periods, and calculations; add the first real 1,024-dimensional profile.
 3. Add lexical retrieval/rank fusion and expose structured financial facts to
@@ -133,5 +155,6 @@ Done.
 
 - `docs/architecture/vectorization-strategy.md`
 - `docs/setup/live-services.md`
+- `docs/setup/free-deployment.md`
 - `docs/database/schema-plan.md`
 - `../week-4-todo.md`

@@ -144,8 +144,9 @@ Official documentation:
 
 `TIME_SERIES_DAILY` with `outputsize=compact` returns the latest 100 daily
 OHLCV points. The free service currently permits 25 requests per day, so the
-application uses a batch cache: one four-ticker refresh consumes four calls,
-and normal API/mobile reads use Supabase instead of calling Alpha Vantage.
+application uses a batch cache: the default AAPL, NVDA, and TSLA refresh makes
+at most three calls with no retries, and normal API/mobile reads use Supabase
+instead of calling Alpha Vantage. Run the command no more than once per day.
 
 After placing the key in `ALPHA_VANTAGE_API_KEY`, run from the repository root:
 
@@ -156,6 +157,10 @@ PYTHONPATH=backend python scripts/ingest_live_prices.py
 Temporary provider failure leaves the previous cache untouched. Empty,
 unavailable, or older-than-configured caches are identified in the API; an
 unavailable cache falls back to deterministic demo prices.
+
+`PRICE_TICKERS` can select one to three symbols and
+`PRICE_MAX_CALLS_PER_RUN` can lower the hard per-invocation cap. The configured
+cap cannot be raised above three.
 
 ## Optional Apify and Finnhub credentials
 
