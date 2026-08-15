@@ -93,6 +93,21 @@ to In Progress with a non-secret live-count update; and the RLS verification
 draft card was moved to Done. Current counts: 3 Todo, 2 In Progress, and 15
 Done.
 
+The 2026-08-16 zero-cost deployment continuation also:
+
+- closed `#6` because all news/SEC ingestion, metadata, embedding retrieval,
+  and cached-fallback acceptance criteria are now verified;
+- updated `#13` to the three-call AAPL/NVDA/TSLA budget and made live price
+  population optional for the demo; and
+- created `#15`, **Deploy the zero-cost Render demo and run smoke checks**, with
+  repository work checked off and account-side deployment checks remaining.
+
+The available GitHub credential has repository scope but lacks the
+`read:project`/`project` scopes needed to inspect or mutate Project V2 status
+fields directly. Issue state and content are synchronized; the board column for
+`#15` depends on the board's auto-add rule until a project-scoped login is
+available.
+
 ## Main technical decisions
 
 - The current 1,536-dimensional vector is `local-hash-v1`, an offline plumbing
