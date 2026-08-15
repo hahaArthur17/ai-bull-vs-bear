@@ -1,4 +1,10 @@
-from app.services.evidence_ingestion import extract_filing_sections, parse_sec_submissions
+import httpx
+
+from app.services.evidence_ingestion import (
+    SecEdgarClient,
+    extract_filing_sections,
+    parse_sec_submissions,
+)
 
 
 def test_parse_sec_submissions_selects_periodic_filings() -> None:
@@ -70,3 +76,40 @@ def test_extract_filing_sections_ignores_hidden_inline_xbrl_content() -> None:
             ),
         }
     ]
+
+
+def test_sec_client_declares_identity_and_retries_rate_limit() -> None:
+    attempts = 0
+    delays: list[float] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal attempts
+        attempts += 1
+        assert request.headers["user-agent"] == "AI Bull vs Bear admin@example.com"
+        assert request.headers["accept-encoding"] == "gzip, deflate"
+        if attempts == 1:
+            return httpx.Response(429, headers={"Retry-After": "1.25"})
+        return httpx.Response(200, json={"ok": True})
+
+    transport = httpx.MockTransport(handler)
+    client = SecEdgarClient(
+        "AI Bull vs Bear admin@example.com",
+        client=httpx.Client(transport=transport),
+        min_interval=0,
+        sleeper=delays.append,
+    )
+
+    response = client.get("https://data.sec.gov/submissions/example.json")
+
+    assert response.json() == {"ok": True}
+    assert attempts == 2
+    assert delays == [1.25]
+
+
+def test_sec_client_rejects_empty_user_agent() -> None:
+    try:
+        SecEdgarClient("   ")
+    except ValueError as exc:
+        assert "SEC_USER_AGENT" in str(exc)
+    else:
+        raise AssertionError("Expected an empty SEC user agent to be rejected")

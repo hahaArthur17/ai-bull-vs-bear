@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from html.parser import HTMLParser
 import re
-from time import sleep
-from typing import Iterable
+from time import monotonic, sleep
+from typing import Callable, Iterable
 
 import httpx
 
@@ -45,6 +45,75 @@ _SECTION_SPECS = {
         ),
     ),
 }
+_SEC_RETRY_STATUS_CODES = {429, 500, 502, 503, 504}
+
+
+class SecEdgarClient:
+    """Small SEC client that follows EDGAR fair-access requirements."""
+
+    def __init__(
+        self,
+        user_agent: str,
+        *,
+        client: httpx.Client | None = None,
+        timeout: float = 15.0,
+        min_interval: float = 0.11,
+        max_attempts: int = 3,
+        sleeper: Callable[[float], None] = sleep,
+        clock: Callable[[], float] = monotonic,
+    ) -> None:
+        if not user_agent.strip():
+            raise ValueError("SEC_USER_AGENT must identify the requester and contact email")
+        if max_attempts < 1:
+            raise ValueError("max_attempts must be at least 1")
+        self.headers = {
+            "User-Agent": user_agent.strip(),
+            "Accept-Encoding": "gzip, deflate",
+        }
+        self.client = client
+        self.timeout = timeout
+        self.min_interval = min_interval
+        self.max_attempts = max_attempts
+        self.sleeper = sleeper
+        self.clock = clock
+        self._last_request_at: float | None = None
+
+    def _throttle(self) -> None:
+        now = self.clock()
+        if self._last_request_at is not None:
+            remaining = self.min_interval - (now - self._last_request_at)
+            if remaining > 0:
+                self.sleeper(remaining)
+        self._last_request_at = self.clock()
+
+    def get(self, url: str) -> httpx.Response:
+        requester = self.client.get if self.client is not None else httpx.get
+        last_error: httpx.RequestError | None = None
+        for attempt in range(self.max_attempts):
+            self._throttle()
+            try:
+                response = requester(url, headers=self.headers, timeout=self.timeout)
+            except httpx.RequestError as exc:
+                last_error = exc
+                if attempt + 1 == self.max_attempts:
+                    raise
+                self.sleeper(0.5 * (2**attempt))
+                continue
+            if response.status_code in _SEC_RETRY_STATUS_CODES:
+                if attempt + 1 == self.max_attempts:
+                    response.raise_for_status()
+                retry_after = response.headers.get("Retry-After", "")
+                try:
+                    delay = float(retry_after)
+                except ValueError:
+                    delay = 0.5 * (2**attempt)
+                self.sleeper(max(delay, 0.0))
+                continue
+            response.raise_for_status()
+            return response
+        if last_error is not None:
+            raise last_error
+        raise RuntimeError("SEC request attempts exhausted")
 
 
 class _FilingTextParser(HTMLParser):
