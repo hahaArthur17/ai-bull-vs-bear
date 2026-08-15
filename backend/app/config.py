@@ -23,6 +23,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
     supabase_secret_key: str | None = None
+    supabase_rls_user_a_email: str | None = None
+    supabase_rls_user_a_password: str | None = None
+    supabase_rls_user_b_email: str | None = None
+    supabase_rls_user_b_password: str | None = None
     sec_user_agent: str | None = None
     alpha_vantage_api_key: str | None = None
     price_stale_after_days: int = 5
