@@ -30,7 +30,7 @@ Implementation completed:
 
 Verification evidence:
 
-- Backend: 37 tests pass with mocked external providers.
+- Backend: 41 tests pass with mocked external providers.
 - Mobile: `npm run typecheck` passes.
 - Supabase read-only check: four stocks, six evidence documents, six chunks,
   and six populated vectors.
@@ -136,6 +136,9 @@ Priority: P1 — completes live RAG retrieval
 - [x] Chunk stored news and filing text with overlap.
 - [x] Generate deterministic database-local embeddings.
 - [x] Store vectors in `evidence_chunks` and add a similarity-search function.
+- [x] Separate canonical chunks from versioned model/dimension profiles.
+- [x] Add source-aware news/filing chunk context and section paths.
+- [x] Add typed SEC XBRL storage so table arithmetic does not depend on vectors.
 - [x] Combine vector similarity with source/type metadata filters.
 
 Acceptance criteria:

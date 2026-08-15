@@ -4,6 +4,9 @@ This file is the project memory for weekly planning. Before starting a new
 week, review the current status, move unfinished items forward, and record the
 result at the end of the week.
 
+Detailed, append-only records now live in [`reports/`](reports/README.md) so
+this roadmap remains a short index instead of growing without bound.
+
 Status values: `Done`, `In progress`, `Planned`, and `Blocked`.
 
 ## Current snapshot
@@ -15,10 +18,10 @@ Last reviewed: 2026-08-15
 | Mobile MVP | Done | Expo flow covers watchlist, stock detail, evidence, debate, claim examination, history, and about screens. |
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
-| Automated checks | Done | 37 backend unit/API tests, mobile typecheck, and GitHub Actions CI pass. |
+| Automated checks | Done | 41 backend unit/API tests, mobile typecheck, and GitHub Actions CI pass. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | In progress | Auth/session handling and backend persistence are implemented; two-user RLS and restart verification remain. |
-| Live market/evidence data | In progress | RSS/SEC/vector and price-cache code are complete; selected SEC and Alpha Vantage cache population remain. |
+| Live market/evidence data | In progress | RSS/SEC/vector/XBRL and price-cache code are complete; credentialed SEC/XBRL and Alpha Vantage cache population remain. |
 | Mobile verification | In progress | SDK dependencies, typecheck, Expo Doctor, and Web export pass; simulator and physical-device testing remain. |
 | Deployment | Planned | Backend hosting, mobile build, monitoring, and release checklist remain. |
 
@@ -113,6 +116,10 @@ Progress recorded on 2026-08-15:
 - A live read-only check found four supported stocks, six evidence documents
   (two news and four filing records), six chunks, and six populated vectors.
 - Backend verification passes 37 tests; mobile `npm run typecheck` passes.
+- A later 2026-08-15 continuation separated chunks from versioned embedding
+  profiles, added source-aware contextual chunking, and added typed SEC XBRL
+  facts. Both database migrations are live; backend verification now passes 41
+  tests. See [`reports/project-week-05.md`](reports/project-week-05.md).
 
 Remaining before Week 4 completion:
 
@@ -173,7 +180,8 @@ During the week:
 At the end of each week:
 
 1. Update the current snapshot and week status.
-2. Record completed work, remaining work, blockers, and verification evidence.
+2. Add a report under `reports/` with completed work, remaining work, blockers,
+   verification evidence, and handoff links.
 3. Sync the GitHub Project board with the repository state.
 
 ## Decision log
@@ -199,3 +207,7 @@ At the end of each week:
   Supabase; never spend the 25-call free quota during normal API requests.
 - 2026-08-15: Keep Expo SDK 52 dependencies aligned and defer the audit-driven
   Expo 57 major upgrade to a dedicated migration with simulator regression.
+- 2026-08-15: Separate canonical chunks from provider-specific embedding
+  profiles; vectors from different profiles are never compared.
+- 2026-08-15: Store financial values with SEC XBRL period/unit provenance and
+  use vector search only for discovery, not numerical arithmetic.
