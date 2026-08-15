@@ -132,5 +132,34 @@ def test_live_price_ingestion_preserves_other_tickers_after_provider_failure() -
         tickers=("AAPL", "GOOG", "NVDA"),
     )
 
-    assert result == {"updated": {"AAPL": 1, "NVDA": 1}, "failed": ["GOOG"]}
+    assert result == {
+        "updated": {"AAPL": 1, "NVDA": 1},
+        "failed": ["GOOG"],
+        "skipped": [],
+    }
     assert writer.tickers == ["AAPL", "NVDA"]
+
+
+def test_live_price_ingestion_enforces_provider_call_budget() -> None:
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.tickers: list[str] = []
+
+        def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+            self.tickers.append(ticker)
+            return parse_alpha_vantage_daily(daily_payload(), limit=1)
+
+    class FakeWriter:
+        def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+            return len(prices)
+
+    provider = FakeProvider()
+    result = ingest_live_prices(  # type: ignore[arg-type]
+        provider,  # type: ignore[arg-type]
+        FakeWriter(),  # type: ignore[arg-type]
+        tickers=("AAPL", "GOOG", "NVDA", "TSLA"),
+        max_provider_calls=2,
+    )
+
+    assert provider.tickers == ["AAPL", "GOOG"]
+    assert result["skipped"] == ["NVDA", "TSLA"]

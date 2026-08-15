@@ -8,7 +8,7 @@ import httpx
 from app.services.supabase_headers import service_headers
 
 
-DEFAULT_PRICE_TICKERS = ("AAPL", "GOOG", "NVDA", "TSLA")
+DEFAULT_PRICE_TICKERS = ("AAPL", "NVDA", "TSLA")
 
 
 class MarketDataError(RuntimeError):
@@ -185,13 +185,18 @@ def ingest_live_prices(
     provider: AlphaVantageClient,
     writer: SupabasePriceWriter,
     tickers: tuple[str, ...] = DEFAULT_PRICE_TICKERS,
+    max_provider_calls: int = 3,
 ) -> dict[str, object]:
+    if max_provider_calls < 1:
+        raise ValueError("max_provider_calls must be at least 1")
     updated: dict[str, int] = {}
     failed: list[str] = []
-    for ticker in tickers:
+    selected_tickers = tickers[:max_provider_calls]
+    skipped = list(tickers[max_provider_calls:])
+    for ticker in selected_tickers:
         try:
             prices = provider.fetch_daily(ticker)
             updated[ticker] = writer.upsert_prices(ticker, prices)
         except (MarketDataError, PriceCacheError):
             failed.append(ticker)
-    return {"updated": updated, "failed": failed}
+    return {"updated": updated, "failed": failed, "skipped": skipped}

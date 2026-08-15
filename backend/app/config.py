@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +33,8 @@ class Settings(BaseSettings):
     apify_user_id: str | None = None
     apify_api_token: str | None = None
     finnhub_api_key: str | None = None
+    price_tickers: str = "AAPL,NVDA,TSLA"
+    price_max_calls_per_run: int = Field(default=3, ge=1, le=3)
     price_stale_after_days: int = 5
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
@@ -49,6 +52,15 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin.strip() for origin in self.cors_origins.split(",") if origin.strip()]
+
+    @property
+    def price_ticker_list(self) -> tuple[str, ...]:
+        tickers = dict.fromkeys(
+            ticker.strip().upper()
+            for ticker in self.price_tickers.split(",")
+            if ticker.strip()
+        )
+        return tuple(tickers)[: self.price_max_calls_per_run]
 
 
 @lru_cache

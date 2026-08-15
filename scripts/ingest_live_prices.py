@@ -17,9 +17,19 @@ def main() -> None:
         raise SystemExit("SUPABASE_URL and SUPABASE_SECRET_KEY are required")
     if not settings.alpha_vantage_api_key:
         raise SystemExit("ALPHA_VANTAGE_API_KEY is required")
-    provider = AlphaVantageClient(settings.alpha_vantage_api_key)
+    provider = AlphaVantageClient(settings.alpha_vantage_api_key, max_attempts=1)
     writer = SupabasePriceWriter(settings.supabase_url, settings.supabase_secret_key)
-    print(json.dumps(ingest_live_prices(provider, writer), indent=2))
+    print(
+        json.dumps(
+            ingest_live_prices(
+                provider,
+                writer,
+                tickers=settings.price_ticker_list,
+                max_provider_calls=settings.price_max_calls_per_run,
+            ),
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":
