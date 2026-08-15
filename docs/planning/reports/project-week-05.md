@@ -85,6 +85,8 @@ and multiple embedding providers while preserving a clear handoff record.
 - Configured only the production CORS origin and public Supabase URL/anon key.
   No Supabase secret, provider key, RLS password, or SEC identity was uploaded
   to Render.
+- Added service-specific Render build filters so documentation-only commits no
+  longer rebuild both services or waste free pipeline minutes (`309eb97`).
 
 ## GitHub Project sync
 

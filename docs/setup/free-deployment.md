@@ -27,6 +27,11 @@ The root `render.yaml` creates only the free web service and free static site.
 The root `Dockerfile` installs `backend/requirements-runtime.txt`, which omits
 test tools and unused model SDKs.
 
+Per-service Render build filters conserve the 500 included build minutes:
+backend builds only for its Docker/runtime source paths, and frontend builds
+only for `apps/mobile/**`. Documentation-only commits do not rebuild either
+service. Changes to `render.yaml` are always synchronized by Render.
+
 ## Live deployment
 
 Deployed and verified on 2026-08-16:
