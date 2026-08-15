@@ -1,4 +1,4 @@
-from app.services.evidence_ingestion import parse_sec_submissions
+from app.services.evidence_ingestion import extract_filing_sections, parse_sec_submissions
 
 
 def test_parse_sec_submissions_selects_periodic_filings() -> None:
@@ -19,3 +19,54 @@ def test_parse_sec_submissions_selects_periodic_filings() -> None:
     assert [item["metadata"]["form"] for item in documents] == ["10-Q", "10-K"]
     assert documents[0]["url"].startswith("https://www.sec.gov/Archives/edgar/data/320193/")
     assert documents[0]["id"] == "sec-aapl-000000-26-000002"
+
+
+def test_extract_filing_sections_prefers_full_sections_over_table_of_contents() -> None:
+    filing_html = """
+    <html><body>
+      <div>Item 1A. Risk Factors</div><div>Item 1B. Unresolved Staff Comments</div>
+      <h2>Item 1A. Risk Factors</h2>
+      <p>Our operations face supply constraints, changing customer demand, and
+      regulatory uncertainty. These risks may affect revenue, margins, product
+      availability, and the timing of planned investments across markets.</p>
+      <h2>Item 1B. Unresolved Staff Comments</h2>
+      <h2>Item 7. Management's Discussion and Analysis</h2>
+      <p>Revenue increased during the period while operating costs also rose.
+      Management evaluates liquidity, capital spending, and demand using both
+      current results and longer-term business conditions.</p>
+      <h2>Item 7A. Quantitative and Qualitative Disclosures About Market Risk</h2>
+    </body></html>
+    """
+
+    sections = extract_filing_sections(filing_html, "10-K")
+
+    assert [section["title"] for section in sections] == [
+        "Item 1A — Risk Factors",
+        "Item 7 — Management's Discussion and Analysis",
+    ]
+    assert "supply constraints" in sections[0]["text"]
+    assert "Revenue increased" in sections[1]["text"]
+
+
+def test_extract_filing_sections_ignores_hidden_inline_xbrl_content() -> None:
+    filing_html = """
+    <html><body>
+      <ix:hidden>Item 1A. Risk Factors hidden duplicate Item 2.</ix:hidden>
+      <h2>Item 1A. Risk Factors</h2>
+      <p>The quarterly filing describes material cybersecurity, competition,
+      supply, and execution risks in enough detail for retrieval and citation.</p>
+      <h2>Item 2. Unregistered Sales of Equity Securities</h2>
+    </body></html>
+    """
+
+    sections = extract_filing_sections(filing_html, "10-Q")
+
+    assert sections == [
+        {
+            "title": "Item 1A — Risk Factors",
+            "text": (
+                "The quarterly filing describes material cybersecurity, competition, "
+                "supply, and execution risks in enough detail for retrieval and citation."
+            ),
+        }
+    ]

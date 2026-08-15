@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from html.parser import HTMLParser
+import re
 from time import sleep
 from typing import Iterable
 
@@ -16,6 +18,135 @@ SEC_CIKS = {
     "NVDA": "0001045810",
     "TSLA": "0001318605",
 }
+
+_SECTION_SPECS = {
+    "10-K": (
+        (
+            "Item 1A — Risk Factors",
+            r"\bitem\s+1a\s*[.:-—]*\s*risk\s+factors\b",
+            r"\bitem\s+1b\b",
+        ),
+        (
+            "Item 7 — Management's Discussion and Analysis",
+            r"\bitem\s+7\s*[.:-—]*\s*management(?:['’]s)?\s+discussion\s+and\s+analysis\b",
+            r"\bitem\s+7a\b",
+        ),
+    ),
+    "10-Q": (
+        (
+            "Item 2 — Management's Discussion and Analysis",
+            r"\bitem\s+2\s*[.:-—]*\s*management(?:['’]s)?\s+discussion\s+and\s+analysis\b",
+            r"\bitem\s+3\b",
+        ),
+        (
+            "Item 1A — Risk Factors",
+            r"\bitem\s+1a\s*[.:-—]*\s*risk\s+factors\b",
+            r"\bitem\s+2\b",
+        ),
+    ),
+}
+
+
+class _FilingTextParser(HTMLParser):
+    _BLOCK_TAGS = {
+        "article",
+        "br",
+        "div",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "li",
+        "p",
+        "section",
+        "table",
+        "td",
+        "th",
+        "tr",
+    }
+    _IGNORED_TAGS = {"ix:hidden", "noscript", "script", "style", "svg"}
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self.ignored_depth = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        normalized = tag.lower()
+        if normalized in self._IGNORED_TAGS:
+            self.ignored_depth += 1
+        elif self.ignored_depth == 0 and normalized in self._BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag: str) -> None:
+        normalized = tag.lower()
+        if normalized in self._IGNORED_TAGS and self.ignored_depth:
+            self.ignored_depth -= 1
+        elif self.ignored_depth == 0 and normalized in self._BLOCK_TAGS:
+            self.parts.append("\n")
+
+    def handle_data(self, data: str) -> None:
+        if self.ignored_depth == 0:
+            self.parts.append(data)
+
+    def text(self) -> str:
+        lines = (
+            re.sub(r"\s+", " ", line).strip()
+            for line in "".join(self.parts).splitlines()
+        )
+        return "\n".join(line for line in lines if line)
+
+
+def _extract_longest_section(
+    text: str,
+    start_pattern: str,
+    end_pattern: str,
+    max_chars: int,
+) -> str | None:
+    candidates: list[str] = []
+    for start in re.finditer(start_pattern, text, flags=re.IGNORECASE):
+        end = re.search(end_pattern, text[start.end() :], flags=re.IGNORECASE)
+        if end is None:
+            continue
+        content = re.sub(
+            r"\s+",
+            " ",
+            text[start.end() : start.end() + end.start()],
+        ).strip(" \n:-")
+        if len(content) >= 80:
+            candidates.append(content)
+    if not candidates:
+        return None
+    longest = max(candidates, key=len)
+    if len(longest) <= max_chars:
+        return longest
+    truncated = longest[:max_chars].rsplit(" ", 1)[0].rstrip(" ,.;:")
+    return f"{truncated} …"
+
+
+def extract_filing_sections(
+    filing_html: str,
+    form: str,
+    max_chars_per_section: int = 8_000,
+) -> list[dict[str, str]]:
+    """Extract useful narrative sections from a 10-K or 10-Q filing."""
+
+    parser = _FilingTextParser()
+    parser.feed(filing_html)
+    text = parser.text()
+    sections: list[dict[str, str]] = []
+    for title, start_pattern, end_pattern in _SECTION_SPECS.get(form.upper(), ()):
+        content = _extract_longest_section(
+            text,
+            start_pattern,
+            end_pattern,
+            max_chars=max_chars_per_section,
+        )
+        if content:
+            sections.append({"title": title, "text": content})
+    return sections
 
 
 def parse_sec_submissions(
