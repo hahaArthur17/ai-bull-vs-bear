@@ -8,6 +8,8 @@ from typing import Callable, Iterable
 
 import httpx
 
+from app.services.supabase_headers import service_headers
+
 from app.services.ingestion import fetch_rss
 from app.services.rag import build_evidence_chunks
 
@@ -468,12 +470,7 @@ class EvidenceWriter:
         self._stock_ids: dict[str, int] = {}
 
     def _headers(self, prefer: str) -> dict[str, str]:
-        return {
-            "apikey": self.secret_key,
-            "Authorization": f"Bearer {self.secret_key}",
-            "Content-Type": "application/json",
-            "Prefer": prefer,
-        }
+        return service_headers(self.secret_key, prefer)
 
     def _request(self, method: str, table: str, **kwargs: object) -> httpx.Response:
         requester = self.client.request if self.client is not None else httpx.request

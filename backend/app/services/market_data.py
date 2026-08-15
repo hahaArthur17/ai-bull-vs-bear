@@ -5,6 +5,8 @@ from typing import Callable
 
 import httpx
 
+from app.services.supabase_headers import service_headers
+
 
 DEFAULT_PRICE_TICKERS = ("AAPL", "GOOG", "NVDA", "TSLA")
 
@@ -122,12 +124,10 @@ class SupabasePriceWriter:
 
     def _request(self, method: str, table: str, **kwargs: object) -> httpx.Response:
         requester = self.client.request if self.client is not None else httpx.request
-        headers = {
-            "apikey": self.secret_key,
-            "Authorization": f"Bearer {self.secret_key}",
-            "Content-Type": "application/json",
-            "Prefer": str(kwargs.pop("prefer", "return=representation")),
-        }
+        headers = service_headers(
+            self.secret_key,
+            str(kwargs.pop("prefer", "return=representation")),
+        )
         try:
             response = requester(
                 method,
