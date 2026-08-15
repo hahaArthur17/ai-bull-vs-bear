@@ -9,7 +9,7 @@ from typing import Callable, Iterable
 import httpx
 
 from app.services.ingestion import fetch_rss
-from app.services.rag import chunk_text
+from app.services.rag import build_evidence_chunks
 
 
 SEC_CIKS = {
@@ -392,14 +392,14 @@ class EvidenceWriter:
             )
             document_rows = document_response.json()
             if document_rows:
-                self._replace_chunks(int(document_rows[0]["id"]), str(document["excerpt"]), metadata)
+                self._replace_chunks(int(document_rows[0]["id"]), document, metadata)
             written += 1
         return written
 
     def _replace_chunks(
         self,
         document_id: int,
-        text: str,
+        document: dict[str, object],
         metadata: dict[str, object],
     ) -> None:
         self._request(
@@ -408,13 +408,26 @@ class EvidenceWriter:
             params={"document_id": f"eq.{document_id}"},
             prefer="return=minimal",
         )
+        prepared_chunks = build_evidence_chunks(
+            text=str(document["excerpt"]),
+            title=str(document["title"]),
+            ticker=str(document["ticker"]),
+            source_type=str(document["source_type"]),
+            published_at=str(document.get("published_at") or "") or None,
+            metadata=metadata,
+        )
         chunks = [
             {
                 "document_id": document_id,
-                "chunk_text": chunk,
-                "metadata": {**metadata, "chunk_index": str(index)},
+                "chunk_text": prepared["chunk_text"],
+                "metadata": {
+                    **metadata,
+                    **prepared["metadata"],
+                    "chunk_index": index,
+                    "parent_external_id": str(document["id"]),
+                },
             }
-            for index, chunk in enumerate(chunk_text(text), start=1)
+            for index, prepared in enumerate(prepared_chunks, start=1)
         ]
         if chunks:
             self._request(
