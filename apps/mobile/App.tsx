@@ -363,12 +363,14 @@ function StockDetailScreen({
   const chart = bundle.prices.slice(-16);
   const maxClose = Math.max(...chart.map((item) => item.close));
   const minClose = Math.min(...chart.map((item) => item.close));
+  const priceSource = latest.source === "alpha_vantage_cache" ? "ALPHA VANTAGE CACHE" : "DEMO FALLBACK";
+  const priceStatus = latest.is_stale ? " · STALE" : "";
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <BackButton onPress={onBack} />
       <View style={styles.detailHeader}>
         <View>
-          <Text style={styles.eyebrow}>{bundle.stock.exchange} · CACHED DAILY DATA</Text>
+          <Text style={styles.eyebrow}>{bundle.stock.exchange} · {priceSource}{priceStatus}</Text>
           <Text style={styles.detailTitle}>{bundle.stock.company_name}</Text>
           <Text style={styles.detailTicker}>{bundle.stock.ticker} · {bundle.stock.sector}</Text>
         </View>
@@ -378,6 +380,11 @@ function StockDetailScreen({
         <Text style={styles.cardLabel}>LATEST CLOSE</Text>
         <Text style={styles.priceValue}>{"$"}{latest.close.toFixed(2)}</Text>
         <Text style={styles.mutedText}>As of {latest.date}</Text>
+        <Text style={styles.mutedText}>
+          {latest.source === "alpha_vantage_cache"
+            ? "Daily market data cached from Alpha Vantage."
+            : "Live cache unavailable; showing deterministic demo data."}
+        </Text>
         <View style={styles.chart}>
           {chart.map((point) => {
             const height = 16 + ((point.close - minClose) / Math.max(1, maxClose - minClose)) * 70;

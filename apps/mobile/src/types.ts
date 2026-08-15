@@ -12,6 +12,8 @@ export type PricePoint = {
   low: number;
   close: number;
   volume: number;
+  source: "alpha_vantage_cache" | "demo_fallback";
+  is_stale: boolean;
 };
 
 export type TechnicalIndicators = {
