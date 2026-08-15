@@ -59,7 +59,11 @@ The board was synchronized after implementation:
 - created `#11` embedding benchmark, `#12` hybrid retrieval/reranking, `#13`
   live XBRL/price population, and `#14` layout-aware table/chart ingestion.
 
-Final board counts: 5 Todo, 2 In Progress, and 13 Done.
+Initial sync counts were 5 Todo, 2 In Progress, and 13 Done. After the live
+credential work, `#3` was verified, moved to Done, and closed; `#13` was moved
+to In Progress with a non-secret live-count update; and the RLS verification
+draft card was moved to Done. Current counts: 3 Todo, 2 In Progress, and 15
+Done.
 
 ## Main technical decisions
 
