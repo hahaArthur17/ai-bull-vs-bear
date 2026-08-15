@@ -162,7 +162,9 @@ export default function App() {
         <StockDetailScreen
           bundle={selectedBundle}
           loading={loading}
-          onBack={() => setScreen("watchlist")}
+          error={error}
+          onBack={() => { setError(""); setScreen("watchlist"); }}
+          onRetry={() => void openStock(selectedTicker)}
           onEvidence={() => setScreen("evidence")}
           onDebate={startDebate}
           isWatched={watchlist.includes(selectedTicker)}
@@ -241,7 +243,7 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style="dark" />
       <View style={styles.appShell}>
-        {error && screen !== "watchlist" ? (
+        {error && screen !== "watchlist" && !(screen === "stock" && !selectedBundle) ? (
           <Pressable style={styles.errorBanner} onPress={() => setError("")}>
             <Text style={styles.errorText}>{error}</Text>
           </Pressable>
@@ -344,7 +346,9 @@ function StockRow({
 function StockDetailScreen({
   bundle,
   loading,
+  error,
   onBack,
+  onRetry,
   onEvidence,
   onDebate,
   isWatched,
@@ -352,13 +356,24 @@ function StockDetailScreen({
 }: {
   bundle: StockBundle | null;
   loading: boolean;
+  error: string;
   onBack: () => void;
+  onRetry: () => void;
   onEvidence: () => void;
   onDebate: () => void;
   isWatched: boolean;
   onToggleWatchlist: () => void;
 }) {
-  if (loading || !bundle) return <LoadingView label="Loading stock detail..." onBack={onBack} />;
+  if (loading) return <LoadingView label="Loading stock detail..." onBack={onBack} />;
+  if (!bundle) {
+    return (
+      <FailureView
+        message={error || "Stock details are unavailable."}
+        onBack={onBack}
+        onRetry={onRetry}
+      />
+    );
+  }
   const latest = bundle.prices[bundle.prices.length - 1];
   const chart = bundle.prices.slice(-16);
   const maxClose = Math.max(...chart.map((item) => item.close));
@@ -567,6 +582,18 @@ function BackButton({ onPress }: { onPress: () => void }) {
 
 function LoadingView({ label, onBack }: { label: string; onBack: () => void }) {
   return <View style={styles.loading}><BackButton onPress={onBack} /><ActivityIndicator color={palette.accent} size="large" /><Text style={styles.mutedText}>{label}</Text></View>;
+}
+
+function FailureView({ message, onBack, onRetry }: { message: string; onBack: () => void; onRetry: () => void }) {
+  return (
+    <View style={styles.loading}>
+      <BackButton onPress={onBack} />
+      <View style={styles.errorCard}>
+        <Text style={styles.errorText}>{message}</Text>
+        <Pressable style={styles.smallButton} onPress={onRetry}><Text style={styles.smallButtonText}>Retry</Text></Pressable>
+      </View>
+    </View>
+  );
 }
 
 function NavButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
