@@ -129,3 +129,29 @@ def test_supabase_search_uses_vector_rpc() -> None:
 
     assert evidence[0]["id"] == "chunk-4"
     assert evidence[0]["metadata"]["document_id"] == "12"
+
+
+def test_supabase_search_falls_back_when_vector_rpc_has_no_matches() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=[]))
+    )
+    store = SupabaseStore("https://example.supabase.co", "anon-key", client)
+
+    evidence = store.search_evidence("AAPL", "revenue growth")
+
+    assert evidence
+    assert evidence[0]["metadata"]["retrieval_mode"] == "demo_fallback"
+    assert evidence[0]["metadata"]["fallback_reason"] == "no_vector_matches"
+
+
+def test_supabase_search_falls_back_when_vector_rpc_is_unavailable() -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(503))
+    )
+    store = SupabaseStore("https://example.supabase.co", "anon-key", client)
+
+    evidence = store.search_evidence("AAPL", "risk factors")
+
+    assert evidence
+    assert evidence[0]["metadata"]["retrieval_mode"] == "demo_fallback"
+    assert evidence[0]["metadata"]["fallback_reason"] == "rpc_unavailable"

@@ -6,6 +6,7 @@ import httpx
 
 from app.schemas import AnalysisResponse
 from app.services.demo_store import DemoStore
+from app.services.rag import retrieve_evidence
 
 
 class RepositoryError(RuntimeError):
@@ -123,15 +124,21 @@ class SupabaseStore(DemoStore):
         return technical + live_documents if live_documents else technical
 
     def search_evidence(self, ticker: str, query: str, limit: int = 6) -> list[dict[str, object]]:
-        response = self._public_rpc(
-            "match_evidence_chunks",
-            {
-                "query_text": query,
-                "match_count": limit,
-                "filter_ticker": ticker.upper(),
-                "filter_source_type": None,
-            },
-        )
+        try:
+            response = self._public_rpc(
+                "match_evidence_chunks",
+                {
+                    "query_text": query,
+                    "match_count": limit,
+                    "filter_ticker": ticker.upper(),
+                    "filter_source_type": None,
+                },
+            )
+        except RepositoryError:
+            return self._fallback_search_evidence(ticker, query, limit, "rpc_unavailable")
+        rows = response.json()
+        if not rows:
+            return self._fallback_search_evidence(ticker, query, limit, "no_vector_matches")
         return [
             {
                 "id": f"chunk-{row['chunk_id']}",
@@ -148,8 +155,25 @@ class SupabaseStore(DemoStore):
                     "storage": "supabase",
                 },
             }
-            for row in response.json()
+            for row in rows
         ]
+
+    def _fallback_search_evidence(
+        self,
+        ticker: str,
+        query: str,
+        limit: int,
+        reason: str,
+    ) -> list[dict[str, object]]:
+        results = retrieve_evidence(super().get_evidence(ticker), query, limit)
+        for item in results:
+            metadata = item.get("metadata")
+            item["metadata"] = {
+                **(metadata if isinstance(metadata, dict) else {}),
+                "retrieval_mode": "demo_fallback",
+                "fallback_reason": reason,
+            }
+        return results
 
     def _public_request(
         self,
