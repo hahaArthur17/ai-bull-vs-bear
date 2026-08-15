@@ -3,8 +3,11 @@ watchlists
 stocks
 stock_prices
 technical_indicators
+financial_facts
 evidence_documents
 evidence_chunks
+embedding_profiles
+chunk_embeddings
 analysis_runs
 agent_outputs
 claim_evidence
@@ -66,6 +69,32 @@ Fields:
 - published_at
 - raw_text
 
+## financial_facts
+
+Stores typed SEC XBRL facts for exact filtering, comparisons, and arithmetic.
+Vector retrieval can locate a relevant statement, but numerical answers use
+these values and their explicit period/unit context.
+
+Fields:
+- id
+- stock_id
+- taxonomy
+- concept
+- label
+- description
+- unit
+- value
+- period_start
+- period_end
+- fiscal_year
+- fiscal_period
+- form
+- filed_at
+- accession_number
+- frame
+- source_url
+- metadata
+
 ## evidence_chunks
 
 Stores chunks for RAG retrieval.
@@ -76,6 +105,45 @@ Fields:
 - chunk_text
 - embedding
 - metadata
+
+The legacy `embedding` column remains the deterministic `local-hash-v1`
+compatibility path. New model-generated vectors are stored separately.
+
+## embedding_profiles
+
+Defines one versioned vector-space contract.
+
+Fields:
+- id
+- slug
+- provider
+- model
+- dimensions
+- distance_metric
+- normalization
+- modality
+- query_instruction
+- document_instruction
+- preprocessing_version
+- status
+- metadata
+
+## chunk_embeddings
+
+Stores zero or more model-specific embeddings for each canonical evidence
+chunk. The `(chunk_id, profile_id)` key prevents one provider from overwriting
+another. A validation trigger rejects vectors whose dimensions do not match
+their profile.
+
+Fields:
+- chunk_id
+- profile_id
+- embedding
+- input_hash
+- created_at
+
+Production profiles receive their own partial HNSW expression index because
+pgvector indexes can cover only one dimension count at a time.
 
 ## analysis_runs
 
