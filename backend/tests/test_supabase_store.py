@@ -56,7 +56,10 @@ class FakePostgrest:
                         "url": "https://www.sec.gov/example",
                         "published_at": "2026-02-01T00:00:00+00:00",
                         "raw_text": "Live SEC filing metadata.",
-                        "metadata": {"source": "SEC EDGAR submissions API"},
+                        "metadata": {
+                            "source": "SEC EDGAR submissions API",
+                            "sections": ["Item 1A — Risk Factors"],
+                        },
                         "created_at": "2026-08-13T00:00:00+00:00",
                     }
                 ],
@@ -124,6 +127,8 @@ def test_supabase_evidence_combines_technical_and_live_documents() -> None:
 
     assert any(item["source_type"] == "technical" for item in evidence)
     assert any(item["id"] == "sec-aapl-example" for item in evidence)
+    filing = next(item for item in evidence if item["id"] == "sec-aapl-example")
+    assert filing["metadata"]["sections"] == ["Item 1A — Risk Factors"]
 
 
 def test_supabase_search_uses_vector_rpc() -> None:

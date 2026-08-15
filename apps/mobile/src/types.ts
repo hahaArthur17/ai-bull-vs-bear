@@ -37,7 +37,7 @@ export type EvidenceItem = {
   url?: string | null;
   published_at?: string | null;
   excerpt: string;
-  metadata: Record<string, string>;
+  metadata: Record<string, unknown>;
 };
 
 export type StockBundle = {

@@ -44,7 +44,7 @@ class EvidenceItem(BaseModel):
     url: str | None = None
     published_at: str | None = None
     excerpt: str
-    metadata: dict[str, str] = Field(default_factory=dict)
+    metadata: dict[str, object] = Field(default_factory=dict)
 
 
 class WatchlistRequest(BaseModel):

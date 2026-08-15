@@ -497,7 +497,9 @@ function EvidenceScreen({ ticker, evidence, onBack }: { ticker: string; evidence
           <View style={styles.rowBetween}><Text style={styles.evidenceTag}>{item.id}</Text><Text style={styles.mutedText}>{item.source_type}</Text></View>
           <Text style={styles.cardTitle}>{item.title}</Text>
           <Text style={styles.mutedText}>{item.excerpt}</Text>
-          <Text style={styles.sourceText}>{item.metadata.source || "cached demo source"} · {item.published_at || "undated"}</Text>
+          <Text style={styles.sourceText}>
+            {typeof item.metadata.source === "string" ? item.metadata.source : "cached demo source"} · {item.published_at || "undated"}
+          </Text>
         </View>
       ))}
       <Text style={styles.safeNote}>Evidence is shown for interpretation, not as a recommendation.</Text>
