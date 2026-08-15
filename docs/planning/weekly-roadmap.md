@@ -8,18 +8,18 @@ Status values: `Done`, `In progress`, `Planned`, and `Blocked`.
 
 ## Current snapshot
 
-Last reviewed: 2026-08-12
+Last reviewed: 2026-08-15
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Mobile MVP | Done | Expo flow covers watchlist, stock detail, evidence, debate, claim examination, history, and about screens. |
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
-| Automated checks | Done | Backend unit/API tests and GitHub Actions CI are present. |
+| Automated checks | Done | 28 backend unit/API tests, mobile typecheck, and GitHub Actions CI pass. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
-| Supabase | In progress | Dedicated project, schema deployment, explicit Data API grants, URL/key configuration, and public API verification are done; Auth and backend persistence remain. |
-| Live market/evidence data | Planned | RSS ingestion utility exists; production feeds, SEC EDGAR ingestion, and scheduled refresh remain. |
-| Mobile verification | Planned | Dependency installation, typecheck, and device testing remain. |
+| Supabase | In progress | Auth/session handling and backend persistence are implemented; two-user RLS and restart verification remain. |
+| Live market/evidence data | In progress | Supabase has RSS/SEC records, chunks, and vectors; selected SEC section refresh and live price caching remain. |
+| Mobile verification | In progress | Dependencies and lockfile are present and typecheck passes; simulator and physical-device testing remain. |
 | Deployment | Planned | Backend hosting, mobile build, monitoring, and release checklist remain. |
 
 ## Week 1 — Product definition and repository foundation
@@ -71,24 +71,52 @@ Status: In progress
 - [x] Run a live model analysis and record the verification result.
 - [x] Create a dedicated Supabase project for AI Bull vs Bear.
 - [x] Apply `backend/supabase/schema.sql`.
-- [ ] Enable Supabase Auth and connect persistent watchlists/analysis history.
+- [x] Enable Supabase Auth and connect persistent watchlists/analysis history.
+
+Live verification is carried into Week 4: two real test users must still prove
+cross-user RLS isolation and persistence across a backend restart.
 
 Completion rule: a real provider analysis succeeds locally, and Supabase stores
 and returns data for an authenticated user without exposing secrets.
 
 ## Week 4 — Live evidence and persistence
 
-Status: Planned
+Status: In progress
 
 Operating checklist: [`week-4-todo.md`](week-4-todo.md)
 
-- Connect at least one production-safe market price source with caching.
-- Ingest news through an approved RSS or API source.
-- Ingest SEC EDGAR filing metadata and selected filing sections.
-- Store evidence documents/chunks in Supabase.
-- Add embedding generation and pgvector retrieval.
-- Add retry, rate-limit, stale-cache, and provider-failure handling.
-- Add tests with mocked provider responses; do not call paid APIs in CI.
+- [ ] Connect at least one production-safe market price source with caching.
+- [x] Ingest news through an approved RSS source.
+- [x] Ingest SEC EDGAR filing metadata and extract selected filing sections.
+- [x] Store evidence documents/chunks in Supabase.
+- [x] Add embedding generation and pgvector retrieval.
+- [ ] Complete stale-cache and provider-failure handling across live data sources.
+- [x] Add tests with mocked provider responses; do not call paid APIs in CI.
+
+Progress recorded on 2026-08-15:
+
+- Supabase authentication, mobile bearer-token forwarding, persistent
+  watchlists/history, RLS policies, live RSS/SEC ingestion, evidence upserts,
+  chunk storage, database-local vectors, and vector retrieval were implemented
+  in the 2026-08-13 commit series.
+- `4af130d` extracts Risk Factors and Management's Discussion and Analysis from
+  filing HTML while rejecting short table-of-contents matches.
+- `04d66c1` adds a declared SEC client with request spacing and retry handling
+  for 429, network, and temporary server failures.
+- `3ead176` stores selected sections when available and retains explicit
+  metadata-only evidence when an individual filing cannot be fetched.
+- A live read-only check found four supported stocks, six evidence documents
+  (two news and four filing records), six chunks, and six populated vectors.
+- Backend verification passes 28 tests; mobile `npm run typecheck` passes.
+
+Remaining before Week 4 completion:
+
+- Configure a server-side Supabase secret and compliant `SEC_USER_AGENT`, then
+  rerun ingestion so existing filing records contain selected sections.
+- Verify authentication, restart persistence, and RLS isolation with two real
+  test users.
+- Add a live price provider with cache provenance, stale fallback, and
+  resilience tests.
 
 Completion rule: the evidence board can distinguish cached/demo evidence from
 live evidence and every generated claim links to retrievable source metadata.
@@ -97,8 +125,8 @@ live evidence and every generated claim links to retrievable source metadata.
 
 Status: Planned
 
-- Install mobile dependencies and commit the generated lockfile.
-- Run TypeScript typecheck and Expo diagnostics.
+- [x] Install mobile dependencies and commit the generated lockfile.
+- [ ] Run Expo diagnostics; TypeScript typecheck already passes.
 - Test iOS/Android simulator and at least one physical device.
 - Add loading, empty, timeout, offline, and provider-error states.
 - Deploy the backend and configure production CORS/environment variables.
@@ -143,3 +171,7 @@ At the end of each week:
 - 2026-08-12: Create a dedicated Supabase project, apply the ten-table schema,
   and use explicit minimum Data API grants because automatic table exposure is
   disabled.
+- 2026-08-15: Prefer bounded SEC narrative sections over filing metadata-only
+  evidence; keep metadata as an explicit fallback when a filing is unavailable.
+- 2026-08-15: Treat the repository and passing tests as the implementation
+  source of truth when the GitHub Project board has not yet been synchronized.

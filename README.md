@@ -21,12 +21,17 @@ file before starting the next week's work.
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
 - Local lexical-RAG retrieval with overlapping chunks and query-based evidence
-  ranking; the Supabase pgvector schema is prepared for the next persistence
-  milestone.
+  ranking as the credential-free fallback.
 - Bull Agent, Bear Agent, Judge Agent, Guardrail Agent, evidence IDs, a trace,
   and a token ledger in the demo provider.
 - Groq and Gemini model-provider adapters with structured JSON validation,
   evidence-ID filtering, token accounting, and the same safety guardrails.
+- Supabase email authentication, mobile session persistence, bearer-token API
+  protection, and Supabase-backed watchlists and analysis history.
+- Live RSS and SEC EDGAR ingestion with stable IDs, Supabase document/chunk
+  storage, selected 10-K/10-Q section extraction, and retry/rate-limit handling.
+- Database-local evidence vectors and ticker-filtered pgvector retrieval with a
+  deterministic cached fallback.
 - Financial-advice rewrites and a required educational disclaimer.
 
 ## Run the backend
