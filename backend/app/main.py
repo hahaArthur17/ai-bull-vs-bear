@@ -74,12 +74,12 @@ def current_auth(
             user_id=x_user_id or settings.demo_user_id,
             access_token=None,
         )
+    access_token = extract_bearer_token(authorization)
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Supabase authentication is not configured",
         )
-    access_token = extract_bearer_token(authorization)
     verifier = SupabaseAuthVerifier(settings.supabase_url, settings.supabase_anon_key)
     return verifier.verify(access_token)
 
