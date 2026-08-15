@@ -32,6 +32,20 @@ and multiple embedding providers while preserving a clear handoff record.
   (`0bcf0c2`).
 - Updated schema and live-service documentation (`41bd77e`, `e86c515`).
 
+## GitHub Project sync
+
+The board was synchronized after implementation:
+
+- moved JWT authentication, RSS ingestion, SEC ingestion, embeddings, and live
+  price caching subtasks from Todo to Done;
+- kept the two top-level issues `#3` and `#6` In Progress because their live
+  credential acceptance checks are still incomplete;
+- kept two-user RLS verification in Todo; and
+- created `#11` embedding benchmark, `#12` hybrid retrieval/reranking, `#13`
+  live XBRL/price population, and `#14` layout-aware table/chart ingestion.
+
+Final board counts: 5 Todo, 2 In Progress, and 13 Done.
+
 ## Main technical decisions
 
 - The current 1,536-dimensional vector is `local-hash-v1`, an offline plumbing
