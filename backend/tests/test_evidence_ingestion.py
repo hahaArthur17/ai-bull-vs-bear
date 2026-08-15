@@ -3,7 +3,9 @@ import httpx
 from app.services.evidence_ingestion import (
     SecEdgarClient,
     extract_filing_sections,
+    fetch_sec_companyfacts,
     fetch_sec_filings,
+    parse_sec_companyfacts,
     parse_sec_submissions,
 )
 
@@ -197,3 +199,78 @@ def test_fetch_sec_filings_keeps_metadata_when_filing_is_unavailable() -> None:
 
     assert documents[0]["metadata"]["content_status"] == "metadata_only"
     assert documents[0]["metadata"]["filing_fetch_status"] == "unavailable"
+
+
+def test_parse_sec_companyfacts_preserves_period_units_and_provenance() -> None:
+    payload = {
+        "entityName": "Example Corp",
+        "facts": {
+            "us-gaap": {
+                "RevenueFromContractWithCustomerExcludingAssessedTax": {
+                    "label": "Revenue",
+                    "description": "Revenue from customers.",
+                    "units": {
+                        "USD": [
+                            {
+                                "start": "2026-01-01",
+                                "end": "2026-03-31",
+                                "val": 125000000,
+                                "accn": "0000320193-26-000001",
+                                "fy": 2026,
+                                "fp": "Q1",
+                                "form": "10-Q",
+                                "filed": "2026-05-01",
+                                "frame": "CY2026Q1",
+                            },
+                            {
+                                "end": "2026-03-31",
+                                "val": 999,
+                                "accn": "0000320193-26-000002",
+                                "form": "8-K",
+                                "filed": "2026-05-02",
+                            },
+                        ]
+                    },
+                },
+                "UnselectedConcept": {
+                    "label": "Ignored",
+                    "units": {"USD": []},
+                },
+            }
+        },
+    }
+
+    facts = parse_sec_companyfacts(payload, "AAPL")
+
+    assert len(facts) == 1
+    assert facts[0]["concept"] == "RevenueFromContractWithCustomerExcludingAssessedTax"
+    assert facts[0]["unit"] == "USD"
+    assert facts[0]["period_start"] == "2026-01-01"
+    assert facts[0]["period_end"] == "2026-03-31"
+    assert facts[0]["fiscal_period"] == "Q1"
+    assert facts[0]["source_url"].endswith("/320193/000032019326000001/")
+
+
+def test_fetch_sec_companyfacts_uses_companyfacts_endpoint() -> None:
+    requested_urls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requested_urls.append(str(request.url))
+        return httpx.Response(200, json={"facts": {}})
+
+    client = SecEdgarClient(
+        "AI Bull vs Bear admin@example.com",
+        client=httpx.Client(transport=httpx.MockTransport(handler)),
+        min_interval=0,
+    )
+
+    facts = fetch_sec_companyfacts(
+        "NVDA",
+        "AI Bull vs Bear admin@example.com",
+        edgar_client=client,
+    )
+
+    assert facts == []
+    assert requested_urls == [
+        "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json"
+    ]

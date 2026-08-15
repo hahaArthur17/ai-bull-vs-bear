@@ -19,6 +19,22 @@ SEC_CIKS = {
     "TSLA": "0001318605",
 }
 
+SEC_FINANCIAL_CONCEPTS = {
+    "Assets",
+    "CashAndCashEquivalentsAtCarryingValue",
+    "CommonStockSharesOutstanding",
+    "EarningsPerShareDiluted",
+    "GrossProfit",
+    "Liabilities",
+    "NetCashProvidedByUsedInOperatingActivities",
+    "NetIncomeLoss",
+    "OperatingIncomeLoss",
+    "PaymentsToAcquirePropertyPlantAndEquipment",
+    "RevenueFromContractWithCustomerExcludingAssessedTax",
+    "Revenues",
+    "StockholdersEquity",
+}
+
 _SECTION_SPECS = {
     "10-K": (
         (
@@ -318,6 +334,127 @@ def fetch_sec_filings(
     return documents
 
 
+def parse_sec_companyfacts(
+    payload: dict[str, object],
+    ticker: str,
+    limit_per_concept: int = 12,
+) -> list[dict[str, object]]:
+    """Normalize recent SEC XBRL facts for typed storage and arithmetic."""
+
+    if limit_per_concept < 1:
+        raise ValueError("limit_per_concept must be at least 1")
+    normalized_ticker = ticker.upper()
+    cik = SEC_CIKS[normalized_ticker]
+    cik_path = str(int(cik))
+    facts_root = payload.get("facts")
+    if not isinstance(facts_root, dict):
+        return []
+
+    rows: list[dict[str, object]] = []
+    seen: set[tuple[str, str, str, str, str, str]] = set()
+    for taxonomy in ("us-gaap", "ifrs-full"):
+        taxonomy_facts = facts_root.get(taxonomy)
+        if not isinstance(taxonomy_facts, dict):
+            continue
+        for concept, definition in taxonomy_facts.items():
+            if concept not in SEC_FINANCIAL_CONCEPTS or not isinstance(definition, dict):
+                continue
+            units = definition.get("units")
+            if not isinstance(units, dict):
+                continue
+            for unit, observations in units.items():
+                if not isinstance(observations, list):
+                    continue
+                eligible = [
+                    observation
+                    for observation in observations
+                    if isinstance(observation, dict)
+                    and observation.get("form") in {"10-K", "10-Q"}
+                    and observation.get("end")
+                    and observation.get("filed")
+                    and observation.get("accn")
+                    and isinstance(observation.get("val"), (int, float))
+                    and not isinstance(observation.get("val"), bool)
+                ]
+                eligible.sort(
+                    key=lambda item: (
+                        str(item.get("filed", "")),
+                        str(item.get("end", "")),
+                    ),
+                    reverse=True,
+                )
+                for observation in eligible[:limit_per_concept]:
+                    period_end = str(observation["end"])
+                    period_start = str(observation.get("start") or period_end)
+                    accession = str(observation["accn"])
+                    identity = (
+                        taxonomy,
+                        str(concept),
+                        str(unit),
+                        period_start,
+                        period_end,
+                        accession,
+                    )
+                    if identity in seen:
+                        continue
+                    seen.add(identity)
+                    fiscal_year = observation.get("fy")
+                    compact_accession = accession.replace("-", "")
+                    rows.append(
+                        {
+                            "ticker": normalized_ticker,
+                            "taxonomy": taxonomy,
+                            "concept": str(concept),
+                            "label": str(definition.get("label") or concept),
+                            "description": str(definition.get("description") or "") or None,
+                            "unit": str(unit),
+                            "value": observation["val"],
+                            "period_start": period_start,
+                            "period_end": period_end,
+                            "fiscal_year": (
+                                int(fiscal_year)
+                                if isinstance(fiscal_year, (int, float, str))
+                                and str(fiscal_year).isdigit()
+                                else None
+                            ),
+                            "fiscal_period": str(observation.get("fp") or "") or None,
+                            "form": str(observation["form"]),
+                            "filed_at": str(observation["filed"]),
+                            "accession_number": accession,
+                            "frame": str(observation.get("frame") or "") or None,
+                            "source_url": (
+                                "https://www.sec.gov/Archives/edgar/data/"
+                                f"{cik_path}/{compact_accession}/"
+                            ),
+                            "metadata": {
+                                "source": "SEC EDGAR companyfacts API",
+                                "entity_name": str(payload.get("entityName") or ""),
+                            },
+                        }
+                    )
+    return rows
+
+
+def fetch_sec_companyfacts(
+    ticker: str,
+    user_agent: str,
+    limit_per_concept: int = 12,
+    timeout: float = 15.0,
+    edgar_client: SecEdgarClient | None = None,
+) -> list[dict[str, object]]:
+    normalized = ticker.upper()
+    cik = SEC_CIKS.get(normalized)
+    if cik is None:
+        raise ValueError(f"Unsupported SEC ticker: {normalized}")
+    client = edgar_client or SecEdgarClient(user_agent, timeout=timeout)
+    response = client.get(f"https://data.sec.gov/api/xbrl/companyfacts/CIK{cik}.json")
+    return parse_sec_companyfacts(
+        response.json(),
+        normalized,
+        limit_per_concept=limit_per_concept,
+    )
+
+
 class EvidenceWriter:
     def __init__(
         self,
@@ -328,6 +465,7 @@ class EvidenceWriter:
         self.rest_url = f"{supabase_url.rstrip('/')}/rest/v1"
         self.secret_key = secret_key
         self.client = client
+        self._stock_ids: dict[str, int] = {}
 
     def _headers(self, prefer: str) -> dict[str, str]:
         return {
@@ -350,15 +488,19 @@ class EvidenceWriter:
         return response
 
     def stock_id(self, ticker: str) -> int:
+        normalized = ticker.upper()
+        if normalized in self._stock_ids:
+            return self._stock_ids[normalized]
         response = self._request(
             "GET",
             "stocks",
-            params={"select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1"},
+            params={"select": "id", "ticker": f"eq.{normalized}", "limit": "1"},
         )
         rows = response.json()
         if not rows:
-            raise RuntimeError(f"Stock {ticker.upper()} is not seeded")
-        return int(rows[0]["id"])
+            raise RuntimeError(f"Stock {normalized} is not seeded")
+        self._stock_ids[normalized] = int(rows[0]["id"])
+        return self._stock_ids[normalized]
 
     def upsert_documents(self, documents: Iterable[dict[str, object]]) -> int:
         written = 0
@@ -395,6 +537,45 @@ class EvidenceWriter:
                 self._replace_chunks(int(document_rows[0]["id"]), document, metadata)
             written += 1
         return written
+
+    def upsert_financial_facts(self, facts: Iterable[dict[str, object]]) -> int:
+        payloads: list[dict[str, object]] = []
+        for fact in facts:
+            payloads.append(
+                {
+                    "stock_id": self.stock_id(str(fact["ticker"])),
+                    "taxonomy": fact["taxonomy"],
+                    "concept": fact["concept"],
+                    "label": fact["label"],
+                    "description": fact.get("description"),
+                    "unit": fact["unit"],
+                    "value": fact["value"],
+                    "period_start": fact["period_start"],
+                    "period_end": fact["period_end"],
+                    "fiscal_year": fact.get("fiscal_year"),
+                    "fiscal_period": fact.get("fiscal_period"),
+                    "form": fact["form"],
+                    "filed_at": fact["filed_at"],
+                    "accession_number": fact["accession_number"],
+                    "frame": fact.get("frame"),
+                    "source_url": fact["source_url"],
+                    "metadata": fact.get("metadata") or {},
+                }
+            )
+        if payloads:
+            self._request(
+                "POST",
+                "financial_facts",
+                params={
+                    "on_conflict": (
+                        "stock_id,taxonomy,concept,unit,period_start,period_end,"
+                        "accession_number"
+                    )
+                },
+                json=payloads,
+                prefer="resolution=merge-duplicates,return=minimal",
+            )
+        return len(payloads)
 
     def _replace_chunks(
         self,
@@ -451,6 +632,7 @@ def ingest_live_evidence(
     for ticker, url in feeds.items():
         rss_count += writer.upsert_documents(fetch_rss(url, ticker, limit=per_source_limit))
     sec_count = 0
+    xbrl_count = 0
     edgar_client = SecEdgarClient(sec_user_agent)
     for ticker in SEC_CIKS:
         sec_count += writer.upsert_documents(
@@ -461,4 +643,11 @@ def ingest_live_evidence(
                 edgar_client=edgar_client,
             )
         )
-    return {"rss": rss_count, "sec": sec_count}
+        xbrl_count += writer.upsert_financial_facts(
+            fetch_sec_companyfacts(
+                ticker,
+                sec_user_agent,
+                edgar_client=edgar_client,
+            )
+        )
+    return {"rss": rss_count, "sec": sec_count, "xbrl": xbrl_count}
