@@ -157,6 +157,18 @@ Temporary provider failure leaves the previous cache untouched. Empty,
 unavailable, or older-than-configured caches are identified in the API; an
 unavailable cache falls back to deterministic demo prices.
 
+## Optional Apify and Finnhub credentials
+
+The ignored local `.env` may also define `APIFY_USER_ID`, `APIFY_API_TOKEN`,
+and `FINNHUB_API_KEY`. These values are server-side only and must not use the
+`EXPO_PUBLIC_` prefix.
+
+Finnhub is a concrete market-data provider candidate. Apify is an automation
+platform rather than a single financial dataset, so an Actor or saved task and
+its expected output schema must be selected before an ingestion adapter can be
+implemented. Merely configuring the Apify account token does not identify
+which source should feed the evidence pipeline.
+
 ## Verification checklist
 
 - [x] `.env` exists locally and remains ignored by Git.

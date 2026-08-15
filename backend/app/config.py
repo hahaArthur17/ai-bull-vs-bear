@@ -29,6 +29,9 @@ class Settings(BaseSettings):
     supabase_rls_user_b_password: str | None = None
     sec_user_agent: str | None = None
     alpha_vantage_api_key: str | None = None
+    apify_user_id: str | None = None
+    apify_api_token: str | None = None
+    finnhub_api_key: str | None = None
     price_stale_after_days: int = 5
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
