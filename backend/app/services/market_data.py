@@ -6,7 +6,14 @@ from typing import Callable
 import httpx
 
 
+DEFAULT_PRICE_TICKERS = ("AAPL", "GOOG", "NVDA", "TSLA")
+
+
 class MarketDataError(RuntimeError):
+    pass
+
+
+class PriceCacheError(RuntimeError):
     pass
 
 
@@ -100,3 +107,91 @@ class AlphaVantageClient:
                 raise MarketDataError("Alpha Vantage returned invalid JSON")
             return parse_alpha_vantage_daily(payload, limit=limit)
         raise MarketDataError("Alpha Vantage request attempts exhausted")
+
+
+class SupabasePriceWriter:
+    def __init__(
+        self,
+        supabase_url: str,
+        secret_key: str,
+        client: httpx.Client | None = None,
+    ) -> None:
+        self.rest_url = f"{supabase_url.rstrip('/')}/rest/v1"
+        self.secret_key = secret_key
+        self.client = client
+
+    def _request(self, method: str, table: str, **kwargs: object) -> httpx.Response:
+        requester = self.client.request if self.client is not None else httpx.request
+        headers = {
+            "apikey": self.secret_key,
+            "Authorization": f"Bearer {self.secret_key}",
+            "Content-Type": "application/json",
+            "Prefer": str(kwargs.pop("prefer", "return=representation")),
+        }
+        try:
+            response = requester(
+                method,
+                f"{self.rest_url}/{table}",
+                headers=headers,
+                timeout=15.0,
+                **kwargs,
+            )
+        except httpx.RequestError as exc:
+            raise PriceCacheError("Supabase price cache is unavailable") from exc
+        if response.status_code >= 400:
+            raise PriceCacheError(
+                f"Supabase price cache request failed with status {response.status_code}"
+            )
+        return response
+
+    def _stock_id(self, ticker: str) -> int:
+        response = self._request(
+            "GET",
+            "stocks",
+            params={"select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1"},
+        )
+        rows = response.json()
+        if not rows:
+            raise PriceCacheError(f"Stock {ticker.upper()} is not seeded in Supabase")
+        return int(rows[0]["id"])
+
+    def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+        if not prices:
+            return 0
+        stock_id = self._stock_id(ticker)
+        rows = [
+            {
+                "stock_id": stock_id,
+                "trading_date": point["date"],
+                "open": point["open"],
+                "high": point["high"],
+                "low": point["low"],
+                "close": point["close"],
+                "volume": point["volume"],
+            }
+            for point in prices
+        ]
+        self._request(
+            "POST",
+            "stock_prices",
+            params={"on_conflict": "stock_id,trading_date"},
+            json=rows,
+            prefer="resolution=merge-duplicates,return=minimal",
+        )
+        return len(rows)
+
+
+def ingest_live_prices(
+    provider: AlphaVantageClient,
+    writer: SupabasePriceWriter,
+    tickers: tuple[str, ...] = DEFAULT_PRICE_TICKERS,
+) -> dict[str, object]:
+    updated: dict[str, int] = {}
+    failed: list[str] = []
+    for ticker in tickers:
+        try:
+            prices = provider.fetch_daily(ticker)
+            updated[ticker] = writer.upsert_prices(ticker, prices)
+        except (MarketDataError, PriceCacheError):
+            failed.append(ticker)
+    return {"updated": updated, "failed": failed}

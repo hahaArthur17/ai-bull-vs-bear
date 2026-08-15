@@ -1,9 +1,13 @@
+import json
+
 import httpx
 import pytest
 
 from app.services.market_data import (
     AlphaVantageClient,
     MarketDataError,
+    SupabasePriceWriter,
+    ingest_live_prices,
     parse_alpha_vantage_daily,
 )
 
@@ -76,3 +80,57 @@ def test_alpha_vantage_rate_limit_response_is_safe() -> None:
 
     with pytest.raises(MarketDataError, match="request limit reached"):
         client.fetch_daily("AAPL")
+
+
+def test_supabase_price_writer_upserts_daily_cache() -> None:
+    written_rows: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.headers["apikey"] == "secret-key"
+        table = request.url.path.rsplit("/", 1)[-1]
+        if table == "stocks":
+            return httpx.Response(200, json=[{"id": 7}])
+        if table == "stock_prices":
+            written_rows.extend(json.loads(request.content))
+            return httpx.Response(201)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    writer = SupabasePriceWriter(
+        "https://example.supabase.co",
+        "secret-key",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+    prices = parse_alpha_vantage_daily(daily_payload())
+
+    count = writer.upsert_prices("AAPL", prices)
+
+    assert count == 2
+    assert written_rows[0]["stock_id"] == 7
+    assert written_rows[-1]["trading_date"] == "2026-08-14"
+
+
+def test_live_price_ingestion_preserves_other_tickers_after_provider_failure() -> None:
+    class FakeProvider:
+        def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+            if ticker == "GOOG":
+                raise MarketDataError("temporary failure")
+            return parse_alpha_vantage_daily(daily_payload(), limit=1)
+
+    class FakeWriter:
+        def __init__(self) -> None:
+            self.tickers: list[str] = []
+
+        def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+            self.tickers.append(ticker)
+            return len(prices)
+
+    writer = FakeWriter()
+
+    result = ingest_live_prices(  # type: ignore[arg-type]
+        FakeProvider(),  # type: ignore[arg-type]
+        writer,  # type: ignore[arg-type]
+        tickers=("AAPL", "GOOG", "NVDA"),
+    )
+
+    assert result == {"updated": {"AAPL": 1, "NVDA": 1}, "failed": ["GOOG"]}
+    assert writer.tickers == ["AAPL", "NVDA"]

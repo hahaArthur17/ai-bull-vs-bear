@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     supabase_anon_key: str | None = None
     supabase_secret_key: str | None = None
     sec_user_agent: str | None = None
+    alpha_vantage_api_key: str | None = None
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
