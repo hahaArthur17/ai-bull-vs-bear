@@ -78,6 +78,13 @@ and multiple embedding providers while preserving a clear handoff record.
   `.env` and could consume real free-model quota. Added an early test-runtime
   override for demo auth, persistence, and analysis so all automated tests are
   credential- and network-independent (`89ac770`).
+- Imported the `ai-bull-vs-bear-zero-cost` Blueprint into Render and deployed
+  the Free Docker API plus static Expo Web frontend. The Hobby workspace has a
+  `$0` monthly spend limit, and no Render database, disk, cron job, or paid
+  provider was created.
+- Configured only the production CORS origin and public Supabase URL/anon key.
+  No Supabase secret, provider key, RLS password, or SEC identity was uploaded
+  to Render.
 
 ## GitHub Project sync
 
@@ -105,6 +112,8 @@ The 2026-08-16 zero-cost deployment continuation also:
   population optional for the demo; and
 - created `#15`, **Deploy the zero-cost Render demo and run smoke checks**, with
   repository work checked off and account-side deployment checks remaining.
+- completed and closed `#15` after the live Render deployment and acceptance
+  checks passed.
 
 The available GitHub credential has repository scope but lacks the
 `read:project`/`project` scopes needed to inspect or mutate Project V2 status
@@ -149,23 +158,31 @@ available.
 - Live Supabase contains 20 evidence documents, 107 contextual chunks, and 611
   structured financial facts after two idempotent ingestion runs.
 - Supabase Dashboard login was already active, so no user login was needed.
+- Render API health returns `status=ok`, `environment=production`, and
+  `provider=demo` at <https://ai-bull-vs-bear-api.onrender.com/health>.
+- The live static frontend returns HTTP 200 at
+  <https://ai-bull-vs-bear.onrender.com>.
+- A live disposable-user smoke test passes authentication, four-stock reads,
+  eight AAPL evidence records, zero-token analysis creation, history
+  persistence, and frontend-origin CORS.
+- The Codex in-app browser reports `ERR_BLOCKED_BY_CLIENT` for direct
+  `onrender.com` API traffic. This is isolated to the browser-control client;
+  independent HTTPS and CORS requests pass.
 
 ## Exact blockers
 
-- The repository is deployment-ready, but the actual Render Blueprint import
-  requires an authenticated Render account with access to the GitHub
-  repository. No Render login or API token is currently available to the
-  local environment. This is the only unavoidable user-side deployment step.
 - Alpha Vantage is no longer a demo blocker. Until a free key is available,
   prices use the explicit deterministic fallback; no paid market-data service
   should be enabled.
 - Simulator and physical-device verification still require an available device
   or simulator session.
+- Final visual verification should use Safari or Chrome because the Codex
+  in-app browser blocks the separate `onrender.com` API origin client-side.
 
 ## Next three tasks
 
-1. Import `render.yaml` through an authenticated Render account, enter only the
-   public Supabase/CORS values, and run the documented live smoke test.
+1. Rehearse the main flow once in Safari or Chrome, then finish the privacy
+   note, demo script, and release checklist.
 2. Create a small finance retrieval benchmark with gold chunks, cells, units,
    periods, and calculations; add the first real 1,024-dimensional profile.
 3. Add lexical retrieval/rank fusion and expose structured financial facts to

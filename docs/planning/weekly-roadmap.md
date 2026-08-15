@@ -23,7 +23,7 @@ Last reviewed: 2026-08-16
 | Supabase | Done | Auth/session handling, persistence, current backend key, two-user RLS isolation, restart persistence, vectors, and XBRL facts are live. |
 | Live market/evidence data | In progress | Live RSS/SEC/vector/XBRL data is populated; Alpha Vantage remains optional because price reads have a tested demo fallback. |
 | Mobile verification | In progress | SDK dependencies, typecheck, Expo Doctor, and Web export pass; simulator and physical-device testing remain. |
-| Deployment | In progress | Zero-cost Render Blueprint and slim Docker runtime are verified; account-side Blueprint import and live smoke test remain. |
+| Deployment | Done | Render Free API and static Expo Web site are live; production auth, CORS, zero-token analysis, and persistence smoke tests pass. |
 
 ## Week 1 — Product definition and repository foundation
 
@@ -139,7 +139,7 @@ Status: In progress
 - [x] Export a production Web bundle with Metro.
 - [ ] Test iOS/Android simulator and at least one physical device.
 - [x] Add loading, empty, timeout, offline, and provider-error states.
-- [ ] Deploy the backend and configure production CORS/environment variables.
+- [x] Deploy the backend and configure production CORS/environment variables.
 - [ ] Add monitoring, privacy notes, demo script, and final release checklist.
 
 Progress recorded on 2026-08-15:
@@ -158,6 +158,12 @@ Progress recorded on 2026-08-15:
   invocation at three provider calls, and disables batch retries.
 - Production deployment deliberately uses deterministic analysis so Groq and
   Gemini consumption is zero and cannot interrupt the presentation.
+- The `ai-bull-vs-bear-zero-cost` Blueprint is live at
+  <https://ai-bull-vs-bear.onrender.com>, backed by the Free API at
+  <https://ai-bull-vs-bear-api.onrender.com>. Render shows the API as Free and
+  the Hobby workspace has a `$0` monthly spend limit.
+- Live acceptance passes Supabase login, four-stock retrieval, eight AAPL
+  evidence items, zero-token analysis persistence, and frontend-origin CORS.
 - `npm audit --omit=dev` reports 23 transitive Expo/Metro findings (10 moderate,
   12 high, 1 critical). Its automated fix requires a major Expo 52-to-57
   migration, so the dependency upgrade needs a dedicated compatibility task;

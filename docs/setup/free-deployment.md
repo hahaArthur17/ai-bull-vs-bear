@@ -27,6 +27,20 @@ The root `render.yaml` creates only the free web service and free static site.
 The root `Dockerfile` installs `backend/requirements-runtime.txt`, which omits
 test tools and unused model SDKs.
 
+## Live deployment
+
+Deployed and verified on 2026-08-16:
+
+- Frontend: <https://ai-bull-vs-bear.onrender.com>
+- API health: <https://ai-bull-vs-bear-api.onrender.com/health>
+- Blueprint: `ai-bull-vs-bear-zero-cost`
+- API service ID: `srv-da05u9k9v7es738lo9s0`
+- Render workspace: Hobby plan with a `$0` monthly spend limit
+
+The Blueprint created one Docker **Free** web service and one static site. It
+did not create a Render database, disk, cron job, paid instance, or model/data
+provider integration.
+
 ## Measured fit
 
 | Item | Local production-equivalent measurement | Free limit / interpretation |
@@ -64,15 +78,15 @@ Automated tests are also part of the zero-call boundary. Run provider-specific
 tests only with mocks; use a separate deliberate manual command for any live
 model verification.
 
-## Deploy without exposing server credentials
+## Repeatable deployment steps
 
 1. Push the repository and open Render's **New Blueprint** flow.
 2. Connect the repository containing `render.yaml`.
 3. Confirm that `ai-bull-vs-bear-api` shows the **Free** instance type and
    `ai-bull-vs-bear` shows **Static Site**. Stop if Render proposes any paid
    resource.
-4. Leave the Render workspace without a payment method. This converts monthly
-   bandwidth exhaustion into suspension instead of an overage charge.
+4. Keep the Render workspace monthly spend limit at `$0`. This stops builds or
+   services at their included limits instead of allowing an overage charge.
 5. Fill only these Blueprint values:
 
    - backend `CORS_ORIGINS`: the final static-site HTTPS URL;
@@ -102,10 +116,21 @@ server secret and all provider keys must stay out of the frontend bundle.
 
 ## Post-deploy acceptance checks
 
-- `GET /health` returns `status=ok`, `environment=production`, and
+- [x] `GET /health` returns `status=ok`, `environment=production`, and
   `provider=demo`.
-- The frontend can list stocks and open AAPL, NVDA, and TSLA detail screens.
-- Login, watchlist changes, analysis creation, and reload persistence work.
-- Browser network requests contain the public Supabase key only; no server-only
-  credential appears in the JavaScript bundle or request payloads.
-- Render Billing still shows no payment method and no paid services.
+- [x] Live Supabase password authentication succeeds through a disposable RLS
+  test user.
+- [x] The API returns four stocks and eight AAPL evidence items.
+- [x] A zero-token AAPL analysis is created, persisted, and returned in the
+  authenticated user's history.
+- [x] The production frontend origin passes the backend CORS preflight and
+  authenticated request checks.
+- [x] The JavaScript bundle contains no server-only credential.
+- [x] Render shows the API instance as Free and the workspace monthly spend
+  limit as `$0`.
+
+The Codex in-app browser blocks direct requests to the `onrender.com` API with
+`ERR_BLOCKED_BY_CLIENT`. Command-line HTTPS, authentication, CORS, persistence,
+and both public URLs pass. Perform the final visual rehearsal in a normal
+Safari or Chrome session rather than treating this tool-specific block as an
+application failure.
