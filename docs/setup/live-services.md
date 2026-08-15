@@ -21,6 +21,10 @@ CORS_ORIGINS=http://localhost:8081,http://localhost:19006
 SUPABASE_URL=
 SUPABASE_ANON_KEY=
 SUPABASE_SECRET_KEY=
+SUPABASE_RLS_USER_A_EMAIL=
+SUPABASE_RLS_USER_A_PASSWORD=
+SUPABASE_RLS_USER_B_EMAIL=
+SUPABASE_RLS_USER_B_PASSWORD=
 
 SEC_USER_AGENT=AI Bull vs Bear contact@example.com
 
@@ -79,6 +83,20 @@ Dashboard: <https://supabase.com/dashboard>
 `SUPABASE_SECRET_KEY` is used only by the backend ingestion script. The mobile
 app needs only the publishable/anon key.
 
+Web-dashboard account passwords must not be stored in the project environment.
+For repeatable RLS verification, use only two disposable, non-production Auth
+users and store their credentials in the four `SUPABASE_RLS_*` variables in the
+ignored local `.env`. Then run:
+
+```shell
+PYTHONPATH=backend python scripts/verify_supabase_rls.py
+```
+
+The script proves owner reads/writes, hidden cross-user reads, rejected
+cross-user writes, and persistence after opening a new database connection. It
+removes the temporary watchlist rows in a `finally` block. It never prints
+passwords or access tokens.
+
 ## SEC EDGAR evidence
 
 Official guidance:
@@ -103,6 +121,12 @@ Discussion and Analysis excerpts before it is chunked in Supabase. Requests
 are spaced below the SEC limit and retry temporary 429/5xx failures. A filing
 that remains unavailable is retained as metadata-only evidence so one outage
 does not discard the rest of the batch.
+
+The same run also calls the official SEC `companyfacts` endpoint and upserts a
+bounded set of common revenue, earnings, balance-sheet, cash-flow, share, and
+EPS concepts into `financial_facts`. Each value keeps its taxonomy, unit,
+period, filing date, accession, and source URL. Numerical comparisons must use
+these typed facts rather than asking a text embedding to infer table structure.
 
 ## Alpha Vantage daily prices
 
@@ -134,6 +158,7 @@ unavailable cache falls back to deterministic demo prices.
 - [x] The API response contains real token usage and no secret values.
 - [x] The Supabase schema has been applied to the dedicated project.
 - [x] Supabase contains public stocks, evidence documents, chunks, and vectors.
+- [x] Embedding profiles and the structured `financial_facts` table are applied.
 - [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
 - [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
   mocked tests.
@@ -142,6 +167,8 @@ unavailable cache falls back to deterministic demo prices.
 - [ ] Row-level security prevents one user from reading another user's data.
 - [ ] Refresh live evidence with a server secret and compliant SEC User-Agent.
 - [ ] Populate the price cache with a server secret and Alpha Vantage key.
+- [ ] Populate structured SEC XBRL facts with a server secret and compliant
+  SEC User-Agent.
 
 ## Current live configuration
 
@@ -157,6 +184,15 @@ Last verified: 2026-08-15
 - A read-only live check returned AAPL, GOOG, NVDA, and TSLA plus six evidence
   documents (two news and four filing records), six chunks, and six populated
   vectors.
+- The 2026-08-15 embedding-profile migration is live. All six existing vectors
+  are registered as `local-hash-v1` with 1,536 dimensions, and anonymous vector
+  RPC retrieval still succeeds. This profile is a deterministic word-hash
+  integration baseline, not a learned semantic model.
+- The `financial_facts` table and public read policy are live but the table is
+  empty until authenticated server-side ingestion runs.
+- Supabase Auth contains the primary user plus two existing non-production RLS
+  users. Their passwords are not available in the local environment, so the
+  repeatable verifier is ready but has not been run against them.
 - The current database rows predate the selected-section importer and have no
   `content_status`; rerun ingestion after configuring a server secret and a
   compliant SEC User-Agent to replace the filing metadata with real excerpts.
