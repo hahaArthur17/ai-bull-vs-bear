@@ -19,7 +19,7 @@ Last reviewed: 2026-08-15
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | In progress | Auth/session handling and backend persistence are implemented; two-user RLS and restart verification remain. |
 | Live market/evidence data | In progress | RSS/SEC/vector and price-cache code are complete; selected SEC and Alpha Vantage cache population remain. |
-| Mobile verification | In progress | Dependencies and lockfile are present and typecheck passes; simulator and physical-device testing remain. |
+| Mobile verification | In progress | SDK dependencies, typecheck, Expo Doctor, and Web export pass; simulator and physical-device testing remain. |
 | Deployment | Planned | Backend hosting, mobile build, monitoring, and release checklist remain. |
 
 ## Week 1 — Product definition and repository foundation
@@ -128,14 +128,29 @@ live evidence and every generated claim links to retrievable source metadata.
 
 ## Week 5 — Mobile verification and release preparation
 
-Status: Planned
+Status: In progress
 
 - [x] Install mobile dependencies and commit the generated lockfile.
-- [ ] Run Expo diagnostics; TypeScript typecheck already passes.
-- Test iOS/Android simulator and at least one physical device.
-- Add loading, empty, timeout, offline, and provider-error states.
-- Deploy the backend and configure production CORS/environment variables.
-- Add monitoring, privacy notes, demo script, and final release checklist.
+- [x] Run TypeScript typecheck and Expo diagnostics.
+- [x] Export a production Web bundle with Metro.
+- [ ] Test iOS/Android simulator and at least one physical device.
+- [x] Add loading, empty, timeout, offline, and provider-error states.
+- [ ] Deploy the backend and configure production CORS/environment variables.
+- [ ] Add monitoring, privacy notes, demo script, and final release checklist.
+
+Progress recorded on 2026-08-15:
+
+- `d110fe6` aligns React Native and AsyncStorage with Expo SDK 52; Expo Doctor
+  passes all 18 checks.
+- `02f109a` adds a configurable 15-second API timeout and clear messages for
+  offline, expired-session, and temporary live-service failures.
+- `2bd291a` replaces the stock-detail infinite-loading failure path with a
+  recoverable error screen and retry action.
+- TypeScript typecheck and a clean temporary Web export both pass.
+- `npm audit --omit=dev` reports 23 transitive Expo/Metro findings (10 moderate,
+  12 high, 1 critical). Its automated fix requires a major Expo 52-to-57
+  migration, so the dependency upgrade needs a dedicated compatibility task;
+  do not run `npm audit fix --force` on the current SDK line.
 
 Completion rule: a fresh clone can follow the README, run the app, complete the
 main analysis flow, and recover cleanly from expected service failures.
@@ -182,3 +197,5 @@ At the end of each week:
   source of truth when the GitHub Project board has not yet been synchronized.
 - 2026-08-15: Use Alpha Vantage compact daily data as a four-call batch into
   Supabase; never spend the 25-call free quota during normal API requests.
+- 2026-08-15: Keep Expo SDK 52 dependencies aligned and defer the audit-driven
+  Expo 57 major upgrade to a dedicated migration with simulator regression.

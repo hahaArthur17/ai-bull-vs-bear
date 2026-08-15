@@ -58,6 +58,9 @@ The mobile app defaults to http://localhost:8000. For a physical device, set
 EXPO_PUBLIC_API_URL to the computer's LAN address, for example
 http://192.168.1.20:8000.
 
+Mobile API requests time out after 15 seconds by default. Override this with
+`EXPO_PUBLIC_API_TIMEOUT_MS` when a slower development environment needs it.
+
 ## Test
 
     cd backend
