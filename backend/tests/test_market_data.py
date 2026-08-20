@@ -11,7 +11,9 @@ from app.services.market_data import (
     QuoteCache,
     SupabasePriceWriter,
     ingest_live_prices,
+    ingest_weekly_price_history,
     parse_alpha_vantage_daily,
+    parse_alpha_vantage_weekly,
     parse_finnhub_daily,
 )
 
@@ -44,6 +46,35 @@ def test_parse_alpha_vantage_daily_normalizes_oldest_to_newest() -> None:
     assert [point["date"] for point in prices] == ["2026-08-13", "2026-08-14"]
     assert prices[-1]["close"] == 223.75
     assert prices[-1]["volume"] == 50_123_456
+
+
+def weekly_payload() -> dict[str, object]:
+    return {
+        "Meta Data": {"2. Symbol": "AAPL"},
+        "Weekly Time Series": {
+            "2026-08-14": {
+                "1. open": "220.1000",
+                "2. high": "224.5000",
+                "3. low": "219.0000",
+                "4. close": "223.7500",
+                "5. volume": "250123456",
+            },
+            "2026-08-07": {
+                "1. open": "218.0000",
+                "2. high": "221.0000",
+                "3. low": "217.5000",
+                "4. close": "220.0000",
+                "5. volume": "248123456",
+            },
+        },
+    }
+
+
+def test_parse_alpha_vantage_weekly_keeps_its_frequency_separate() -> None:
+    prices = parse_alpha_vantage_weekly(weekly_payload())
+
+    assert [point["date"] for point in prices] == ["2026-08-07", "2026-08-14"]
+    assert prices[-1]["close"] == 223.75
 
 
 def test_alpha_vantage_client_retries_temporary_server_failure() -> None:
@@ -84,6 +115,17 @@ def test_alpha_vantage_rate_limit_response_is_safe() -> None:
 
     with pytest.raises(MarketDataError, match="request limit reached"):
         client.fetch_daily("AAPL")
+
+
+def test_alpha_vantage_client_requests_weekly_series() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["function"] == "TIME_SERIES_WEEKLY"
+        assert "outputsize" not in request.url.params
+        return httpx.Response(200, json=weekly_payload())
+
+    client = AlphaVantageClient("test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    assert client.fetch_weekly("aapl")[-1]["date"] == "2026-08-14"
 
 
 def finnhub_daily_payload() -> dict[str, object]:
@@ -203,6 +245,47 @@ def test_supabase_price_writer_upserts_daily_cache() -> None:
     assert count == 2
     assert written_rows[0]["stock_id"] == 7
     assert written_rows[-1]["trading_date"] == "2026-08-14"
+
+
+def test_supabase_price_writer_upserts_labelled_weekly_history() -> None:
+    written_rows: list[dict[str, object]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        table = request.url.path.rsplit("/", 1)[-1]
+        if table == "stocks":
+            return httpx.Response(200, json=[{"id": 7}])
+        if table == "stock_price_history":
+            written_rows.extend(json.loads(request.content))
+            return httpx.Response(201)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    writer = SupabasePriceWriter(
+        "https://example.supabase.co",
+        "secret-key",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert writer.upsert_weekly_prices("AAPL", parse_alpha_vantage_weekly(weekly_payload())) == 2
+    assert written_rows[-1]["frequency"] == "weekly"
+    assert written_rows[-1]["source"] == "alpha_vantage_weekly"
+
+
+def test_weekly_ingestion_has_a_separate_single_ticker_path() -> None:
+    class FakeProvider:
+        def fetch_weekly(self, ticker: str, limit: int) -> list[dict[str, object]]:
+            assert ticker == "AAPL"
+            assert limit == 60
+            return parse_alpha_vantage_weekly(weekly_payload())
+
+    class FakeWriter:
+        def upsert_weekly_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+            assert ticker == "AAPL"
+            return len(prices)
+
+    assert ingest_weekly_price_history(FakeProvider(), FakeWriter()) == {  # type: ignore[arg-type]
+        "updated": {"AAPL": 2},
+        "failed": [],
+    }
 
 
 def test_live_price_ingestion_preserves_other_tickers_after_provider_failure() -> None:

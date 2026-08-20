@@ -25,6 +25,10 @@ class DailyPriceProvider(Protocol):
     def fetch_daily(self, ticker: str, limit: int = 100) -> list[dict[str, object]]: ...
 
 
+class WeeklyPriceProvider(Protocol):
+    def fetch_weekly(self, ticker: str, limit: int = 60) -> list[dict[str, object]]: ...
+
+
 def parse_alpha_vantage_daily(
     payload: dict[str, object],
     limit: int = 100,
@@ -56,6 +60,40 @@ def parse_alpha_vantage_daily(
             )
     except (KeyError, TypeError, ValueError) as exc:
         raise MarketDataError("Alpha Vantage returned an invalid daily price series") from exc
+    prices.sort(key=lambda point: str(point["date"]))
+    return prices[-limit:]
+
+
+def parse_alpha_vantage_weekly(
+    payload: dict[str, object],
+    limit: int = 60,
+) -> list[dict[str, object]]:
+    if limit < 1:
+        raise ValueError("limit must be at least 1")
+    if payload.get("Note") or payload.get("Information"):
+        raise MarketDataError("Alpha Vantage request limit reached")
+    if payload.get("Error Message"):
+        raise MarketDataError("Alpha Vantage rejected the ticker")
+    raw_series = payload.get("Weekly Time Series")
+    if not isinstance(raw_series, dict):
+        raise MarketDataError("Alpha Vantage returned no weekly price series")
+    prices: list[dict[str, object]] = []
+    try:
+        for trading_date, raw_point in raw_series.items():
+            if not isinstance(raw_point, dict):
+                raise TypeError("Weekly price point must be an object")
+            prices.append(
+                {
+                    "date": str(trading_date),
+                    "open": float(raw_point["1. open"]),
+                    "high": float(raw_point["2. high"]),
+                    "low": float(raw_point["3. low"]),
+                    "close": float(raw_point["4. close"]),
+                    "volume": int(raw_point["5. volume"]),
+                }
+            )
+    except (KeyError, TypeError, ValueError) as exc:
+        raise MarketDataError("Alpha Vantage returned an invalid weekly price series") from exc
     prices.sort(key=lambda point: str(point["date"]))
     return prices[-limit:]
 
@@ -151,6 +189,41 @@ class AlphaVantageClient:
             if not isinstance(payload, dict):
                 raise MarketDataError("Alpha Vantage returned invalid JSON")
             return parse_alpha_vantage_daily(payload, limit=limit)
+        raise MarketDataError("Alpha Vantage request attempts exhausted")
+
+    def fetch_weekly(self, ticker: str, limit: int = 60) -> list[dict[str, object]]:
+        requester = self.client.get if self.client is not None else httpx.get
+        params = {
+            "function": "TIME_SERIES_WEEKLY",
+            "symbol": ticker.upper(),
+            "apikey": self.api_key,
+        }
+        for attempt in range(self.max_attempts):
+            try:
+                response = requester(
+                    "https://www.alphavantage.co/query",
+                    params=params,
+                    timeout=self.timeout,
+                )
+            except httpx.RequestError as exc:
+                if attempt + 1 == self.max_attempts:
+                    raise MarketDataError("Alpha Vantage is unavailable") from exc
+                self.sleeper(0.5 * (2**attempt))
+                continue
+            if response.status_code >= 500:
+                if attempt + 1 == self.max_attempts:
+                    raise MarketDataError("Alpha Vantage is unavailable")
+                self.sleeper(0.5 * (2**attempt))
+                continue
+            if response.status_code >= 400:
+                raise MarketDataError("Alpha Vantage rejected the request")
+            try:
+                payload = response.json()
+            except ValueError as exc:
+                raise MarketDataError("Alpha Vantage returned invalid JSON") from exc
+            if not isinstance(payload, dict):
+                raise MarketDataError("Alpha Vantage returned invalid JSON")
+            return parse_alpha_vantage_weekly(payload, limit=limit)
         raise MarketDataError("Alpha Vantage request attempts exhausted")
 
 
@@ -350,6 +423,36 @@ class SupabasePriceWriter:
         )
         return len(rows)
 
+    def upsert_weekly_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+        if not prices:
+            return 0
+        stock_id = self._stock_id(ticker)
+        retrieved_at = datetime.now(timezone.utc).isoformat()
+        rows = [
+            {
+                "stock_id": stock_id,
+                "frequency": "weekly",
+                "trading_date": point["date"],
+                "open": point["open"],
+                "high": point["high"],
+                "low": point["low"],
+                "close": point["close"],
+                "volume": point["volume"],
+                "source": "alpha_vantage_weekly",
+                "metadata": {"provider": "Alpha Vantage", "frequency": "weekly"},
+                "retrieved_at": retrieved_at,
+            }
+            for point in prices
+        ]
+        self._request(
+            "POST",
+            "stock_price_history",
+            params={"on_conflict": "stock_id,frequency,trading_date"},
+            json=rows,
+            prefer="resolution=merge-duplicates,return=minimal",
+        )
+        return len(rows)
+
 
 def ingest_live_prices(
     provider: DailyPriceProvider,
@@ -370,3 +473,18 @@ def ingest_live_prices(
         except (MarketDataError, PriceCacheError):
             failed.append(ticker)
     return {"updated": updated, "failed": failed, "skipped": skipped}
+
+
+def ingest_weekly_price_history(
+    provider: WeeklyPriceProvider,
+    writer: SupabasePriceWriter,
+    ticker: str = "AAPL",
+    limit: int = 60,
+) -> dict[str, object]:
+    """Use a separate weekly series for long-horizon exploration only."""
+
+    try:
+        prices = provider.fetch_weekly(ticker.upper(), limit=limit)
+        return {"updated": {ticker.upper(): writer.upsert_weekly_prices(ticker, prices)}, "failed": []}
+    except (MarketDataError, PriceCacheError):
+        return {"updated": {}, "failed": [ticker.upper()]}
