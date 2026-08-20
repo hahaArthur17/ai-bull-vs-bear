@@ -1,0 +1,29 @@
+name: Refresh AAPL evidence
+
+on:
+  schedule:
+    # Run after the daily price cache so Debate has a fresh company-context pass.
+    - cron: "15 23 * * 1-5"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      LIVE_EVIDENCE_TICKERS: AAPL
+      SEC_USER_AGENT: ${{ secrets.SEC_USER_AGENT }}
+      SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: backend/requirements-runtime.txt
+      - run: pip install -r backend/requirements-runtime.txt
+      - run: PYTHONPATH=backend python scripts/ingest_live_evidence.py
