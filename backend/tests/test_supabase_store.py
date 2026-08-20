@@ -129,6 +129,7 @@ def test_supabase_evidence_combines_technical_and_live_documents() -> None:
     assert any(item["id"] == "sec-aapl-example" for item in evidence)
     filing = next(item for item in evidence if item["id"] == "sec-aapl-example")
     assert filing["metadata"]["sections"] == ["Item 1A — Risk Factors"]
+    assert filing["freshness"]["status"] == "stale"
 
 
 def test_supabase_search_uses_vector_rpc() -> None:
@@ -139,6 +140,7 @@ def test_supabase_search_uses_vector_rpc() -> None:
 
     assert evidence[0]["id"] == "chunk-4"
     assert evidence[0]["metadata"]["document_id"] == "12"
+    assert evidence[0]["freshness"]["status"] == "stale"
 
 
 def test_supabase_search_falls_back_to_stored_documents_when_vector_rpc_has_no_matches() -> None:

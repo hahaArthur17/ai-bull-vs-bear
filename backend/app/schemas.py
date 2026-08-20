@@ -47,6 +47,13 @@ class TechnicalIndicators(BaseModel):
     signal_summary: str
 
 
+class EvidenceFreshness(BaseModel):
+    status: Literal["current", "stale", "unknown"] = "unknown"
+    age_days: int | None = None
+    max_age_days: int | None = None
+    evaluated_at: str | None = None
+
+
 class EvidenceItem(BaseModel):
     id: str
     ticker: str
@@ -56,6 +63,7 @@ class EvidenceItem(BaseModel):
     published_at: str | None = None
     excerpt: str
     metadata: dict[str, object] = Field(default_factory=dict)
+    freshness: EvidenceFreshness = Field(default_factory=EvidenceFreshness)
 
 
 class WatchlistRequest(BaseModel):

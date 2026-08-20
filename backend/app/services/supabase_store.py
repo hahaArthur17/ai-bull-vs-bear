@@ -7,6 +7,7 @@ import httpx
 
 from app.schemas import AnalysisResponse
 from app.services.demo_store import DemoStore
+from app.services.evidence_freshness import classify_evidence_freshness
 from app.services.rag import retrieve_evidence
 
 
@@ -172,6 +173,10 @@ class SupabaseStore(DemoStore):
                     "storage": "supabase",
                     "document_id": str(row["id"]),
                 },
+                "freshness": classify_evidence_freshness(
+                    str(row["source_type"]),
+                    row.get("published_at"),
+                ),
             }
             for row in evidence_response.json()
         ]
@@ -208,6 +213,10 @@ class SupabaseStore(DemoStore):
                     "similarity": str(row["similarity"]),
                     "storage": "supabase",
                 },
+                "freshness": classify_evidence_freshness(
+                    str(row["source_type"]),
+                    row.get("published_at"),
+                ),
             }
             for row in rows
         ]
