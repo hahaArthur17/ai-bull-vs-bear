@@ -219,12 +219,17 @@ class SupabaseStore(DemoStore):
         limit: int,
         reason: str,
     ) -> list[dict[str, object]]:
-        results = retrieve_evidence(super().get_evidence(ticker), query, limit)
+        # A Supabase-backed analysis must never quietly explain a current price
+        # with deterministic demo news or filings. When vector search is not
+        # available, score only the same stored documents exposed by
+        # ``get_evidence``. A repository failure is allowed to surface instead
+        # of returning fabricated fallback context.
+        results = retrieve_evidence(self.get_evidence(ticker), query, limit)
         for item in results:
             metadata = item.get("metadata")
             item["metadata"] = {
                 **(metadata if isinstance(metadata, dict) else {}),
-                "retrieval_mode": "demo_fallback",
+                "retrieval_mode": "document_fallback",
                 "fallback_reason": reason,
             }
         return results

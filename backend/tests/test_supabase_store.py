@@ -141,7 +141,7 @@ def test_supabase_search_uses_vector_rpc() -> None:
     assert evidence[0]["metadata"]["document_id"] == "12"
 
 
-def test_supabase_search_falls_back_when_vector_rpc_has_no_matches() -> None:
+def test_supabase_search_falls_back_to_stored_documents_when_vector_rpc_has_no_matches() -> None:
     client = httpx.Client(
         transport=httpx.MockTransport(lambda request: httpx.Response(200, json=[]))
     )
@@ -150,21 +150,47 @@ def test_supabase_search_falls_back_when_vector_rpc_has_no_matches() -> None:
     evidence = store.search_evidence("AAPL", "revenue growth")
 
     assert evidence
-    assert evidence[0]["metadata"]["retrieval_mode"] == "demo_fallback"
+    assert evidence[0]["metadata"]["retrieval_mode"] == "document_fallback"
     assert evidence[0]["metadata"]["fallback_reason"] == "no_vector_matches"
+    assert all("demo" not in item["id"].lower() for item in evidence)
 
 
-def test_supabase_search_falls_back_when_vector_rpc_is_unavailable() -> None:
+def test_supabase_search_falls_back_to_stored_documents_when_vector_rpc_is_unavailable() -> None:
+    def vector_search_is_unavailable(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/rpc/match_evidence_chunks"):
+            return httpx.Response(503)
+        if request.url.path.endswith("/stocks"):
+            return httpx.Response(200, json=[{"id": 1}])
+        if request.url.path.endswith("/evidence_documents"):
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "id": 12,
+                        "external_id": "sec-aapl-example",
+                        "source_type": "filing",
+                        "title": "AAPL 10-Q filed 2026-02-01",
+                        "url": "https://www.sec.gov/example",
+                        "published_at": "2026-02-01T00:00:00+00:00",
+                        "raw_text": "Risk factor context from a stored SEC filing.",
+                        "metadata": {"source": "SEC EDGAR"},
+                        "created_at": "2026-08-13T00:00:00+00:00",
+                    }
+                ],
+            )
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
     client = httpx.Client(
-        transport=httpx.MockTransport(lambda request: httpx.Response(503))
+        transport=httpx.MockTransport(vector_search_is_unavailable)
     )
     store = SupabaseStore("https://example.supabase.co", "anon-key", client)
 
     evidence = store.search_evidence("AAPL", "risk factors")
 
     assert evidence
-    assert evidence[0]["metadata"]["retrieval_mode"] == "demo_fallback"
+    assert evidence[0]["metadata"]["retrieval_mode"] == "document_fallback"
     assert evidence[0]["metadata"]["fallback_reason"] == "rpc_unavailable"
+    assert all("demo" not in item["id"].lower() for item in evidence)
 
 
 def test_supabase_prices_include_live_cache_provenance() -> None:
