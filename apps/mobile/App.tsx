@@ -963,8 +963,18 @@ function DebateScreen({
             <Text style={styles.mutedText}>{analysis.judge.uncertainty}</Text>
             <Text style={styles.riskPill}>Risk level · {analysis.judge.risk_level}</Text>
           </View>
-          <ClaimCard claim={analysis.bull} onExamine={onExamine} />
-          <ClaimCard claim={analysis.bear} onExamine={onExamine} />
+          <ClaimCard
+            claim={analysis.bull}
+            closeDate={analysis.snapshot.price.as_of}
+            evidence={analysis.evidence}
+            onExamine={onExamine}
+          />
+          <ClaimCard
+            claim={analysis.bear}
+            closeDate={analysis.snapshot.price.as_of}
+            evidence={analysis.evidence}
+            onExamine={onExamine}
+          />
           <View style={styles.traceCard}>
             <View style={styles.rowBetween}><Text style={styles.cardLabel}>AGENT TRACE</Text><Text style={styles.mutedText}>{analysis.token_usage.model_name}</Text></View>
             {analysis.trace.map((step) => <Text key={step.step} style={styles.traceLine}>✓ {step.step.replace(/_/g, " ")} — {step.detail}</Text>)}
@@ -977,13 +987,32 @@ function DebateScreen({
   );
 }
 
-function ClaimCard({ claim, onExamine }: { claim: Claim; onExamine: (claim: Claim) => void }) {
+function ClaimCard({
+  claim,
+  closeDate,
+  evidence,
+  onExamine,
+}: {
+  claim: Claim;
+  closeDate: string;
+  evidence: EvidenceItem[];
+  onExamine: (claim: Claim) => void;
+}) {
   const isBull = claim.agent === "bull";
+  const evidenceById = new Map(evidence.map((item) => [item.id, item]));
   return (
     <View style={[styles.claimCard, { borderLeftColor: isBull ? palette.bull : palette.bear }]}>
       <View style={styles.rowBetween}><Text style={[styles.cardLabel, { color: isBull ? palette.bull : palette.bear }]}>{isBull ? "BULL AGENT" : "BEAR AGENT"}</Text><Text style={styles.mutedText}>{claim.confidence} confidence</Text></View>
       <Text style={styles.claimText}>{claim.text}</Text>
-      <Text style={styles.evidenceIds}>Evidence · {claim.evidence_ids.join(" + ")}</Text>
+      <Text style={styles.claimCloseDate}>Market close · {formatMarketDate(closeDate)}</Text>
+      <View style={styles.claimCitations}>
+        {claim.evidence_ids.map((id) => {
+          const item = evidenceById.get(id);
+          const itemDate = item?.published_at ? formatMarketDate(item.published_at) : item?.source_type === "technical" ? formatMarketDate(closeDate) : "date unavailable";
+          const freshness = item?.freshness.status === "current" ? "current" : item?.freshness.status === "stale" ? "stale" : "unknown";
+          return <Text key={id} style={styles.evidenceIds}>Evidence · {id} · {item?.source_type ?? "unavailable"} · {itemDate} · {freshness}</Text>;
+        })}
+      </View>
       <Pressable onPress={() => onExamine(claim)}><Text style={styles.examineLink}>Tap to cross-examine →</Text></Pressable>
     </View>
   );
@@ -1209,7 +1238,9 @@ const styles = StyleSheet.create({
   riskPill: { color: palette.bear, fontWeight: "700", marginTop: 10 },
   claimCard: { backgroundColor: palette.card, borderWidth: 1, borderColor: palette.line, borderLeftWidth: 5, borderRadius: 15, padding: 16, marginBottom: 12 },
   claimText: { color: palette.ink, fontSize: 15, lineHeight: 22, marginBottom: 12 },
-  evidenceIds: { color: palette.muted, fontSize: 12, marginBottom: 12 },
+  claimCloseDate: { color: palette.ink, fontSize: 12, fontWeight: "800", marginBottom: 7 },
+  claimCitations: { gap: 4, marginBottom: 12 },
+  evidenceIds: { color: palette.muted, fontSize: 11, lineHeight: 16 },
   examineLink: { color: palette.accent, fontWeight: "800", fontSize: 13 },
   traceCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 15, padding: 16, marginTop: 8 },
   traceLine: { color: palette.muted, fontSize: 12, lineHeight: 19, marginTop: 7 },
