@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     price_max_calls_per_run: int = Field(default=1, ge=1, le=3)
     price_stale_after_days: int = 5
     live_evidence_tickers: str = "AAPL"
+    macro_history_points: int = Field(default=400, ge=30, le=1000)
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
