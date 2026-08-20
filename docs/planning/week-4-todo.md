@@ -195,34 +195,48 @@ Audit result — 2026-08-20:
 
 Required work:
 
-- [ ] Add an AAPL-specific, licensable news source and scheduled ingestion;
-  the current live evidence job refreshes an NVIDIA RSS feed only.
-- [ ] Record and expose `published_at`, `ingested_at`, source, and an explicit
-  freshness status for every news, filing, and financial-fact item.
-- [ ] Define source-specific freshness windows: daily price must match the
+- [x] Add AAPL Apple Newsroom RSS ingestion with stable document IDs and a
+  weekday scheduled refresh.
+- [x] Record and expose publication/source/freshness metadata for every
+  retrieved news and filing item. Financial facts remain structured data and
+  are not yet presented as Debate evidence.
+- [x] Define source-specific freshness windows: daily price must match the
   latest completed market session; news must be recent enough for a daily-move
   explanation; filings remain long-horizon context and must display their age.
-- [ ] Exclude deterministic demo news/filing evidence from production Debate
+- [x] Exclude deterministic demo news/filing evidence from production Debate
   retrieval whenever Supabase is available. If no qualifying live evidence
   exists, return an explicit “insufficient current evidence” result rather
   than a causal narrative.
-- [ ] Persist an immutable analysis snapshot containing the close date/price,
+- [x] Persist an immutable analysis snapshot containing the close date/price,
   exact evidence IDs, publication dates, retrieval time, and freshness result.
-- [ ] Make the Debate question explicit: “What available evidence may relate
+- [x] Make the Debate question explicit: “What available evidence may relate
   to the AAPL close on <date>?” It must distinguish correlation from cause and
   report when no contemporaneous catalyst was found.
-- [ ] Retain the educational safety boundary. Replace requests for personalised
+- [x] Retain the educational safety boundary. Replace requests for personalised
   buy/sell/hold or percentage allocations with a non-personal scenario and
   risk-tolerance framework, including uncertainty and sources to investigate.
 
 Acceptance criteria:
 
-- [ ] A current Debate cannot silently use demo evidence or evidence outside
+- [x] A current Debate cannot silently use demo evidence or evidence outside
   its declared freshness window.
-- [ ] Every displayed claim shows the market-close date and its linked,
+- [x] Every displayed claim shows the market-close date and its linked,
   dated evidence.
-- [ ] An empty current-news result is visible to the user and lowers evidence
+- [x] An empty current-news result is visible to the user and lowers evidence
   strength instead of producing a confident explanation.
+
+Completion update — 2026-08-21:
+
+- Production retrieval now falls back only to stored Supabase evidence, never
+  deterministic narrative items. News older than seven days and filings older
+  than 120 days are excluded from Debate input.
+- Each saved response records the close, retrieval timestamp, cited IDs,
+  excluded-document count, and missing evidence categories. The mobile Debate
+  view shows that snapshot and renders every claim with dated/current-or-stale
+  citations.
+- If current company news is absent, the Judge and both claims are forcibly
+  downgraded to `weak`/`low`; a filing is described as long-horizon context,
+  not a proven daily-price cause.
 
 ### 9. Build interactive multi-horizon price and indicator charts for AAPL
 
@@ -230,21 +244,21 @@ Priority: P1 — begins after task 8 enforces data freshness
 
 Product requirements:
 
-- [ ] Replace the static 30-session SVG with an interactive chart: range
+- [x] Replace the static 30-session SVG with an interactive chart: range
   selector, drag/pan, tap/hover crosshair, date/price tooltip, and accessible
   textual equivalent.
-- [ ] Support `1M`, `3M`, `6M`, and `1Y` views. Keep recent views on verified
+- [x] Support `1M`, `3M`, `6M`, and `1Y` views. Keep recent views on verified
   daily candles. Bootstrap the one-year view from a separately labelled weekly
   series, then preserve the daily series for detailed recent periods.
-- [ ] Store frequency/granularity with every point; do not present a weekly
+- [x] Store frequency/granularity with every point; do not present a weekly
   close as a daily close.
-- [ ] Overlay MA20 and MA50 on the price chart with a legend and clear colour
+- [x] Overlay MA20 and MA50 on the price chart with a legend and clear colour
   distinction.
-- [ ] Add separate, synchronised technical panels: RSI with 30/70 reference
+- [x] Add separate, synchronised technical panels: RSI with 30/70 reference
   lines; MACD and signal lines with histogram; volume bars; and volatility as
   a continuous series. A latest-number summary may remain, but cannot be the
   only representation.
-- [ ] Calculate indicators exclusively from verified market data and display
+- [x] Calculate indicators exclusively from verified market data and display
   their as-of date plus any insufficient-lookback state.
 
 Data-source constraint:
@@ -257,12 +271,31 @@ Data-source constraint:
 
 Acceptance criteria:
 
-- [ ] The user can inspect an individual point and see its exact date, close,
+- [x] The user can inspect an individual point and see its exact date, close,
   data frequency, and source freshness.
-- [ ] One-year navigation works without increasing routine daily API use above
+- [x] One-year navigation works without increasing routine daily API use above
   one AAPL request per trading day.
-- [ ] Chart interactions work with mouse, touch, keyboard focus, and a screen
+- [x] Chart interactions work with mouse, touch, keyboard focus, and a screen
   reader summary.
+
+Verification note — 2026-08-21: TypeScript typecheck and Expo Web export pass.
+The mouse/touch implementation uses drag plus accessible Earlier/Later controls;
+physical-device usability still belongs to the Week 5 release gate.
+
+### 10. Add cached macro market context before using it in Debate
+
+Priority: P1 — macro context must be labelled as market background, not proof
+of causation for an individual AAPL move.
+
+- [x] Cache FRED `SP500`, `VIXCLS`, `EFFR`, `DGS2`, `DGS10`, and `DGS30`, plus
+  EIA WTI (`PET.RWTC.D`), in a dedicated Supabase market-context schema.
+- [x] Add a bounded weekday GitHub Actions refresh and read-only API endpoints.
+- [ ] Present macro series and their observation dates in the mobile app.
+- [ ] Pass a dated, bounded macro snapshot to Debate as explicitly non-causal
+  background; retain the existing company-news freshness gate.
+- [ ] Decide on a licensed Federal-funds-probability source. CME FedWatch is a
+  useful public reference, but its official API is paid; do not scrape it or
+  treat its market-implied probabilities as a Federal Reserve forecast.
 
 ## Recommended execution order
 

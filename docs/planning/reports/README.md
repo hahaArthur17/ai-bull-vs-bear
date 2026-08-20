@@ -20,6 +20,8 @@ When resuming the project:
   live evidence, vector retrieval, and live-price cache implementation.
 - [`project-week-05.md`](project-week-05.md) — vectorization research,
   multi-profile storage, source-aware chunking, XBRL facts, and release checks.
+- [`project-week-06.md`](project-week-06.md) — current-price Debate integrity,
+  interactive charts, and the first cached macro-market context layer.
 
 ## Template for a new report
 

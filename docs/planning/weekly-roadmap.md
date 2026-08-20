@@ -18,10 +18,12 @@ Last reviewed: 2026-08-21
 | Mobile MVP | Done | Expo flow covers watchlist, stock detail, evidence, debate, claim examination, history, and about screens. |
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
-| Automated checks | Done | 50 backend unit/API tests, mobile typecheck, production Web export, and GitHub Actions CI pass. |
+| Automated checks | Done | 73 backend unit/API tests, mobile typecheck, production Web export, and GitHub Actions CI pass. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | Done | Auth/session handling, persistence, current backend key, two-user RLS isolation, restart persistence, vectors, and XBRL facts are live. |
-| Live market/evidence data | In progress | AAPL has 100 verified daily rows and a weekday refresh. Debate evidence freshness is now the P0 gap: current AAPL news is absent and old/demo narrative evidence must not explain a current close. |
+| Live market/evidence data | Done | AAPL daily and weekly caches, Apple Newsroom/SEC refreshes, source-specific freshness checks, immutable Debate snapshots, and no-demo production retrieval are live. |
+| Macro market context | In progress | Seven FRED/EIA series are cached in Supabase and refreshed on weekdays. Mobile presentation and bounded Debate context are the next work. |
+| Interactive Signals | Done | 1M/3M daily and 6M/1Y weekly price exploration, provenance, MA overlays, and continuous technical panels are implemented. |
 | Mobile verification | In progress | SDK dependencies, typecheck, Expo Doctor, and Web export pass; simulator and physical-device testing remain. |
 | Deployment | Done | Render Free API and static Expo Web site are live; production auth, CORS, zero-token analysis, and persistence smoke tests pass. |
 
@@ -132,6 +134,25 @@ Progress recorded on 2026-08-15:
   narrative data. The required remedy and its acceptance criteria are task 8
   in [`week-4-todo.md`](week-4-todo.md).
 
+2026-08-21 continuation:
+
+- Completed the P0 freshness contract. AAPL now uses an Apple Newsroom RSS
+  refresh and SEC context; news older than seven days and filings older than
+  120 days are excluded from production Debate input. Stored evidence replaces
+  the prior deterministic fallback whenever Supabase is available.
+- Each analysis persists its close, retrieval time, full dated/freshness-tagged
+  evidence snapshot, missing categories, and excluded-document count. The
+  mobile view renders that snapshot plus dated citations under each claim.
+  When current company news is absent, the backend caps the Judge at `weak`
+  evidence and both claims at `weak`/`low`.
+- Added a one-year labelled weekly cache and scheduled refresh. The mobile
+  chart now has 1M/3M/6M/1Y selection, drag/crosshair inspection, accessible
+  Earlier/Later controls, selected-point provenance, MA20/MA50 overlays, and
+  continuous MA, RSI, MACD, volume, and volatility panels.
+- Added cache-only market background ingestion: FRED S&P 500, VIX, effective
+  Fed funds, 2Y/10Y/30Y Treasury yields and EIA WTI. These series are not yet
+  passed to Debate, so the app does not imply a macro causal explanation.
+
 Completion rule: the evidence board can distinguish cached/demo evidence from
 live evidence and every generated claim links to retrievable source metadata.
 
@@ -177,19 +198,25 @@ Progress recorded on 2026-08-15:
 Completion rule: a fresh clone can follow the README, run the app, complete the
 main analysis flow, and recover cleanly from expected service failures.
 
-## Week 6 — Current-price Debate integrity and interactive signal research
+## Week 6 — Current-price Debate integrity, interactive signals, and macro context
 
-Status: Planned
+Status: In progress
 
-- Enforce an evidence freshness contract before Debate explains a completed
+- [x] Enforce an evidence freshness contract before Debate explains a completed
   AAPL close; use dated current news and dated filings, and clearly report
   missing contemporaneous evidence.
-- Make each saved analysis reproducible through an immutable market/evidence
+- [x] Make each saved analysis reproducible through an immutable market/evidence
   snapshot.
-- Add mouse/touch/keyboard-accessible multi-horizon price exploration and
+- [x] Add mouse/touch/keyboard-accessible multi-horizon price exploration and
   continuous RSI, MACD, volume, moving-average, and volatility panels.
-- Preserve the educational boundary: explain scenarios and risk, never issue
+- [x] Preserve the educational boundary: explain scenarios and risk, never issue
   personalised allocations or buy/sell/hold instructions.
+- [x] Cache free FRED/EIA market-background series behind a bounded scheduled
+  ingestion job and typed read API.
+- [ ] Add a dated macro context panel and pass only a bounded, clearly
+  non-causal market snapshot to Debate.
+- [ ] Establish a licensed Fed-funds-probability source or retain a manual CME
+  FedWatch reference; never scrape the website or call it a Fed forecast.
 
 Detailed acceptance criteria and the one-year free-data strategy live in
 [`week-4-todo.md`](week-4-todo.md).
@@ -252,3 +279,10 @@ At the end of each week:
 - 2026-08-20: Preserve a one-AAPL-call-per-trading-day budget. Use daily data
   for recent interaction and a separately labelled weekly series to bootstrap
   a free one-year view; do not mislabel weekly points as daily closes.
+- 2026-08-21: Treat missing current company news as an evidence-quality failure,
+  not a reason to create a confident daily-price explanation. Filing evidence
+  can remain long-horizon context but cannot restore the missing-news score.
+- 2026-08-21: Cache market context before using it in an analysis. Free FRED
+  and EIA data provide dated background; they do not establish that a macro
+  event caused an AAPL move. Federal-funds probabilities require a licensed
+  source or a manually attributed reference.
