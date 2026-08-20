@@ -154,6 +154,9 @@ def test_analysis_freezes_macro_context_known_at_the_close() -> None:
     assert [(item.code, item.observation_date, item.value) for item in response.snapshot.macro_context] == [
         ("vix", "2000-01-03", 24.5)
     ]
+    assert "CBOE Volatility Index (2000-01-03)" in response.bull.text
+    assert "does not establish why this stock moved" in response.bull.text
+    assert "CBOE Volatility Index (2000-01-03)" in response.bear.text
     macro_trace = next(step for step in response.trace if step.step == "macro_context_agent")
     assert "dated on or before the close" in macro_trace.detail
 

@@ -88,6 +88,21 @@ class AnalysisService:
             # a date-bound company-evidence analysis.
             return []
 
+    @staticmethod
+    def _macro_context_note(macro_context: list[MacroContextSnapshot]) -> str:
+        """Describe cached macro context without presenting it as causation."""
+
+        if not macro_context:
+            return "No cached market-background observation was available for this close."
+        labels = ", ".join(
+            f"{item.name} ({item.observation_date})"
+            for item in macro_context
+        )
+        return (
+            f"The dated market background includes {labels}. It provides broad context only; "
+            "it is not claim evidence and does not establish why this stock moved."
+        )
+
     def create(
         self,
         ticker: str,
@@ -105,6 +120,7 @@ class AnalysisService:
         latest_price = prices[-1]
         price_as_of = str(latest_price["date"])
         macro_context = self._macro_context_for_close(price_as_of)
+        macro_context_note = self._macro_context_note(macro_context)
         analysis_question = question or (
             f"What available evidence may relate to the {normalized} close on {price_as_of}? "
             "Distinguish contemporaneous context from proven causation."
@@ -171,7 +187,10 @@ class AnalysisService:
             bull = Claim(
                 id=f"bull-{uuid4().hex[:8]}",
                 agent="bull",
-                text=f"{normalized} shows a possible constructive momentum pattern based on price position and supporting context.",
+                text=(
+                    f"{normalized} shows a possible constructive momentum pattern based on price position and supporting context. "
+                    f"{macro_context_note}"
+                ),
                 evidence_ids=fallback_bull,
                 signal_strength="medium" if has_current_news else "weak",
                 confidence="medium" if has_current_news else "low",
@@ -181,7 +200,10 @@ class AnalysisService:
             bear = Claim(
                 id=f"bear-{uuid4().hex[:8]}",
                 agent="bear",
-                text=f"{normalized} remains exposed to uncertainty from volatility, competition, and company-specific risks.",
+                text=(
+                    f"{normalized} remains exposed to uncertainty from volatility, competition, and company-specific risks. "
+                    f"{macro_context_note}"
+                ),
                 evidence_ids=fallback_bear,
                 signal_strength="medium" if has_current_news else "weak",
                 confidence="medium" if has_current_news else "low",
