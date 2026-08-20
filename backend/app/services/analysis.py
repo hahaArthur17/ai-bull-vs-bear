@@ -12,6 +12,9 @@ from app.schemas import (
     EvidenceItem,
     EvidenceSnapshot,
     JudgeSummary,
+    MacroContextSnapshot,
+    MacroSeries,
+    MacroObservation,
     PriceSnapshot,
     TechnicalIndicators,
     TokenUsage,
@@ -53,6 +56,38 @@ class AnalysisService:
             terms=claim.terms[:8],
         ), text_status == "rewritten" or risk_status == "rewritten"
 
+    def _macro_context_for_close(self, close_date: str) -> list[MacroContextSnapshot]:
+        """Return only observations known on or before the analysed close."""
+
+        try:
+            snapshots: list[MacroContextSnapshot] = []
+            for raw_series in self.store.get_macro_series():
+                series = MacroSeries.model_validate(raw_series)
+                candidates = [
+                    MacroObservation.model_validate(row)
+                    for row in self.store.get_macro_observations(series.code, limit=10)
+                    if str(row.get("observation_date", "")) <= close_date
+                ]
+                if not candidates:
+                    continue
+                latest = max(candidates, key=lambda item: item.observation_date)
+                snapshots.append(
+                    MacroContextSnapshot(
+                        code=series.code,
+                        name=series.name,
+                        source=series.source,
+                        unit=series.unit,
+                        observation_date=latest.observation_date,
+                        value=latest.value,
+                        retrieved_at=latest.retrieved_at,
+                    )
+                )
+            return snapshots
+        except Exception:
+            # Macro background is optional. A cache read problem must not block
+            # a date-bound company-evidence analysis.
+            return []
+
     def create(
         self,
         ticker: str,
@@ -69,6 +104,7 @@ class AnalysisService:
         indicators = TechnicalIndicators.model_validate(raw_indicators)
         latest_price = prices[-1]
         price_as_of = str(latest_price["date"])
+        macro_context = self._macro_context_for_close(price_as_of)
         analysis_question = question or (
             f"What available evidence may relate to the {normalized} close on {price_as_of}? "
             "Distinguish contemporaneous context from proven causation."
@@ -175,7 +211,13 @@ class AnalysisService:
             token_usage = TokenUsage(model_name="demo-deterministic", prompt_tokens=0, completion_tokens=0, total_tokens=0)
         else:
             provider = build_analysis_provider(self.settings)
-            provider_result = provider.generate(normalized, analysis_question, indicators, evidence)
+            provider_result = provider.generate(
+                normalized,
+                analysis_question,
+                indicators,
+                evidence,
+                macro_context,
+            )
             bull, bull_rewritten = self._claim_from_provider("bull", provider_result.draft.bull, valid_evidence_ids, fallback_bull)
             bear, bear_rewritten = self._claim_from_provider("bear", provider_result.draft.bear, valid_evidence_ids, fallback_bear)
             safe_summary, summary_status, _ = apply_guardrails(provider_result.draft.judge.summary)
@@ -221,6 +263,7 @@ class AnalysisService:
                 )
                 for item in evidence
             ],
+            macro_context=macro_context,
             excluded_external_evidence_count=excluded_stale_count,
             missing_current_evidence=[
                 source_type
@@ -232,6 +275,15 @@ class AnalysisService:
             TraceStep(step="technical_agent", status="completed", detail="Calculated RSI, MACD, moving averages, volatility, and volume spike."),
             TraceStep(step="news_rag_agent", status="completed", detail="Retrieved evidence with source metadata and freshness status."),
             TraceStep(step="filing_rag_agent", status="completed", detail="Retrieved filing context with source metadata and freshness status."),
+            TraceStep(
+                step="macro_context_agent",
+                status="completed",
+                detail=(
+                    f"Attached {len(macro_context)} cached market-background observation(s) dated on or before the close."
+                    if macro_context
+                    else "No cached market-background observation was available for this close."
+                ),
+            ),
             TraceStep(
                 step="evidence_aggregator",
                 status="completed",

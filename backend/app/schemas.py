@@ -114,12 +114,23 @@ class EvidenceSnapshot(BaseModel):
     freshness: EvidenceFreshness
 
 
+class MacroContextSnapshot(BaseModel):
+    code: str
+    name: str
+    source: Literal["fred", "eia", "treasury", "fomc", "cme"]
+    unit: str
+    observation_date: str
+    value: float
+    retrieved_at: str
+
+
 class AnalysisSnapshot(BaseModel):
     retrieved_at: str
     price: PriceSnapshot
     retrieved_evidence_count: int
     included_evidence_ids: list[str]
     evidence: list[EvidenceSnapshot] = Field(default_factory=list)
+    macro_context: list[MacroContextSnapshot] = Field(default_factory=list)
     excluded_external_evidence_count: int
     missing_current_evidence: list[Literal["news", "filing"]] = Field(default_factory=list)
 

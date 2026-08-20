@@ -16,7 +16,7 @@ def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
         f"What available evidence may relate to the AAPL close on {response.snapshot.price.as_of}? "
         "Distinguish contemporaneous context from proven causation."
     )
-    assert len(response.trace) == 8
+    assert len(response.trace) == 9
     examined = service.examine(response.bull.id, "evidence_support")
     assert examined.evidence
 
@@ -62,7 +62,8 @@ def test_analysis_excludes_stale_external_evidence() -> None:
     response = AnalysisService(FreshnessStore()).create("AAPL")
 
     assert {item.id for item in response.evidence} == {"technical-aapl-001", "current-news"}
-    assert "Excluded 1 stale or undated external document" in response.trace[3].detail
+    evidence_trace = next(step for step in response.trace if step.step == "evidence_aggregator")
+    assert "Excluded 1 stale or undated external document" in evidence_trace.detail
     assert response.snapshot.retrieved_evidence_count == 3
     assert response.snapshot.included_evidence_ids == ["technical-aapl-001", "current-news"]
     assert [(item.id, item.freshness.status) for item in response.snapshot.evidence] == [
@@ -116,6 +117,47 @@ def test_analysis_downgrades_filing_only_context_without_current_news() -> None:
     assert "any filing is long-horizon context" in response.judge.uncertainty
 
 
+class MacroSnapshotStore(DemoStore):
+    def get_macro_series(self) -> list[dict[str, object]]:
+        return [
+            {
+                "code": "vix",
+                "name": "CBOE Volatility Index",
+                "source": "fred",
+                "unit": "index points",
+                "frequency": "daily",
+            }
+        ]
+
+    def get_macro_observations(self, series_code: str, limit: int = 400) -> list[dict[str, object]]:
+        assert series_code == "vix"
+        assert limit == 10
+        return [
+            {
+                "series_code": "vix",
+                "observation_date": "2000-01-03",
+                "value": 24.5,
+                "retrieved_at": "2026-08-21T00:00:00+00:00",
+            },
+            {
+                "series_code": "vix",
+                "observation_date": "9999-12-31",
+                "value": 99.0,
+                "retrieved_at": "2026-08-21T00:00:00+00:00",
+            },
+        ]
+
+
+def test_analysis_freezes_macro_context_known_at_the_close() -> None:
+    response = AnalysisService(MacroSnapshotStore()).create("AAPL")
+
+    assert [(item.code, item.observation_date, item.value) for item in response.snapshot.macro_context] == [
+        ("vix", "2000-01-03", 24.5)
+    ]
+    macro_trace = next(step for step in response.trace if step.step == "macro_context_agent")
+    assert "dated on or before the close" in macro_trace.detail
+
+
 class SourceCoverageStore(DemoStore):
     def search_evidence(self, ticker: str, query: str) -> list[dict[str, object]]:
         return [
@@ -161,7 +203,8 @@ def test_analysis_supplements_relevant_retrieval_with_current_source_coverage() 
     }
     assert response.snapshot.retrieved_evidence_count == 3
     assert response.snapshot.missing_current_evidence == []
-    assert "Added 2 source-coverage document" in response.trace[3].detail
+    evidence_trace = next(step for step in response.trace if step.step == "evidence_aggregator")
+    assert "Added 2 source-coverage document" in evidence_trace.detail
 
 
 class ExternalOnlySearchStore(SourceCoverageStore):

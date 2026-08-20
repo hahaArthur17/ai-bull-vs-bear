@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
 from app.config import Settings
-from app.schemas import EvidenceItem, TechnicalIndicators, TokenUsage
+from app.schemas import EvidenceItem, MacroContextSnapshot, TechnicalIndicators, TokenUsage
 
 
 class ProviderError(RuntimeError):
@@ -54,6 +54,7 @@ class AnalysisModelProvider(Protocol):
         question: str | None,
         indicators: TechnicalIndicators,
         evidence: list[EvidenceItem],
+        macro_context: list[MacroContextSnapshot],
     ) -> ProviderResult:
         ...
 
@@ -63,6 +64,7 @@ def build_analysis_prompt(
     question: str | None,
     indicators: TechnicalIndicators,
     evidence: list[EvidenceItem],
+    macro_context: list[MacroContextSnapshot] | None = None,
 ) -> str:
     evidence_lines = [
         json.dumps(
@@ -78,6 +80,20 @@ def build_analysis_prompt(
         for item in evidence
     ]
     evidence_block = "\n".join(evidence_lines) or "(no evidence returned)"
+    macro_block = "\n".join(
+        json.dumps(
+            {
+                "code": item.code,
+                "name": item.name,
+                "source": item.source,
+                "unit": item.unit,
+                "observation_date": item.observation_date,
+                "value": item.value,
+            },
+            ensure_ascii=False,
+        )
+        for item in (macro_context or [])
+    ) or "(no cached macro observations returned)"
     question_text = question or "Explain the available signals and uncertainty."
     return f"""You are the analysis layer of an educational stock-evidence application.
 Do not give buy, sell, hold, price-target, or guaranteed-return advice. Explain
@@ -91,6 +107,11 @@ Technical indicators:
 
 Evidence items (do not invent IDs):
 {evidence_block}
+
+Dated market background (not claim evidence and not proof of causation):
+{macro_block}
+Do not cite macro background with an evidence ID, do not say it caused the
+stock move, and do not let it compensate for missing current company news.
 
 Return JSON only, with exactly this shape:
 {{
@@ -172,6 +193,7 @@ class GroqAnalysisProvider:
         question: str | None,
         indicators: TechnicalIndicators,
         evidence: list[EvidenceItem],
+        macro_context: list[MacroContextSnapshot],
     ) -> ProviderResult:
         try:
             response = self.client.chat.completions.create(
@@ -183,7 +205,7 @@ class GroqAnalysisProvider:
                     },
                     {
                         "role": "user",
-                        "content": build_analysis_prompt(ticker, question, indicators, evidence),
+                        "content": build_analysis_prompt(ticker, question, indicators, evidence, macro_context),
                     },
                 ],
                 temperature=0.2,
@@ -223,10 +245,11 @@ class GeminiAnalysisProvider:
         question: str | None,
         indicators: TechnicalIndicators,
         evidence: list[EvidenceItem],
+        macro_context: list[MacroContextSnapshot],
     ) -> ProviderResult:
         try:
             response = self.model.generate_content(
-                build_analysis_prompt(ticker, question, indicators, evidence),
+                build_analysis_prompt(ticker, question, indicators, evidence, macro_context),
                 generation_config={
                     "temperature": 0.2,
                     "response_mime_type": "application/json",

@@ -134,6 +134,15 @@ export type AnalysisResponse = {
       published_at?: string | null;
       freshness: EvidenceItem["freshness"];
     }>;
+    macro_context: Array<{
+      code: string;
+      name: string;
+      source: MacroSeries["source"];
+      unit: string;
+      observation_date: string;
+      value: number;
+      retrieved_at: string;
+    }>;
     excluded_external_evidence_count: number;
     missing_current_evidence: Array<"news" | "filing">;
   };
