@@ -113,6 +113,29 @@ create index if not exists evidence_chunks_embedding_idx
   on public.evidence_chunks using ivfflat (embedding vector_cosine_ops)
   with (lists = 100);
 
+create table if not exists public.macro_series (
+  code text primary key,
+  name text not null,
+  source text not null check (source in ('fred', 'eia', 'treasury', 'fomc', 'cme')),
+  unit text not null,
+  frequency text not null,
+  metadata jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.macro_observations (
+  series_code text not null references public.macro_series(code) on delete cascade,
+  observation_date date not null,
+  value numeric not null,
+  metadata jsonb not null default '{}'::jsonb,
+  retrieved_at timestamptz not null default now(),
+  primary key (series_code, observation_date)
+);
+
+create index if not exists macro_observations_recent_idx
+  on public.macro_observations (series_code, observation_date desc);
+
 create table if not exists public.embedding_profiles (
   id uuid primary key default gen_random_uuid(),
   slug text not null unique,
@@ -229,6 +252,8 @@ grant select on table
   public.financial_facts,
   public.evidence_documents,
   public.evidence_chunks,
+  public.macro_series,
+  public.macro_observations,
   public.embedding_profiles,
   public.chunk_embeddings
 to anon, authenticated;
@@ -245,6 +270,14 @@ alter table public.watchlists enable row level security;
 alter table public.analysis_runs enable row level security;
 alter table public.agent_outputs enable row level security;
 alter table public.token_usage enable row level security;
+alter table public.macro_series enable row level security;
+alter table public.macro_observations enable row level security;
+
+create policy "Public macro series are readable"
+  on public.macro_series for select using (true);
+
+create policy "Public macro observations are readable"
+  on public.macro_observations for select using (true);
 
 create policy "Users can manage their own watchlist"
   on public.watchlists for all
