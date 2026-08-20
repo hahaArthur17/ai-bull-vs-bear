@@ -123,10 +123,8 @@ class AnalysisService:
             if technical_candidate is not None:
                 evidence.insert(0, technical_candidate)
                 supplemented_evidence.append(technical_candidate)
-        has_current_external_evidence = any(
-            item.source_type in {"news", "filing"} for item in evidence
-        )
         current_external_types = {item.source_type for item in evidence if item.source_type != "technical"}
+        has_current_news = "news" in current_external_types
         technical_evidence_ids = [item.id for item in evidence if item.source_type == "technical"]
         fallback_bull = list(dict.fromkeys(technical_evidence_ids[:1] + ([evidence[0].id] if evidence else [])))
         fallback_bear = list(dict.fromkeys(technical_evidence_ids[-1:] + ([evidence[-1].id] if evidence else [])))
@@ -138,8 +136,8 @@ class AnalysisService:
                 agent="bull",
                 text=f"{normalized} shows a possible constructive momentum pattern based on price position and supporting context.",
                 evidence_ids=fallback_bull,
-                signal_strength="medium",
-                confidence="medium",
+                signal_strength="medium" if has_current_news else "weak",
+                confidence="medium" if has_current_news else "low",
                 risk_meaning="Momentum may continue, but volatility and new information could change the interpretation.",
                 terms=["momentum", "moving average"],
             )
@@ -148,8 +146,8 @@ class AnalysisService:
                 agent="bear",
                 text=f"{normalized} remains exposed to uncertainty from volatility, competition, and company-specific risks.",
                 evidence_ids=fallback_bear,
-                signal_strength="medium",
-                confidence="medium",
+                signal_strength="medium" if has_current_news else "weak",
+                confidence="medium" if has_current_news else "low",
                 risk_meaning="A negative update or a change in market conditions could outweigh the current technical pattern.",
                 terms=["volatility", "risk"],
             )
@@ -161,11 +159,11 @@ class AnalysisService:
             safe_summary, guardrail_status, _ = apply_guardrails(raw_summary)
             judge = JudgeSummary(
                 summary=safe_summary.replace(f"\n\n{DISCLAIMER}", ""),
-                evidence_strength="medium",
+                evidence_strength="medium" if has_current_news else "weak",
                 uncertainty=(
-                    "No current company news or filing was available for this run; "
-                    "the result is limited to technical observations and does not establish a future price outcome."
-                    if not has_current_external_evidence
+                    "No current company news was available for this run; any filing is long-horizon context, "
+                    "so the result is limited to technical observations and does not establish a daily-move cause or future price outcome."
+                    if not has_current_news
                     else (
                         "The available evidence provides context around the recorded close; "
                         "it does not prove why the price moved or establish a future outcome."
@@ -186,6 +184,18 @@ class AnalysisService:
                 uncertainty=provider_result.draft.judge.uncertainty,
                 risk_level=provider_result.draft.judge.risk_level,  # type: ignore[arg-type]
             )
+            if not has_current_news:
+                bull = bull.model_copy(update={"signal_strength": "weak", "confidence": "low"})
+                bear = bear.model_copy(update={"signal_strength": "weak", "confidence": "low"})
+                judge = judge.model_copy(
+                    update={
+                        "evidence_strength": "weak",
+                        "uncertainty": (
+                            "No current company news was available for this run; any filing is long-horizon context. "
+                            f"{judge.uncertainty}"
+                        ),
+                    }
+                )
             guardrail_status = "rewritten" if summary_status == "rewritten" or bull_rewritten or bear_rewritten else "passed"
             token_usage = provider_result.token_usage
         analysis_id = str(uuid4())

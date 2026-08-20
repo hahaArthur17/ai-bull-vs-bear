@@ -72,7 +72,44 @@ def test_analysis_excludes_stale_external_evidence() -> None:
 def test_analysis_discloses_when_no_current_external_evidence_exists() -> None:
     response = AnalysisService(DemoStore()).create("AAPL")
 
-    assert "No current company news or filing was available" in response.judge.uncertainty
+    assert "No current company news was available" in response.judge.uncertainty
+    assert response.judge.evidence_strength == "weak"
+    assert response.bull.signal_strength == "weak"
+    assert response.bull.confidence == "low"
+
+
+class FilingOnlyStore(DemoStore):
+    def get_evidence(self, ticker: str) -> list[dict[str, object]]:
+        return [
+            {
+                "id": "technical-aapl-001",
+                "ticker": ticker,
+                "source_type": "technical",
+                "title": "Verified technical context",
+                "excerpt": "Calculated from the cached series.",
+            },
+            {
+                "id": "current-filing",
+                "ticker": ticker,
+                "source_type": "filing",
+                "title": "Current quarterly filing",
+                "published_at": "2026-07-31T10:00:00+00:00",
+                "excerpt": "A filing dated within the filing freshness window.",
+                "freshness": {"status": "current", "age_days": 21, "max_age_days": 120},
+            },
+        ]
+
+    def search_evidence(self, ticker: str, query: str) -> list[dict[str, object]]:
+        return self.get_evidence(ticker)
+
+
+def test_analysis_downgrades_filing_only_context_without_current_news() -> None:
+    response = AnalysisService(FilingOnlyStore()).create("AAPL")
+
+    assert response.snapshot.missing_current_evidence == ["news"]
+    assert response.judge.evidence_strength == "weak"
+    assert response.bear.confidence == "low"
+    assert "any filing is long-horizon context" in response.judge.uncertainty
 
 
 class SourceCoverageStore(DemoStore):
