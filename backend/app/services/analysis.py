@@ -109,13 +109,21 @@ class AnalysisService:
             if candidate is not None:
                 evidence.append(candidate)
                 supplemented_evidence.append(candidate)
+        if not any(item.source_type == "technical" for item in evidence):
+            technical_candidate = next(
+                (item for item in all_documents if item.source_type == "technical"),
+                None,
+            )
+            if technical_candidate is not None:
+                evidence.insert(0, technical_candidate)
+                supplemented_evidence.append(technical_candidate)
         has_current_external_evidence = any(
             item.source_type in {"news", "filing"} for item in evidence
         )
         current_external_types = {item.source_type for item in evidence if item.source_type != "technical"}
-        technical_id = f"technical-{normalized.lower()}-001"
-        fallback_bull = [technical_id, evidence[0].id] if evidence else [technical_id]
-        fallback_bear = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
+        technical_evidence_ids = [item.id for item in evidence if item.source_type == "technical"]
+        fallback_bull = list(dict.fromkeys(technical_evidence_ids[:1] + ([evidence[0].id] if evidence else [])))
+        fallback_bear = list(dict.fromkeys(technical_evidence_ids[-1:] + ([evidence[-1].id] if evidence else [])))
         valid_evidence_ids = {item.id for item in evidence}
         provider_name = self.settings.analysis_provider.lower().strip()
         if provider_name == "demo":
@@ -202,7 +210,7 @@ class AnalysisService:
                     f"Excluded {excluded_stale_count} stale or undated external document(s) from Debate input."
                     if excluded_stale_count
                     else (
-                        f"Added {len(supplemented_evidence)} current source-coverage document(s) to the relevant retrieval."
+                        f"Added {len(supplemented_evidence)} source-coverage document(s) to the relevant retrieval."
                         if supplemented_evidence
                         else "Combined only current external context with technical observations."
                     )

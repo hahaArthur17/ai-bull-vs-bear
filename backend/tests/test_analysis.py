@@ -84,7 +84,7 @@ class SourceCoverageStore(DemoStore):
         ]
 
     def get_evidence(self, ticker: str) -> list[dict[str, object]]:
-        return self.search_evidence(ticker, "") + [
+        return SourceCoverageStore.search_evidence(self, ticker, "") + [
             {
                 "id": "current-news",
                 "ticker": ticker,
@@ -116,4 +116,22 @@ def test_analysis_supplements_relevant_retrieval_with_current_source_coverage() 
     }
     assert response.snapshot.retrieved_evidence_count == 3
     assert response.snapshot.missing_current_evidence == []
-    assert "Added 2 current source-coverage document" in response.trace[3].detail
+    assert "Added 2 source-coverage document" in response.trace[3].detail
+
+
+class ExternalOnlySearchStore(SourceCoverageStore):
+    def search_evidence(self, ticker: str, query: str) -> list[dict[str, object]]:
+        return [
+            item
+            for item in super().get_evidence(ticker)
+            if item["source_type"] == "filing"
+        ]
+
+
+def test_analysis_restores_technical_context_when_vector_search_omits_it() -> None:
+    response = AnalysisService(ExternalOnlySearchStore()).create("AAPL")
+
+    assert any(item.source_type == "technical" for item in response.evidence)
+    assert {item.id for item in response.evidence} >= set(
+        response.bull.evidence_ids + response.bear.evidence_ids
+    )
