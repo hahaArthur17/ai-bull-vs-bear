@@ -18,11 +18,11 @@ Last reviewed: 2026-08-21
 | Mobile MVP | Done | Expo flow covers watchlist, stock detail, evidence, debate, claim examination, history, and about screens. |
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
-| Automated checks | Done | 73 backend unit/API tests, mobile typecheck, production Web export, and GitHub Actions CI pass. |
+| Automated checks | Done | 76 backend unit/API tests, mobile typecheck, production Web export, and GitHub Actions CI pass. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | Done | Auth/session handling, persistence, current backend key, two-user RLS isolation, restart persistence, vectors, and XBRL facts are live. |
 | Live market/evidence data | Done | AAPL daily and weekly caches, Apple Newsroom/SEC refreshes, source-specific freshness checks, immutable Debate snapshots, and no-demo production retrieval are live. |
-| Macro market context | In progress | Seven FRED/EIA series are cached in Supabase and refreshed on weekdays. Mobile presentation and bounded Debate context are the next work. |
+| Macro market context | In progress | Seven FRED/EIA series now have verified anonymous reads, AAPL charts, and close-date-bounded Debate snapshots. A licensed Fed-funds-probability source remains a separate decision. |
 | Interactive Signals | Done | 1M/3M daily and 6M/1Y weekly price exploration, provenance, MA overlays, and continuous technical panels are implemented. |
 | Mobile verification | In progress | SDK dependencies, typecheck, Expo Doctor, and Web export pass; simulator and physical-device testing remain. |
 | Deployment | Done | Render Free API and static Expo Web site are live; production auth, CORS, zero-token analysis, and persistence smoke tests pass. |
@@ -150,8 +150,13 @@ Progress recorded on 2026-08-15:
   Earlier/Later controls, selected-point provenance, MA20/MA50 overlays, and
   continuous MA, RSI, MACD, volume, and volatility panels.
 - Added cache-only market background ingestion: FRED S&P 500, VIX, effective
-  Fed funds, 2Y/10Y/30Y Treasury yields and EIA WTI. These series are not yet
-  passed to Debate, so the app does not imply a macro causal explanation.
+  Fed funds, 2Y/10Y/30Y Treasury yields and EIA WTI. It now appears as dated
+  AAPL context and a close-date-bounded Debate snapshot, with non-causation
+  language in the UI and model prompt.
+- Repaired the live `macro_series` RLS policy after a read-only check found
+  that the service role could see seven rows but anonymous frontend reads saw
+  none. The anonymous cache read now returns all seven series and a follow-up
+  migration retains the public read-only policy.
 
 Completion rule: the evidence board can distinguish cached/demo evidence from
 live evidence and every generated claim links to retrievable source metadata.
@@ -213,7 +218,7 @@ Status: In progress
   personalised allocations or buy/sell/hold instructions.
 - [x] Cache free FRED/EIA market-background series behind a bounded scheduled
   ingestion job and typed read API.
-- [ ] Add a dated macro context panel and pass only a bounded, clearly
+- [x] Add a dated macro context panel and pass only a bounded, clearly
   non-causal market snapshot to Debate.
 - [ ] Establish a licensed Fed-funds-probability source or retain a manual CME
   FedWatch reference; never scrape the website or call it a Fed forecast.

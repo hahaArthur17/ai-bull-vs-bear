@@ -41,12 +41,20 @@ without letting it become an unsupported causal narrative.
   refresh (`713a402` through `c815250`). Live initialization wrote 2,719
   observations across S&P 500, VIX, effective Fed funds, 2Y/10Y/30Y Treasury
   yields, and WTI oil.
+- Added a grouped cache-only context API, AAPL-only mobile loading, four
+  continuous market-background charts, and the immutable Debate macro snapshot
+  (`8c43ad7`, `fe3dacc`, `a28f1af`, `1e15a7d`, `21c2d84`).
 
 ## Live data and deployment state
 
 - The two new Supabase migrations for macro observations and AAPL weekly price
   history are applied. Initial macro, Apple Newsroom/SEC, and weekly-history
   backfills ran successfully.
+- A read-only audit found that `macro_series` did not have its intended public
+  RLS policy: the service role saw seven cached rows while the anonymous
+  frontend saw none. Applied the narrow read-only policy repair and added
+  `20260821_fix_macro_series_read_policy.sql` (`9581206`). Anonymous reads now
+  return all seven series and their latest observation dates.
 - GitHub Actions holds the needed secrets for FRED, EIA, SEC identity, Alpha
   Vantage, and Supabase. Values are encrypted and are not recorded in this
   repository or report.
@@ -58,7 +66,7 @@ without letting it become an unsupported causal narrative.
 ## Verification
 
 - `PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q`:
-  73 passed. The only output is an existing Starlette/httpx deprecation warning.
+  76 passed. The only output is an existing Starlette/httpx deprecation warning.
 - `npm run typecheck` and `npm run build:web` in `apps/mobile`: pass.
 - A live production-store audit confirmed that included Debate source types are
   filing, news, and technical; every claim citation is included; demo evidence
@@ -79,13 +87,12 @@ without letting it become an unsupported causal narrative.
 
 ## Remaining work
 
-1. Present the cached macro series with observation dates and provenance in the
-   mobile app.
-2. Add a bounded macro snapshot to Debate, with explicit non-causation wording
-   and no personalised allocation guidance.
-3. Choose a licensed, automated Fed-funds-probability source only if that data
+1. Choose a licensed, automated Fed-funds-probability source only if that data
    becomes necessary; otherwise keep a manual CME FedWatch reference.
-4. Complete physical iOS/Android and browser visual checks for the new charts.
+2. Complete physical iOS/Android and browser visual checks for the new charts.
+3. Consider a bounded news source for broader market narratives (Fed meetings,
+   geopolitical shocks, and oil/liquidity effects) without treating headlines
+   as evidence of causation.
 
 ## Handoff links
 

@@ -290,12 +290,24 @@ of causation for an individual AAPL move.
 - [x] Cache FRED `SP500`, `VIXCLS`, `EFFR`, `DGS2`, `DGS10`, and `DGS30`, plus
   EIA WTI (`PET.RWTC.D`), in a dedicated Supabase market-context schema.
 - [x] Add a bounded weekday GitHub Actions refresh and read-only API endpoints.
-- [ ] Present macro series and their observation dates in the mobile app.
-- [ ] Pass a dated, bounded macro snapshot to Debate as explicitly non-causal
+- [x] Present macro series and their observation dates in the AAPL mobile app.
+- [x] Pass a dated, bounded macro snapshot to Debate as explicitly non-causal
   background; retain the existing company-news freshness gate.
 - [ ] Decide on a licensed Federal-funds-probability source. CME FedWatch is a
   useful public reference, but its official API is paid; do not scrape it or
   treat its market-implied probabilities as a Federal Reserve forecast.
+
+Live verification — 2026-08-21:
+
+- The AAPL detail page reads only the cached `macro/context` response and
+  charts S&P 500, VIX, effective Fed funds, 2Y/10Y/30Y Treasury yields, and
+  WTI with source and latest-observation labels.
+- Each Debate freezes only macro observations dated on or before its stored
+  close. The model prompt and mobile snapshot label them as non-causal market
+  background; they cannot compensate for missing current company news.
+- A missing `macro_series` RLS policy initially hid the seven cached series
+  from anonymous frontend reads. The live policy was repaired and a follow-up
+  migration preserves the intended public read-only grant.
 
 ## Recommended execution order
 
