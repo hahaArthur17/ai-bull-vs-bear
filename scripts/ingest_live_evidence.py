@@ -14,7 +14,16 @@ def main() -> None:
     if not settings.sec_user_agent:
         raise SystemExit("SEC_USER_AGENT must identify the project and a contact email")
     writer = EvidenceWriter(settings.supabase_url, settings.supabase_secret_key)
-    print(json.dumps(ingest_live_evidence(writer, settings.sec_user_agent), indent=2))
+    print(
+        json.dumps(
+            ingest_live_evidence(
+                writer,
+                settings.sec_user_agent,
+                tickers=settings.live_evidence_ticker_list,
+            ),
+            indent=2,
+        )
+    )
 
 
 if __name__ == "__main__":

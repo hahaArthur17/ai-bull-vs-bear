@@ -620,18 +620,31 @@ def ingest_live_evidence(
     writer: EvidenceWriter,
     sec_user_agent: str,
     rss_feeds: dict[str, str] | None = None,
+    tickers: Iterable[str] | None = None,
     per_source_limit: int = 4,
 ) -> dict[str, int]:
+    selected_tickers = tuple(
+        dict.fromkeys(
+            ticker.strip().upper()
+            for ticker in (tickers or SEC_CIKS)
+            if ticker.strip()
+        )
+    )
+    unsupported = [ticker for ticker in selected_tickers if ticker not in SEC_CIKS]
+    if unsupported:
+        raise ValueError(f"Unsupported SEC ticker(s): {', '.join(unsupported)}")
     feeds = rss_feeds or {
         "AAPL": "https://www.apple.com/newsroom/rss-feed.rss",
     }
     rss_count = 0
     for ticker, url in feeds.items():
+        if ticker.upper() not in selected_tickers:
+            continue
         rss_count += writer.upsert_documents(fetch_rss(url, ticker, limit=per_source_limit))
     sec_count = 0
     xbrl_count = 0
     edgar_client = SecEdgarClient(sec_user_agent)
-    for ticker in SEC_CIKS:
+    for ticker in selected_tickers:
         sec_count += writer.upsert_documents(
             fetch_sec_filings(
                 ticker,

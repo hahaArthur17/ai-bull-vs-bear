@@ -40,6 +40,7 @@ class Settings(BaseSettings):
     price_tickers: str = "AAPL"
     price_max_calls_per_run: int = Field(default=1, ge=1, le=3)
     price_stale_after_days: int = 5
+    live_evidence_tickers: str = "AAPL"
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
@@ -65,6 +66,16 @@ class Settings(BaseSettings):
             if ticker.strip()
         )
         return tuple(tickers)[: self.price_max_calls_per_run]
+
+    @property
+    def live_evidence_ticker_list(self) -> tuple[str, ...]:
+        return tuple(
+            dict.fromkeys(
+                ticker.strip().upper()
+                for ticker in self.live_evidence_tickers.split(",")
+                if ticker.strip()
+            )
+        )
 
 
 @lru_cache
