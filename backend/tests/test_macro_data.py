@@ -1,7 +1,13 @@
 import httpx
 import pytest
 
-from app.services.macro_data import EiaClient, FredClient, MacroDataError
+from app.services.macro_data import (
+    EiaClient,
+    FredClient,
+    MacroDataError,
+    MacroSeriesDefinition,
+    ingest_macro_context,
+)
 
 
 def test_fred_client_normalizes_numeric_observations() -> None:
@@ -84,3 +90,62 @@ def test_fred_client_rejects_malformed_provider_payload() -> None:
 
     with pytest.raises(MacroDataError, match="observations"):
         client.fetch_observations("SP500")
+
+
+def test_macro_ingestion_keeps_provider_series_separate_from_display_code() -> None:
+    definition = MacroSeriesDefinition(
+        code="treasury_10y_yield",
+        name="10-year Treasury yield",
+        source="fred",
+        provider_series_id="DGS10",
+        unit="percent",
+        frequency="daily",
+    )
+
+    class FakeWriter:
+        def __init__(self) -> None:
+            self.definitions: tuple[MacroSeriesDefinition, ...] = ()
+            self.rows: list[dict[str, object]] = []
+
+        def upsert_series(self, definitions: tuple[MacroSeriesDefinition, ...]) -> int:
+            self.definitions = definitions
+            return len(definitions)
+
+        def upsert_observations(
+            self,
+            _definition: MacroSeriesDefinition,
+            observations: list[dict[str, object]],
+        ) -> int:
+            self.rows.extend(observations)
+            return len(observations)
+
+    class FakeFred:
+        def fetch_observations(self, series_id: str, *, limit: int) -> list[dict[str, object]]:
+            assert series_id == "DGS10"
+            assert limit == 120
+            return [
+                {
+                    "series_code": "DGS10",
+                    "source": "fred",
+                    "observation_date": "2026-08-20",
+                    "value": 4.31,
+                    "metadata": {"fred_series_id": "DGS10"},
+                }
+            ]
+
+    class FakeEia:
+        def fetch_series(self, series_id: str, *, limit: int) -> list[dict[str, object]]:
+            raise AssertionError(f"Unexpected EIA series: {series_id}")
+
+    writer = FakeWriter()
+    result = ingest_macro_context(
+        writer,  # type: ignore[arg-type]
+        FakeFred(),  # type: ignore[arg-type]
+        FakeEia(),  # type: ignore[arg-type]
+        definitions=(definition,),
+        limit_per_series=120,
+    )
+
+    assert result == {"series": 1, "observations": 1}
+    assert writer.definitions == (definition,)
+    assert writer.rows[0]["series_code"] == "DGS10"
