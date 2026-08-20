@@ -52,6 +52,28 @@ export type MarketQuote = {
   source: "finnhub_quote";
 };
 
+export type MacroSeries = {
+  code: string;
+  name: string;
+  source: "fred" | "eia" | "treasury" | "fomc" | "cme";
+  unit: string;
+  frequency: string;
+  metadata: Record<string, unknown>;
+};
+
+export type MacroObservation = {
+  series_code: string;
+  observation_date: string;
+  value: number;
+  metadata: Record<string, unknown>;
+  retrieved_at: string;
+};
+
+export type MacroSeriesContext = {
+  series: MacroSeries;
+  observations: MacroObservation[];
+};
+
 export type EvidenceItem = {
   id: string;
   ticker: string;
@@ -76,6 +98,7 @@ export type StockBundle = {
   quote: MarketQuote | null;
   indicators: TechnicalIndicators;
   evidence: EvidenceItem[];
+  macro_context: MacroSeriesContext[];
 };
 
 export type Claim = {
