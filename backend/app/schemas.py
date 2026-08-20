@@ -66,6 +66,22 @@ class EvidenceItem(BaseModel):
     freshness: EvidenceFreshness = Field(default_factory=EvidenceFreshness)
 
 
+class PriceSnapshot(BaseModel):
+    as_of: str
+    close: float
+    source: Literal["daily_market_cache", "demo_fallback"]
+    is_stale: bool
+
+
+class AnalysisSnapshot(BaseModel):
+    retrieved_at: str
+    price: PriceSnapshot
+    retrieved_evidence_count: int
+    included_evidence_ids: list[str]
+    excluded_external_evidence_count: int
+    missing_current_evidence: list[Literal["news", "filing"]] = Field(default_factory=list)
+
+
 class WatchlistRequest(BaseModel):
     ticker: str = Field(min_length=1, max_length=10)
 
@@ -116,6 +132,7 @@ class AnalysisResponse(BaseModel):
     created_at: str
     question: str | None = None
     indicators: TechnicalIndicators
+    snapshot: AnalysisSnapshot
     judge: JudgeSummary
     bull: Claim
     bear: Claim

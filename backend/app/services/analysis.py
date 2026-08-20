@@ -5,11 +5,13 @@ from uuid import uuid4
 
 from app.config import Settings, get_settings
 from app.schemas import (
+    AnalysisSnapshot,
     AnalysisResponse,
     Claim,
     ExaminationResponse,
     EvidenceItem,
     JudgeSummary,
+    PriceSnapshot,
     TechnicalIndicators,
     TokenUsage,
     TraceStep,
@@ -81,6 +83,7 @@ class AnalysisService:
         has_current_external_evidence = any(
             item.source_type in {"news", "filing"} for item in evidence
         )
+        current_external_types = {item.source_type for item in evidence if item.source_type != "technical"}
         technical_id = f"technical-{normalized.lower()}-001"
         fallback_bull = [technical_id, evidence[0].id] if evidence else [technical_id]
         fallback_bear = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
@@ -140,6 +143,25 @@ class AnalysisService:
             token_usage = provider_result.token_usage
         analysis_id = str(uuid4())
         created_at = datetime.now(timezone.utc).isoformat()
+        latest_price = prices[-1]
+        price_source = str(latest_price.get("source", "demo_fallback"))
+        snapshot = AnalysisSnapshot(
+            retrieved_at=created_at,
+            price=PriceSnapshot(
+                as_of=str(latest_price["date"]),
+                close=float(latest_price["close"]),
+                source=price_source if price_source == "daily_market_cache" else "demo_fallback",
+                is_stale=bool(latest_price.get("is_stale", price_source != "daily_market_cache")),
+            ),
+            retrieved_evidence_count=len(retrieved_evidence),
+            included_evidence_ids=[item.id for item in evidence],
+            excluded_external_evidence_count=excluded_stale_count,
+            missing_current_evidence=[
+                source_type
+                for source_type in ("news", "filing")
+                if source_type not in current_external_types
+            ],
+        )
         trace = [
             TraceStep(step="technical_agent", status="completed", detail="Calculated RSI, MACD, moving averages, volatility, and volume spike."),
             TraceStep(step="news_rag_agent", status="completed", detail="Retrieved evidence with source metadata and freshness status."),
@@ -164,6 +186,7 @@ class AnalysisService:
             created_at=created_at,
             question=question,
             indicators=indicators,
+            snapshot=snapshot,
             judge=judge,
             bull=bull,
             bear=bear,

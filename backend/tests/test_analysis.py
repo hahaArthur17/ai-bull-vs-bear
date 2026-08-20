@@ -9,6 +9,9 @@ def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
     assert response.bull.evidence_ids
     assert response.bear.evidence_ids
     assert {item.id for item in response.evidence} >= set(response.bull.evidence_ids + response.bear.evidence_ids)
+    assert response.snapshot.price.as_of == response.indicators.as_of
+    assert response.snapshot.price.source == "demo_fallback"
+    assert response.snapshot.missing_current_evidence == ["news", "filing"]
     assert len(response.trace) == 8
     examined = service.examine(response.bull.id, "evidence_support")
     assert examined.evidence
@@ -56,6 +59,10 @@ def test_analysis_excludes_stale_external_evidence() -> None:
 
     assert {item.id for item in response.evidence} == {"technical-aapl-001", "current-news"}
     assert "Excluded 1 stale or undated external document" in response.trace[3].detail
+    assert response.snapshot.retrieved_evidence_count == 3
+    assert response.snapshot.included_evidence_ids == ["technical-aapl-001", "current-news"]
+    assert response.snapshot.excluded_external_evidence_count == 1
+    assert response.snapshot.missing_current_evidence == ["filing"]
 
 
 def test_analysis_discloses_when_no_current_external_evidence_exists() -> None:
