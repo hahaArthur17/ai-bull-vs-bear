@@ -58,13 +58,6 @@ app = FastAPI(
     version="0.1.0",
     description="Educational stock-signal explanations using deterministic demo data.",
 )
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.cors_origin_list or ["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 @app.exception_handler(RepositoryError)
@@ -313,3 +306,14 @@ def examine_claim(
 @app.get("/", include_in_schema=False)
 def root(request: Request) -> dict[str, str]:
     return {"name": settings.app_name, "docs": str(request.base_url) + "docs"}
+
+
+# Keep CORS outside FastAPI's server-error middleware so unexpected errors
+# still return the allowed-origin header instead of a browser-only CORS error.
+app = CORSMiddleware(
+    app=app,
+    allow_origins=settings.cors_origin_list or ["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)

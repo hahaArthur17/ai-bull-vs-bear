@@ -132,3 +132,18 @@ def test_supabase_auth_mode_rejects_missing_bearer_token() -> None:
 
     assert response.status_code == 401
     assert response.json() == {"detail": "Authentication required"}
+
+
+def test_unexpected_error_includes_cors_headers(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FailingHistoryStore(DemoStore):
+        def list_analyses(self, user_id: str, access_token: str | None = None) -> list[object]:
+            raise RuntimeError("test-only unexpected failure")
+
+    monkeypatch.setattr("app.main.store", FailingHistoryStore())
+    error_client = TestClient(app, raise_server_exceptions=False)
+    origin = "http://localhost:8081"
+
+    response = error_client.get("/analysis", headers={"Origin": origin})
+
+    assert response.status_code == 500
+    assert response.headers["access-control-allow-origin"] == origin
