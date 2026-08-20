@@ -21,6 +21,53 @@ duplicating implementation detail.
 
 ---
 
+## 2026-08-21 — Debate view crashed on timestamp-formatted evidence dates
+
+**Status:** Remediation implemented; production verification pending.
+
+**Symptom and impact**
+
+- Pressing **Run analysis** could produce `RangeError: Invalid time value` and
+  leave the web Debate view blank.
+- The error was raised while rendering dated citations, not while generating
+  Bull, Bear, or Judge content.
+
+**Verified evidence and diagnosis**
+
+- A read-only production response-shape audit confirmed that saved Debate
+  evidence uses complete ISO 8601 `published_at` timestamps, while macro
+  `observation_date` values are date-only.
+- The mobile `formatMarketDate` helper appended `T12:00:00Z` to every input.
+  This converted a valid evidence timestamp into an invalid string with two
+  time components, and `Intl.DateTimeFormat` threw during the citation map.
+- The macro context itself is available to real Groq/Gemini provider prompts.
+  Production currently uses the deterministic demo provider, whose Bull/Bear
+  text had not previously made the same dated background explicit.
+
+**Remediation**
+
+- `853527a` separates date formatting into a defensive helper. It parses
+  `YYYY-MM-DD` market dates and complete ISO timestamps correctly, and shows a
+  safe unavailable label instead of crashing for missing or malformed values.
+- `1d7ef8b` adds the complete close-date-bounded macro background to demo Bull
+  and Bear text with explicit non-causation language. It remains background,
+  not claim evidence, and does not weaken the no-current-news safety cap.
+- Full backend tests (78), mobile TypeScript checks, and Web export pass before
+  deployment.
+
+**Follow-up**
+
+- Verify the deployed static site by running an AAPL Debate and confirming the
+  page renders dated citations plus the macro-background statement.
+
+**Related code**
+
+- `apps/mobile/src/dateFormat.ts`
+- `apps/mobile/App.tsx`
+- `backend/app/services/analysis.py`
+
+---
+
 ## 2026-08-21 — Legacy analysis history causes production `/analysis` 500
 
 **Status:** Resolved and production-verified.
