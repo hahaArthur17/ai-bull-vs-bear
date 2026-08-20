@@ -65,6 +65,10 @@ def test_analysis_excludes_stale_external_evidence() -> None:
     assert "Excluded 1 stale or undated external document" in response.trace[3].detail
     assert response.snapshot.retrieved_evidence_count == 3
     assert response.snapshot.included_evidence_ids == ["technical-aapl-001", "current-news"]
+    assert [(item.id, item.freshness.status) for item in response.snapshot.evidence] == [
+        ("technical-aapl-001", "unknown"),
+        ("current-news", "current"),
+    ]
     assert response.snapshot.excluded_external_evidence_count == 1
     assert response.snapshot.missing_current_evidence == ["filing"]
 

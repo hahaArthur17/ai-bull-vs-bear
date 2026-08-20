@@ -102,11 +102,19 @@ class PriceSnapshot(BaseModel):
     is_stale: bool
 
 
+class EvidenceSnapshot(BaseModel):
+    id: str
+    source_type: Literal["news", "filing", "technical"]
+    published_at: str | None = None
+    freshness: EvidenceFreshness
+
+
 class AnalysisSnapshot(BaseModel):
     retrieved_at: str
     price: PriceSnapshot
     retrieved_evidence_count: int
     included_evidence_ids: list[str]
+    evidence: list[EvidenceSnapshot] = Field(default_factory=list)
     excluded_external_evidence_count: int
     missing_current_evidence: list[Literal["news", "filing"]] = Field(default_factory=list)
 

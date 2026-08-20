@@ -105,6 +105,12 @@ export type AnalysisResponse = {
     };
     retrieved_evidence_count: number;
     included_evidence_ids: string[];
+    evidence: Array<{
+      id: string;
+      source_type: "news" | "filing" | "technical";
+      published_at?: string | null;
+      freshness: EvidenceItem["freshness"];
+    }>;
     excluded_external_evidence_count: number;
     missing_current_evidence: Array<"news" | "filing">;
   };

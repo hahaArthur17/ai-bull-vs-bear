@@ -10,6 +10,7 @@ from app.schemas import (
     Claim,
     ExaminationResponse,
     EvidenceItem,
+    EvidenceSnapshot,
     JudgeSummary,
     PriceSnapshot,
     TechnicalIndicators,
@@ -211,6 +212,15 @@ class AnalysisService:
             ),
             retrieved_evidence_count=len(retrieved_evidence) + len(supplemented_evidence),
             included_evidence_ids=[item.id for item in evidence],
+            evidence=[
+                EvidenceSnapshot(
+                    id=item.id,
+                    source_type=item.source_type,
+                    published_at=item.published_at,
+                    freshness=item.freshness,
+                )
+                for item in evidence
+            ],
             excluded_external_evidence_count=excluded_stale_count,
             missing_current_evidence=[
                 source_type
