@@ -164,6 +164,12 @@ class DemoStore:
     def get_prices(self, ticker: str) -> list[dict[str, object]]:
         return [point.copy() for point in self._prices.get(ticker.upper(), [])]
 
+    def get_macro_series(self) -> list[dict[str, object]]:
+        return []
+
+    def get_macro_observations(self, series_code: str, limit: int = 400) -> list[dict[str, object]]:
+        return []
+
     def get_evidence(self, ticker: str) -> list[dict[str, object]]:
         normalized = ticker.upper()
         technical = [

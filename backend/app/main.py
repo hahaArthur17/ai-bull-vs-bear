@@ -15,6 +15,8 @@ from app.schemas import (
     ExaminationResponse,
     EvidenceItem,
     MarketQuote,
+    MacroObservation,
+    MacroSeries,
     PricePoint,
     Stock,
     TechnicalIndicators,
@@ -127,6 +129,22 @@ def get_quote(ticker: str) -> MarketQuote | None:
     except MarketDataError:
         logger.warning("Latest quote lookup failed for %s", ticker.upper())
         return None
+
+
+@app.get("/macro/series", response_model=list[MacroSeries])
+def get_macro_series() -> list[MacroSeries]:
+    return [MacroSeries.model_validate(item) for item in store.get_macro_series()]
+
+
+@app.get("/macro/series/{series_code}", response_model=list[MacroObservation])
+def get_macro_observations(
+    series_code: str,
+    limit: int = Query(default=400, ge=1, le=1000),
+) -> list[MacroObservation]:
+    return [
+        MacroObservation.model_validate(item)
+        for item in store.get_macro_observations(series_code, limit)
+    ]
 
 
 @app.get("/stocks/{ticker}/indicators", response_model=TechnicalIndicators)

@@ -26,6 +26,33 @@ class FakePostgrest:
             return httpx.Response(200, json=[{"id": 1}])
         if table == "stock_prices":
             return httpx.Response(self.price_status, json=self.price_rows)
+        if table == "macro_series":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "code": "vix",
+                        "name": "CBOE Volatility Index",
+                        "source": "fred",
+                        "unit": "index points",
+                        "frequency": "daily",
+                        "metadata": {"provider_series_id": "VIXCLS"},
+                    }
+                ],
+            )
+        if table == "macro_observations":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "series_code": "vix",
+                        "observation_date": "2026-08-20",
+                        "value": "17.25",
+                        "metadata": {"provider": "fred"},
+                        "retrieved_at": "2026-08-21T00:00:00+00:00",
+                    }
+                ],
+            )
         if table == "match_evidence_chunks":
             return httpx.Response(
                 200,
@@ -226,3 +253,15 @@ def test_supabase_prices_fall_back_when_cache_is_unavailable() -> None:
     assert prices
     assert all(point["source"] == "demo_fallback" for point in prices)
     assert all(point["is_stale"] is True for point in prices)
+
+
+def test_supabase_reads_cached_macro_series_and_observations() -> None:
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    series = store.get_macro_series()
+    observations = store.get_macro_observations("vix")
+
+    assert series[0]["code"] == "vix"
+    assert series[0]["metadata"]["provider_series_id"] == "VIXCLS"
+    assert observations[0]["value"] == 17.25

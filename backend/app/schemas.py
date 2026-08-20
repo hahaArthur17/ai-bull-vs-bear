@@ -34,6 +34,23 @@ class MarketQuote(BaseModel):
     source: Literal["finnhub_quote"]
 
 
+class MacroSeries(BaseModel):
+    code: str
+    name: str
+    source: Literal["fred", "eia", "treasury", "fomc", "cme"]
+    unit: str
+    frequency: str
+    metadata: dict[str, object] = Field(default_factory=dict)
+
+
+class MacroObservation(BaseModel):
+    series_code: str
+    observation_date: str
+    value: float
+    metadata: dict[str, object] = Field(default_factory=dict)
+    retrieved_at: str
+
+
 class TechnicalIndicators(BaseModel):
     ticker: str
     as_of: str

@@ -141,6 +141,44 @@ class SupabaseStore(DemoStore):
             for point in super().get_prices(ticker)
         ]
 
+    def get_macro_series(self) -> list[dict[str, object]]:
+        response = self._public_request(
+            "macro_series",
+            params={"select": "code,name,source,unit,frequency,metadata", "order": "code.asc"},
+        )
+        return [
+            {
+                "code": row["code"],
+                "name": row["name"],
+                "source": row["source"],
+                "unit": row["unit"],
+                "frequency": row["frequency"],
+                "metadata": row.get("metadata") or {},
+            }
+            for row in response.json()
+        ]
+
+    def get_macro_observations(self, series_code: str, limit: int = 400) -> list[dict[str, object]]:
+        response = self._public_request(
+            "macro_observations",
+            params={
+                "select": "series_code,observation_date,value,metadata,retrieved_at",
+                "series_code": f"eq.{series_code}",
+                "order": "observation_date.desc",
+                "limit": str(limit),
+            },
+        )
+        return [
+            {
+                "series_code": row["series_code"],
+                "observation_date": row["observation_date"],
+                "value": float(row["value"]),
+                "metadata": row.get("metadata") or {},
+                "retrieved_at": row["retrieved_at"],
+            }
+            for row in response.json()
+        ]
+
     def get_evidence(self, ticker: str) -> list[dict[str, object]]:
         technical = super().get_evidence(ticker)
         stock_response = self._public_request(
