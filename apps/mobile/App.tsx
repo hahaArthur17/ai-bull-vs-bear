@@ -16,6 +16,7 @@ import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react
 
 import { api } from "./src/api";
 import { AuthScreen } from "./src/AuthScreen";
+import { formatChartDate, formatMarketDate, formatQuoteTime } from "./src/dateFormat";
 import { isSupabaseConfigured, supabase } from "./src/supabase";
 import type {
   AnalysisResponse,
@@ -981,27 +982,6 @@ function TechnicalBarChart({ title, subtitle, points, color }: { title: string; 
       </Svg>
     </View>
   );
-}
-
-function formatMarketDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
-    .format(new Date(`${value}T12:00:00Z`));
-}
-
-function formatChartDate(value: string) {
-  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" })
-    .format(new Date(`${value}T12:00:00Z`));
-}
-
-function formatQuoteTime(value: string) {
-  return new Intl.DateTimeFormat("en-US", {
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-    month: "short",
-    timeZone: "UTC",
-    timeZoneName: "short",
-  }).format(new Date(value));
 }
 
 function DebateScreen({
