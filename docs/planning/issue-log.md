@@ -23,7 +23,7 @@ duplicating implementation detail.
 
 ## 2026-08-21 — Debate view crashed on timestamp-formatted evidence dates
 
-**Status:** Remediation implemented; production verification pending.
+**Status:** Resolved and production-verified.
 
 **Symptom and impact**
 
@@ -55,10 +55,17 @@ duplicating implementation detail.
 - Full backend tests (78), mobile TypeScript checks, and Web export pass before
   deployment.
 
-**Follow-up**
+**Production verification**
 
-- Verify the deployed static site by running an AAPL Debate and confirming the
-  page renders dated citations plus the macro-background statement.
+- Render deployed the updated backend and a new static Web bundle. The bundle
+  contains the safe date fallback instead of the former unconditional date
+  formatting path.
+- An isolated test-account AAPL Debate returned `201` with the expected CORS
+  header. Its response contained six complete ISO evidence timestamps and
+  seven close-date-bounded macro observations.
+- Both demo Bull and Bear claims contained the dated macro-background statement
+  and its explicit non-causation boundary. This confirms the data reaches the
+  returned Debate content as well as the immutable snapshot.
 
 **Related code**
 
