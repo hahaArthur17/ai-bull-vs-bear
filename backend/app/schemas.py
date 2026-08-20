@@ -63,6 +63,11 @@ class MacroObservation(BaseModel):
     retrieved_at: str
 
 
+class MacroSeriesContext(BaseModel):
+    series: MacroSeries
+    observations: list[MacroObservation]
+
+
 class TechnicalIndicators(BaseModel):
     ticker: str
     as_of: str

@@ -54,6 +54,61 @@ def test_quote_endpoint_returns_the_cached_quote(monkeypatch: pytest.MonkeyPatch
     assert response.json()["close"] == 316.83
 
 
+def test_macro_context_endpoint_groups_cached_observations(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main
+
+    class MacroStore(DemoStore):
+        def get_macro_series(self) -> list[dict[str, object]]:
+            return [
+                {
+                    "code": "vix",
+                    "name": "CBOE Volatility Index",
+                    "source": "fred",
+                    "unit": "index points",
+                    "frequency": "daily",
+                }
+            ]
+
+        def get_macro_observations(self, series_code: str, limit: int = 400) -> list[dict[str, object]]:
+            assert series_code == "vix"
+            assert limit == 30
+            return [
+                {
+                    "series_code": "vix",
+                    "observation_date": "2026-08-20",
+                    "value": 17.25,
+                    "retrieved_at": "2026-08-21T00:00:00+00:00",
+                }
+            ]
+
+    monkeypatch.setattr(main, "store", MacroStore())
+
+    response = client.get("/macro/context?limit=30")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {
+            "series": {
+                "code": "vix",
+                "name": "CBOE Volatility Index",
+                "source": "fred",
+                "unit": "index points",
+                "frequency": "daily",
+                "metadata": {},
+            },
+            "observations": [
+                {
+                    "series_code": "vix",
+                    "observation_date": "2026-08-20",
+                    "value": 17.25,
+                    "metadata": {},
+                    "retrieved_at": "2026-08-21T00:00:00+00:00",
+                }
+            ],
+        }
+    ]
+
+
 def test_watchlist_and_analysis_flow() -> None:
     headers = {"X-User-Id": "test-user"}
     response = client.post("/watchlist", json={"ticker": "NVDA"}, headers=headers)

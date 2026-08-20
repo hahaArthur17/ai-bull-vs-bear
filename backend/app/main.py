@@ -17,6 +17,7 @@ from app.schemas import (
     MarketQuote,
     MacroObservation,
     MacroSeries,
+    MacroSeriesContext,
     PricePoint,
     PriceHistoryPoint,
     Stock,
@@ -158,6 +159,22 @@ def get_macro_observations(
     return [
         MacroObservation.model_validate(item)
         for item in store.get_macro_observations(series_code, limit)
+    ]
+
+
+@app.get("/macro/context", response_model=list[MacroSeriesContext])
+def get_macro_context(
+    limit: int = Query(default=60, ge=2, le=400),
+) -> list[MacroSeriesContext]:
+    return [
+        MacroSeriesContext(
+            series=MacroSeries.model_validate(item),
+            observations=[
+                MacroObservation.model_validate(observation)
+                for observation in store.get_macro_observations(str(item["code"]), limit)
+            ],
+        )
+        for item in store.get_macro_series()
     ]
 
 
