@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ActivityIndicator,
+  PanResponder,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -376,7 +377,6 @@ function StockDetailScreen({
     );
   }
   const latest = bundle.prices[bundle.prices.length - 1];
-  const chart = bundle.prices.slice(-30);
   const hasVerifiedMarketData = latest.source === "daily_market_cache";
   const quote = bundle.quote;
   const hasLatestQuote = quote !== null;
@@ -415,7 +415,7 @@ function StockDetailScreen({
               : "A verified daily price will appear after the AAPL cache refresh completes."}
         </Text>
         {hasVerifiedMarketData ? (
-          <PriceLineChart prices={chart} />
+          <InteractivePriceChart dailyPrices={bundle.prices} weeklyPrices={bundle.weekly_history} />
         ) : (
           <View style={styles.chartUnavailable}>
             <Text style={styles.chartUnavailableText}>No curve is shown until market data is verified.</Text>
@@ -447,18 +447,68 @@ function StockDetailScreen({
   );
 }
 
-function PriceLineChart({ prices }: { prices: StockBundle["prices"] }) {
+type ChartRange = "1M" | "3M" | "6M" | "1Y";
+
+type InteractivePricePoint = {
+  date: string;
+  close: number;
+  frequency: "daily" | "weekly";
+  source: "daily_market_cache" | "demo_fallback" | "alpha_vantage_weekly";
+};
+
+function InteractivePriceChart({
+  dailyPrices,
+  weeklyPrices,
+}: {
+  dailyPrices: StockBundle["prices"];
+  weeklyPrices: StockBundle["weekly_history"];
+}) {
+  const [range, setRange] = useState<ChartRange>("1M");
+  const [selectedIndex, setSelectedIndex] = useState(-1);
+  const [chartWidth, setChartWidth] = useState(320);
+  const points: InteractivePricePoint[] = useMemo(() => {
+    if (range === "1M") {
+      return dailyPrices.slice(-22).map((point) => ({ ...point, frequency: "daily" as const }));
+    }
+    if (range === "3M") {
+      return dailyPrices.slice(-66).map((point) => ({ ...point, frequency: "daily" as const }));
+    }
+    const weeklyLimit = range === "6M" ? 27 : 53;
+    return weeklyPrices.slice(-weeklyLimit).map((point) => ({ ...point }));
+  }, [dailyPrices, range, weeklyPrices]);
   const width = 320;
   const height = 154;
   const padding = { top: 14, right: 12, bottom: 26, left: 12 };
-  const closes = prices.map((point) => point.close);
+  if (points.length < 2) {
+    return (
+      <View style={styles.lineChart}>
+        <View style={styles.chartHeader}>
+          <Text style={styles.chartLabel}>PRICE HISTORY</Text>
+          <Text style={styles.chartRange}>{range}</Text>
+        </View>
+        <View style={styles.rangeSelector}>
+          {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
+            <Pressable
+              key={option}
+              style={[styles.rangeButton, option === range && styles.rangeButtonActive]}
+              onPress={() => { setRange(option); setSelectedIndex(-1); }}
+            >
+              <Text style={[styles.rangeButtonText, option === range && styles.rangeButtonTextActive]}>{option}</Text>
+            </Pressable>
+          ))}
+        </View>
+        <Text style={styles.chartUnavailableText}>No labelled {range === "1M" || range === "3M" ? "daily" : "weekly"} history is available yet.</Text>
+      </View>
+    );
+  }
+  const closes = points.map((point) => point.close);
   const minClose = Math.min(...closes);
   const maxClose = Math.max(...closes);
   const closeRange = Math.max(0.01, maxClose - minClose);
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
-  const coordinates = prices.map((point, index) => {
-    const x = padding.left + (index / Math.max(1, prices.length - 1)) * plotWidth;
+  const coordinates = points.map((point, index) => {
+    const x = padding.left + (index / Math.max(1, points.length - 1)) * plotWidth;
     const y = padding.top + (1 - (point.close - minClose) / closeRange) * plotHeight;
     return { x, y };
   });
@@ -468,40 +518,102 @@ function PriceLineChart({ prices }: { prices: StockBundle["prices"] }) {
   const first = coordinates[0];
   const last = coordinates[coordinates.length - 1];
   const areaPath = `${linePath} L${last.x.toFixed(2)},${(height - padding.bottom).toFixed(2)} L${first.x.toFixed(2)},${(height - padding.bottom).toFixed(2)} Z`;
+  const activeIndex = Math.min(Math.max(selectedIndex < 0 ? points.length - 1 : selectedIndex, 0), points.length - 1);
+  const activePoint = points[activeIndex];
+  const activeCoordinate = coordinates[activeIndex];
+  const setPointFromLocation = (locationX: number) => {
+    const svgX = (locationX / Math.max(chartWidth, 1)) * width;
+    const ratio = Math.min(1, Math.max(0, (svgX - padding.left) / plotWidth));
+    setSelectedIndex(Math.round(ratio * (points.length - 1)));
+  };
+  const panResponder = PanResponder.create({
+    onMoveShouldSetPanResponder: () => true,
+    onStartShouldSetPanResponder: () => true,
+    onPanResponderGrant: (event) => setPointFromLocation(event.nativeEvent.locationX),
+    onPanResponderMove: (event) => setPointFromLocation(event.nativeEvent.locationX),
+  });
+  const frequencyLabel = activePoint.frequency === "daily" ? "Daily market cache" : "Weekly Alpha Vantage history";
 
   return (
-    <View style={styles.lineChart} accessibilityLabel={`Apple closing-price chart from ${formatChartDate(prices[0].date)} to ${formatChartDate(prices[prices.length - 1].date)}`}>
+    <View
+      style={styles.lineChart}
+      accessibilityLabel={`AAPL ${range} price chart. Selected ${activePoint.frequency} close: ${formatMarketDate(activePoint.date)}, $${activePoint.close.toFixed(2)}. Drag across the chart or use Earlier and Later buttons to inspect points.`}
+    >
       <View style={styles.chartHeader}>
-        <Text style={styles.chartLabel}>30-SESSION PRICE</Text>
-        <Text style={styles.chartRange}>{formatChartDate(prices[0].date)} – {formatChartDate(prices[prices.length - 1].date)}</Text>
+        <Text style={styles.chartLabel}>{activePoint.frequency.toUpperCase()} PRICE · {range}</Text>
+        <Text style={styles.chartRange}>{formatChartDate(points[0].date)} – {formatChartDate(points[points.length - 1].date)}</Text>
       </View>
-      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image">
-        <Defs>
-          <LinearGradient id="price-area" x1="0" x2="0" y1="0" y2="1">
-            <Stop offset="0" stopColor="#9bc6ac" stopOpacity="0.46" />
-            <Stop offset="1" stopColor="#9bc6ac" stopOpacity="0" />
-          </LinearGradient>
-        </Defs>
-        {[0.25, 0.5, 0.75].map((position) => (
-          <Line
-            key={position}
-            x1={padding.left}
-            x2={width - padding.right}
-            y1={padding.top + plotHeight * position}
-            y2={padding.top + plotHeight * position}
-            stroke="#ffffff"
-            strokeOpacity="0.16"
-            strokeDasharray="4 4"
-          />
+      <View style={styles.rangeSelector}>
+        {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
+          <Pressable
+            key={option}
+            accessibilityRole="button"
+            accessibilityState={{ selected: option === range }}
+            style={[styles.rangeButton, option === range && styles.rangeButtonActive]}
+            onPress={() => { setRange(option); setSelectedIndex(-1); }}
+          >
+            <Text style={[styles.rangeButtonText, option === range && styles.rangeButtonTextActive]}>{option}</Text>
+          </Pressable>
         ))}
-        <Path d={areaPath} fill="url(#price-area)" />
-        <Path d={linePath} fill="none" stroke="#d7f0dc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-        <Circle cx={last.x} cy={last.y} r="4.5" fill="#fffdf8" />
-        <Circle cx={last.x} cy={last.y} r="2.5" fill="#d95c3b" />
-      </Svg>
+      </View>
+      <View
+        style={styles.chartTouchArea}
+        onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
+        {...panResponder.panHandlers}
+      >
+        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image">
+          <Defs>
+            <LinearGradient id="price-area" x1="0" x2="0" y1="0" y2="1">
+              <Stop offset="0" stopColor="#9bc6ac" stopOpacity="0.46" />
+              <Stop offset="1" stopColor="#9bc6ac" stopOpacity="0" />
+            </LinearGradient>
+          </Defs>
+          {[0.25, 0.5, 0.75].map((position) => (
+            <Line
+              key={position}
+              x1={padding.left}
+              x2={width - padding.right}
+              y1={padding.top + plotHeight * position}
+              y2={padding.top + plotHeight * position}
+              stroke="#ffffff"
+              strokeOpacity="0.16"
+              strokeDasharray="4 4"
+            />
+          ))}
+          <Path d={areaPath} fill="url(#price-area)" />
+          <Path d={linePath} fill="none" stroke="#d7f0dc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <Line x1={activeCoordinate.x} x2={activeCoordinate.x} y1={padding.top} y2={height - padding.bottom} stroke="#fffdf8" strokeOpacity="0.7" strokeDasharray="3 3" />
+          <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="5" fill="#fffdf8" />
+          <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="2.5" fill="#d95c3b" />
+        </Svg>
+      </View>
       <View style={styles.chartAxis}>
         <Text style={styles.chartAxisText}>${minClose.toFixed(2)}</Text>
         <Text style={styles.chartAxisText}>${maxClose.toFixed(2)}</Text>
+      </View>
+      <View style={styles.chartTooltip}>
+        <Text style={styles.chartTooltipPrice}>${activePoint.close.toFixed(2)}</Text>
+        <Text style={styles.chartTooltipMeta}>{formatMarketDate(activePoint.date)} · {frequencyLabel}</Text>
+      </View>
+      <View style={styles.chartInspector}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Inspect earlier price point"
+          disabled={activeIndex === 0}
+          style={[styles.chartStepButton, activeIndex === 0 && styles.chartStepDisabled]}
+          onPress={() => setSelectedIndex(activeIndex - 1)}
+        >
+          <Text style={styles.chartStepText}>← Earlier</Text>
+        </Pressable>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Inspect later price point"
+          disabled={activeIndex === points.length - 1}
+          style={[styles.chartStepButton, activeIndex === points.length - 1 && styles.chartStepDisabled]}
+          onPress={() => setSelectedIndex(activeIndex + 1)}
+        >
+          <Text style={styles.chartStepText}>Later →</Text>
+        </Pressable>
       </View>
     </View>
   );
@@ -782,8 +894,21 @@ const styles = StyleSheet.create({
   chartHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
   chartLabel: { color: "#d7f0dc", fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
   chartRange: { color: "#c8d9d3", fontSize: 11 },
+  rangeSelector: { flexDirection: "row", gap: 6, marginTop: 10, marginBottom: 10 },
+  rangeButton: { borderColor: "rgba(255,255,255,0.32)", borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
+  rangeButtonActive: { backgroundColor: "#fffdf8", borderColor: "#fffdf8" },
+  rangeButtonText: { color: "#d7f0dc", fontSize: 11, fontWeight: "800" },
+  rangeButtonTextActive: { color: palette.accent },
+  chartTouchArea: { minHeight: 154 },
   chartAxis: { flexDirection: "row", justifyContent: "space-between", marginTop: -4 },
   chartAxisText: { color: "#c8d9d3", fontSize: 11 },
+  chartTooltip: { marginTop: 10, backgroundColor: "rgba(255,255,255,0.12)", borderRadius: 10, paddingHorizontal: 10, paddingVertical: 8 },
+  chartTooltipPrice: { color: "#fffdf8", fontSize: 17, fontWeight: "800" },
+  chartTooltipMeta: { color: "#d7f0dc", fontSize: 11, marginTop: 2 },
+  chartInspector: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  chartStepButton: { borderColor: "rgba(255,255,255,0.34)", borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 7 },
+  chartStepDisabled: { opacity: 0.35 },
+  chartStepText: { color: "#fffdf8", fontSize: 11, fontWeight: "800" },
   chartUnavailable: { height: 116, marginTop: 18, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.24)", borderStyle: "dashed", paddingHorizontal: 20 },
   chartUnavailableText: { color: "#c8d9d3", fontSize: 13, lineHeight: 19, textAlign: "center" },
   signalUnavailable: { backgroundColor: "#f3eadb", borderRadius: 14, padding: 16, marginTop: 18 },
