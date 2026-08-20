@@ -457,6 +457,8 @@ type InteractivePricePoint = {
   source: "daily_market_cache" | "demo_fallback" | "alpha_vantage_weekly";
   ma20: number | null;
   ma50: number | null;
+  is_stale?: boolean;
+  retrieved_at?: string;
 };
 
 function InteractivePriceChart({
@@ -556,7 +558,13 @@ function InteractivePriceChart({
     onPanResponderGrant: (event) => setPointFromLocation(event.nativeEvent.locationX),
     onPanResponderMove: (event) => setPointFromLocation(event.nativeEvent.locationX),
   });
-  const frequencyLabel = activePoint.frequency === "daily" ? "Daily market cache" : "Weekly Alpha Vantage history";
+  const frequencyLabel = activePoint.frequency === "daily"
+    ? activePoint.is_stale
+      ? "Daily market cache · stale"
+      : "Daily market cache · verified"
+    : activePoint.retrieved_at
+      ? `Weekly Alpha Vantage history · refreshed ${formatQuoteTime(activePoint.retrieved_at)}`
+      : "Weekly Alpha Vantage history";
 
   return (
     <View
