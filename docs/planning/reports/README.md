@@ -9,10 +9,12 @@ in one report per project week.
 When resuming the project:
 
 1. read `../weekly-roadmap.md` for the current status;
-2. read the latest report in this folder;
-3. read the active operating checklist, currently `../week-4-todo.md`;
-4. open only the architecture/setup documents linked by the latest report; and
-5. compare the repository state with the GitHub Project before choosing work.
+2. read the [project issue log](../issue-log.md) for unresolved risks and
+   prior incident evidence;
+3. read the latest report in this folder;
+4. read the active operating checklist, currently `../week-4-todo.md`;
+5. open only the architecture/setup documents linked by the latest report; and
+6. compare the repository state with the GitHub Project before choosing work.
 
 ## Reports
 
