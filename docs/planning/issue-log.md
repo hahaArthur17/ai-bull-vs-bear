@@ -21,6 +21,59 @@ duplicating implementation detail.
 
 ---
 
+## 2026-08-21 — Legacy analysis history causes production `/analysis` 500
+
+**Status:** Confirmed; remediation not yet applied.
+
+**Symptom and impact**
+
+- The production web app reported a CORS failure while requesting `GET
+  /analysis`, accompanied by an HTTP `500` response.
+- The home screen cannot reliably load a signed-in user's saved analysis
+  history while an incompatible historical record is present.
+
+**Verified evidence**
+
+- Production CORS is correctly configured for
+  `https://ai-bull-vs-bear.onrender.com`: an `OPTIONS /analysis` preflight and
+  an unauthenticated `GET /analysis` both return the expected
+  `Access-Control-Allow-Origin` response header.
+- A read-only, aggregate-only audit of stored `agent_outputs` found six saved
+  `response` records. Five predate the immutable analysis-snapshot contract and
+  omit the now-required `snapshot` object; one current-format record parses.
+- `SupabaseStore.list_analyses()` calls `AnalysisResponse.model_validate()` for
+  every stored response without handling validation failures. A legacy record
+  therefore raises an unhandled validation error and turns the endpoint into a
+  `500`.
+- The browser's CORS message is secondary: FastAPI's outer server-error path
+  generates that unhandled `500` outside the currently added CORS middleware,
+  so the error response has no CORS header for the browser to read.
+
+**Data-integrity decision**
+
+Do not fabricate a current-price snapshot for historical analyses and do not
+delete the old rows. Those records lack the immutable market-close/evidence
+metadata required to represent them as equivalent to a current-format Debate.
+
+**Required remediation**
+
+1. Make analysis-history reads backward compatible: skip or explicitly label
+   non-reproducible legacy records instead of letting one invalid row fail the
+   entire list. Apply the same handling to a direct request for a legacy record.
+2. Wrap the whole FastAPI application with CORS so that unexpected `500`
+   responses still return the permitted-origin header and expose a readable API
+   error rather than a misleading browser-only CORS failure.
+3. Add regression tests containing a pre-snapshot stored response and verify
+   that valid current-format history remains accessible.
+
+**Related code**
+
+- `backend/app/services/supabase_store.py`
+- `backend/app/main.py`
+- [`reports/project-week-06.md`](reports/project-week-06.md)
+
+---
+
 ## 2026-08-21 — Render deployment health-check timeout
 
 **Status:** Resolved by redeploy; root cause not proven.
