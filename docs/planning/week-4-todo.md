@@ -151,7 +151,7 @@ Acceptance criteria:
 
 Priority: P2 — start only after P0 work is complete
 
-Implementation status: complete; first live cache population remains.
+Implementation status: complete; live AAPL cache populated on 2026-08-20.
 
 - [x] Select one production-safe price source and document its limits.
 - [x] Cache OHLCV data and preserve deterministic fallback data.
@@ -163,7 +163,106 @@ Acceptance criteria:
 - [x] Stock detail identifies live versus fallback price data.
 - [x] Temporary provider failure does not break the main app flow.
 - [x] All backend tests pass without network access.
-- [ ] Populate Supabase `stock_prices` from a real Alpha Vantage response.
+- [x] Populate Supabase `stock_prices` from a real Alpha Vantage response.
+
+Live verification — 2026-08-20:
+
+- The AAPL daily-price ingestion completed with one provider request and wrote
+  100 OHLCV rows to Supabase.
+- The production API returned a latest completed close of `$316.83` on
+  `2026-08-19`, marked `daily_market_cache` and not stale.
+- The weekday GitHub Actions refresh workflow is active with encrypted
+  `ALPHA_VANTAGE_API_KEY`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY` secrets.
+
+### 8. Make Debate evidence current, traceable, and appropriate to the price date
+
+Priority: P0 — required before presenting a Debate as an explanation of the
+latest market close
+
+Audit result — 2026-08-20:
+
+- The price series is current (100 real AAPL daily rows through 2026-08-19),
+  but the AAPL retrieval response contains no live news item.
+- The newest retrieved filing is the AAPL 10-Q filed 2026-07-31; it is useful
+  long-horizon company context, not an explanation by itself for a current
+  daily move.
+- The current Supabase-backed evidence board still prepends two deterministic
+  demo items dated January 2026. The similarity search used by Debate returned
+  older filing chunks and no current news item.
+- Therefore the current Debate can combine verified technical indicators with
+  stale or demo narrative evidence. It must not claim to explain the latest
+  price move until the following acceptance criteria are met.
+
+Required work:
+
+- [ ] Add an AAPL-specific, licensable news source and scheduled ingestion;
+  the current live evidence job refreshes an NVIDIA RSS feed only.
+- [ ] Record and expose `published_at`, `ingested_at`, source, and an explicit
+  freshness status for every news, filing, and financial-fact item.
+- [ ] Define source-specific freshness windows: daily price must match the
+  latest completed market session; news must be recent enough for a daily-move
+  explanation; filings remain long-horizon context and must display their age.
+- [ ] Exclude deterministic demo news/filing evidence from production Debate
+  retrieval whenever Supabase is available. If no qualifying live evidence
+  exists, return an explicit “insufficient current evidence” result rather
+  than a causal narrative.
+- [ ] Persist an immutable analysis snapshot containing the close date/price,
+  exact evidence IDs, publication dates, retrieval time, and freshness result.
+- [ ] Make the Debate question explicit: “What available evidence may relate
+  to the AAPL close on <date>?” It must distinguish correlation from cause and
+  report when no contemporaneous catalyst was found.
+- [ ] Retain the educational safety boundary. Replace requests for personalised
+  buy/sell/hold or percentage allocations with a non-personal scenario and
+  risk-tolerance framework, including uncertainty and sources to investigate.
+
+Acceptance criteria:
+
+- [ ] A current Debate cannot silently use demo evidence or evidence outside
+  its declared freshness window.
+- [ ] Every displayed claim shows the market-close date and its linked,
+  dated evidence.
+- [ ] An empty current-news result is visible to the user and lowers evidence
+  strength instead of producing a confident explanation.
+
+### 9. Build interactive multi-horizon price and indicator charts for AAPL
+
+Priority: P1 — begins after task 8 enforces data freshness
+
+Product requirements:
+
+- [ ] Replace the static 30-session SVG with an interactive chart: range
+  selector, drag/pan, tap/hover crosshair, date/price tooltip, and accessible
+  textual equivalent.
+- [ ] Support `1M`, `3M`, `6M`, and `1Y` views. Keep recent views on verified
+  daily candles. Bootstrap the one-year view from a separately labelled weekly
+  series, then preserve the daily series for detailed recent periods.
+- [ ] Store frequency/granularity with every point; do not present a weekly
+  close as a daily close.
+- [ ] Overlay MA20 and MA50 on the price chart with a legend and clear colour
+  distinction.
+- [ ] Add separate, synchronised technical panels: RSI with 30/70 reference
+  lines; MACD and signal lines with histogram; volume bars; and volatility as
+  a continuous series. A latest-number summary may remain, but cannot be the
+  only representation.
+- [ ] Calculate indicators exclusively from verified market data and display
+  their as-of date plus any insufficient-lookback state.
+
+Data-source constraint:
+
+- Alpha Vantage free daily `compact` output returns only 100 recent daily
+  points. Its full daily history requires a premium key. Its weekly endpoint
+  provides a 20+ year weekly series, so a one-year weekly bootstrap can retain
+  the current one-call-per-day AAPL budget. See the official documentation:
+  <https://www.alphavantage.co/documentation/>.
+
+Acceptance criteria:
+
+- [ ] The user can inspect an individual point and see its exact date, close,
+  data frequency, and source freshness.
+- [ ] One-year navigation works without increasing routine daily API use above
+  one AAPL request per trading day.
+- [ ] Chart interactions work with mouse, touch, keyboard focus, and a screen
+  reader summary.
 
 ## Recommended execution order
 
