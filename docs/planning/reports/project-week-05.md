@@ -88,6 +88,35 @@ and multiple embedding providers while preserving a clear handoff record.
 - Added service-specific Render build filters so documentation-only commits no
   longer rebuild both services or waste free pipeline minutes (`309eb97`).
 
+## 2026-08-20 continuation — verified AAPL prices and evidence-freshness audit
+
+- Configured a local Alpha Vantage key without committing it, populated the
+  shared Supabase AAPL cache with 100 real daily OHLCV rows, and confirmed the
+  latest completed close is `2026-08-19 | $316.83`.
+- Added and pushed a weekday GitHub Actions AAPL refresh workflow. Its three
+  required repository secrets were encrypted through the GitHub Secrets API:
+  `ALPHA_VANTAGE_API_KEY`, `SUPABASE_URL`, and `SUPABASE_SECRET_KEY`.
+- Deployed the verified-price backend and interactive Signals frontend to
+  Render. The production API now identifies rows as `daily_market_cache`;
+  the frontend uses a 30-session SVG line chart and does not render fallback
+  values or indicators as real market data.
+- Ran a production evidence audit before expanding Debate. The current
+  evidence endpoint combines two deterministic January 2026 demo items with
+  live AAPL filings. The newest live filing is a 10-Q filed 2026-07-31; no
+  current AAPL news item was present. The retrieval response used by Debate
+  returned older filing chunks and no current news result.
+- Recorded a P0 follow-up in `week-4-todo.md`: a Debate must bind itself to a
+  precise market-close date and an immutable, dated evidence snapshot; it must
+  surface insufficient contemporaneous evidence instead of inventing a causal
+  explanation. Demo evidence must not silently appear in production retrieval.
+- Recorded the interactive-chart follow-up: range selection and tooltips,
+  synchronised RSI/MACD/volume/volatility panels, and 1Y weekly-history
+  bootstrap. Free Alpha Vantage daily `compact` is limited to 100 latest rows;
+  full daily history is premium, while the weekly series provides long history.
+- Preserved the product safety boundary. The planned Debate output may provide
+  educational scenario/risk frameworks, but will not issue personal buy/sell/
+  hold instructions or percentage allocations.
+
 ## GitHub Project sync
 
 The board was synchronized after implementation:
