@@ -623,7 +623,7 @@ def ingest_live_evidence(
     per_source_limit: int = 4,
 ) -> dict[str, int]:
     feeds = rss_feeds or {
-        "NVDA": "https://nvidianews.nvidia.com/releases.xml",
+        "AAPL": "https://www.apple.com/newsroom/rss-feed.rss",
     }
     rss_count = 0
     for ticker, url in feeds.items():

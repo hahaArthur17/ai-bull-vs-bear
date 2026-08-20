@@ -28,7 +28,7 @@ def parse_rss(xml_text: str, ticker: str, limit: int = 20) -> list[dict[str, obj
         if _tag_name(element.tag) in {"item", "entry"}:
             entries.append(element)
     documents: list[dict[str, object]] = []
-    for index, entry in enumerate(entries[:limit], start=1):
+    for entry in entries[:limit]:
         title = _text(next((child for child in entry if _tag_name(child.tag) == "title"), None))
         description = _text(
             next(
@@ -52,11 +52,16 @@ def parse_rss(xml_text: str, ticker: str, limit: int = 20) -> list[dict[str, obj
                 None,
             )
         )
+        guid = _text(next((child for child in entry if _tag_name(child.tag) == "guid"), None))
         if not title:
             continue
+        identity = guid or link or f"{title}|{published}"
         documents.append(
             {
-                "id": f"rss-{ticker.lower()}-{index:03d}",
+                # Feed positions change whenever a new article is published.
+                # Hashing the provider's stable identity prevents an upsert from
+                # overwriting yesterday's article with today's first entry.
+                "id": f"rss-{ticker.lower()}-{sha1(identity.encode('utf-8')).hexdigest()[:16]}",
                 "ticker": ticker.upper(),
                 "source_type": "news",
                 "title": title,
