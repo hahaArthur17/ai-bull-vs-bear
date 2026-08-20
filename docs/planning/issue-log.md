@@ -23,7 +23,7 @@ duplicating implementation detail.
 
 ## 2026-08-21 — Legacy analysis history causes production `/analysis` 500
 
-**Status:** Remediation implemented; production verification pending.
+**Status:** Resolved and production-verified.
 
 **Symptom and impact**
 
@@ -74,8 +74,16 @@ metadata required to represent them as equivalent to a current-format Debate.
 - `76e9464` wraps the complete FastAPI application in CORS middleware, so an
   unexpected server error still returns the permitted-origin header.
 - The new legacy-history and unexpected-error CORS regression tests pass; the
-  full backend suite passes 78 tests. Deploy and repeat the production
-  authenticated-history check before marking this incident resolved.
+  full backend suite passes 78 tests.
+
+**Production verification**
+
+- Render auto-deployed commit `039caf0` and marked the service live.
+- Public `/health` returns `200`.
+- An authenticated, origin-bearing production request to `/analysis` returns
+  `200` and the expected `Access-Control-Allow-Origin` value. It returns the
+  one current-format stored record; the five incompatible legacy records remain
+  intact in storage and do not interrupt the response.
 
 **Related code**
 
