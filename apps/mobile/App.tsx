@@ -725,9 +725,13 @@ function TechnicalPanels({ prices }: { prices: StockBundle["prices"] }) {
       volatility: toPoints(calculateVolatility(closes)),
     };
   }, [prices]);
+  const latestDate = prices[prices.length - 1]?.date;
   return (
     <View style={styles.technicalPanels}>
-      <SectionHeader title="Continuous technical panels" meta="verified daily cache" />
+      <SectionHeader
+        title="Continuous technical panels"
+        meta={latestDate ? `as of ${formatMarketDate(latestDate)}` : "verified daily cache"}
+      />
       <TechnicalLineChart
         title="Moving averages"
         subtitle="MA20 / MA50 · daily closes"
