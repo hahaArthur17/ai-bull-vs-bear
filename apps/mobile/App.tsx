@@ -1056,6 +1056,16 @@ function DebateScreen({
                 Missing current {analysis.snapshot.missing_current_evidence.join(" and ")} evidence.
               </Text>
             ) : null}
+            {analysis.snapshot.macro_context.length > 0 ? (
+              <View style={styles.debateMacroSnapshot}>
+                <Text style={styles.debateMacroLabel}>MARKET BACKGROUND AT THIS CLOSE · NOT CAUSAL</Text>
+                {analysis.snapshot.macro_context.map((item) => (
+                  <Text key={item.code} style={styles.debateMacroItem}>
+                    {item.name} · {formatMacroValue(item.value, item.unit)} · {formatMarketDate(item.observation_date)} · {item.source.toUpperCase()}
+                  </Text>
+                ))}
+              </View>
+            ) : null}
           </View>
           <View style={styles.judgeCard}>
             <View style={styles.rowBetween}><Text style={styles.cardLabel}>JUDGE SYNTHESIS</Text><Text style={styles.confidence}>{analysis.judge.evidence_strength} evidence</Text></View>
@@ -1336,6 +1346,9 @@ const styles = StyleSheet.create({
   snapshotTitle: { color: palette.ink, fontSize: 16, fontWeight: "800", marginBottom: 5 },
   snapshotDetail: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
   snapshotWarning: { color: palette.bear, fontSize: 12, fontWeight: "700", lineHeight: 18, marginTop: 6 },
+  debateMacroSnapshot: { borderTopColor: "#ead4ad", borderTopWidth: 1, marginTop: 12, paddingTop: 10, gap: 3 },
+  debateMacroLabel: { color: palette.ink, fontSize: 10, fontWeight: "800", letterSpacing: 0.7, marginBottom: 2 },
+  debateMacroItem: { color: palette.muted, fontSize: 11, lineHeight: 16 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   confidence: { color: palette.bull, fontSize: 12, fontWeight: "700" },
   judgeTitle: { color: palette.ink, fontSize: 19, lineHeight: 25, fontWeight: "800", marginVertical: 8 },
