@@ -12,6 +12,10 @@ def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
     assert response.snapshot.price.as_of == response.indicators.as_of
     assert response.snapshot.price.source == "demo_fallback"
     assert response.snapshot.missing_current_evidence == ["news", "filing"]
+    assert response.question == (
+        f"What available evidence may relate to the AAPL close on {response.snapshot.price.as_of}? "
+        "Distinguish contemporaneous context from proven causation."
+    )
     assert len(response.trace) == 8
     examined = service.examine(response.bull.id, "evidence_support")
     assert examined.evidence

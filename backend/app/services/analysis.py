@@ -66,7 +66,13 @@ class AnalysisService:
         prices = self.store.get_prices(normalized)
         raw_indicators = calculate_indicators(normalized, prices)
         indicators = TechnicalIndicators.model_validate(raw_indicators)
-        evidence_query = question or "technical momentum news filing risk uncertainty"
+        latest_price = prices[-1]
+        price_as_of = str(latest_price["date"])
+        analysis_question = question or (
+            f"What available evidence may relate to the {normalized} close on {price_as_of}? "
+            "Distinguish contemporaneous context from proven causation."
+        )
+        evidence_query = analysis_question
         search_evidence = getattr(self.store, "search_evidence", None)
         raw_evidence = (
             search_evidence(normalized, evidence_query)
@@ -148,8 +154,9 @@ class AnalysisService:
                 terms=["volatility", "risk"],
             )
             raw_summary = (
-                f"Evidence for {normalized} is mixed: technical signals are {indicators.signal_summary.lower()} "
-                "while the evidence set includes both supportive context and material risks."
+                f"Evidence available around the {normalized} close on {price_as_of} is mixed: "
+                f"technical signals are {indicators.signal_summary.lower()} while the evidence set "
+                "includes both supportive context and material risks."
             )
             safe_summary, guardrail_status, _ = apply_guardrails(raw_summary)
             judge = JudgeSummary(
@@ -159,14 +166,17 @@ class AnalysisService:
                     "No current company news or filing was available for this run; "
                     "the result is limited to technical observations and does not establish a future price outcome."
                     if not has_current_external_evidence
-                    else "The available evidence does not establish a future price outcome."
+                    else (
+                        "The available evidence provides context around the recorded close; "
+                        "it does not prove why the price moved or establish a future outcome."
+                    )
                 ),
                 risk_level="medium",
             )
             token_usage = TokenUsage(model_name="demo-deterministic", prompt_tokens=0, completion_tokens=0, total_tokens=0)
         else:
             provider = build_analysis_provider(self.settings)
-            provider_result = provider.generate(normalized, question, indicators, evidence)
+            provider_result = provider.generate(normalized, analysis_question, indicators, evidence)
             bull, bull_rewritten = self._claim_from_provider("bull", provider_result.draft.bull, valid_evidence_ids, fallback_bull)
             bear, bear_rewritten = self._claim_from_provider("bear", provider_result.draft.bear, valid_evidence_ids, fallback_bear)
             safe_summary, summary_status, _ = apply_guardrails(provider_result.draft.judge.summary)
@@ -180,7 +190,6 @@ class AnalysisService:
             token_usage = provider_result.token_usage
         analysis_id = str(uuid4())
         created_at = datetime.now(timezone.utc).isoformat()
-        latest_price = prices[-1]
         price_source = str(latest_price.get("source", "demo_fallback"))
         snapshot = AnalysisSnapshot(
             retrieved_at=created_at,
@@ -225,7 +234,7 @@ class AnalysisService:
             analysis_id=analysis_id,
             ticker=normalized,
             created_at=created_at,
-            question=question,
+            question=analysis_question,
             indicators=indicators,
             snapshot=snapshot,
             judge=judge,
