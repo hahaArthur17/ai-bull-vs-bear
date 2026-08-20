@@ -25,6 +25,7 @@ def test_health_and_stock_endpoints() -> None:
     assert client.get("/stocks/AAPL/indicators").status_code == 200
     assert client.get("/stocks/AAPL/quote").json() is None
     assert any(item["source_type"] == "technical" for item in client.get("/stocks/AAPL/evidence").json())
+    assert client.get("/stocks/AAPL/price-history").json() == []
     assert client.get("/macro/series").json() == []
     assert client.get("/macro/series/vix").json() == []
 

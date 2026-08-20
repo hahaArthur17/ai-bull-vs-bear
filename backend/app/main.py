@@ -18,6 +18,7 @@ from app.schemas import (
     MacroObservation,
     MacroSeries,
     PricePoint,
+    PriceHistoryPoint,
     Stock,
     TechnicalIndicators,
     WatchlistRequest,
@@ -116,6 +117,19 @@ def get_prices(ticker: str) -> list[PricePoint]:
     if store.get_stock(ticker) is None:
         raise HTTPException(status_code=404, detail="Stock not found")
     return [PricePoint.model_validate(point) for point in store.get_prices(ticker)]
+
+
+@app.get("/stocks/{ticker}/price-history", response_model=list[PriceHistoryPoint])
+def get_price_history(
+    ticker: str,
+    frequency: str = Query(default="weekly", pattern="^weekly$"),
+) -> list[PriceHistoryPoint]:
+    if store.get_stock(ticker) is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return [
+        PriceHistoryPoint.model_validate(point)
+        for point in store.get_price_history(ticker, frequency)
+    ]
 
 
 @app.get("/stocks/{ticker}/quote", response_model=MarketQuote | None)

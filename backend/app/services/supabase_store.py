@@ -131,6 +131,42 @@ class SupabaseStore(DemoStore):
         except (KeyError, RepositoryError, TypeError, ValueError):
             return self._demo_prices(normalized)
 
+    def get_price_history(self, ticker: str, frequency: str = "weekly") -> list[dict[str, object]]:
+        normalized = ticker.upper()
+        if frequency != "weekly":
+            raise ValueError(f"Unsupported history frequency: {frequency}")
+        stock_response = self._public_request(
+            "stocks",
+            params={"select": "id", "ticker": f"eq.{normalized}", "limit": "1"},
+        )
+        stock_rows = stock_response.json()
+        if not stock_rows:
+            return []
+        response = self._public_request(
+            "stock_price_history",
+            params={
+                "select": "trading_date,open,high,low,close,volume,frequency,source,retrieved_at",
+                "stock_id": f"eq.{stock_rows[0]['id']}",
+                "frequency": f"eq.{frequency}",
+                "order": "trading_date.asc",
+                "limit": "260",
+            },
+        )
+        return [
+            {
+                "date": str(row["trading_date"]),
+                "open": float(row["open"]),
+                "high": float(row["high"]),
+                "low": float(row["low"]),
+                "close": float(row["close"]),
+                "volume": int(row["volume"]),
+                "frequency": row["frequency"],
+                "source": row["source"],
+                "retrieved_at": row["retrieved_at"],
+            }
+            for row in response.json()
+        ]
+
     def _demo_prices(self, ticker: str) -> list[dict[str, object]]:
         return [
             {

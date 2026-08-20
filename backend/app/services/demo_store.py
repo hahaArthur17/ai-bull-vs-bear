@@ -164,6 +164,9 @@ class DemoStore:
     def get_prices(self, ticker: str) -> list[dict[str, object]]:
         return [point.copy() for point in self._prices.get(ticker.upper(), [])]
 
+    def get_price_history(self, ticker: str, frequency: str = "weekly") -> list[dict[str, object]]:
+        return []
+
     def get_macro_series(self) -> list[dict[str, object]]:
         return []
 

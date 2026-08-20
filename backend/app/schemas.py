@@ -23,6 +23,18 @@ class PricePoint(BaseModel):
     is_stale: bool = True
 
 
+class PriceHistoryPoint(BaseModel):
+    date: str
+    open: float
+    high: float
+    low: float
+    close: float
+    volume: int
+    frequency: Literal["weekly"]
+    source: Literal["alpha_vantage_weekly"]
+    retrieved_at: str
+
+
 class MarketQuote(BaseModel):
     ticker: str
     close: float

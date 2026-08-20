@@ -26,6 +26,23 @@ class FakePostgrest:
             return httpx.Response(200, json=[{"id": 1}])
         if table == "stock_prices":
             return httpx.Response(self.price_status, json=self.price_rows)
+        if table == "stock_price_history":
+            return httpx.Response(
+                200,
+                json=[
+                    {
+                        "trading_date": "2026-08-14",
+                        "open": "220.10",
+                        "high": "224.50",
+                        "low": "219.00",
+                        "close": "223.75",
+                        "volume": "250123456",
+                        "frequency": "weekly",
+                        "source": "alpha_vantage_weekly",
+                        "retrieved_at": "2026-08-21T00:00:00+00:00",
+                    }
+                ],
+            )
         if table == "macro_series":
             return httpx.Response(
                 200,
@@ -253,6 +270,16 @@ def test_supabase_prices_fall_back_when_cache_is_unavailable() -> None:
     assert prices
     assert all(point["source"] == "demo_fallback" for point in prices)
     assert all(point["is_stale"] is True for point in prices)
+
+
+def test_supabase_reads_labelled_weekly_price_history() -> None:
+    store = build_store(FakePostgrest())
+
+    points = store.get_price_history("AAPL")
+
+    assert points[0]["frequency"] == "weekly"
+    assert points[0]["source"] == "alpha_vantage_weekly"
+    assert points[0]["close"] == 223.75
 
 
 def test_supabase_reads_cached_macro_series_and_observations() -> None:
