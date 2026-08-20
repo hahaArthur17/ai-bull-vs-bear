@@ -23,7 +23,7 @@ duplicating implementation detail.
 
 ## 2026-08-21 — Legacy analysis history causes production `/analysis` 500
 
-**Status:** Confirmed; remediation not yet applied.
+**Status:** Remediation implemented; production verification pending.
 
 **Symptom and impact**
 
@@ -65,6 +65,17 @@ metadata required to represent them as equivalent to a current-format Debate.
    error rather than a misleading browser-only CORS failure.
 3. Add regression tests containing a pre-snapshot stored response and verify
    that valid current-format history remains accessible.
+
+**Local remediation completed**
+
+- `b53dc6f` makes persisted-history parsing tolerant of legacy records. They
+  remain stored but are omitted from current-format history and direct legacy
+  lookups return no current-format response.
+- `76e9464` wraps the complete FastAPI application in CORS middleware, so an
+  unexpected server error still returns the permitted-origin header.
+- The new legacy-history and unexpected-error CORS regression tests pass; the
+  full backend suite passes 78 tests. Deploy and repeat the production
+  authenticated-history check before marking this incident resolved.
 
 **Related code**
 
