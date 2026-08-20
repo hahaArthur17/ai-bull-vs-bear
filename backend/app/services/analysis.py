@@ -80,6 +80,35 @@ class AnalysisService:
             if is_current_for_analysis(item.model_dump())
         ]
         excluded_stale_count = len(retrieved_evidence) - len(evidence)
+        supplemented_evidence: list[EvidenceItem] = []
+        # Similarity retrieval can legitimately rank several filing chunks above
+        # a fresh company announcement. For a current-price discussion, retain
+        # that relevant ranking but ensure that at most one *current* document
+        # from each external source category is also available to the Debate.
+        all_documents = [
+            EvidenceItem.model_validate(item)
+            for item in self.store.get_evidence(normalized)
+        ]
+        for source_type in ("news", "filing"):
+            if any(item.source_type == source_type for item in evidence):
+                continue
+            candidate = next(
+                (
+                    item
+                    for item in sorted(
+                        all_documents,
+                        key=lambda value: value.published_at or "",
+                        reverse=True,
+                    )
+                    if item.source_type == source_type
+                    and is_current_for_analysis(item.model_dump())
+                    and item.id not in {existing.id for existing in evidence}
+                ),
+                None,
+            )
+            if candidate is not None:
+                evidence.append(candidate)
+                supplemented_evidence.append(candidate)
         has_current_external_evidence = any(
             item.source_type in {"news", "filing"} for item in evidence
         )
@@ -153,7 +182,7 @@ class AnalysisService:
                 source=price_source if price_source == "daily_market_cache" else "demo_fallback",
                 is_stale=bool(latest_price.get("is_stale", price_source != "daily_market_cache")),
             ),
-            retrieved_evidence_count=len(retrieved_evidence),
+            retrieved_evidence_count=len(retrieved_evidence) + len(supplemented_evidence),
             included_evidence_ids=[item.id for item in evidence],
             excluded_external_evidence_count=excluded_stale_count,
             missing_current_evidence=[
@@ -172,7 +201,11 @@ class AnalysisService:
                 detail=(
                     f"Excluded {excluded_stale_count} stale or undated external document(s) from Debate input."
                     if excluded_stale_count
-                    else "Combined only current external context with technical observations."
+                    else (
+                        f"Added {len(supplemented_evidence)} current source-coverage document(s) to the relevant retrieval."
+                        if supplemented_evidence
+                        else "Combined only current external context with technical observations."
+                    )
                 ),
             ),
             TraceStep(step="bull_agent", status="completed", detail="Generated a positive claim linked to evidence IDs."),

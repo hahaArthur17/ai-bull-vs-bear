@@ -69,3 +69,51 @@ def test_analysis_discloses_when_no_current_external_evidence_exists() -> None:
     response = AnalysisService(DemoStore()).create("AAPL")
 
     assert "No current company news or filing was available" in response.judge.uncertainty
+
+
+class SourceCoverageStore(DemoStore):
+    def search_evidence(self, ticker: str, query: str) -> list[dict[str, object]]:
+        return [
+            {
+                "id": "technical-aapl-001",
+                "ticker": ticker,
+                "source_type": "technical",
+                "title": "Verified technical context",
+                "excerpt": "Calculated from the cached series.",
+            }
+        ]
+
+    def get_evidence(self, ticker: str) -> list[dict[str, object]]:
+        return self.search_evidence(ticker, "") + [
+            {
+                "id": "current-news",
+                "ticker": ticker,
+                "source_type": "news",
+                "title": "Current company announcement",
+                "published_at": "2026-08-20T10:00:00+00:00",
+                "excerpt": "An announcement dated within the news freshness window.",
+                "freshness": {"status": "current", "age_days": 1, "max_age_days": 7},
+            },
+            {
+                "id": "current-filing",
+                "ticker": ticker,
+                "source_type": "filing",
+                "title": "Current quarterly filing",
+                "published_at": "2026-07-31T10:00:00+00:00",
+                "excerpt": "A filing dated within the filing freshness window.",
+                "freshness": {"status": "current", "age_days": 21, "max_age_days": 120},
+            },
+        ]
+
+
+def test_analysis_supplements_relevant_retrieval_with_current_source_coverage() -> None:
+    response = AnalysisService(SourceCoverageStore()).create("AAPL")
+
+    assert {item.id for item in response.evidence} == {
+        "technical-aapl-001",
+        "current-news",
+        "current-filing",
+    }
+    assert response.snapshot.retrieved_evidence_count == 3
+    assert response.snapshot.missing_current_evidence == []
+    assert "Added 2 current source-coverage document" in response.trace[3].detail
