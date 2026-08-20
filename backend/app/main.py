@@ -14,6 +14,7 @@ from app.schemas import (
     ExaminationRequest,
     ExaminationResponse,
     EvidenceItem,
+    MarketQuote,
     PricePoint,
     Stock,
     TechnicalIndicators,
@@ -25,6 +26,7 @@ from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
+from app.services.market_data import FinnhubQuoteClient, MarketDataError, QuoteCache
 from app.services.rag import retrieve_evidence
 from app.services.supabase_store import RepositoryError, SupabaseStore
 
@@ -41,6 +43,11 @@ if settings.persistence_mode.lower().strip() == "supabase":
 else:
     store = DemoStore()
 analysis_service = AnalysisService(store)
+quote_cache = (
+    QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))
+    if settings.finnhub_api_key and settings.environment != "test"
+    else None
+)
 
 app = FastAPI(
     title=settings.app_name,
@@ -107,6 +114,19 @@ def get_prices(ticker: str) -> list[PricePoint]:
     if store.get_stock(ticker) is None:
         raise HTTPException(status_code=404, detail="Stock not found")
     return [PricePoint.model_validate(point) for point in store.get_prices(ticker)]
+
+
+@app.get("/stocks/{ticker}/quote", response_model=MarketQuote | None)
+def get_quote(ticker: str) -> MarketQuote | None:
+    if store.get_stock(ticker) is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    if quote_cache is None:
+        return None
+    try:
+        return MarketQuote.model_validate(quote_cache.get(ticker))
+    except MarketDataError:
+        logger.warning("Latest quote lookup failed for %s", ticker.upper())
+        return None
 
 
 @app.get("/stocks/{ticker}/indicators", response_model=TechnicalIndicators)

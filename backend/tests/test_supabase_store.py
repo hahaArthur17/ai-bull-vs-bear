@@ -183,7 +183,7 @@ def test_supabase_prices_include_live_cache_provenance() -> None:
 
     prices = store.get_prices("AAPL")
 
-    assert prices[0]["source"] == "alpha_vantage_cache"
+    assert prices[0]["source"] == "daily_market_cache"
     assert prices[0]["is_stale"] is False
     assert prices[0]["close"] == 223.75
 

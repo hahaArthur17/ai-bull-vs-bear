@@ -122,7 +122,7 @@ class SupabaseStore(DemoStore):
                     "low": float(row["low"]),
                     "close": float(row["close"]),
                     "volume": int(row["volume"]),
-                    "source": "alpha_vantage_cache",
+                    "source": "daily_market_cache",
                     "is_stale": is_stale,
                 }
                 for row in rows

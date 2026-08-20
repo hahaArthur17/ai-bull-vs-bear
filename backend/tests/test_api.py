@@ -1,5 +1,6 @@
 import pytest
 from fastapi.testclient import TestClient
+import pytest
 
 from app.main import app, settings
 from app.services.analysis import AnalysisService
@@ -22,7 +23,32 @@ def test_health_and_stock_endpoints() -> None:
     stocks = client.get("/stocks").json()
     assert {stock["ticker"] for stock in stocks} == {"AAPL", "GOOG", "NVDA", "TSLA"}
     assert client.get("/stocks/AAPL/indicators").status_code == 200
+    assert client.get("/stocks/AAPL/quote").json() is None
     assert any(item["source_type"] == "technical" for item in client.get("/stocks/AAPL/evidence").json())
+
+
+def test_quote_endpoint_returns_the_cached_quote(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app import main
+
+    class FakeQuoteCache:
+        def get(self, ticker: str) -> dict[str, object]:
+            return {
+                "ticker": ticker,
+                "close": 316.83,
+                "open": 310.14,
+                "high": 319.28,
+                "low": 309.60,
+                "previous_close": 310.03,
+                "as_of": "2026-08-19T20:00:00+00:00",
+                "source": "finnhub_quote",
+            }
+
+    monkeypatch.setattr(main, "quote_cache", FakeQuoteCache())
+
+    response = client.get("/stocks/AAPL/quote")
+
+    assert response.status_code == 200
+    assert response.json()["close"] == 316.83
 
 
 def test_watchlist_and_analysis_flow() -> None:

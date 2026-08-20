@@ -33,8 +33,10 @@ class Settings(BaseSettings):
     apify_user_id: str | None = None
     apify_api_token: str | None = None
     finnhub_api_key: str | None = None
-    price_tickers: str = "AAPL,NVDA,TSLA"
-    price_max_calls_per_run: int = Field(default=3, ge=1, le=3)
+    # This app currently presents a single, verified Apple price series. Keeping
+    # the default batch to one symbol makes each scheduled refresh one API call.
+    price_tickers: str = "AAPL"
+    price_max_calls_per_run: int = Field(default=1, ge=1, le=3)
     price_stale_after_days: int = 5
     groq_api_key: str | None = None
     gemini_api_key: str | None = None

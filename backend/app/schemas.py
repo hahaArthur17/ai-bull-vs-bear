@@ -19,8 +19,19 @@ class PricePoint(BaseModel):
     low: float
     close: float
     volume: int
-    source: Literal["alpha_vantage_cache", "demo_fallback"] = "demo_fallback"
+    source: Literal["daily_market_cache", "demo_fallback"] = "demo_fallback"
     is_stale: bool = True
+
+
+class MarketQuote(BaseModel):
+    ticker: str
+    close: float
+    open: float
+    high: float
+    low: float
+    previous_close: float
+    as_of: str
+    source: Literal["finnhub_quote"]
 
 
 class TechnicalIndicators(BaseModel):

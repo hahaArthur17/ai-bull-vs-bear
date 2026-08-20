@@ -5,10 +5,14 @@ import pytest
 
 from app.services.market_data import (
     AlphaVantageClient,
+    FinnhubClient,
+    FinnhubQuoteClient,
     MarketDataError,
+    QuoteCache,
     SupabasePriceWriter,
     ingest_live_prices,
     parse_alpha_vantage_daily,
+    parse_finnhub_daily,
 )
 
 
@@ -80,6 +84,98 @@ def test_alpha_vantage_rate_limit_response_is_safe() -> None:
 
     with pytest.raises(MarketDataError, match="request limit reached"):
         client.fetch_daily("AAPL")
+
+
+def finnhub_daily_payload() -> dict[str, object]:
+    return {
+        "c": [220.0, 223.75],
+        "h": [221.0, 224.5],
+        "l": [217.5, 219.0],
+        "o": [218.0, 220.1],
+        "s": "ok",
+        "t": [1786579200, 1786665600],
+        "v": [48_123_456, 50_123_456],
+    }
+
+
+def test_parse_finnhub_daily_normalizes_candle_arrays() -> None:
+    prices = parse_finnhub_daily(finnhub_daily_payload())
+
+    assert [point["date"] for point in prices] == ["2026-08-13", "2026-08-14"]
+    assert prices[-1]["close"] == 223.75
+    assert prices[-1]["volume"] == 50_123_456
+
+
+def test_finnhub_client_requests_daily_candles() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.host == "finnhub.io"
+        assert request.url.path == "/api/v1/stock/candle"
+        assert request.url.params["symbol"] == "AAPL"
+        assert request.url.params["resolution"] == "D"
+        assert request.url.params["token"] == "test-key"
+        return httpx.Response(200, json=finnhub_daily_payload())
+
+    client = FinnhubClient("test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+
+    prices = client.fetch_daily("aapl")
+
+    assert prices[-1]["date"] == "2026-08-14"
+
+
+def test_finnhub_no_data_response_is_safe() -> None:
+    with pytest.raises(MarketDataError, match="no daily price series"):
+        parse_finnhub_daily({"s": "no_data"})
+
+
+def test_finnhub_quote_client_normalizes_latest_quote() -> None:
+    payload = {
+        "c": 316.83,
+        "d": 6.8,
+        "dp": 2.1933,
+        "h": 319.2799,
+        "l": 309.6,
+        "o": 310.14,
+        "pc": 310.03,
+        "t": 1_787_169_600,
+    }
+    client = FinnhubQuoteClient(
+        "test-key",
+        client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload))),
+    )
+
+    quote = client.fetch_quote("aapl")
+
+    assert quote == {
+        "ticker": "AAPL",
+        "close": 316.83,
+        "open": 310.14,
+        "high": 319.2799,
+        "low": 309.6,
+        "previous_close": 310.03,
+        "as_of": "2026-08-19T20:00:00+00:00",
+        "source": "finnhub_quote",
+    }
+
+
+def test_quote_cache_avoids_repeat_provider_calls_until_expiry() -> None:
+    class FakeProvider:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def fetch_quote(self, ticker: str) -> dict[str, object]:
+            self.calls += 1
+            return {"ticker": ticker, "close": 316.83}
+
+    now = [0.0]
+    provider = FakeProvider()
+    cache = QuoteCache(provider, ttl_seconds=60, clock=lambda: now[0])  # type: ignore[arg-type]
+
+    assert cache.get("aapl")["close"] == 316.83
+    assert cache.get("AAPL")["close"] == 316.83
+    now[0] = 60.0
+    cache.get("AAPL")
+
+    assert provider.calls == 2
 
 
 def test_supabase_price_writer_upserts_daily_cache() -> None:
