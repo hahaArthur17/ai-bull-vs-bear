@@ -15,6 +15,7 @@ from app.schemas import (
     TraceStep,
 )
 from app.services.demo_store import DemoStore
+from app.services.evidence_freshness import is_current_for_analysis
 from app.services.guardrails import DISCLAIMER, apply_guardrails
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderClaim, build_analysis_provider
@@ -70,7 +71,16 @@ class AnalysisService:
             if callable(search_evidence)
             else retrieve_evidence(self.store.get_evidence(normalized), evidence_query)
         )
-        evidence = [EvidenceItem.model_validate(item) for item in raw_evidence]
+        retrieved_evidence = [EvidenceItem.model_validate(item) for item in raw_evidence]
+        evidence = [
+            item
+            for item in retrieved_evidence
+            if is_current_for_analysis(item.model_dump())
+        ]
+        excluded_stale_count = len(retrieved_evidence) - len(evidence)
+        has_current_external_evidence = any(
+            item.source_type in {"news", "filing"} for item in evidence
+        )
         technical_id = f"technical-{normalized.lower()}-001"
         fallback_bull = [technical_id, evidence[0].id] if evidence else [technical_id]
         fallback_bear = [f"technical-{normalized.lower()}-004", evidence[-1].id] if evidence else [technical_id]
@@ -105,7 +115,12 @@ class AnalysisService:
             judge = JudgeSummary(
                 summary=safe_summary.replace(f"\n\n{DISCLAIMER}", ""),
                 evidence_strength="medium",
-                uncertainty="The demo evidence is cached and does not establish a future price outcome.",
+                uncertainty=(
+                    "No current company news or filing was available for this run; "
+                    "the result is limited to technical observations and does not establish a future price outcome."
+                    if not has_current_external_evidence
+                    else "The available evidence does not establish a future price outcome."
+                ),
                 risk_level="medium",
             )
             token_usage = TokenUsage(model_name="demo-deterministic", prompt_tokens=0, completion_tokens=0, total_tokens=0)
@@ -127,9 +142,17 @@ class AnalysisService:
         created_at = datetime.now(timezone.utc).isoformat()
         trace = [
             TraceStep(step="technical_agent", status="completed", detail="Calculated RSI, MACD, moving averages, volatility, and volume spike."),
-            TraceStep(step="news_rag_agent", status="completed", detail="Retrieved cached news evidence with source metadata."),
-            TraceStep(step="filing_rag_agent", status="completed", detail="Retrieved cached filing risk evidence with source metadata."),
-            TraceStep(step="evidence_aggregator", status="completed", detail="Combined technical, news, and filing context."),
+            TraceStep(step="news_rag_agent", status="completed", detail="Retrieved evidence with source metadata and freshness status."),
+            TraceStep(step="filing_rag_agent", status="completed", detail="Retrieved filing context with source metadata and freshness status."),
+            TraceStep(
+                step="evidence_aggregator",
+                status="completed",
+                detail=(
+                    f"Excluded {excluded_stale_count} stale or undated external document(s) from Debate input."
+                    if excluded_stale_count
+                    else "Combined only current external context with technical observations."
+                ),
+            ),
             TraceStep(step="bull_agent", status="completed", detail="Generated a positive claim linked to evidence IDs."),
             TraceStep(step="bear_agent", status="completed", detail="Generated a risk claim linked to evidence IDs."),
             TraceStep(step="judge_agent", status="completed", detail="Produced a neutral synthesis with uncertainty and risk level."),
