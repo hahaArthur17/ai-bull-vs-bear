@@ -1,14 +1,19 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timezone
+import logging
 from typing import Any
 
 import httpx
+from pydantic import ValidationError
 
 from app.schemas import AnalysisResponse
 from app.services.demo_store import DemoStore
 from app.services.evidence_freshness import classify_evidence_freshness
 from app.services.rag import retrieve_evidence
+
+
+logger = logging.getLogger(__name__)
 
 
 class RepositoryError(RuntimeError):
@@ -507,7 +512,23 @@ class SupabaseStore(DemoStore):
             },
         )
         rows = response.json()
-        return AnalysisResponse.model_validate(rows[0]["output_json"]) if rows else None
+        return self._parse_stored_analysis(rows[0]["output_json"]) if rows else None
+
+    @staticmethod
+    def _parse_stored_analysis(payload: object) -> AnalysisResponse | None:
+        """Read current-format records without letting legacy rows break history.
+
+        Analysis responses written before the immutable snapshot contract do not
+        contain the context needed to represent a reproducible Debate. Keep
+        those rows in storage, but omit them from the current-history response
+        instead of manufacturing a snapshot or failing every user's history.
+        """
+
+        try:
+            return AnalysisResponse.model_validate(payload)
+        except ValidationError:
+            logger.warning("Skipping an incompatible legacy analysis response")
+            return None
 
     def list_analyses(
         self,

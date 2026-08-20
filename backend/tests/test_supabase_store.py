@@ -163,6 +163,22 @@ def test_supabase_analysis_round_trip() -> None:
     assert store.list_analyses("user-1", "user-token") == [response]
 
 
+def test_supabase_history_omits_legacy_response_without_a_snapshot() -> None:
+    response = AnalysisService(DemoStore()).create("AAPL")
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    store.save_analysis("user-1", response.analysis_id, response, "user-token")
+    legacy_id = "legacy-analysis"
+    legacy_payload = response.model_dump(mode="json")
+    legacy_payload.pop("snapshot")
+    fake.analysis_ids.append(legacy_id)
+    fake.responses[legacy_id] = legacy_payload
+
+    assert store.get_analysis("user-1", legacy_id, "user-token") is None
+    assert store.list_analyses("user-1", "user-token") == [response]
+
+
 def test_supabase_evidence_combines_technical_and_live_documents() -> None:
     fake = FakePostgrest()
     store = build_store(fake)
