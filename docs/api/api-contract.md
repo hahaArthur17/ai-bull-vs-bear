@@ -29,7 +29,14 @@ Removes a stock from watchlist.
 
 GET /stocks/{ticker}/prices
 Returns cached daily OHLCV data. Every price point includes `source` with
-`alpha_vantage_cache` or `demo_fallback`, plus `is_stale`.
+`daily_market_cache` or `demo_fallback`, plus `is_stale`. A daily market cache
+is populated from the configured provider (Alpha Vantage when available,
+otherwise Finnhub); it is not an intraday quote.
+
+GET /stocks/{ticker}/quote
+Returns a current Finnhub quote when `FINNHUB_API_KEY` is configured, or `null`
+when it is not available. The backend caches this response for 60 seconds. It
+is displayed as a quote, never as a completed daily close.
 
 GET /stocks/{ticker}/indicators
 Returns technical indicators.

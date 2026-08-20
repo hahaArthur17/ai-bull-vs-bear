@@ -29,6 +29,9 @@ SUPABASE_RLS_USER_B_PASSWORD=
 SEC_USER_AGENT=AI Bull vs Bear contact@example.com
 
 ALPHA_VANTAGE_API_KEY=
+FINNHUB_API_KEY=
+PRICE_TICKERS=AAPL
+PRICE_MAX_CALLS_PER_RUN=1
 PRICE_STALE_AFTER_DAYS=5
 
 GROQ_API_KEY=
@@ -144,9 +147,9 @@ Official documentation:
 
 `TIME_SERIES_DAILY` with `outputsize=compact` returns the latest 100 daily
 OHLCV points. The free service currently permits 25 requests per day, so the
-application uses a batch cache: the default AAPL, NVDA, and TSLA refresh makes
-at most three calls with no retries, and normal API/mobile reads use Supabase
-instead of calling Alpha Vantage. Run the command no more than once per day.
+application uses a batch cache: the default AAPL-only refresh makes one call
+with no retries, and normal API/mobile reads use Supabase instead of calling
+Alpha Vantage. Run the command no more than once per trading day.
 
 After placing the key in `ALPHA_VANTAGE_API_KEY`, run from the repository root:
 
@@ -155,8 +158,9 @@ PYTHONPATH=backend python scripts/ingest_live_prices.py
 ```
 
 Temporary provider failure leaves the previous cache untouched. Empty,
-unavailable, or older-than-configured caches are identified in the API; an
-unavailable cache falls back to deterministic demo prices.
+unavailable, or older-than-configured caches are identified in the API; the
+mobile UI withholds synthetic fallback prices, charts, and indicators instead
+of presenting them as market data.
 
 `PRICE_TICKERS` can select one to three symbols and
 `PRICE_MAX_CALLS_PER_RUN` can lower the hard per-invocation cap. The configured
@@ -168,11 +172,13 @@ The ignored local `.env` may also define `APIFY_USER_ID`, `APIFY_API_TOKEN`,
 and `FINNHUB_API_KEY`. These values are server-side only and must not use the
 `EXPO_PUBLIC_` prefix.
 
-Finnhub is a concrete market-data provider candidate. Apify is an automation
-platform rather than a single financial dataset, so an Actor or saved task and
-its expected output schema must be selected before an ingestion adapter can be
-implemented. Merely configuring the Apify account token does not identify
-which source should feed the evidence pipeline.
+Finnhub provides the current quote returned by `GET /stocks/{ticker}/quote`.
+The backend caches it for 60 seconds and labels it as a quote, not a closing
+price. Finnhub can also populate the daily-price cache when the configured
+account has daily-candle permission; otherwise Alpha Vantage is the supported
+free source for the curve. Apify is an automation platform rather than a single
+financial dataset, so an Actor or saved task and its expected output schema must
+be selected before an ingestion adapter can be implemented.
 
 ## Verification checklist
 

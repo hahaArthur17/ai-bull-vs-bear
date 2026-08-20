@@ -62,23 +62,30 @@ the ingestion retains its citation-ready metadata with
 
 ## Daily price cache
 
-The price ingestion command fetches the latest 100 daily OHLCV points for the
-configured demo tickers from Alpha Vantage and upserts them into Supabase:
+The price ingestion command fetches the latest 100 daily OHLCV points for AAPL
+from Alpha Vantage (or Finnhub when Alpha Vantage is not configured) and
+upserts them into Supabase:
 
     PYTHONPATH=backend python scripts/ingest_live_prices.py
 
-It requires `ALPHA_VANTAGE_API_KEY`, `SUPABASE_URL`, and the server-only
-`SUPABASE_SECRET_KEY`. The free Alpha Vantage service currently permits 25
-requests per day. The default batch covers AAPL, NVDA, and TSLA, makes at most
-three provider calls, and disables retries so one invocation cannot exceed its
-three-call budget. Run it no more than once per day and never from an API
-request handler. A failed ticker retains its previous Supabase rows; the read
-API falls back to deterministic demo prices if the cache is empty or
-unavailable.
+It requires `SUPABASE_URL`, the server-only `SUPABASE_SECRET_KEY`, and either
+`ALPHA_VANTAGE_API_KEY` or a `FINNHUB_API_KEY` with daily-candle permission.
+The default batch covers only AAPL and makes one provider call. Run it no more
+than once per trading day and never from an API request handler. A failed ticker
+retains its previous Supabase rows. The read API hides the synthetic price in
+the client when its cache is empty or unavailable, rather than passing it off
+as a market close.
 
-`PRICE_TICKERS` can select fewer tickers and `PRICE_MAX_CALLS_PER_RUN` can lower
-the cap, but the settings validation does not allow a value above three.
+`PRICE_TICKERS` and `PRICE_MAX_CALLS_PER_RUN` can expand this deliberately, but
+the settings validation does not allow a value above three. Each returned price
+is a completed daily close, not an intraday quote.
 
 `PRICE_STALE_AFTER_DAYS` defaults to 5. The price API labels Supabase rows as
-`alpha_vantage_cache` and demo rows as `demo_fallback`, with an `is_stale`
-flag that the mobile stock detail screen displays.
+`daily_market_cache` and demo rows as `demo_fallback`, with an `is_stale` flag
+that the mobile stock detail screen displays.
+
+When `FINNHUB_API_KEY` is present, the stock detail request also retrieves a
+current Finnhub quote through the API. The server retains it in memory for 60
+seconds, so active AAPL viewers generate at most one quote-provider request per
+minute per backend instance. The quote is labelled separately from the daily
+price curve.

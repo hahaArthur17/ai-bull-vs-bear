@@ -69,7 +69,7 @@ minute. The production frontend therefore uses a 75-second request timeout.
 | --- | --- | --- |
 | Render | 750 free web-service hours/workspace/month; free static site | One backend only; `plan: free`; no payment method, so limit exhaustion suspends instead of billing |
 | Supabase | 500 MB database, 50,000 MAU, 5 GB egress, 5 GB cached egress, 1 GB file storage | Existing small dataset; no file uploads; never upgrade from Free |
-| Alpha Vantage | 25 requests/day | Three tickers (`AAPL,NVDA,TSLA`), maximum 3 provider calls per invocation, one daily invocation, and no retry in the batch command |
+| Daily market data | Provider free allowance | AAPL only by default, one provider call per weekday refresh, and no retry in the batch command |
 | Groq / Gemini | Provider-specific free rate limits | 0 production requests because `ANALYSIS_PROVIDER=demo` |
 | Apify | $5/month Free prepaid usage, no card required | Disabled; 0 production runs until a concrete Actor is justified |
 | Finnhub | Free account has request limits and incomplete free historical coverage | Disabled; 0 production calls |
@@ -100,7 +100,12 @@ model verification.
      `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 
 6. Do **not** add `SUPABASE_SECRET_KEY`, SEC, Alpha Vantage, Apify, Finnhub,
-   Groq, Gemini, or RLS-test-user credentials to either Render service.
+   Groq, Gemini, or RLS-test-user credentials to either Render service. Put the
+   three price-refresh secrets in GitHub Actions instead: `SUPABASE_URL`,
+   `SUPABASE_SECRET_KEY`, and `ALPHA_VANTAGE_API_KEY`. A Finnhub key can be
+   used instead only when that account has daily-candle access. To enable the
+   separate current-quote display, set `FINNHUB_API_KEY` on the backend web
+   service (never the static frontend).
 7. After both deploys complete, open `/health`, sign in with a disposable test
    user, run one analysis, reload, and confirm that history persists.
 
@@ -112,8 +117,9 @@ server secret and all provider keys must stay out of the frontend bundle.
 
 - Wake the backend by opening its `/health` URL about one minute before the
   presentation.
-- If Alpha Vantage is unavailable or unconfigured, the UI clearly labels and
-  uses `demo_fallback` prices.
+- If neither daily-price provider is available or configured, the UI clearly
+  labels the value as unavailable and does not render the synthetic fallback as
+  a market price.
 - If cached evidence retrieval fails, deterministic evidence remains available.
 - Model quota cannot interrupt the demo because the deployed analysis provider
   is deterministic.

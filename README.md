@@ -30,7 +30,7 @@ file before starting the next week's work.
   protection, and Supabase-backed watchlists and analysis history.
 - Live RSS and SEC EDGAR ingestion with stable IDs, Supabase document/chunk
   storage, selected 10-K/10-Q section extraction, and retry/rate-limit handling.
-- Optional Alpha Vantage daily OHLCV ingestion into Supabase with stale-cache
+- Optional daily OHLCV ingestion (Alpha Vantage or Finnhub) into Supabase with stale-cache
   provenance and deterministic price fallback.
 - Database-local evidence vectors and ticker-filtered pgvector retrieval with a
   deterministic cached fallback.
