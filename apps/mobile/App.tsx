@@ -12,7 +12,7 @@ import {
   TextInput,
   View,
 } from "react-native";
-import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
 import { api } from "./src/api";
 import { AuthScreen } from "./src/AuthScreen";
@@ -431,6 +431,7 @@ function StockDetailScreen({
             <Metric label="MA20" value={bundle.indicators.moving_average_20.toFixed(2)} />
             <Metric label="Volatility" value={bundle.indicators.volatility.toFixed(1) + "%"} />
           </View>
+          <TechnicalPanels prices={bundle.prices} />
           <View style={styles.signalCard}><Text style={styles.signalText}>{bundle.indicators.signal_summary}</Text></View>
         </>
       ) : (
@@ -615,6 +616,230 @@ function InteractivePriceChart({
           <Text style={styles.chartStepText}>Later →</Text>
         </Pressable>
       </View>
+    </View>
+  );
+}
+
+type SeriesPoint = { date: string; value: number | null };
+
+function simpleMovingAverage(values: number[], period: number): Array<number | null> {
+  return values.map((_, index) => {
+    if (index < period - 1) return null;
+    const window = values.slice(index - period + 1, index + 1);
+    return window.reduce((sum, value) => sum + value, 0) / period;
+  });
+}
+
+function calculateRsi(values: number[], period = 14): Array<number | null> {
+  const result: Array<number | null> = values.map(() => null);
+  if (values.length <= period) return result;
+  let gains = 0;
+  let losses = 0;
+  for (let index = 1; index <= period; index += 1) {
+    const change = values[index] - values[index - 1];
+    gains += Math.max(0, change);
+    losses += Math.max(0, -change);
+  }
+  let averageGain = gains / period;
+  let averageLoss = losses / period;
+  result[period] = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+  for (let index = period + 1; index < values.length; index += 1) {
+    const change = values[index] - values[index - 1];
+    averageGain = (averageGain * (period - 1) + Math.max(0, change)) / period;
+    averageLoss = (averageLoss * (period - 1) + Math.max(0, -change)) / period;
+    result[index] = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+  }
+  return result;
+}
+
+function exponentialMovingAverage(values: number[], period: number): number[] {
+  const multiplier = 2 / (period + 1);
+  return values.reduce<number[]>((result, value, index) => {
+    result.push(index === 0 ? value : value * multiplier + result[index - 1] * (1 - multiplier));
+    return result;
+  }, []);
+}
+
+function calculateVolatility(values: number[], period = 20): Array<number | null> {
+  return values.map((_, index) => {
+    if (index < period) return null;
+    const window = values.slice(index - period, index + 1);
+    const returns = window.slice(1).map((value, returnIndex) => Math.log(value / window[returnIndex]));
+    const average = returns.reduce((sum, value) => sum + value, 0) / returns.length;
+    const variance = returns.reduce((sum, value) => sum + (value - average) ** 2, 0) / returns.length;
+    return Math.sqrt(variance) * Math.sqrt(252) * 100;
+  });
+}
+
+function TechnicalPanels({ prices }: { prices: StockBundle["prices"] }) {
+  const data = useMemo(() => {
+    const closes = prices.map((point) => point.close);
+    const toPoints = (values: Array<number | null>): SeriesPoint[] => values.map((value, index) => ({ date: prices[index].date, value }));
+    const ema12 = exponentialMovingAverage(closes, 12);
+    const ema26 = exponentialMovingAverage(closes, 26);
+    const macd = closes.map((_, index) => ema12[index] - ema26[index]);
+    const signal = exponentialMovingAverage(macd, 9);
+    return {
+      ma20: toPoints(simpleMovingAverage(closes, 20)),
+      ma50: toPoints(simpleMovingAverage(closes, 50)),
+      rsi: toPoints(calculateRsi(closes)),
+      macd: toPoints(macd),
+      macdSignal: toPoints(signal),
+      histogram: toPoints(macd.map((value, index) => value - signal[index])),
+      volume: prices.map((point) => ({ date: point.date, value: point.volume })),
+      volatility: toPoints(calculateVolatility(closes)),
+    };
+  }, [prices]);
+  return (
+    <View style={styles.technicalPanels}>
+      <SectionHeader title="Continuous technical panels" meta="verified daily cache" />
+      <TechnicalLineChart
+        title="Moving averages"
+        subtitle="MA20 / MA50 · daily closes"
+        series={[
+          { label: "MA20", color: palette.bull, points: data.ma20 },
+          { label: "MA50", color: palette.signal, points: data.ma50 },
+        ]}
+      />
+      <TechnicalLineChart
+        title="Relative strength"
+        subtitle="RSI 14 · 30 / 70 reference lines"
+        series={[{ label: "RSI", color: "#7664a8", points: data.rsi }]}
+        references={[30, 70]}
+        fixedDomain={[0, 100]}
+      />
+      <MacdChart macd={data.macd} signal={data.macdSignal} histogram={data.histogram} />
+      <TechnicalBarChart title="Daily volume" subtitle="Shares traded" points={data.volume} color="#638ba2" />
+      <TechnicalLineChart
+        title="Annualised volatility"
+        subtitle="20-session realised volatility"
+        series={[{ label: "Volatility", color: palette.bear, points: data.volatility }]}
+        suffix="%"
+      />
+    </View>
+  );
+}
+
+function chartScale(
+  series: SeriesPoint[][],
+  references: number[] = [],
+  fixedDomain?: [number, number],
+) {
+  const values = series.flatMap((points) => points.flatMap((point) => point.value === null ? [] : [point.value]));
+  const min = fixedDomain?.[0] ?? Math.min(...values, ...references);
+  const max = fixedDomain?.[1] ?? Math.max(...values, ...references);
+  const padding = Math.max((max - min) * 0.12, 0.01);
+  return { min: fixedDomain ? min : min - padding, max: fixedDomain ? max : max + padding };
+}
+
+function technicalPath(points: SeriesPoint[], min: number, max: number, width: number, height: number, padding: number) {
+  const plotWidth = width - padding * 2;
+  const plotHeight = height - padding * 2;
+  const range = Math.max(max - min, 0.0001);
+  let started = false;
+  return points.map((point, index) => {
+    if (point.value === null) {
+      started = false;
+      return "";
+    }
+    const x = padding + (index / Math.max(points.length - 1, 1)) * plotWidth;
+    const y = padding + (1 - (point.value - min) / range) * plotHeight;
+    const command = started ? "L" : "M";
+    started = true;
+    return `${command}${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
+}
+
+function TechnicalLineChart({
+  title,
+  subtitle,
+  series,
+  references = [],
+  fixedDomain,
+  suffix = "",
+}: {
+  title: string;
+  subtitle: string;
+  series: Array<{ label: string; color: string; points: SeriesPoint[] }>;
+  references?: number[];
+  fixedDomain?: [number, number];
+  suffix?: string;
+}) {
+  const width = 320;
+  const height = 122;
+  const padding = 16;
+  const allPoints = series.map((item) => item.points);
+  const hasData = allPoints.some((points) => points.some((point) => point.value !== null));
+  if (!hasData) return null;
+  const { min, max } = chartScale(allPoints, references, fixedDomain);
+  const plotHeight = height - padding * 2;
+  const yForValue = (value: number) => padding + (1 - (value - min) / Math.max(max - min, 0.0001)) * plotHeight;
+  return (
+    <View style={styles.technicalChartCard}>
+      <View style={styles.rowBetween}>
+        <View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{subtitle}</Text></View>
+        <Text style={styles.chartLegend}>{series.map((item) => item.label).join(" · ")}</Text>
+      </View>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
+        {[0.25, 0.5, 0.75].map((position) => <Line key={position} x1={padding} x2={width - padding} y1={padding + plotHeight * position} y2={padding + plotHeight * position} stroke="#d8d5ca" strokeDasharray="3 4" />)}
+        {references.map((value) => <Line key={value} x1={padding} x2={width - padding} y1={yForValue(value)} y2={yForValue(value)} stroke="#b4a67d" strokeDasharray="5 4" />)}
+        {series.map((item) => <Path key={item.label} d={technicalPath(item.points, min, max, width, height, padding)} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinecap="round" />)}
+      </Svg>
+      <View style={styles.chartNumericAxis}><Text style={styles.chartNumericText}>{min.toFixed(1)}{suffix}</Text><Text style={styles.chartNumericText}>{max.toFixed(1)}{suffix}</Text></View>
+    </View>
+  );
+}
+
+function MacdChart({ macd, signal, histogram }: { macd: SeriesPoint[]; signal: SeriesPoint[]; histogram: SeriesPoint[] }) {
+  const width = 320;
+  const height = 128;
+  const padding = 16;
+  const { min, max } = chartScale([macd, signal, histogram], [0]);
+  const range = Math.max(max - min, 0.0001);
+  const plotWidth = width - padding * 2;
+  const plotHeight = height - padding * 2;
+  const yForValue = (value: number) => padding + (1 - (value - min) / range) * plotHeight;
+  const baseline = yForValue(0);
+  return (
+    <View style={styles.technicalChartCard}>
+      <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>MACD</Text><Text style={styles.mutedText}>MACD / signal lines · histogram</Text></View><Text style={styles.chartLegend}>MACD · Signal</Text></View>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel="MACD and signal line chart with a positive or negative histogram.">
+        <Line x1={padding} x2={width - padding} y1={baseline} y2={baseline} stroke="#b4a67d" strokeDasharray="5 4" />
+        {histogram.map((point, index) => {
+          if (point.value === null) return null;
+          const x = padding + (index / Math.max(histogram.length - 1, 1)) * plotWidth;
+          const y = yForValue(point.value);
+          return <Rect key={point.date} x={x - 1.5} y={Math.min(y, baseline)} width={3} height={Math.abs(y - baseline)} fill={point.value >= 0 ? "#92bd9d" : "#df9c99"} />;
+        })}
+        <Path d={technicalPath(macd, min, max, width, height, padding)} fill="none" stroke="#7664a8" strokeWidth="2.3" />
+        <Path d={technicalPath(signal, min, max, width, height, padding)} fill="none" stroke={palette.signal} strokeWidth="2.3" />
+      </Svg>
+      <View style={styles.chartNumericAxis}><Text style={styles.chartNumericText}>{min.toFixed(2)}</Text><Text style={styles.chartNumericText}>{max.toFixed(2)}</Text></View>
+    </View>
+  );
+}
+
+function TechnicalBarChart({ title, subtitle, points, color }: { title: string; subtitle: string; points: SeriesPoint[]; color: string }) {
+  const width = 320;
+  const height = 104;
+  const padding = 16;
+  const values = points.flatMap((point) => point.value === null ? [] : [point.value]);
+  if (!values.length) return null;
+  const max = Math.max(...values);
+  const plotWidth = width - padding * 2;
+  const plotHeight = height - padding * 2;
+  return (
+    <View style={styles.technicalChartCard}>
+      <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{subtitle}</Text></View><Text style={styles.chartLegend}>max {(max / 1_000_000).toFixed(1)}M</Text></View>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
+        {points.map((point, index) => {
+          if (point.value === null) return null;
+          const barWidth = Math.max(1.5, plotWidth / points.length - 1);
+          const x = padding + (index / points.length) * plotWidth;
+          const barHeight = (point.value / max) * plotHeight;
+          return <Rect key={point.date} x={x} y={height - padding - barHeight} width={barWidth} height={barHeight} fill={color} opacity={0.78} />;
+        })}
+      </Svg>
     </View>
   );
 }
@@ -917,6 +1142,11 @@ const styles = StyleSheet.create({
   metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metric: { width: "47%", backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 14, padding: 14 },
   metricValue: { color: palette.ink, fontSize: 20, fontWeight: "800" },
+  technicalPanels: { marginTop: 4 },
+  technicalChartCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 15, padding: 14, marginBottom: 12 },
+  chartLegend: { color: palette.muted, fontSize: 10, fontWeight: "800" },
+  chartNumericAxis: { flexDirection: "row", justifyContent: "space-between", marginTop: -5 },
+  chartNumericText: { color: palette.muted, fontSize: 10 },
   signalCard: { backgroundColor: "#e9f0e5", padding: 14, borderRadius: 14, marginVertical: 16 },
   signalText: { color: palette.accent, lineHeight: 20, fontWeight: "700" },
   actionRow: { gap: 10, marginTop: 8 },
