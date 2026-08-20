@@ -77,13 +77,14 @@ export const api = {
     request<WatchlistResponse>("/watchlist/" + ticker, { method: "DELETE" }),
 
   getStockBundle: async (ticker: string): Promise<StockBundle> => {
-    const [stock, prices, indicators, evidence] = await Promise.all([
+    const [stock, prices, quote, indicators, evidence] = await Promise.all([
       request<Stock>("/stocks/" + ticker),
       request<StockBundle["prices"]>("/stocks/" + ticker + "/prices"),
+      request<StockBundle["quote"]>("/stocks/" + ticker + "/quote").catch(() => null),
       request<StockBundle["indicators"]>("/stocks/" + ticker + "/indicators"),
       request<StockBundle["evidence"]>("/stocks/" + ticker + "/evidence"),
     ]);
-    return { stock, prices, indicators, evidence };
+    return { stock, prices, quote, indicators, evidence };
   },
 
   runAnalysis: (ticker: string, question?: string): Promise<AnalysisResponse> =>

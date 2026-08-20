@@ -11,6 +11,7 @@ import {
   TextInput,
   View,
 } from "react-native";
+import Svg, { Circle, Defs, Line, LinearGradient, Path, Stop } from "react-native-svg";
 
 import { api } from "./src/api";
 import { AuthScreen } from "./src/AuthScreen";
@@ -375,10 +376,11 @@ function StockDetailScreen({
     );
   }
   const latest = bundle.prices[bundle.prices.length - 1];
-  const chart = bundle.prices.slice(-16);
-  const maxClose = Math.max(...chart.map((item) => item.close));
-  const minClose = Math.min(...chart.map((item) => item.close));
-  const priceSource = latest.source === "alpha_vantage_cache" ? "ALPHA VANTAGE CACHE" : "DEMO FALLBACK";
+  const chart = bundle.prices.slice(-30);
+  const hasVerifiedMarketData = latest.source === "daily_market_cache";
+  const quote = bundle.quote;
+  const hasLatestQuote = quote !== null;
+  const priceSource = quote ? "LATEST MARKET QUOTE" : latest.source === "daily_market_cache" ? "DAILY MARKET CACHE" : "DEMO FALLBACK";
   const priceStatus = latest.is_stale ? " · STALE" : "";
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -392,35 +394,138 @@ function StockDetailScreen({
         <Pressable onPress={onToggleWatchlist}><Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text></Pressable>
       </View>
       <View style={styles.priceCard}>
-        <Text style={styles.cardLabel}>LATEST CLOSE</Text>
-        <Text style={styles.priceValue}>{"$"}{latest.close.toFixed(2)}</Text>
-        <Text style={styles.mutedText}>As of {latest.date}</Text>
-        <Text style={styles.mutedText}>
-          {latest.source === "alpha_vantage_cache"
-            ? "Daily market data cached from Alpha Vantage."
-            : "Live cache unavailable; showing deterministic demo data."}
+        <Text style={styles.cardLabel}>{quote ? "LATEST QUOTE" : hasVerifiedMarketData ? "LATEST DAILY CLOSE" : "VERIFIED PRICE UNAVAILABLE"}</Text>
+        {hasLatestQuote || hasVerifiedMarketData ? (
+          <Text style={styles.priceValue}>{"$"}{(bundle.quote?.close ?? latest.close).toFixed(2)}</Text>
+        ) : (
+          <Text style={styles.unavailablePrice}>—</Text>
+        )}
+        <Text style={styles.priceMeta}>
+          {quote
+            ? `Quote timestamp ${formatQuoteTime(quote.as_of)}`
+            : hasVerifiedMarketData
+              ? `Market close on ${formatMarketDate(latest.date)}`
+              : "The earlier $207.40 was generated demo data, not an Apple market close."}
         </Text>
-        <View style={styles.chart}>
-          {chart.map((point) => {
-            const height = 16 + ((point.close - minClose) / Math.max(1, maxClose - minClose)) * 70;
-            return <View key={point.date} style={[styles.chartBar, { height }]} />;
-          })}
+        <Text style={styles.priceMeta}>
+          {quote
+            ? `Latest quote is cached on the server for one minute${hasVerifiedMarketData ? "; the curve below uses daily closes." : "."}`
+            : hasVerifiedMarketData
+              ? `Verified daily OHLCV cache${latest.is_stale ? "; refresh needed." : "."}`
+              : "A verified daily price will appear after the AAPL cache refresh completes."}
+        </Text>
+        {hasVerifiedMarketData ? (
+          <PriceLineChart prices={chart} />
+        ) : (
+          <View style={styles.chartUnavailable}>
+            <Text style={styles.chartUnavailableText}>No curve is shown until market data is verified.</Text>
+          </View>
+        )}
+      </View>
+      {hasVerifiedMarketData ? (
+        <>
+          <SectionHeader title="Signal snapshot" meta="technical agent" />
+          <View style={styles.metricGrid}>
+            <Metric label="RSI" value={bundle.indicators.rsi.toFixed(1)} />
+            <Metric label="MACD" value={bundle.indicators.macd.toFixed(2)} />
+            <Metric label="MA20" value={bundle.indicators.moving_average_20.toFixed(2)} />
+            <Metric label="Volatility" value={bundle.indicators.volatility.toFixed(1) + "%"} />
+          </View>
+          <View style={styles.signalCard}><Text style={styles.signalText}>{bundle.indicators.signal_summary}</Text></View>
+        </>
+      ) : (
+        <View style={styles.signalUnavailable}>
+          <Text style={styles.signalUnavailableTitle}>Technical signals are paused</Text>
+          <Text style={styles.signalUnavailableText}>RSI, MACD, and the curve will appear once the AAPL daily-price cache has verified history.</Text>
         </View>
-      </View>
-      <SectionHeader title="Signal snapshot" meta="technical agent" />
-      <View style={styles.metricGrid}>
-        <Metric label="RSI" value={bundle.indicators.rsi.toFixed(1)} />
-        <Metric label="MACD" value={bundle.indicators.macd.toFixed(2)} />
-        <Metric label="MA20" value={bundle.indicators.moving_average_20.toFixed(2)} />
-        <Metric label="Volatility" value={bundle.indicators.volatility.toFixed(1) + "%"} />
-      </View>
-      <View style={styles.signalCard}><Text style={styles.signalText}>{bundle.indicators.signal_summary}</Text></View>
+      )}
       <View style={styles.actionRow}>
         <Pressable style={styles.secondaryButton} onPress={onEvidence}><Text style={styles.secondaryButtonText}>Evidence board</Text></Pressable>
         <Pressable style={styles.primaryButton} onPress={onDebate}><Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text></Pressable>
       </View>
     </ScrollView>
   );
+}
+
+function PriceLineChart({ prices }: { prices: StockBundle["prices"] }) {
+  const width = 320;
+  const height = 154;
+  const padding = { top: 14, right: 12, bottom: 26, left: 12 };
+  const closes = prices.map((point) => point.close);
+  const minClose = Math.min(...closes);
+  const maxClose = Math.max(...closes);
+  const closeRange = Math.max(0.01, maxClose - minClose);
+  const plotWidth = width - padding.left - padding.right;
+  const plotHeight = height - padding.top - padding.bottom;
+  const coordinates = prices.map((point, index) => {
+    const x = padding.left + (index / Math.max(1, prices.length - 1)) * plotWidth;
+    const y = padding.top + (1 - (point.close - minClose) / closeRange) * plotHeight;
+    return { x, y };
+  });
+  const linePath = coordinates
+    .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`)
+    .join(" ");
+  const first = coordinates[0];
+  const last = coordinates[coordinates.length - 1];
+  const areaPath = `${linePath} L${last.x.toFixed(2)},${(height - padding.bottom).toFixed(2)} L${first.x.toFixed(2)},${(height - padding.bottom).toFixed(2)} Z`;
+
+  return (
+    <View style={styles.lineChart} accessibilityLabel={`Apple closing-price chart from ${formatChartDate(prices[0].date)} to ${formatChartDate(prices[prices.length - 1].date)}`}>
+      <View style={styles.chartHeader}>
+        <Text style={styles.chartLabel}>30-SESSION PRICE</Text>
+        <Text style={styles.chartRange}>{formatChartDate(prices[0].date)} – {formatChartDate(prices[prices.length - 1].date)}</Text>
+      </View>
+      <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image">
+        <Defs>
+          <LinearGradient id="price-area" x1="0" x2="0" y1="0" y2="1">
+            <Stop offset="0" stopColor="#9bc6ac" stopOpacity="0.46" />
+            <Stop offset="1" stopColor="#9bc6ac" stopOpacity="0" />
+          </LinearGradient>
+        </Defs>
+        {[0.25, 0.5, 0.75].map((position) => (
+          <Line
+            key={position}
+            x1={padding.left}
+            x2={width - padding.right}
+            y1={padding.top + plotHeight * position}
+            y2={padding.top + plotHeight * position}
+            stroke="#ffffff"
+            strokeOpacity="0.16"
+            strokeDasharray="4 4"
+          />
+        ))}
+        <Path d={areaPath} fill="url(#price-area)" />
+        <Path d={linePath} fill="none" stroke="#d7f0dc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+        <Circle cx={last.x} cy={last.y} r="4.5" fill="#fffdf8" />
+        <Circle cx={last.x} cy={last.y} r="2.5" fill="#d95c3b" />
+      </Svg>
+      <View style={styles.chartAxis}>
+        <Text style={styles.chartAxisText}>${minClose.toFixed(2)}</Text>
+        <Text style={styles.chartAxisText}>${maxClose.toFixed(2)}</Text>
+      </View>
+    </View>
+  );
+}
+
+function formatMarketDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" })
+    .format(new Date(`${value}T12:00:00Z`));
+}
+
+function formatChartDate(value: string) {
+  return new Intl.DateTimeFormat("en-US", { day: "numeric", month: "short", timeZone: "UTC" })
+    .format(new Date(`${value}T12:00:00Z`));
+}
+
+function formatQuoteTime(value: string) {
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    month: "short",
+    timeZone: "UTC",
+    timeZoneName: "short",
+  }).format(new Date(value));
 }
 
 function DebateScreen({
@@ -638,8 +743,19 @@ const styles = StyleSheet.create({
   priceCard: { backgroundColor: palette.accent, borderRadius: 20, padding: 20, marginBottom: 22 },
   cardLabel: { color: palette.muted, fontSize: 10, fontWeight: "800", letterSpacing: 1.1, marginBottom: 7 },
   priceValue: { color: "#fffdf8", fontSize: 36, fontWeight: "800" },
-  chart: { height: 96, flexDirection: "row", alignItems: "flex-end", gap: 4, marginTop: 16 },
-  chartBar: { backgroundColor: "#9bc6ac", flex: 1, borderRadius: 4, minHeight: 8 },
+  unavailablePrice: { color: "#fffdf8", fontSize: 36, fontWeight: "800", lineHeight: 43 },
+  priceMeta: { color: "#c8d9d3", fontSize: 13, lineHeight: 19, marginTop: 4 },
+  lineChart: { marginTop: 18 },
+  chartHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
+  chartLabel: { color: "#d7f0dc", fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
+  chartRange: { color: "#c8d9d3", fontSize: 11 },
+  chartAxis: { flexDirection: "row", justifyContent: "space-between", marginTop: -4 },
+  chartAxisText: { color: "#c8d9d3", fontSize: 11 },
+  chartUnavailable: { height: 116, marginTop: 18, alignItems: "center", justifyContent: "center", borderRadius: 12, borderWidth: 1, borderColor: "rgba(255,255,255,0.24)", borderStyle: "dashed", paddingHorizontal: 20 },
+  chartUnavailableText: { color: "#c8d9d3", fontSize: 13, lineHeight: 19, textAlign: "center" },
+  signalUnavailable: { backgroundColor: "#f3eadb", borderRadius: 14, padding: 16, marginTop: 18 },
+  signalUnavailableTitle: { color: palette.ink, fontSize: 15, fontWeight: "800", marginBottom: 5 },
+  signalUnavailableText: { color: palette.muted, fontSize: 13, lineHeight: 19 },
   metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metric: { width: "47%", backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 14, padding: 14 },
   metricValue: { color: palette.ink, fontSize: 20, fontWeight: "800" },

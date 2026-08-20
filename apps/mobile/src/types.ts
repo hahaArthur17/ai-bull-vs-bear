@@ -12,7 +12,7 @@ export type PricePoint = {
   low: number;
   close: number;
   volume: number;
-  source: "alpha_vantage_cache" | "demo_fallback";
+  source: "daily_market_cache" | "demo_fallback";
   is_stale: boolean;
 };
 
@@ -29,6 +29,17 @@ export type TechnicalIndicators = {
   signal_summary: string;
 };
 
+export type MarketQuote = {
+  ticker: string;
+  close: number;
+  open: number;
+  high: number;
+  low: number;
+  previous_close: number;
+  as_of: string;
+  source: "finnhub_quote";
+};
+
 export type EvidenceItem = {
   id: string;
   ticker: string;
@@ -43,6 +54,7 @@ export type EvidenceItem = {
 export type StockBundle = {
   stock: Stock;
   prices: PricePoint[];
+  quote: MarketQuote | null;
   indicators: TechnicalIndicators;
   evidence: EvidenceItem[];
 };
