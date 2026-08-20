@@ -16,6 +16,18 @@ export type PricePoint = {
   is_stale: boolean;
 };
 
+export type PriceHistoryPoint = {
+  date: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+  volume: number;
+  frequency: "weekly";
+  source: "alpha_vantage_weekly";
+  retrieved_at: string;
+};
+
 export type TechnicalIndicators = {
   ticker: string;
   as_of: string;
@@ -60,6 +72,7 @@ export type EvidenceItem = {
 export type StockBundle = {
   stock: Stock;
   prices: PricePoint[];
+  weekly_history: PriceHistoryPoint[];
   quote: MarketQuote | null;
   indicators: TechnicalIndicators;
   evidence: EvidenceItem[];
