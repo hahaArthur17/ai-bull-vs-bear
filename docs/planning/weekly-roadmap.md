@@ -11,17 +11,17 @@ Status values: `Done`, `In progress`, `Planned`, and `Blocked`.
 
 ## Current snapshot
 
-Last reviewed: 2026-08-16
+Last reviewed: 2026-08-21
 
 | Area | Status | Notes |
 | --- | --- | --- |
 | Mobile MVP | Done | Expo flow covers watchlist, stock detail, evidence, debate, claim examination, history, and about screens. |
 | Backend MVP | Done | FastAPI routes, deterministic demo store, indicators, evidence retrieval, analysis trace, and token ledger are implemented. |
 | Safety | Done | Financial-advice guardrails and the educational disclaimer are applied. |
-| Automated checks | Done | 44 backend unit/API tests, mobile typecheck, production Web export, and GitHub Actions CI pass. |
+| Automated checks | Done | 50 backend unit/API tests, mobile typecheck, production Web export, and GitHub Actions CI pass. |
 | Real LLM provider | Done | Groq is configured locally and a live structured analysis completed successfully; Gemini remains an optional fallback. |
 | Supabase | Done | Auth/session handling, persistence, current backend key, two-user RLS isolation, restart persistence, vectors, and XBRL facts are live. |
-| Live market/evidence data | In progress | Live RSS/SEC/vector/XBRL data is populated; Alpha Vantage remains optional because price reads have a tested demo fallback. |
+| Live market/evidence data | In progress | AAPL has 100 verified daily rows and a weekday refresh. Debate evidence freshness is now the P0 gap: current AAPL news is absent and old/demo narrative evidence must not explain a current close. |
 | Mobile verification | In progress | SDK dependencies, typecheck, Expo Doctor, and Web export pass; simulator and physical-device testing remain. |
 | Deployment | Done | Render Free API and static Expo Web site are live; production auth, CORS, zero-token analysis, and persistence smoke tests pass. |
 
@@ -121,11 +121,16 @@ Progress recorded on 2026-08-15:
   facts. Both database migrations are live; backend verification now passes 41
   tests. See [`reports/project-week-05.md`](reports/project-week-05.md).
 
-Remaining live-data enhancement:
+2026-08-20 continuation:
 
-- Optionally configure a free Alpha Vantage key and populate the price cache.
-  This is not a deployment or presentation blocker because empty/unavailable
-  price caches use the tested deterministic fallback.
+- The AAPL Alpha Vantage cache was populated with 100 real daily rows through
+  2026-08-19, and a one-call weekday refresh workflow is active in GitHub
+  Actions.
+- Render now serves verified-price status and the Signals line-chart UI.
+- A production evidence audit found that current AAPL news is unavailable for
+  Debate, while the retrieval path can still return old filings and demo
+  narrative data. The required remedy and its acceptance criteria are task 8
+  in [`week-4-todo.md`](week-4-todo.md).
 
 Completion rule: the evidence board can distinguish cached/demo evidence from
 live evidence and every generated claim links to retrievable source metadata.
@@ -171,6 +176,23 @@ Progress recorded on 2026-08-15:
 
 Completion rule: a fresh clone can follow the README, run the app, complete the
 main analysis flow, and recover cleanly from expected service failures.
+
+## Week 6 — Current-price Debate integrity and interactive signal research
+
+Status: Planned
+
+- Enforce an evidence freshness contract before Debate explains a completed
+  AAPL close; use dated current news and dated filings, and clearly report
+  missing contemporaneous evidence.
+- Make each saved analysis reproducible through an immutable market/evidence
+  snapshot.
+- Add mouse/touch/keyboard-accessible multi-horizon price exploration and
+  continuous RSI, MACD, volume, moving-average, and volatility panels.
+- Preserve the educational boundary: explain scenarios and risk, never issue
+  personalised allocations or buy/sell/hold instructions.
+
+Detailed acceptance criteria and the one-year free-data strategy live in
+[`week-4-todo.md`](week-4-todo.md).
 
 ## Weekly update procedure
 
@@ -224,3 +246,9 @@ At the end of each week:
 - 2026-08-16: Enforce a zero-spend deployment boundary: Render Free plus
   Supabase Free, no payment method or automatic upgrades, three price calls per
   daily batch, and deterministic production analysis.
+- 2026-08-20: Treat a verified close and a dated evidence snapshot as one
+  analytical unit. Current technical data must not be paired silently with
+  stale or deterministic narrative evidence.
+- 2026-08-20: Preserve a one-AAPL-call-per-trading-day budget. Use daily data
+  for recent interaction and a separately labelled weekly series to bootstrap
+  a free one-year view; do not mislabel weekly points as daily closes.
