@@ -8,6 +8,7 @@ def test_fred_client_normalizes_numeric_observations() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         assert request.url.params["series_id"] == "VIXCLS"
         assert request.url.params["api_key"] == "fred-key"
+        assert request.url.params["sort_order"] == "desc"
         return httpx.Response(
             200,
             json={

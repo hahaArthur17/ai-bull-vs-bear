@@ -34,7 +34,7 @@ class FredClient:
                     "series_id": series_id,
                     "api_key": self.api_key,
                     "file_type": "json",
-                    "sort_order": "asc",
+                    "sort_order": "desc",
                     "limit": str(limit),
                 },
                 timeout=15.0,
@@ -67,7 +67,7 @@ class FredClient:
                     "metadata": {"fred_series_id": series_id},
                 }
             )
-        return parsed
+        return sorted(parsed, key=lambda item: str(item["observation_date"]))
 
 
 class EiaClient:
@@ -121,4 +121,4 @@ class EiaClient:
                     "metadata": {key: value for key, value in metadata.items() if value is not None},
                 }
             )
-        return parsed
+        return sorted(parsed, key=lambda item: str(item["observation_date"]))
