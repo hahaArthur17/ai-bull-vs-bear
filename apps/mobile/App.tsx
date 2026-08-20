@@ -455,6 +455,8 @@ type InteractivePricePoint = {
   close: number;
   frequency: "daily" | "weekly";
   source: "daily_market_cache" | "demo_fallback" | "alpha_vantage_weekly";
+  ma20: number | null;
+  ma50: number | null;
 };
 
 function InteractivePriceChart({
@@ -468,14 +470,17 @@ function InteractivePriceChart({
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [chartWidth, setChartWidth] = useState(320);
   const points: InteractivePricePoint[] = useMemo(() => {
-    if (range === "1M") {
-      return dailyPrices.slice(-22).map((point) => ({ ...point, frequency: "daily" as const }));
-    }
-    if (range === "3M") {
-      return dailyPrices.slice(-66).map((point) => ({ ...point, frequency: "daily" as const }));
-    }
-    const weeklyLimit = range === "6M" ? 27 : 53;
-    return weeklyPrices.slice(-weeklyLimit).map((point) => ({ ...point }));
+    const source = range === "1M" || range === "3M"
+      ? dailyPrices.map((point) => ({ ...point, frequency: "daily" as const }))
+      : weeklyPrices;
+    const visibleLimit = range === "1M" ? 22 : range === "3M" ? 66 : range === "6M" ? 27 : 53;
+    const ma20 = simpleMovingAverage(source.map((point) => point.close), 20);
+    const ma50 = simpleMovingAverage(source.map((point) => point.close), 50);
+    const firstVisibleIndex = Math.max(0, source.length - visibleLimit);
+    return source.slice(firstVisibleIndex).map((point, visibleIndex) => {
+      const sourceIndex = firstVisibleIndex + visibleIndex;
+      return { ...point, ma20: ma20[sourceIndex], ma50: ma50[sourceIndex] };
+    });
   }, [dailyPrices, range, weeklyPrices]);
   const width = 320;
   const height = 154;
@@ -502,9 +507,9 @@ function InteractivePriceChart({
       </View>
     );
   }
-  const closes = points.map((point) => point.close);
-  const minClose = Math.min(...closes);
-  const maxClose = Math.max(...closes);
+  const plottedValues = points.flatMap((point) => [point.close, point.ma20, point.ma50].filter((value): value is number => value !== null));
+  const minClose = Math.min(...plottedValues);
+  const maxClose = Math.max(...plottedValues);
   const closeRange = Math.max(0.01, maxClose - minClose);
   const plotWidth = width - padding.left - padding.right;
   const plotHeight = height - padding.top - padding.bottom;
@@ -516,12 +521,30 @@ function InteractivePriceChart({
   const linePath = coordinates
     .map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(2)},${point.y.toFixed(2)}`)
     .join(" ");
+  const averagePath = (key: "ma20" | "ma50") => {
+    let started = false;
+    return points.map((point, index) => {
+      const value = point[key];
+      if (value === null) {
+        started = false;
+        return "";
+      }
+      const x = padding.left + (index / Math.max(1, points.length - 1)) * plotWidth;
+      const y = padding.top + (1 - (value - minClose) / closeRange) * plotHeight;
+      const command = started ? "L" : "M";
+      started = true;
+      return `${command}${x.toFixed(2)},${y.toFixed(2)}`;
+    }).join(" ");
+  };
+  const ma20Path = averagePath("ma20");
+  const ma50Path = averagePath("ma50");
   const first = coordinates[0];
   const last = coordinates[coordinates.length - 1];
   const areaPath = `${linePath} L${last.x.toFixed(2)},${(height - padding.bottom).toFixed(2)} L${first.x.toFixed(2)},${(height - padding.bottom).toFixed(2)} Z`;
   const activeIndex = Math.min(Math.max(selectedIndex < 0 ? points.length - 1 : selectedIndex, 0), points.length - 1);
   const activePoint = points[activeIndex];
   const activeCoordinate = coordinates[activeIndex];
+  const movingAverageUnit = activePoint.frequency === "daily" ? "d" : "w";
   const setPointFromLocation = (locationX: number) => {
     const svgX = (locationX / Math.max(chartWidth, 1)) * width;
     const ratio = Math.min(1, Math.max(0, (svgX - padding.left) / plotWidth));
@@ -543,6 +566,11 @@ function InteractivePriceChart({
       <View style={styles.chartHeader}>
         <Text style={styles.chartLabel}>{activePoint.frequency.toUpperCase()} PRICE · {range}</Text>
         <Text style={styles.chartRange}>{formatChartDate(points[0].date)} – {formatChartDate(points[points.length - 1].date)}</Text>
+      </View>
+      <View style={styles.priceChartLegend}>
+        <Text style={styles.priceLegendClose}>● Close</Text>
+        <Text style={styles.priceLegendMa20}>● MA20{movingAverageUnit}</Text>
+        <Text style={styles.priceLegendMa50}>● MA50{movingAverageUnit}</Text>
       </View>
       <View style={styles.rangeSelector}>
         {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
@@ -583,6 +611,8 @@ function InteractivePriceChart({
           ))}
           <Path d={areaPath} fill="url(#price-area)" />
           <Path d={linePath} fill="none" stroke="#d7f0dc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={ma20Path} fill="none" stroke="#f5c86e" strokeWidth="2" strokeLinecap="round" />
+          <Path d={ma50Path} fill="none" stroke="#d59be3" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" />
           <Line x1={activeCoordinate.x} x2={activeCoordinate.x} y1={padding.top} y2={height - padding.bottom} stroke="#fffdf8" strokeOpacity="0.7" strokeDasharray="3 3" />
           <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="5" fill="#fffdf8" />
           <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="2.5" fill="#d95c3b" />
@@ -595,6 +625,11 @@ function InteractivePriceChart({
       <View style={styles.chartTooltip}>
         <Text style={styles.chartTooltipPrice}>${activePoint.close.toFixed(2)}</Text>
         <Text style={styles.chartTooltipMeta}>{formatMarketDate(activePoint.date)} · {frequencyLabel}</Text>
+        <Text style={styles.chartTooltipMeta}>
+          MA20{movingAverageUnit} {activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}
+          {" · "}
+          MA50{movingAverageUnit} {activePoint.ma50 === null ? "not enough history" : `$${activePoint.ma50.toFixed(2)}`}
+        </Text>
       </View>
       <View style={styles.chartInspector}>
         <Pressable
@@ -1119,6 +1154,10 @@ const styles = StyleSheet.create({
   chartHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 3 },
   chartLabel: { color: "#d7f0dc", fontSize: 10, fontWeight: "800", letterSpacing: 1.1 },
   chartRange: { color: "#c8d9d3", fontSize: 11 },
+  priceChartLegend: { flexDirection: "row", gap: 9, marginTop: 5 },
+  priceLegendClose: { color: "#d7f0dc", fontSize: 10, fontWeight: "800" },
+  priceLegendMa20: { color: "#f5c86e", fontSize: 10, fontWeight: "800" },
+  priceLegendMa50: { color: "#d59be3", fontSize: 10, fontWeight: "800" },
   rangeSelector: { flexDirection: "row", gap: 6, marginTop: 10, marginBottom: 10 },
   rangeButton: { borderColor: "rgba(255,255,255,0.32)", borderWidth: 1, borderRadius: 8, paddingHorizontal: 9, paddingVertical: 6 },
   rangeButtonActive: { backgroundColor: "#fffdf8", borderColor: "#fffdf8" },
