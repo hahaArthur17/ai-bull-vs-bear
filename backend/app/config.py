@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     price_stale_after_days: int = 5
     live_evidence_tickers: str = "AAPL"
     macro_history_points: int = Field(default=400, ge=30, le=1000)
+    weekly_price_history_points: int = Field(default=60, ge=52, le=260)
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
     groq_model: str = "llama-3.3-70b-versatile"
