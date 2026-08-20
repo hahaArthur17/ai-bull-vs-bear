@@ -424,6 +424,7 @@ function StockDetailScreen({
       </View>
       {hasVerifiedMarketData ? (
         <>
+          <MacroContextPanel context={bundle.macro_context} />
           <SectionHeader title="Signal snapshot" meta="technical agent" />
           <View style={styles.metricGrid}>
             <Metric label="RSI" value={bundle.indicators.rsi.toFixed(1)} />
@@ -767,6 +768,95 @@ function TechnicalPanels({ prices }: { prices: StockBundle["prices"] }) {
   );
 }
 
+type MacroChart = {
+  code: string;
+  label: string;
+  source: string;
+  unit: string;
+  points: SeriesPoint[];
+  latest: SeriesPoint;
+};
+
+function macroChart(context: StockBundle["macro_context"], code: string, label: string): MacroChart | null {
+  const item = context.find((value) => value.series.code === code);
+  if (!item) return null;
+  const points = [...item.observations]
+    .sort((left, right) => left.observation_date.localeCompare(right.observation_date))
+    .slice(-30)
+    .map((observation) => ({ date: observation.observation_date, value: observation.value }));
+  const latest = points[points.length - 1];
+  if (!latest || latest.value === null) return null;
+  return { code, label, source: item.series.source, unit: item.series.unit, points, latest };
+}
+
+function formatMacroValue(value: number, unit: string) {
+  if (unit === "percent") return `${value.toFixed(2)}%`;
+  if (unit === "USD/barrel") return `$${value.toFixed(2)}`;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 2 }).format(value);
+}
+
+function MacroContextPanel({ context }: { context: StockBundle["macro_context"] }) {
+  const charts = useMemo(() => ({
+    sp500: macroChart(context, "sp500", "S&P 500"),
+    vix: macroChart(context, "vix", "VIX"),
+    effectiveRate: macroChart(context, "effective_fed_funds_rate", "Effective rate"),
+    twoYear: macroChart(context, "treasury_2y_yield", "2Y"),
+    tenYear: macroChart(context, "treasury_10y_yield", "10Y"),
+    thirtyYear: macroChart(context, "treasury_30y_yield", "30Y"),
+    wti: macroChart(context, "wti_spot", "WTI crude"),
+  }), [context]);
+  if (!Object.values(charts).some(Boolean)) return null;
+  const rateSeries = [charts.effectiveRate, charts.twoYear, charts.tenYear, charts.thirtyYear]
+    .filter((chart): chart is MacroChart => chart !== null);
+  const rateLatest = rateSeries
+    .map((chart) => `${chart.label} ${formatMacroValue(chart.latest.value ?? 0, chart.unit)} (${formatChartDate(chart.latest.date)})`)
+    .join(" · ");
+
+  return (
+    <View style={styles.macroSection}>
+      <SectionHeader title="Market backdrop" meta="cached daily context" />
+      <View style={styles.macroDisclosure}>
+        <Text style={styles.macroDisclosureTitle}>Background, not a price-move explanation</Text>
+        <Text style={styles.macroDisclosureText}>These dated market series can frame broad conditions. They do not prove why AAPL moved on a particular day and are not personal investment advice.</Text>
+      </View>
+      {charts.sp500 ? (
+        <TechnicalLineChart
+          title={`${charts.sp500.label} · ${formatMacroValue(charts.sp500.latest.value ?? 0, charts.sp500.unit)}`}
+          subtitle={`${charts.sp500.source.toUpperCase()} · latest ${formatMarketDate(charts.sp500.latest.date)} · last 30 observations`}
+          series={[{ label: charts.sp500.label, color: "#3e8b6d", points: charts.sp500.points }]}
+        />
+      ) : null}
+      {charts.vix ? (
+        <TechnicalLineChart
+          title={`${charts.vix.label} · ${formatMacroValue(charts.vix.latest.value ?? 0, charts.vix.unit)}`}
+          subtitle={`${charts.vix.source.toUpperCase()} · latest ${formatMarketDate(charts.vix.latest.date)} · last 30 observations`}
+          series={[{ label: charts.vix.label, color: "#7664a8", points: charts.vix.points }]}
+        />
+      ) : null}
+      {rateSeries.length ? (
+        <TechnicalLineChart
+          title="U.S. rates"
+          subtitle={rateLatest}
+          series={rateSeries.map((chart, index) => ({
+            label: chart.label,
+            color: ["#d95c3b", "#638ba2", "#3e8b6d", "#7664a8"][index],
+            points: chart.points,
+          }))}
+          suffix="%"
+        />
+      ) : null}
+      {charts.wti ? (
+        <TechnicalLineChart
+          title={`${charts.wti.label} · ${formatMacroValue(charts.wti.latest.value ?? 0, charts.wti.unit)}`}
+          subtitle={`${charts.wti.source.toUpperCase()} · latest ${formatMarketDate(charts.wti.latest.date)} · last 30 observations`}
+          series={[{ label: charts.wti.label, color: "#b95455", points: charts.wti.points }]}
+          prefix="$"
+        />
+      ) : null}
+    </View>
+  );
+}
+
 function chartScale(
   series: SeriesPoint[][],
   references: number[] = [],
@@ -803,6 +893,7 @@ function TechnicalLineChart({
   series,
   references = [],
   fixedDomain,
+  prefix = "",
   suffix = "",
 }: {
   title: string;
@@ -810,6 +901,7 @@ function TechnicalLineChart({
   series: Array<{ label: string; color: string; points: SeriesPoint[] }>;
   references?: number[];
   fixedDomain?: [number, number];
+  prefix?: string;
   suffix?: string;
 }) {
   const width = 320;
@@ -832,7 +924,7 @@ function TechnicalLineChart({
         {references.map((value) => <Line key={value} x1={padding} x2={width - padding} y1={yForValue(value)} y2={yForValue(value)} stroke="#b4a67d" strokeDasharray="5 4" />)}
         {series.map((item) => <Path key={item.label} d={technicalPath(item.points, min, max, width, height, padding)} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinecap="round" />)}
       </Svg>
-      <View style={styles.chartNumericAxis}><Text style={styles.chartNumericText}>{min.toFixed(1)}{suffix}</Text><Text style={styles.chartNumericText}>{max.toFixed(1)}{suffix}</Text></View>
+      <View style={styles.chartNumericAxis}><Text style={styles.chartNumericText}>{prefix}{min.toFixed(1)}{suffix}</Text><Text style={styles.chartNumericText}>{prefix}{max.toFixed(1)}{suffix}</Text></View>
     </View>
   );
 }
@@ -1222,6 +1314,10 @@ const styles = StyleSheet.create({
   metricGrid: { flexDirection: "row", flexWrap: "wrap", gap: 10 },
   metric: { width: "47%", backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 14, padding: 14 },
   metricValue: { color: palette.ink, fontSize: 20, fontWeight: "800" },
+  macroSection: { marginTop: 2 },
+  macroDisclosure: { backgroundColor: "#eef0f6", borderColor: "#d4d7e4", borderWidth: 1, borderRadius: 14, padding: 14, marginBottom: 12 },
+  macroDisclosureTitle: { color: palette.ink, fontSize: 13, fontWeight: "800", marginBottom: 4 },
+  macroDisclosureText: { color: palette.muted, fontSize: 12, lineHeight: 18 },
   technicalPanels: { marginTop: 4 },
   technicalChartCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 15, padding: 14, marginBottom: 12 },
   chartLegend: { color: palette.muted, fontSize: 10, fontWeight: "800" },
