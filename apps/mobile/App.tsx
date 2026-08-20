@@ -559,6 +559,28 @@ function DebateScreen({
         </View>
       ) : (
         <>
+          <View style={styles.snapshotCard}>
+            <Text style={styles.cardLabel}>ANALYSIS SNAPSHOT</Text>
+            <Text style={styles.snapshotTitle}>
+              {formatMarketDate(analysis.snapshot.price.as_of)} close · ${analysis.snapshot.price.close.toFixed(2)}
+            </Text>
+            <Text style={styles.mutedText}>
+              {analysis.snapshot.price.source === "daily_market_cache" && !analysis.snapshot.price.is_stale
+                ? "Verified daily market cache"
+                : "Price cache is unavailable or stale; interpret this run cautiously."}
+            </Text>
+            <Text style={styles.snapshotDetail}>
+              {analysis.snapshot.included_evidence_ids.length} cited item(s)
+              {analysis.snapshot.excluded_external_evidence_count > 0
+                ? ` · ${analysis.snapshot.excluded_external_evidence_count} stale or undated item(s) excluded`
+                : " · all retrieved external context passed its freshness check"}
+            </Text>
+            {analysis.snapshot.missing_current_evidence.length > 0 ? (
+              <Text style={styles.snapshotWarning}>
+                Missing current {analysis.snapshot.missing_current_evidence.join(" and ")} evidence.
+              </Text>
+            ) : null}
+          </View>
           <View style={styles.judgeCard}>
             <View style={styles.rowBetween}><Text style={styles.cardLabel}>JUDGE SYNTHESIS</Text><Text style={styles.confidence}>{analysis.judge.evidence_strength} evidence</Text></View>
             <Text style={styles.judgeTitle}>{analysis.judge.summary}</Text>
@@ -603,7 +625,18 @@ function EvidenceScreen({ ticker, evidence, onBack }: { ticker: string; evidence
           <Text style={styles.cardTitle}>{item.title}</Text>
           <Text style={styles.mutedText}>{item.excerpt}</Text>
           <Text style={styles.sourceText}>
-            {typeof item.metadata.source === "string" ? item.metadata.source : "cached demo source"} · {item.published_at || "undated"}
+            {typeof item.metadata.source === "string" ? item.metadata.source : "cached source"} · {item.published_at || "undated"}
+          </Text>
+          <Text style={[
+            styles.freshnessText,
+            item.freshness.status === "current" && styles.freshnessCurrent,
+            item.freshness.status === "stale" && styles.freshnessStale,
+          ]}>
+            {item.freshness.status === "current"
+              ? `Current · ${item.freshness.age_days ?? 0}d old`
+              : item.freshness.status === "stale"
+                ? `Stale · ${item.freshness.age_days ?? "?"}d old`
+                : "Freshness unavailable"}
           </Text>
         </View>
       ))}
@@ -768,6 +801,10 @@ const styles = StyleSheet.create({
   secondaryButtonText: { color: palette.accent, fontWeight: "800" },
   liveDot: { color: palette.signal, fontSize: 20 },
   judgeCard: { backgroundColor: "#e9f0e5", padding: 18, borderRadius: 18, marginBottom: 14 },
+  snapshotCard: { backgroundColor: "#fff5e4", padding: 16, borderRadius: 16, marginBottom: 14, borderWidth: 1, borderColor: "#ead4ad" },
+  snapshotTitle: { color: palette.ink, fontSize: 16, fontWeight: "800", marginBottom: 5 },
+  snapshotDetail: { color: palette.muted, fontSize: 12, lineHeight: 18, marginTop: 8 },
+  snapshotWarning: { color: palette.bear, fontSize: 12, fontWeight: "700", lineHeight: 18, marginTop: 6 },
   rowBetween: { flexDirection: "row", justifyContent: "space-between", alignItems: "center" },
   confidence: { color: palette.bull, fontSize: 12, fontWeight: "700" },
   judgeTitle: { color: palette.ink, fontSize: 19, lineHeight: 25, fontWeight: "800", marginVertical: 8 },
@@ -783,6 +820,9 @@ const styles = StyleSheet.create({
   evidenceTag: { color: palette.signal, fontSize: 11, fontWeight: "800", letterSpacing: 1 },
   cardTitle: { color: palette.ink, fontSize: 16, fontWeight: "800", lineHeight: 22, marginBottom: 6 },
   sourceText: { color: palette.muted, fontSize: 11, marginTop: 12 },
+  freshnessText: { color: palette.muted, fontSize: 11, fontWeight: "700", marginTop: 5 },
+  freshnessCurrent: { color: palette.bull },
+  freshnessStale: { color: palette.bear },
   answerCard: { backgroundColor: "#fff5e4", borderRadius: 15, padding: 16, marginBottom: 14 },
   questionButton: { borderColor: palette.line, borderWidth: 1, backgroundColor: palette.card, borderRadius: 12, padding: 15, marginBottom: 9 },
   questionText: { color: palette.ink, fontWeight: "700" },

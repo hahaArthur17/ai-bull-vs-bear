@@ -49,6 +49,12 @@ export type EvidenceItem = {
   published_at?: string | null;
   excerpt: string;
   metadata: Record<string, unknown>;
+  freshness: {
+    status: "current" | "stale" | "unknown";
+    age_days?: number | null;
+    max_age_days?: number | null;
+    evaluated_at?: string | null;
+  };
 };
 
 export type StockBundle = {
@@ -76,6 +82,19 @@ export type AnalysisResponse = {
   created_at: string;
   question?: string | null;
   indicators: TechnicalIndicators;
+  snapshot: {
+    retrieved_at: string;
+    price: {
+      as_of: string;
+      close: number;
+      source: "daily_market_cache" | "demo_fallback";
+      is_stale: boolean;
+    };
+    retrieved_evidence_count: number;
+    included_evidence_ids: string[];
+    excluded_external_evidence_count: number;
+    missing_current_evidence: Array<"news" | "filing">;
+  };
   judge: {
     summary: string;
     evidence_strength: "weak" | "medium" | "strong";
