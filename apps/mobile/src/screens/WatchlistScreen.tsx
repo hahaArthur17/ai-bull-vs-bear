@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { SectionHeader } from "../components/common";
@@ -13,6 +13,7 @@ export function WatchlistScreen({
   onOpen,
   onToggle,
   onRetry,
+  onSearch,
 }: {
   stocks: Stock[];
   watchlist: string[];
@@ -20,13 +21,57 @@ export function WatchlistScreen({
   onOpen: (ticker: string) => void;
   onToggle: (ticker: string) => void;
   onRetry: () => void;
+  onSearch: (query: string) => Promise<Stock[]>;
 }) {
   const [query, setQuery] = useState("");
-  const filtered = useMemo(
-    () => stocks.filter((stock) => (stock.ticker + " " + stock.company_name).toLowerCase().includes(query.toLowerCase())),
-    [query, stocks],
+  const [results, setResults] = useState<Stock[]>(
+    stocks.filter((stock) => stock.coverage_status === "debate_ready"),
   );
-  const visible = filtered.filter((stock) => watchlist.includes(stock.ticker));
+  const [searching, setSearching] = useState(false);
+  const [searchError, setSearchError] = useState("");
+  const visible = useMemo(
+    () => stocks.filter((stock) => watchlist.includes(stock.ticker)),
+    [stocks, watchlist],
+  );
+
+  useEffect(() => {
+    if (!query.trim()) {
+      setResults(stocks.filter((stock) => stock.coverage_status === "debate_ready"));
+      setSearchError("");
+      setSearching(false);
+    }
+  }, [query, stocks]);
+
+  useEffect(() => {
+    const normalized = query.trim();
+    if (!normalized) return;
+    let active = true;
+    setSearching(true);
+    const timeout = setTimeout(() => {
+      void onSearch(normalized)
+        .then((next) => {
+          if (active) {
+            setResults(next);
+            setSearchError("");
+          }
+        })
+        .catch((requestError: unknown) => {
+          if (active) {
+            setResults([]);
+            setSearchError(
+              requestError instanceof Error ? requestError.message : "Catalog search failed.",
+            );
+          }
+        })
+        .finally(() => {
+          if (active) setSearching(false);
+        });
+    }, 250);
+    return () => {
+      active = false;
+      clearTimeout(timeout);
+    };
+  }, [onSearch, query]);
 
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -43,7 +88,11 @@ export function WatchlistScreen({
       {visible.map((stock) => (
         <StockRow key={stock.ticker} stock={stock} watched onOpen={onOpen} onToggle={onToggle} />
       ))}
-      <SectionHeader title="Supported demo stocks" meta="cached data" />
+      <SectionHeader title="Security catalog" meta="zero market-data calls" />
+      <Text style={styles.mutedText}>
+        Search exchange-listed securities by ticker or issuer. Catalog results are identities, not a
+        promise of price or debate coverage.
+      </Text>
       <TextInput
         placeholder="Search ticker or company"
         placeholderTextColor={palette.muted}
@@ -52,7 +101,12 @@ export function WatchlistScreen({
         style={styles.search}
         autoCapitalize="characters"
       />
-      {filtered.map((stock) => (
+      {searching ? <Text style={styles.mutedText}>Searching the security catalog…</Text> : null}
+      {searchError ? <Text style={styles.errorText}>{searchError}</Text> : null}
+      {!searching && !searchError && results.length === 0 ? (
+        <Text style={styles.mutedText}>No matching catalog symbol.</Text>
+      ) : null}
+      {results.map((stock) => (
         <StockRow key={stock.ticker} stock={stock} watched={watchlist.includes(stock.ticker)} onOpen={onOpen} onToggle={onToggle} />
       ))}
       <View style={styles.disclaimerBox}>
@@ -80,6 +134,9 @@ function StockRow({
         <View style={styles.stockCopy}>
           <Text style={styles.stockTicker}>{stock.ticker}</Text>
           <Text style={styles.stockCompany}>{stock.company_name}</Text>
+          <Text style={styles.mutedText}>
+            {stock.coverage_status === "debate_ready" ? "Debate ready" : "Watchlist only"}
+          </Text>
         </View>
       </Pressable>
       <Pressable onPress={() => onToggle(stock.ticker)} style={styles.starButton}>
@@ -88,4 +145,3 @@ function StockRow({
     </View>
   );
 }
-

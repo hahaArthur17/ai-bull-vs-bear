@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ActivityIndicator,
@@ -39,6 +39,12 @@ import type {
 
 type Screen = "watchlist" | "stock" | "debate" | "evidence" | "examine" | "history" | "about";
 
+function mergeStocks(...groups: Stock[][]): Stock[] {
+  const byTicker = new Map<string, Stock>();
+  groups.flat().forEach((stock) => byTicker.set(stock.ticker, stock));
+  return [...byTicker.values()].sort((left, right) => left.ticker.localeCompare(right.ticker));
+}
+
 export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
@@ -46,6 +52,7 @@ export default function App() {
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
+  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [selectedBundle, setSelectedBundle] = useState<StockBundle | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
@@ -62,7 +69,10 @@ export default function App() {
         api.getWatchlist(),
         api.listAnalyses(),
       ]);
-      setStocks(stockResult);
+      const watchedStocks = await Promise.all(
+        watchlistResult.tickers.map((ticker) => api.getStock(ticker).catch(() => null)),
+      );
+      setStocks(mergeStocks(stockResult, watchedStocks.filter((stock): stock is Stock => stock !== null)));
       setWatchlist(watchlistResult.tickers);
       setHistory(analysisResult);
     } catch (requestError) {
@@ -98,14 +108,27 @@ export default function App() {
     }
   }, [authReady, session?.access_token]);
 
+  const searchStocks = useCallback(async (query: string): Promise<Stock[]> => {
+    const results = await api.listStocks(query, 20);
+    setStocks((current) => mergeStocks(current, results));
+    return results;
+  }, []);
+
   const openStock = async (ticker: string) => {
     setSelectedTicker(ticker);
     setScreen("stock");
+    setSelectedStock(null);
     setSelectedBundle(null);
     setLoading(true);
     setError("");
     try {
-      setSelectedBundle(await api.getStockBundle(ticker));
+      const stock = await api.getStock(ticker);
+      setSelectedStock(stock);
+      if (stock.coverage_status !== "catalog_only") {
+        const bundle = await api.getStockBundle(ticker);
+        setSelectedBundle(bundle);
+        setSelectedStock(bundle.stock);
+      }
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load stock details.");
     } finally {
@@ -125,6 +148,10 @@ export default function App() {
   };
 
   const startDebate = async () => {
+    if (selectedStock && selectedStock.coverage_status !== "debate_ready") {
+      setError("Bull vs Bear is available only for Debate-ready stocks.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -161,6 +188,7 @@ export default function App() {
     if (screen === "stock") {
       return (
         <StockDetailScreen
+          stock={selectedStock}
           bundle={selectedBundle}
           loading={loading}
           error={error}
@@ -219,6 +247,7 @@ export default function App() {
         onOpen={openStock}
         onToggle={toggleWatchlist}
         onRetry={() => void loadHome()}
+        onSearch={searchStocks}
       />
     );
   };
@@ -262,6 +291,7 @@ export default function App() {
 }
 
 function StockDetailScreen({
+  stock,
   bundle,
   loading,
   error,
@@ -272,6 +302,7 @@ function StockDetailScreen({
   isWatched,
   onToggleWatchlist,
 }: {
+  stock: Stock | null;
   bundle: StockBundle | null;
   loading: boolean;
   error: string;
@@ -283,6 +314,46 @@ function StockDetailScreen({
   onToggleWatchlist: () => void;
 }) {
   if (loading) return <LoadingView label="Loading stock detail..." onBack={onBack} />;
+  if (stock?.coverage_status === "catalog_only") {
+    return (
+      <ScrollView contentContainerStyle={styles.page}>
+        <BackButton onPress={onBack} />
+        <View style={styles.detailHeader}>
+          <View>
+            <Text style={styles.eyebrow}>{stock.exchange} · CATALOG ONLY</Text>
+            <Text style={styles.detailTitle}>{stock.company_name}</Text>
+            <Text style={styles.detailTicker}>
+              {stock.ticker} · {stock.sector || "Classification unavailable"}
+            </Text>
+          </View>
+          <Pressable onPress={onToggleWatchlist}>
+            <Text style={[styles.star, isWatched && styles.starActive]}>
+              {isWatched ? "★" : "☆"}
+            </Text>
+          </Pressable>
+        </View>
+        <View style={styles.aboutCard}>
+          <Text style={styles.cardTitle}>Identity available, analysis not configured</Text>
+          <Text style={styles.mutedText}>
+            This symbol comes from the versioned SEC catalog and can be saved to your Watchlist.
+            Cached prices, evidence, technical signals, and Bull vs Bear are not available for it.
+          </Text>
+        </View>
+        <View style={styles.aboutCard}>
+          <Text style={styles.cardTitle}>Zero provider calls</Text>
+          <Text style={styles.mutedText}>
+            Opening this profile did not request market data, news, or an AI model.
+          </Text>
+          {stock.sec_cik ? <Text style={styles.mutedText}>SEC CIK {stock.sec_cik}</Text> : null}
+        </View>
+        <Pressable style={styles.secondaryButton} onPress={onToggleWatchlist}>
+          <Text style={styles.secondaryButtonText}>
+            {isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
+          </Text>
+        </Pressable>
+      </ScrollView>
+    );
+  }
   if (!bundle) {
     return (
       <FailureView
@@ -305,7 +376,9 @@ function StockDetailScreen({
         <View>
           <Text style={styles.eyebrow}>{bundle.stock.exchange} · {priceSource}{priceStatus}</Text>
           <Text style={styles.detailTitle}>{bundle.stock.company_name}</Text>
-          <Text style={styles.detailTicker}>{bundle.stock.ticker} · {bundle.stock.sector}</Text>
+          <Text style={styles.detailTicker}>
+            {bundle.stock.ticker} · {bundle.stock.sector || "Classification unavailable"}
+          </Text>
         </View>
         <Pressable onPress={onToggleWatchlist}><Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text></Pressable>
       </View>

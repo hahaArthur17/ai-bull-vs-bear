@@ -60,8 +60,15 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
-  listStocks: (query = ""): Promise<Stock[]> =>
-    request<Stock[]>(query ? "/stocks?q=" + encodeURIComponent(query) : "/stocks"),
+  listStocks: (query = "", limit = 20): Promise<Stock[]> => {
+    const params = new URLSearchParams();
+    if (query) params.set("q", query);
+    params.set("limit", String(limit));
+    return request<Stock[]>("/stocks?" + params.toString());
+  },
+
+  getStock: (ticker: string): Promise<Stock> =>
+    request<Stock>("/stocks/" + encodeURIComponent(ticker)),
 
   getWatchlist: (): Promise<WatchlistResponse> => request<WatchlistResponse>("/watchlist"),
 
