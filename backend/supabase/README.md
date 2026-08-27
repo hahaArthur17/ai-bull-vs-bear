@@ -30,6 +30,19 @@ preserves existing coverage, sector, country, and aliases on conflict. Do not
 edit its generated rows manually; regenerate it from the reviewed artifact
 under `data/catalog`.
 
+Phase 3 adds two V2 Debate migrations after the catalog files:
+
+1. `20260827_v2_debate_persistence.sql`
+2. `20260827_v2_debate_persistence_rpc.sql`
+
+The first creates the five canonical relations, constraints, indexes, grants,
+and owner-read RLS. The second adds service-only transaction boundaries for the
+initial Session+Job pair and a complete Message+citations write. Neither file
+enables Supabase Queue transport. Apply them to a hosted project only after the
+catalog capacity gate, then verify two-user read isolation, rejected client
+writes, and service-role creation/update before marking Phase 3 persistence
+deployed.
+
 The evidence schema separates canonical chunks from provider-specific
 embeddings. `local-hash-v1` is the deterministic offline baseline; real Gemini,
 Qwen, BGE, or other profiles belong in `chunk_embeddings` and must never be

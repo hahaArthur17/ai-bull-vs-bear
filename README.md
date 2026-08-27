@@ -22,6 +22,9 @@ baseline is maintained in
 - A versioned 7,695-row SEC ticker/exchange identity catalog. Search makes no
   runtime SEC or market-data request; catalog-only identities can be saved but
   cannot show synthetic prices or start Debate.
+- Database-independent multi-turn Debate contracts plus local/Supabase
+  repositories for sessions, complete messages/citations, interventions, and
+  the application job ledger. The V2 runtime/API is not connected yet.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.

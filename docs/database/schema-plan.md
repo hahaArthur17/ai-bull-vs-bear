@@ -247,6 +247,9 @@ Canonical state and immutable context for one multi-turn Debate:
 - interim/final Judge outputs and guardrail status;
 - safe error code and timestamps.
 
+Implemented in repository migration
+`20260827_v2_debate_persistence.sql`; hosted deployment remains pending.
+
 ### `debate_jobs`
 
 Persistent application job ledger paired with the Supabase Queue:
@@ -255,6 +258,9 @@ Persistent application job ledger paired with the Supabase Queue:
 - unique idempotency key and queue message ID;
 - attempts, availability, start/finish times;
 - safe failure code, provider call count, and token usage.
+
+Implemented as an application ledger in the Phase 3 migration. It is not a
+replacement for the Phase 5 Queue transport.
 
 The Queue payload contains only job/session IDs and safe trace metadata. It does
 not contain credentials, raw authorization headers, or protected prompt text.
@@ -269,15 +275,24 @@ Ordered, branch-aware completed or cancelled messages:
 - completion/cancellation state and timestamps;
 - unique `(session_id, branch_id, sequence_number)` for idempotent redelivery.
 
+The migration also makes `(id, session_id)` unique so a user intervention can
+prove that its selected message belongs to the same session.
+
 ### `debate_message_evidence`
 
 Many-to-many citations between complete messages and the immutable allowed
 evidence set, with citation order and optional support-span metadata.
 
+Message and citations are written in one service-only transaction RPC.
+
 ### `debate_interventions`
 
 User-owned selected text, question, target message, and mode (`explain` or
 `challenge`). Inputs are length-bounded and protected by session ownership RLS.
+
+All five relations now have owner-read RLS. Authenticated clients have no direct
+write grants; the API/Worker must use the server-only service role so domain
+state validation cannot be bypassed through the Data API.
 
 ### Factor storage decision
 

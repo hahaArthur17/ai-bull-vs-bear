@@ -93,6 +93,23 @@ coverage, and opens a catalog identity page without loading a stock-data bundle.
 The migrations are not yet applied to the hosted project. Phase 2 therefore
 remains in progress until hosted size and RLS verification are recorded.
 
+### Phase 3 Debate persistence foundation
+
+Repository migrations now define the five canonical V2 Debate tables and
+service-only transaction functions. The application job ledger is deliberately
+separate from future Queue transport. Authenticated users receive owner-scoped
+read policies only; the API/Worker will write through a server-only secret.
+
+Both the credential-free in-memory adapter and the Supabase adapter implement
+`DebateUnitOfWork`. Session/Job creation and Message/citation insertion are
+atomic and idempotent, while updates use expected-status filters plus shared
+domain validation. This persistence foundation is implemented locally but not
+applied to hosted Supabase.
+
+No V2 route or orchestration runtime is connected yet. The next Phase 3 step is
+to execute the existing deterministic round plans through the repository and
+demo turn/Judge providers before adding Queue transport or streaming.
+
 ## Implemented single-response data flow
 
 1. The mobile client requests supported stocks and the user's watchlist.

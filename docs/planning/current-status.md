@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 156 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 173 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -155,6 +155,33 @@ at 3.9–6.9 MiB, with a conservative 15 MiB deployment budget—3% of the curre
 500 MB Supabase Free database quota. The feature remains in scope. Deployment
 must stop if the existing database is already above 400 MB or the measured
 catalog relation exceeds 15 MiB after migration.
+
+### Phase 3 progress
+
+The repository now has a separate V2 Debate persistence migration for
+`debate_sessions`, `debate_messages`, `debate_message_evidence`,
+`debate_interventions`, and the application `debate_jobs` ledger. It includes
+allowed-state and lifecycle constraints, cross-table owner foreign keys,
+idempotent message/job keys, Worker query indexes, explicit grants, and RLS on
+all five tables. Authenticated clients can read only their own Debate records;
+writes require the server-only service role.
+
+Two service-only Postgres functions provide transaction boundaries for the
+operations that cannot safely be split across REST calls: creating the initial
+Session+Job pair and appending one complete message with its citations. They do
+not enable or call the durable Queue; that remains Phase 5.
+
+`InMemoryDebateRepository` and `SupabaseDebateRepository` implement the same
+database-independent unit-of-work contract. Tests cover atomic/idempotent
+writes, optimistic session/job states, immutable snapshots, citation sequence
+conflicts, owner-scoped reads, safe remote failures, and current versus legacy
+Supabase secret headers. The deterministic two-round plan already exists, but a
+runtime orchestration service has not yet called the turn/Judge providers or
+exposed V2 API routes.
+
+The Debate migrations are checked in but not applied to hosted Supabase. They
+must not be described as live persistence until the Phase 2 catalog preflight
+and the new Debate RLS/service-role verification are completed.
 
 ## Boundaries that remain in force
 

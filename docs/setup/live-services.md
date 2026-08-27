@@ -123,8 +123,17 @@ if the measured `total_with_indexes` exceeds it. Before marking Phase 2
 deployed, confirm an anon/public catalog search succeeds and repeat the existing
 two-user test proving that each user can change only their own Watchlist.
 
-`SUPABASE_SECRET_KEY` is used only by the backend ingestion script. The mobile
-app needs only the publishable/anon key.
+Only after that gate, apply `20260827_v2_debate_persistence.sql` followed by
+`20260827_v2_debate_persistence_rpc.sql`. Verify with two users that each can
+read only their own Session, Message, citation, Intervention, and Job rows and
+that direct authenticated writes are rejected. Then use the server-only secret
+through backend tests/smoke tooling to verify atomic Session+Job creation,
+Message+citations insertion, and expected-status updates. These migrations do
+not enable the durable Queue.
+
+`SUPABASE_SECRET_KEY` is currently used by backend ingestion; the V2 Debate
+repository will also use it after its runtime is enabled. It remains
+server-side. The mobile app needs only the publishable/anon key.
 
 Current `sb_secret_...` keys are sent only in Supabase's `apikey` header. They
 are opaque API keys, not JWTs, so placing one in `Authorization: Bearer` causes

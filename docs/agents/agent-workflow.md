@@ -87,9 +87,10 @@ payload. Bull and Bear do not yet see or rebut each other's text.
 ## Target stateful workflow
 
 The database-independent session/message/job/event contracts, deterministic
-round plans, state-transition rules, and turn/Judge provider inputs described
-below are now implemented. API, persistence, Worker, and streaming orchestration
-remain target behaviour for later phases.
+round plans, state-transition rules, turn/Judge provider inputs, and Phase 3
+persistence adapters described below are now implemented. API orchestration,
+provider execution, Worker/Queue transport, and streaming remain target
+behaviour for later steps.
 
 ### Step 1: Build one immutable analysis context
 
