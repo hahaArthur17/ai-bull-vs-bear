@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 92 backend tests and the mobile TypeScript check pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 99 backend tests and the mobile TypeScript check pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -91,6 +91,13 @@ Immutable `AnalysisContext`/`FactorObservation` contracts, a validating
 test-only mock sentiment provider proves that registration adds a new factor
 without changing the registry or existing technical provider. These components
 are a foundation for the V2 Debate and do not change the current API response.
+
+Typed snapshot inputs and adapters now cover all current categories: technical
+indicators, dated macro background, news, filings, and structured financial
+facts. Macro text retains a non-causation boundary; evidence adapters preserve
+freshness without inferring sentiment; financial facts preserve units, periods,
+and filing references. Missing optional categories remain explicit rather than
+being replaced with synthetic data.
 
 Supabase DDL remains unchanged by design. The accepted
 [`ADR-0001`](../architecture/decisions/0001-staged-supabase-schema-and-queue.md)

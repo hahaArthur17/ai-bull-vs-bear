@@ -922,13 +922,14 @@ Status: In progress
 - [x] Introduce the `FactorProvider` protocol without changing runtime output.
 - [ ] Introduce Debate repository/provider protocols.
 - [x] Add `FactorRegistry` and wrap the current technical-indicator calculation.
-- [ ] Wrap the current macro, news, filing, and financial-fact sources.
+- [x] Wrap the current macro, news, filing, and financial-fact sources.
 - [x] Add the test-only mock factor extension proof.
 - [ ] Begin extracting mobile screens and shared design tokens without a visual
   rewrite.
 
-Progress evidence: `9374398`, `58c70f8`, `6b415a5`, and `598eb3d`. The factor
-foundation is implemented but is not yet connected to a V2 Debate runtime.
+Progress evidence: `9374398`, `58c70f8`, `6b415a5`, `598eb3d`, `f689328`, and
+`191f65c`. All current factor categories now have normalized adapters, but the
+factor snapshot is not yet connected to a V2 Debate runtime.
 
 Completion rule: current API/mobile behaviour remains compatible and tests prove
 a new factor provider is additive.

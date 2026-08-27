@@ -44,9 +44,10 @@ policy before it reaches the user.
 
 The backend now has immutable, database-independent factor contracts, a
 validating `FactorRegistry`, and a `TechnicalFactorProvider` that normalizes the
-existing indicator calculation. A test-only provider proves additive
-registration. This foundation is not yet wired into a V2 Debate and does not
-change the implemented synchronous API response.
+existing indicator calculation. Macro, news, filing, and structured
+financial-fact adapters now use the same snapshot contract. A test-only provider
+proves additive registration. This foundation is not yet wired into a V2 Debate
+and does not change the implemented synchronous API response.
 
 Database and Queue changes follow
 [`ADR-0001`](decisions/0001-staged-supabase-schema-and-queue.md); no hosted DDL

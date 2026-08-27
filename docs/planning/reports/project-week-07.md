@@ -25,6 +25,11 @@ factor boundary.
   indicator calculation behind `TechnicalFactorProvider` (`6b415a5`).
 - Proved additive extension by registering a test-only mock sentiment provider
   without changing the registry or technical provider (`598eb3d`).
+- Added typed immutable inputs for evidence, macro observations, and structured
+  financial facts, plus a pure snapshot factory with no database/network reads
+  (`f689328`).
+- Added Macro, News, Filing, and Financial Facts providers and a factory for the
+  complete current-source registry (`191f65c`).
 
 ## Decisions
 
@@ -46,14 +51,12 @@ PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
 cd apps/mobile && npm run typecheck
 ```
 
-Result on 2026-08-27: 92 backend tests passed, mobile TypeScript passed, and all
+Result on 2026-08-27: 99 backend tests passed, mobile TypeScript passed, and all
 local Markdown links resolved. The only backend warning remains the existing
 Starlette/httpx test-client deprecation.
 
 ## Unfinished work
 
-- Add normalized adapters for current macro, news, filing, and financial-fact
-  inputs.
 - Define Debate session, message, job, event, and repository contracts.
 - Begin mobile screen/token extraction without changing visual behaviour.
 - Do not apply Supabase DDL until the migration phase and its RLS tests are
@@ -61,10 +64,10 @@ Starlette/httpx test-client deprecation.
 
 ## Recommended next tasks
 
-1. Extend `AnalysisContext` with typed current-source inputs and add the
-   remaining factor adapters.
-2. Define the Debate state/message/job/event contracts and transition tests.
-3. Introduce Debate repository protocols before any Phase 3 migration.
+1. Define the Debate state/message/job/event contracts and transition tests.
+2. Introduce Debate repository protocols before any Phase 3 migration.
+3. Begin extracting mobile screens and shared tokens without changing visual
+   behaviour.
 
 ## Related documents
 
