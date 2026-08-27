@@ -14,6 +14,13 @@ application is usable before Supabase credentials are available. The SQL schema
 and environment variables are prepared for the persistence/authentication
 milestone.
 
+The Phase 2 stock catalog is split into
+`20260827_stock_catalog_coverage.sql` and the generated
+`20260827_stock_catalog_seed.sql`. Apply them in that order. The seed uses 16
+bounded upsert statements inside one transaction and preserves existing
+coverage, sector, country, and aliases on conflict. Do not edit its generated
+rows manually; regenerate it from the reviewed artifact under `data/catalog`.
+
 The evidence schema separates canonical chunks from provider-specific
 embeddings. `local-hash-v1` is the deterministic offline baseline; real Gemini,
 Qwen, BGE, or other profiles belong in `chunk_embeddings` and must never be

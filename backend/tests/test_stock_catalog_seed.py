@@ -10,6 +10,10 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SNAPSHOT_PATH = (
     REPOSITORY_ROOT / "data/catalog/sec-company-tickers-exchange-2026-08-27.json"
 )
+SEED_MIGRATION_PATH = (
+    REPOSITORY_ROOT
+    / "backend/supabase/migrations/20260827_stock_catalog_seed.sql"
+)
 
 
 def snapshot(*stocks: dict[str, object]) -> dict[str, object]:
@@ -81,3 +85,9 @@ def test_render_catalog_seed_accepts_checked_in_snapshot() -> None:
     assert ", 'NVDA'," in sql
     assert ", 'TSLA'," in sql
     assert sql.count("insert into public.stocks as existing") == 16
+
+
+def test_checked_in_seed_migration_matches_reviewed_snapshot() -> None:
+    catalog = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+
+    assert SEED_MIGRATION_PATH.read_text(encoding="utf-8") == render_catalog_seed_sql(catalog)

@@ -36,5 +36,14 @@ price, evidence, sector, country, or Debate coverage.
 
 4. Run `backend/tests/test_stock_catalog.py`, update its expected provenance,
    and review the row-count difference before committing.
-5. Update the Supabase catalog seed in a separate migration. A snapshot refresh
-   must never silently promote a stock's coverage status.
+5. Generate the matching Supabase seed as a separate dated migration:
+
+   ```shell
+   PYTHONPATH=backend backend/.venv/bin/python scripts/build_stock_catalog_seed.py \
+     --input data/catalog/sec-company-tickers-exchange-YYYY-MM-DD.json \
+     --output backend/supabase/migrations/YYYYMMDD_stock_catalog_seed.sql
+   ```
+
+6. Run `backend/tests/test_stock_catalog_seed.py`. It verifies that the checked-in
+   SQL exactly matches the reviewed snapshot. A refresh must never silently
+   promote or downgrade a stock's coverage status.
