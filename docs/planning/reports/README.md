@@ -1,20 +1,23 @@
 # Weekly Reports
 
-Weekly reports are the append-only project memory. Keep the roadmap short and
-put implementation detail, verification evidence, blockers, and handoff notes
-in one report per project week.
+Weekly reports are the append-only project memory. Put implementation detail,
+verification evidence, blockers, and handoff notes in one report per project
+week. Do not use a historical report as the current operating plan.
 
 ## Context recovery order
 
 When resuming the project:
 
-1. read `../weekly-roadmap.md` for the current status;
+1. read the [planning index](../README.md) and
+   [current status](../current-status.md);
 2. read the [project issue log](../issue-log.md) for unresolved risks and
    prior incident evidence;
 3. read the latest report in this folder;
-4. read the active operating checklist, currently `../week-4-todo.md`;
-5. open only the architecture/setup documents linked by the latest report; and
-6. compare the repository state with the GitHub Project before choosing work.
+4. open the active implementation plan linked by the planning index;
+5. open only the architecture/setup documents relevant to the selected task;
+   and
+6. compare the repository state and passing tests with the documentation before
+   choosing work.
 
 ## Reports
 

@@ -7,9 +7,10 @@ indicators, cached financial evidence, and a Bull vs Bear debate.
 The app explains evidence and uncertainty. It does not provide stock
 predictions, buy/sell/hold recommendations, or personalised financial advice.
 
-Project planning and the current completion record are maintained in
-[`docs/planning/weekly-roadmap.md`](docs/planning/weekly-roadmap.md). Review that
-file before starting the next week's work.
+Start project planning and context recovery from
+[`docs/planning/README.md`](docs/planning/README.md). The verified implementation
+baseline is maintained in
+[`docs/planning/current-status.md`](docs/planning/current-status.md).
 
 ## What is implemented
 
