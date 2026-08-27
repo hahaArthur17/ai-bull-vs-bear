@@ -101,6 +101,28 @@ class FactorObservation(ImmutableDomainModel):
         return value.upper()
 
 
+class FactorProviderFailure(ImmutableDomainModel):
+    provider: str = Field(min_length=2, max_length=80)
+    provider_version: str = Field(min_length=1, max_length=40)
+    required: bool
+    code: Literal["collection_failed", "invalid_output"]
+    detail: str = Field(min_length=1, max_length=240)
+
+
+class FactorSnapshot(ImmutableDomainModel):
+    schema_version: Literal["factor-snapshot.v1"] = "factor-snapshot.v1"
+    ticker: str = Field(min_length=1, max_length=16)
+    as_of: str = Field(min_length=1, max_length=40)
+    observations: tuple[FactorObservation, ...] = ()
+    provider_failures: tuple[FactorProviderFailure, ...] = ()
+    missing_categories: tuple[FactorCategory, ...] = ()
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        return value.upper()
+
+
 @runtime_checkable
 class FactorProvider(Protocol):
     """Additive extension point for one normalized factor source."""
@@ -111,4 +133,3 @@ class FactorProvider(Protocol):
 
     def collect(self, context: AnalysisContext) -> list[FactorObservation]:
         ...
-
