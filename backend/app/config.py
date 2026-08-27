@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     demo_user_id: str = "demo-user"
     persistence_mode: str = "demo"
     analysis_provider: str = "demo"
+    # Phase 3 preview only. The legacy /analysis API remains the public default
+    # until streaming and durable Queue transport are implemented and verified.
+    debate_workflow_v2: bool = False
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
     supabase_secret_key: str | None = None

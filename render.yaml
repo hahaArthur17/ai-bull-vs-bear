@@ -21,6 +21,8 @@ services:
         value: supabase
       - key: ANALYSIS_PROVIDER
         value: demo
+      - key: DEBATE_WORKFLOW_V2
+        value: "false"
       - key: CORS_ORIGINS
         sync: false
       - key: SUPABASE_URL
