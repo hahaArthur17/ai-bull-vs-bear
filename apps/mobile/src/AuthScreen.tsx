@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import { supabase } from "./supabase";
+import { palette } from "./theme";
 
 export function AuthScreen() {
   const [email, setEmail] = useState("");
@@ -62,7 +63,7 @@ export function AuthScreen() {
         />
         {error ? <Text style={styles.error}>{error}</Text> : null}
         {message ? <Text style={styles.message}>{message}</Text> : null}
-        {loading ? <ActivityIndicator color="#1d5c56" style={styles.loader} /> : null}
+        {loading ? <ActivityIndicator color={palette.accent} style={styles.loader} /> : null}
         <Pressable
           disabled={loading || !email.trim() || password.length < 6}
           onPress={() => void authenticate("sign-in")}
@@ -84,18 +85,18 @@ export function AuthScreen() {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: "#f5f1e8", justifyContent: "center", padding: 22 },
-  card: { backgroundColor: "#fffdf8", borderColor: "#d8d5ca", borderWidth: 1, borderRadius: 20, padding: 22 },
-  eyebrow: { color: "#d95c3b", fontSize: 11, fontWeight: "800", letterSpacing: 1.4, marginBottom: 8 },
-  title: { color: "#1e2826", fontSize: 30, lineHeight: 36, fontWeight: "800", marginBottom: 10 },
-  body: { color: "#71807a", fontSize: 15, lineHeight: 22, marginBottom: 20 },
-  input: { borderColor: "#d8d5ca", borderWidth: 1, borderRadius: 12, padding: 13, color: "#1e2826", marginBottom: 12 },
+  safeArea: { flex: 1, backgroundColor: palette.paper, justifyContent: "center", padding: 22 },
+  card: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 20, padding: 22 },
+  eyebrow: { color: palette.signal, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, marginBottom: 8 },
+  title: { color: palette.ink, fontSize: 30, lineHeight: 36, fontWeight: "800", marginBottom: 10 },
+  body: { color: palette.muted, fontSize: 15, lineHeight: 22, marginBottom: 20 },
+  input: { borderColor: palette.line, borderWidth: 1, borderRadius: 12, padding: 13, color: palette.ink, marginBottom: 12 },
   error: { color: "#8d332b", fontSize: 12, lineHeight: 18, marginBottom: 8 },
-  message: { color: "#1d5c56", fontSize: 12, lineHeight: 18, marginBottom: 8 },
+  message: { color: palette.accent, fontSize: 12, lineHeight: 18, marginBottom: 8 },
   loader: { marginVertical: 8 },
-  primaryButton: { backgroundColor: "#d95c3b", borderRadius: 12, padding: 15, alignItems: "center", marginTop: 4 },
+  primaryButton: { backgroundColor: palette.signal, borderRadius: 12, padding: 15, alignItems: "center", marginTop: 4 },
   primaryText: { color: "#fff", fontWeight: "800" },
-  secondaryButton: { borderColor: "#1d5c56", borderWidth: 1, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 10 },
-  secondaryText: { color: "#1d5c56", fontWeight: "800" },
-  note: { color: "#71807a", fontSize: 11, lineHeight: 17, marginTop: 14 },
+  secondaryButton: { borderColor: palette.accent, borderWidth: 1, borderRadius: 12, padding: 14, alignItems: "center", marginTop: 10 },
+  secondaryText: { color: palette.accent, fontWeight: "800" },
+  note: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: 14 },
 });
