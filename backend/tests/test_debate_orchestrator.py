@@ -10,6 +10,7 @@ from app.domain.jobs import DebateJob
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
+from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_state import transition_session
 from app.services.factor_registry import FactorRegistry
 from app.providers.evidence_factors import FilingFactorProvider, NewsFactorProvider
@@ -249,3 +250,103 @@ def test_provider_failure_marks_session_and_job_with_safe_codes() -> None:
             branch_id=queued.active_branch_id,
         )
     ) == 2
+
+
+def test_round_one_publishes_ordered_reconstructable_preview_events() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    provider = RecordingProvider()
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        provider,
+        provider,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    session = orchestrator.execute_job(job.id)
+    events = broker.replay(session.id)
+
+    assert [event.sequence for event in events] == list(range(1, len(events) + 1))
+    assert events[0].type == "job.started"
+    assert events[-1].type == "session.awaiting_user"
+    assert sum(event.type == "turn.started" for event in events) == 6
+    assert sum(event.type == "turn.completed" for event in events) == 6
+    assert sum(event.type == "judge.started" for event in events) == 1
+    assert sum(event.type == "judge.completed" for event in events) == 1
+    assert any(event.type == "turn.citation" for event in events)
+
+    completed_events = [event for event in events if event.type == "turn.completed"]
+    for completed_event in completed_events:
+        message = completed_event.payload["message"]
+        assert isinstance(message, dict)
+        message_id = str(message["id"])
+        deltas = [
+            str(event.payload["delta"])
+            for event in events
+            if event.type == "turn.delta"
+            and event.payload["message_id"] == message_id
+        ]
+        assert "".join(deltas) == message["content"]
+        assert all(
+            event.payload["source"] == "buffered_preview"
+            for event in events
+            if event.type == "turn.delta"
+            and event.payload["message_id"] == message_id
+        )
+
+
+def test_provider_failure_publishes_only_a_safe_terminal_event() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    provider = FailingProvider()
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        provider,
+        provider,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    with pytest.raises(DebateOrchestrationError):
+        orchestrator.execute_job(job.id)
+
+    events = broker.replay(queued.id)
+    assert events[-1].type == "session.failed"
+    assert events[-1].payload["safe_error_code"] == "debate_execution_failed"
+    assert "private provider failure" not in "".join(
+        event.model_dump_json() for event in events
+    )
+
+
+def test_transient_event_failure_does_not_block_canonical_workflow() -> None:
+    class FailingPublisher:
+        def publish(self, *args: object, **kwargs: object) -> None:
+            raise RuntimeError("event transport unavailable")
+
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    provider = RecordingProvider()
+    orchestrator = DebateOrchestrator(
+        repository,
+        provider,
+        provider,
+        event_publisher=FailingPublisher(),  # type: ignore[arg-type]
+        clock=StepClock(),
+    )
+
+    session = orchestrator.execute_job(job.id)
+
+    assert session.status == "awaiting_user"
+    assert len(
+        repository.list_messages(
+            session.id,
+            session.user_id,
+            branch_id=session.active_branch_id,
+        )
+    ) == 7

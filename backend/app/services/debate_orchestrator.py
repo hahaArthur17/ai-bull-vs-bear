@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timezone
+import logging
 from uuid import UUID, uuid5
+
+from pydantic import JsonValue
 
 from app.domain.agents import DebateJudgeRequest, DebateTurnRequest
 from app.domain.debate import (
@@ -12,11 +15,16 @@ from app.domain.debate import (
     DebateSession,
     build_round_plan,
 )
+from app.domain.events import DebateEventType
 from app.domain.jobs import DebateJob
 from app.providers.debate_agents import DebateJudgeProvider, DebateTurnProvider
 from app.repositories.debate_repository import DebateUnitOfWork
 from app.services.debate_job_state import complete_job, fail_job, start_job
+from app.services.debate_event_broker import DebateEventPublisher
 from app.services.debate_state import attach_judge_message, transition_session
+
+
+logger = logging.getLogger(__name__)
 
 
 class DebateOrchestrationError(RuntimeError):
@@ -30,11 +38,13 @@ class DebateOrchestrator:
         turn_provider: DebateTurnProvider,
         judge_provider: DebateJudgeProvider,
         *,
+        event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.turn_provider = turn_provider
         self.judge_provider = judge_provider
+        self.event_publisher = event_publisher
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
     def execute_job(self, job_id: UUID) -> DebateSession:
@@ -59,6 +69,15 @@ class DebateOrchestrator:
         try:
             running_job = start_job(job, at=self._at_or_after(job.updated_at))
             running_job = self.repository.update_job(running_job, expected_status="queued")
+            self._emit(
+                session.id,
+                "job.started",
+                {
+                    "job_id": str(running_job.id),
+                    "job_type": running_job.job_type,
+                    "attempt_count": running_job.attempt_count,
+                },
+            )
             running_session = transition_session(
                 session,
                 running_status,
@@ -124,6 +143,15 @@ class DebateOrchestrator:
                 provider_request_count=provider_request_count,
             )
             self.repository.update_job(completed_job, expected_status="running")
+            self._emit(
+                finished_session.id,
+                "session.awaiting_user" if round_number == 1 else "session.completed",
+                {
+                    "status": finished_session.status,
+                    "generation_id": str(finished_session.active_generation_id),
+                    "job_id": str(completed_job.id),
+                },
+            )
             return finished_session
         except Exception as exc:
             self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
@@ -217,6 +245,21 @@ class DebateOrchestrator:
             None,
         )
         target_id = latest_opponent.id if latest_opponent is not None else None
+        sequence_number = self._next_sequence(transcript)
+        message_id = self._message_id(session, sequence_number)
+        self._emit(
+            session.id,
+            "turn.started",
+            {
+                "message_id": str(message_id),
+                "generation_id": str(session.active_generation_id),
+                "round_number": round_number,
+                "exchange_number": exchange_number,
+                "role": role,
+                "message_kind": message_kind,
+                "responds_to_message_id": str(target_id) if target_id else None,
+            },
+        )
         request = DebateTurnRequest(
             session_id=session.id,
             branch_id=session.active_branch_id,
@@ -245,12 +288,25 @@ class DebateOrchestrator:
             draft.evidence_ids,
             session.analysis_context.allowed_evidence_ids,
         )
+        for delta_index, delta in enumerate(self._buffered_deltas(draft.content), start=1):
+            self._emit(
+                session.id,
+                "turn.delta",
+                {
+                    "message_id": str(message_id),
+                    "generation_id": str(session.active_generation_id),
+                    "role": role,
+                    "delta_index": delta_index,
+                    "delta": delta,
+                    "source": "buffered_preview",
+                },
+            )
         message = DebateMessage(
-            id=self._message_id(session, self._next_sequence(transcript)),
+            id=message_id,
             session_id=session.id,
             branch_id=session.active_branch_id,
             generation_id=session.active_generation_id,
-            sequence_number=self._next_sequence(transcript),
+            sequence_number=sequence_number,
             round_number=round_number,
             exchange_number=exchange_number,
             role=role,
@@ -276,7 +332,27 @@ class DebateOrchestrator:
             )
             for index, evidence_id in enumerate(evidence_ids, start=1)
         )
-        return self.repository.append_message(message, citations)
+        stored_message = self.repository.append_message(message, citations)
+        for citation in citations:
+            self._emit(
+                session.id,
+                "turn.citation",
+                {
+                    "message_id": str(message.id),
+                    "generation_id": str(session.active_generation_id),
+                    "evidence_id": citation.evidence_id,
+                    "citation_order": citation.citation_order,
+                },
+            )
+        self._emit(
+            session.id,
+            "turn.completed",
+            {
+                "message": stored_message.model_dump(mode="json"),
+                "generation_id": str(session.active_generation_id),
+            },
+        )
+        return stored_message
 
     def _append_judge(
         self,
@@ -295,14 +371,25 @@ class DebateOrchestrator:
             transcript=tuple(transcript),
             allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
         )
+        sequence_number = self._next_sequence(transcript)
+        message_id = self._message_id(session, sequence_number)
+        self._emit(
+            session.id,
+            "judge.started",
+            {
+                "message_id": str(message_id),
+                "generation_id": str(session.active_generation_id),
+                "round_number": round_number,
+                "phase": phase,
+            },
+        )
         draft = self.judge_provider.generate_judgement(request)
         evidence_ids = self._validated_evidence_ids(
             draft.evidence_ids,
             session.analysis_context.allowed_evidence_ids,
         )
-        sequence_number = self._next_sequence(transcript)
         message = DebateMessage(
-            id=self._message_id(session, sequence_number),
+            id=message_id,
             session_id=session.id,
             branch_id=session.active_branch_id,
             generation_id=session.active_generation_id,
@@ -333,7 +420,27 @@ class DebateOrchestrator:
             )
             for index, evidence_id in enumerate(evidence_ids, start=1)
         )
-        self.repository.append_message(message, citations)
+        stored_message = self.repository.append_message(message, citations)
+        for citation in citations:
+            self._emit(
+                session.id,
+                "turn.citation",
+                {
+                    "message_id": str(message.id),
+                    "generation_id": str(session.active_generation_id),
+                    "evidence_id": citation.evidence_id,
+                    "citation_order": citation.citation_order,
+                },
+            )
+        self._emit(
+            session.id,
+            "judge.completed",
+            {
+                "message": stored_message.model_dump(mode="json"),
+                "generation_id": str(session.active_generation_id),
+                "phase": phase,
+            },
+        )
         attached = attach_judge_message(
             session,
             phase=phase,
@@ -365,6 +472,15 @@ class DebateOrchestrator:
                 self.repository.update_session(
                     failed_session,
                     expected_status=current_session.status,
+                )
+                self._emit(
+                    failed_session.id,
+                    "session.failed",
+                    {
+                        "status": failed_session.status,
+                        "safe_error_code": failed_session.safe_error_code,
+                        "generation_id": str(failed_session.active_generation_id),
+                    },
                 )
         except Exception:
             pass
@@ -400,6 +516,44 @@ class DebateOrchestrator:
             session.id,
             f"message:{session.active_branch_id}:{sequence_number}",
         )
+
+    @staticmethod
+    def _buffered_deltas(content: str, *, max_characters: int = 96) -> tuple[str, ...]:
+        if max_characters < 1:
+            raise ValueError("Buffered Debate delta size must be positive")
+        # DebateEvent strips outer whitespace as part of its domain safety
+        # configuration. Keep whitespace inside frames so concatenation remains
+        # byte-for-byte equivalent to the canonical complete message.
+        chunks: list[str] = []
+        start = 0
+        while start < len(content):
+            end = min(start + max_characters, len(content))
+            while end < len(content) and (
+                content[end].isspace() or content[end - 1].isspace()
+            ):
+                end += 1
+            chunks.append(content[start:end])
+            start = end
+        return tuple(chunks)
+
+    def _emit(
+        self,
+        session_id: UUID,
+        event_type: DebateEventType,
+        payload: dict[str, JsonValue],
+    ) -> None:
+        if self.event_publisher is None:
+            return
+        try:
+            self.event_publisher.publish(
+                session_id,
+                event_type,
+                payload=payload,
+            )
+        except Exception:
+            # Complete messages and session state are canonical. A transient
+            # broker failure must not corrupt or block the Debate workflow.
+            logger.warning("Transient Debate event publication failed", exc_info=True)
 
     def _at_or_after(self, minimum: datetime) -> datetime:
         candidate = self.clock()

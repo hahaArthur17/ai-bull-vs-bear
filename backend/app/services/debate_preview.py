@@ -4,11 +4,15 @@ from collections.abc import Callable
 from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
+from pydantic import JsonValue
+
 from app.domain.debate import DebateIntervention, DebateSession, DebateSide
+from app.domain.events import DebateEventType
 from app.domain.factors import AnalysisContext, FactorSnapshot
 from app.domain.jobs import DebateJob
 from app.providers.debate_agents import DebateJudgeProvider, DebateTurnProvider
 from app.repositories.debate_repository import DebateUnitOfWork
+from app.services.debate_event_broker import DebateEventPublisher
 from app.services.debate_orchestrator import DebateOrchestrator
 from app.services.debate_state import transition_session
 
@@ -27,6 +31,7 @@ class DebatePreviewService:
         turn_provider: DebateTurnProvider,
         judge_provider: DebateJudgeProvider,
         *,
+        event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
     ) -> None:
@@ -37,6 +42,7 @@ class DebatePreviewService:
             repository,
             turn_provider,
             judge_provider,
+            event_publisher=event_publisher,
             clock=self.clock,
         )
 
@@ -81,6 +87,20 @@ class DebatePreviewService:
             updated_at=created_at,
         )
         self.repository.create_session_with_job(queued, job)
+        self._emit(
+            queued.id,
+            "session.created",
+            {
+                "status": queued.status,
+                "ticker": queued.ticker,
+                "generation_id": str(queued.active_generation_id),
+            },
+        )
+        self._emit(
+            queued.id,
+            "job.queued",
+            {"job_id": str(job.id), "job_type": job.job_type},
+        )
         return self.orchestrator.execute_job(job.id), job
 
     def submit_challenge_and_execute_round_two(
@@ -113,5 +133,34 @@ class DebatePreviewService:
             created_at=created_at,
             updated_at=created_at,
         )
-        self.orchestrator.submit_challenge(intervention, job)
+        queued = self.orchestrator.submit_challenge(intervention, job)
+        self._emit(
+            queued.id,
+            "job.queued",
+            {
+                "job_id": str(job.id),
+                "job_type": job.job_type,
+                "generation_id": str(queued.active_generation_id),
+            },
+        )
         return self.orchestrator.execute_job(job.id), job
+
+    def _emit(
+        self,
+        session_id: UUID,
+        event_type: DebateEventType,
+        payload: dict[str, JsonValue],
+    ) -> None:
+        publisher = self.orchestrator.event_publisher
+        if publisher is None:
+            return
+        try:
+            publisher.publish(
+                session_id,
+                event_type,
+                payload=payload,
+            )
+        except Exception:
+            # Canonical Session/Job records remain valid if the transient
+            # process-local preview stream is unavailable.
+            return
