@@ -13,13 +13,13 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Area | Status | Current state |
 | --- | --- | --- |
 | Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
-| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. |
+| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 preview adds Session, Message, and Challenge routes. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 181 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 190 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -30,23 +30,24 @@ NVDA, and TSLA.
 
 These are limitations of the current implementation, not completed features:
 
-- Debate is one synchronous `POST /analysis/{ticker}` request. It returns one
-  Bull claim, one Bear claim, and one Judge summary only after the full JSON
-  response has been generated.
-- Bull and Bear do not receive each other's prior statements, so the current
-  result is a side-by-side analysis rather than a stateful rebuttal.
+- The deployed/mobile Debate remains one synchronous
+  `POST /analysis/{ticker}` request. It returns one Bull claim, one Bear claim,
+  and one Judge summary only after the full JSON response has been generated.
+- A default-off V2 API preview now runs stateful mutual rebuttals and both
+  rounds, but it is synchronous, deterministic, not connected to the mobile UI,
+  and deliberately disabled in production.
 - There is no SSE/WebSocket stream, durable debate job queue, worker lifecycle,
   cancellation protocol, or reconnect/resume cursor.
-- Claim examination accepts four fixed question types. It does not accept an
-  arbitrary selected term, a free-form question, or a user interruption that
-  redirects the debate.
+- Deployed Claim Examination accepts four fixed question types. V2 accepts a
+  free-form Challenge only at the Interim Judge pause; arbitrary term
+  explanation and mid-generation interruption are not implemented.
 - The 7,695-row catalog, ranked search function, and coverage columns are
   implemented in repository migrations but have not yet been applied to the
   hosted Supabase project. Hosted production therefore still exposes its
   previously deployed four-stock data until that controlled migration.
-- Technical indicators, evidence types, and model prompt inputs use several
-  fixed schemas in the current API. Common `FactorProvider` contracts and
-  adapters now exist, but they are not yet connected to the V2 Debate runtime.
+- Technical indicators, evidence types, and legacy model prompt inputs still
+  use several fixed API schemas. Common `FactorProvider` contracts now build
+  the V2 Session snapshot, so a future provider is additive at that boundary.
 - Redis is not configured. The current quote cache is process-local and other
   persistent cached data is read from Supabase.
 - No durable message queue is connected to the analysis request path.
@@ -156,7 +157,7 @@ at 3.9–6.9 MiB, with a conservative 15 MiB deployment budget—3% of the curre
 must stop if the existing database is already above 400 MB or the measured
 catalog relation exceeds 15 MiB after migration.
 
-### Phase 3 progress
+### Phase 3 completion
 
 The repository now has a separate V2 Debate persistence migration for
 `debate_sessions`, `debate_messages`, `debate_message_evidence`,
@@ -183,10 +184,20 @@ complete Phase 3 path: six mutually aware Round 1 messages, Interim Judge,
 Judge, and terminal Session/Job state. Every rebuttal request is tested against
 the latest opponent message. Provider failure preserves completed messages,
 records attempted provider calls, and exposes only `debate_execution_failed`.
-Re-executing a completed Job or resubmitting the same Challenge does no duplicate
-provider work. V2 API routes and their default-off compatibility flag are still
-pending.
+Re-executing a completed Job or resubmitting the same domain Challenge causes
+no duplicate provider work.
 
+`DEBATE_WORKFLOW_V2=false` is now wired through local/test/example/Render
+configuration. When explicitly enabled, authenticated `POST /debates`, Session
+list/detail, Message list, and Challenge endpoints use the canonical
+repositories and deterministic orchestrator. Round 1 returns seven complete
+messages in `awaiting_user`; Challenge persists the user question and returns a
+13-message completed Session after Round 2. Responses explicitly say
+`synchronous_preview`; disabled routes return `404` and remain absent from
+OpenAPI. Coverage gates, owner isolation, invalid selections, and unchanged
+legacy `/analysis` behavior are covered at API level.
+
+Phase 3 is complete in code with commits `3c921b6`, `e0635e0`, and `6f6d0d7`.
 The Debate migrations are checked in but not applied to hosted Supabase. They
 must not be described as live persistence until the Phase 2 catalog preflight
 and the new Debate RLS/service-role verification are completed.

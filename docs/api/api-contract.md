@@ -11,8 +11,8 @@ phase acceptance tests pass.
 ### Auth
 
 Supabase mode requires `Authorization: Bearer <access-token>` for user-owned
-watchlist and analysis endpoints. Demo mode retains the local credential-free
-fallback.
+watchlist, analysis, and enabled Debate endpoints. Demo mode retains the local
+credential-free fallback.
 
 ### Stocks
 
@@ -100,24 +100,75 @@ Request body:
 
 Returns focused explanation.
 
+### Default-off Debate V2 preview
+
+`DEBATE_WORKFLOW_V2=false` is the default. In that state all `/debates` routes
+return `404` and are omitted from OpenAPI. Existing `/analysis` and claim
+examination behavior is unchanged.
+
+When the flag is deliberately enabled, these authenticated Phase 3 routes are
+implemented:
+
+```text
+POST /debates
+GET  /debates?limit=
+GET  /debates/{session_id}
+GET  /debates/{session_id}/messages
+POST /debates/{session_id}/interventions
+```
+
+Create request:
+
+```json
+{
+  "ticker": "AAPL",
+  "question": "Which dated factors support each side?",
+  "opening_side": "bull"
+}
+```
+
+Only `debate_ready` stocks are accepted. `POST /debates` synchronously runs six
+alternating Bull/Bear messages and an Interim Judge, persists complete messages
+and citations, then returns `201 Created` with `session`, `messages`, `job_id`,
+and `execution_mode=synchronous_preview`. The Session is then
+`awaiting_user`.
+
+Challenge request:
+
+```json
+{
+  "selected_message_id": "uuid",
+  "selected_text": "exact text selected from that message",
+  "question": "Does this rebuttal underweight the filing risk?"
+}
+```
+
+The target must belong to the owner's active branch and the selected text must
+occur in that message. A valid Challenge persists the user question, runs four
+more alternating turns and the Final Judge, and returns the completed Session.
+Session/detail/history reads are owner-scoped.
+
+This preview is not an asynchronous or streaming claim. It does not implement
+Queue publication, SSE, explanation, cancellation, reconnect, a live provider,
+or Redis. In Supabase persistence mode it also requires the server-only secret
+and the checked-in Debate migrations; production remains disabled until those
+are applied and verified.
+
 ## Planned portfolio API
 
 The canonical request/response and SSE event shapes live in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
 
-### Debate sessions
+### Queue and streaming additions
 
 ```text
-POST /debates
-GET  /debates
-GET  /debates/{session_id}
-GET  /debates/{session_id}/messages
 GET  /debates/{session_id}/events
 POST /debates/{session_id}/cancel
 ```
 
-`POST /debates` will return `202 Accepted` with session/job IDs and a stream
-path. It will enqueue work rather than block until every model turn completes.
+The later Queue phase will change `POST /debates` from the explicit synchronous
+preview contract to `202 Accepted` with session/job IDs and a stream path. It
+will enqueue work rather than block until every model turn completes.
 
 The events endpoint emits authenticated SSE-formatted, versioned events such
 as `job.queued`, `turn.started`, `turn.delta`, `turn.completed`,
@@ -127,12 +178,11 @@ as `job.queued`, `turn.started`, `turn.delta`, `turn.completed`,
 
 ```text
 POST /debates/{session_id}/explanations
-POST /debates/{session_id}/interventions
 ```
 
-Explanation does not change Debate state. An intervention records a free-form
-challenge, cancels the active generation on a best-effort basis, and queues
-round two from the last complete message.
+Explanation will not change Debate state. The implemented Challenge endpoint
+will later gain active-generation cancellation and Queue-backed Round 2 from
+the last complete message.
 
 ### Compatibility
 

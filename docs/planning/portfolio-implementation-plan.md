@@ -931,8 +931,9 @@ Progress evidence: `9374398`, `58c70f8`, `6b415a5`, `598eb3d`, `f689328`,
 `191f65c`, `ab206bf`, `2183974`, `4831b22`, `554118f`, `22bacd3`, `330f1f9`,
 `29d1251`, and `731844d`. All current factor categories and Debate domain
 boundaries are implemented. Shared mobile tokens/components and the Watchlist,
-History, and About screens are extracted without changing behaviour. The factor
-snapshot and state machine are not yet connected to a V2 API runtime.
+History, and About screens are extracted without changing behaviour. At the
+Phase 1 checkpoint the factor snapshot and state machine were not connected;
+the completed Phase 3 preview now supplies that integration.
 
 Completion rule: current API/mobile behaviour remains compatible and tests prove
 a new factor provider is additive. Verified with 123 backend tests, mobile
@@ -981,7 +982,7 @@ project.
 
 ### Phase 3 — Debate persistence and deterministic state machine
 
-Status: In progress
+Status: Done in code; hosted migrations pending deployment verification
 
 - [x] Add Supabase migrations and RLS for sessions, jobs, messages, citations,
   and interventions.
@@ -989,26 +990,30 @@ Status: In progress
 - [x] Implement deterministic round-one and round-two turn plans.
 - [x] Persist every complete message and citation.
 - [x] Implement interim and final Judge states using the demo provider first.
-- [ ] Add legacy-analysis compatibility and feature flag.
+- [x] Add legacy-analysis compatibility and feature flag.
 - [x] Prove Bull/Bear inputs contain the prior opponent message.
 
 Completion rule: deterministic tests complete the entire two-round workflow,
 including awaiting-user, without streaming or a live provider.
 
-Implementation evidence: `7830a65`, `334e853`, `fb0c474`, `b1686dc`, and
-`d96bd46`. The repository now
+Implementation evidence: `7830a65`, `334e853`, `fb0c474`, `b1686dc`,
+`d96bd46`, `3c921b6`, `e0635e0`, and `6f6d0d7`. The repository now
 contains five constrained Debate tables, owner-read RLS, service-only writes,
 transaction RPCs for Session+Job and Message+citations, an in-memory adapter,
 and a Supabase adapter. Both adapters enforce optimistic state transitions and
 idempotency. The deterministic provider/orchestrator now completes six Round 1
 turns plus Interim Judge, pauses for a persisted Challenge, then completes four
 Round 2 turns plus Final Judge. Tests inspect every request's latest-opponent
-target and safe failure state. The migrations are prepared but not applied to
-hosted Supabase; the feature-flagged V2 API remains pending.
+target and safe failure state. The default-off V2 preview exposes owner-scoped
+Session, Message, and Challenge routes, freezes the current factor snapshot,
+and completes both rounds through the same repositories. It is explicitly
+synchronous and deterministic; the legacy `/analysis` contract is unchanged.
+The migrations are prepared but not applied to hosted Supabase, so production
+keeps `DEBATE_WORKFLOW_V2=false`.
 
 ### Phase 4 — Provider turn generation and SSE
 
-Status: Planned
+Status: In progress
 
 - [ ] Refactor provider adapters from one full JSON draft to one bounded turn at
   a time while retaining a compatibility adapter for the old flow.
@@ -1181,12 +1186,18 @@ database is below 400 MB, apply coverage, search, and seed migrations in filenam
 order, measure the `stocks` relation against the 15 MiB budget, and rerun
 public-read plus two-user Watchlist RLS checks.
 
-Do not connect Redis or Queue until that deployment gate is recorded. The safe
-code-only Phase 3 persistence and deterministic orchestration are complete.
-Next, add `DEBATE_WORKFLOW_V2=false` by default and expose the new Session,
-Message, and Challenge API alongside the unchanged legacy `/analysis` routes.
-The preview path must use the deterministic provider and local repository in
-tests, remain disabled in production, and avoid SSE or live provider work.
+Do not connect Redis or Queue until that deployment gate is recorded. Phase 3
+is complete in code: `DEBATE_WORKFLOW_V2=false` is the safe default, the
+synchronous deterministic Session/Message/Challenge preview is covered by API
+tests, and legacy `/analysis` remains compatible. Production remains disabled
+because the checked-in Debate migrations have not been applied or verified on
+hosted Supabase.
+
+The next code-only step is Phase 4's bounded per-turn provider/stream boundary.
+Start with versioned in-process events and the deterministic provider, then add
+one live streaming adapter behind the same default-off flag. Do not claim
+`202`, durable delivery, retry, Redis, or cross-process resume until their later
+phases and deployment checks are complete.
 
 ## 22. Primary implementation references
 

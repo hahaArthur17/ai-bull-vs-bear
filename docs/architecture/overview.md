@@ -46,8 +46,9 @@ The backend now has immutable, database-independent factor contracts, a
 validating `FactorRegistry`, and a `TechnicalFactorProvider` that normalizes the
 existing indicator calculation. Macro, news, filing, and structured
 financial-fact adapters now use the same snapshot contract. A test-only provider
-proves additive registration. This foundation is not yet wired into a V2 Debate
-and does not change the implemented synchronous API response.
+proves additive registration. The default-off V2 preview now freezes these
+current inputs into each Debate Session without changing the legacy synchronous
+API response.
 
 Database and Queue changes follow
 [`ADR-0001`](decisions/0001-staged-supabase-schema-and-queue.md); no hosted DDL
@@ -61,8 +62,9 @@ and versioned stream events. Deterministic plans encode six Bull/Bear turns plus
 an interim Judge in round one and four rebuttal turns plus a final Judge in
 round two. One state-transition service owns all legal session changes.
 
-Repository and turn/Judge provider protocols are implemented, but no new API,
-Supabase table, Queue consumer, or streaming runtime is connected yet.
+Repository and turn/Judge provider protocols are implemented. Phase 3 adds the
+local V2 API and repository adapters described below; no Queue consumer or
+streaming runtime is connected yet.
 
 The mobile boundary has also started moving out of the original single-file
 implementation. Shared design tokens and base UI components are centralized,
@@ -111,9 +113,18 @@ the repository and credential-free Turn/Judge provider. Stable message IDs,
 expected-status writes, and provider-input validation make completed jobs and
 Challenges idempotent; safe failure preserves the canonical partial transcript.
 
-No V2 route is connected yet. The next Phase 3 step is a default-off feature
-flag and preview API alongside the unchanged legacy `/analysis` path. Queue
-transport, a live provider, and streaming remain later phases.
+`DEBATE_WORKFLOW_V2=false` is now the explicit default. When deliberately
+enabled, authenticated Session, Message, and Challenge routes run the complete
+deterministic two-round workflow synchronously and return canonical completed
+messages with citations. The preview is hidden from OpenAPI and returns `404`
+while disabled. The legacy `/analysis` path is unchanged.
+
+This is an integration seam, not the final transport: it returns `201` only
+after the deterministic stage finishes and labels responses
+`synchronous_preview`. Queue-backed `202`, live provider deltas, SSE,
+cancellation, and reconnect remain later phases. The checked-in persistence
+migrations are still not applied to hosted Supabase, so production keeps V2
+disabled.
 
 ## Implemented single-response data flow
 

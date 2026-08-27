@@ -2,9 +2,9 @@
 
 Last reviewed: 2026-08-27
 
-The steps immediately below describe the implemented single-response workflow.
-The stateful multi-turn target follows it. Development sequencing is canonical
-in the
+The steps immediately below describe the deployed single-response workflow.
+The default-off deterministic multi-turn preview and its remaining target
+transport follow it. Development sequencing is canonical in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
 
 ## Implemented single-response workflow
@@ -81,8 +81,8 @@ Output:
 - safe final response
 - removed or rewritten unsafe advice
 
-The implemented provider returns Bull, Bear, and Judge in one validated JSON
-payload. Bull and Bear do not yet see or rebut each other's text.
+The deployed legacy provider returns Bull, Bear, and Judge in one validated JSON
+payload. Bull and Bear do not see or rebut each other's text on that path.
 
 ## Target stateful workflow
 
@@ -90,8 +90,9 @@ The database-independent session/message/job/event contracts, deterministic
 round plans, state-transition rules, turn/Judge provider inputs, and Phase 3
 persistence adapters described below are now implemented. A credential-free
 provider/orchestrator also executes both rounds and persists the user Challenge.
-Feature-flagged API routes, Worker/Queue transport, live-provider generation,
-and streaming remain target behaviour for later steps.
+Default-off Session, Message, and Challenge API routes now expose that workflow
+as `synchronous_preview`. Worker/Queue transport, live-provider generation,
+term explanation, cancellation, and streaming remain target behaviour.
 
 ### Step 1: Build one immutable analysis context
 
@@ -114,6 +115,10 @@ rewrite an existing Debate.
 The API creates a Debate session and stage job, sends the job ID to the durable
 Queue, returns `202 Accepted`, and exposes session/job status plus a stream path.
 The Queue payload contains identifiers only.
+
+The implemented Phase 3 preview stops before this transport boundary: it
+creates the same canonical Session/Job records but executes the deterministic
+stage in the request and returns `201 Created` after completion.
 
 ### Step 3: Produce three exchanges
 

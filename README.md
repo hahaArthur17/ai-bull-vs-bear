@@ -25,7 +25,8 @@ baseline is maintained in
 - Database-independent multi-turn Debate contracts plus local/Supabase
   repositories for sessions, complete messages/citations, interventions, and
   the application job ledger. A deterministic runtime completes both rounds and
-  the user-Challenge pause; the V2 API is not connected yet.
+  the user-Challenge pause. A default-off V2 preview exposes the Session,
+  Message, and Challenge API synchronously while production remains unchanged.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
@@ -51,8 +52,9 @@ baseline is maintained in
 
 ## Planned portfolio milestone
 
-The implemented Debate is currently a single synchronous Bull/Bear/Judge
-response. The active
+The deployed mobile Debate is currently a single synchronous Bull/Bear/Judge
+response; the code-only V2 API preview already proves deterministic multi-turn
+state and persistence but does not stream or enqueue. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
 defines the next milestone: durable queued Debate stages, Redis
 cache/rate-limit/idempotency, streamed multi-turn rebuttals, user

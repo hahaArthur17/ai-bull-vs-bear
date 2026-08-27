@@ -24,6 +24,9 @@ or temporary suspension until the quota resets.
   persistent data. No Render database or persistent disk is created.
 - Production sets `ANALYSIS_PROVIDER=demo`. Bull, Bear, and Judge responses are
   deterministic and consume no Groq or Gemini tokens.
+- Production sets `DEBATE_WORKFLOW_V2=false`. The code-only synchronous preview
+  is not a deployed Queue/streaming feature and remains inaccessible until its
+  Supabase migrations and service-role checks are applied deliberately.
 - Pytest forces demo auth, persistence, and analysis settings before importing
   the application, so a developer's local `.env` cannot make tests call live
   Supabase or model providers.
@@ -125,6 +128,8 @@ model verification.
    - backend `SUPABASE_URL` and `SUPABASE_ANON_KEY`;
    - frontend `EXPO_PUBLIC_SUPABASE_URL` and
      `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
+
+   Keep the Blueprint-provided `DEBATE_WORKFLOW_V2=false` unchanged.
 
 6. For the current deployed baseline, do **not** add `SUPABASE_SECRET_KEY`, SEC,
    Alpha Vantage, Apify, Groq, Gemini, or RLS-test-user credentials to either

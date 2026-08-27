@@ -3,9 +3,11 @@
 The backend is a FastAPI service. It runs in deterministic demo mode by default,
 so the project can be explored without API keys or a Supabase project.
 
-The current runtime produces one synchronous Bull/Bear/Judge response. Durable
-Queue jobs, Redis coordination, and streamed multi-turn Debate are planned, not
-yet implemented. Follow the canonical
+The public baseline produces one synchronous Bull/Bear/Judge response. A
+default-off `DEBATE_WORKFLOW_V2` preview also exercises the complete
+deterministic two-round Session/Message workflow synchronously. Durable Queue
+delivery, Redis coordination, and streamed Debate are planned, not yet
+implemented. Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.
 
@@ -29,6 +31,12 @@ Open http://localhost:8000/docs for the interactive API documentation.
 Copy the repository-level .env.example to .env when you are ready to add
 Supabase or model-provider credentials. The deterministic demo provider remains
 the default until a real provider is selected explicitly.
+
+`DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the local
+Phase 3 preview routes; it does not enable streaming or a Queue. In Supabase
+persistence mode the preview additionally requires `SUPABASE_SECRET_KEY` and
+the checked-in Debate migrations to have been applied. Production keeps the
+flag false until those deployment checks pass.
 
 Supported model providers:
 

@@ -30,6 +30,9 @@ When resuming the project:
   interactive charts, and the first cached macro-market context layer.
 - [`project-week-07.md`](project-week-07.md) — staged Supabase/Queue decision,
   Phase 1 characterization, and the extensible factor foundation.
+- [`project-week-08.md`](project-week-08.md) — zero-cost catalog implementation,
+  Debate persistence, deterministic two-round orchestration, and the default-off
+  V2 preview API.
 
 ## Template for a new report
 
