@@ -915,14 +915,20 @@ Status: In progress
 
 - [x] Record the staged Supabase business-table and Queue migration decision;
   Phase 1 intentionally makes no hosted DDL change.
-- [ ] Add characterization tests for current analysis, history, watchlist,
+- [x] Add characterization tests for current analysis, history, watchlist,
   evidence snapshots, and provider adapters.
-- [ ] Define domain models for factors, sessions, messages, jobs, and events.
-- [ ] Introduce repository/provider protocols without changing runtime output.
-- [ ] Add `FactorRegistry` wrapping current sources.
-- [ ] Add the test-only mock factor extension proof.
+- [x] Define immutable factor domain models and validation rules.
+- [ ] Define domain models for sessions, messages, jobs, and events.
+- [x] Introduce the `FactorProvider` protocol without changing runtime output.
+- [ ] Introduce Debate repository/provider protocols.
+- [x] Add `FactorRegistry` and wrap the current technical-indicator calculation.
+- [ ] Wrap the current macro, news, filing, and financial-fact sources.
+- [x] Add the test-only mock factor extension proof.
 - [ ] Begin extracting mobile screens and shared design tokens without a visual
   rewrite.
+
+Progress evidence: `9374398`, `58c70f8`, `6b415a5`, and `598eb3d`. The factor
+foundation is implemented but is not yet connected to a V2 Debate runtime.
 
 Completion rule: current API/mobile behaviour remains compatible and tests prove
 a new factor provider is additive.

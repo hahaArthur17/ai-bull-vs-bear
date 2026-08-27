@@ -28,6 +28,8 @@ When resuming the project:
   multi-profile storage, source-aware chunking, XBRL facts, and release checks.
 - [`project-week-06.md`](project-week-06.md) — current-price Debate integrity,
   interactive charts, and the first cached macro-market context layer.
+- [`project-week-07.md`](project-week-07.md) — staged Supabase/Queue decision,
+  Phase 1 characterization, and the extensible factor foundation.
 
 ## Template for a new report
 

@@ -40,6 +40,18 @@ validated Bull/Bear/Judge JSON draft, filter evidence IDs to the retrieved
 corpus, record token usage, and pass all user-facing text through the guardrail
 policy before it reaches the user.
 
+### Phase 1 factor foundation
+
+The backend now has immutable, database-independent factor contracts, a
+validating `FactorRegistry`, and a `TechnicalFactorProvider` that normalizes the
+existing indicator calculation. A test-only provider proves additive
+registration. This foundation is not yet wired into a V2 Debate and does not
+change the implemented synchronous API response.
+
+Database and Queue changes follow
+[`ADR-0001`](decisions/0001-staged-supabase-schema-and-queue.md); no hosted DDL
+is changed during the initial factor work.
+
 ## Implemented single-response data flow
 
 1. The mobile client requests supported stocks and the user's watchlist.

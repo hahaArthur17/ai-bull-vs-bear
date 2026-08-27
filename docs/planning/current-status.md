@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 78 backend tests and the mobile TypeScript check pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 92 backend tests and the mobile TypeScript check pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -82,6 +82,20 @@ and first coding task are canonical in
 Documentation Phase 0 is complete. The active development phase is Phase 1:
 characterize the current behaviour, introduce factor/domain contracts, and
 prove that a mock factor can be added without changing the existing API output.
+
+### Phase 1 progress
+
+The synchronous analysis contract now has explicit characterization tests.
+Immutable `AnalysisContext`/`FactorObservation` contracts, a validating
+`FactorRegistry`, and the first `TechnicalFactorProvider` are implemented. A
+test-only mock sentiment provider proves that registration adds a new factor
+without changing the registry or existing technical provider. These components
+are a foundation for the V2 Debate and do not change the current API response.
+
+Supabase DDL remains unchanged by design. The accepted
+[`ADR-0001`](../architecture/decisions/0001-staged-supabase-schema-and-queue.md)
+assigns catalog changes to Phase 2, Debate business tables to Phase 3, and the
+`pgmq` Queue migration to Phase 5.
 
 ## Boundaries that remain in force
 
