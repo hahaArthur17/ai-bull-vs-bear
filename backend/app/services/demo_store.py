@@ -290,6 +290,17 @@ class DemoStore:
         normalized = ticker.upper()
         return next((stock.copy() for stock in self._stocks if stock["ticker"] == normalized), None)
 
+    def get_stock_record_id(
+        self,
+        ticker: str,
+        access_token: str | None = None,
+    ) -> int:
+        normalized = ticker.upper()
+        for record_id, stock in enumerate(self._stocks, start=1):
+            if stock["ticker"] == normalized:
+                return record_id
+        raise ValueError(f"Stock {normalized} is not in the catalog")
+
     def get_prices(self, ticker: str) -> list[dict[str, object]]:
         return [point.copy() for point in self._prices.get(ticker.upper(), [])]
 

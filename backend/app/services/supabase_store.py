@@ -148,6 +148,15 @@ class SupabaseStore(DemoStore):
             raise RepositoryError(f"Stock {ticker.upper()} is not seeded in Supabase")
         return int(rows[0]["id"])
 
+    def get_stock_record_id(
+        self,
+        ticker: str,
+        access_token: str | None = None,
+    ) -> int:
+        if not access_token:
+            raise RepositoryError("A user access token is required for Supabase persistence")
+        return self._stock_id(ticker, access_token)
+
     def get_watchlist(self, user_id: str, access_token: str | None = None) -> list[str]:
         response = self._request(
             "GET",
