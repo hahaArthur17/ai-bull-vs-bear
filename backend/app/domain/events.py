@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from typing import Literal
 from uuid import UUID
 
-from pydantic import Field, JsonValue, model_validator
+from pydantic import ConfigDict, Field, JsonValue, model_validator
 
 from app.domain.base import AwareDatetime, ImmutableDomainModel
 
@@ -55,6 +55,15 @@ def _contains_forbidden_key(value: JsonValue) -> bool:
 
 
 class DebateEvent(ImmutableDomainModel):
+    # Provider deltas may begin or end with meaningful whitespace. Preserve
+    # nested payload strings exactly so streamed text can be reconstructed.
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=False,
+        allow_inf_nan=False,
+    )
+
     version: Literal[1] = 1
     event_id: UUID
     session_id: UUID
@@ -68,4 +77,3 @@ class DebateEvent(ImmutableDomainModel):
         if _contains_forbidden_key(self.payload):
             raise ValueError("Event payload contains a forbidden sensitive key")
         return self
-

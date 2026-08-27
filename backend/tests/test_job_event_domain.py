@@ -100,6 +100,19 @@ def test_event_envelope_is_versioned_json_safe_and_round_trippable() -> None:
     assert event.version == 1
 
 
+def test_event_delta_payload_preserves_meaningful_boundary_whitespace() -> None:
+    event = DebateEvent(
+        event_id=UUID("00000000-0000-4000-8000-000000000035"),
+        session_id=SESSION_ID,
+        sequence=13,
+        type="turn.delta",
+        timestamp=NOW,
+        payload={"delta": " leading and trailing "},
+    )
+
+    assert event.payload["delta"] == " leading and trailing "
+
+
 def test_event_payload_rejects_nested_sensitive_keys() -> None:
     with pytest.raises(ValidationError, match="forbidden sensitive key"):
         DebateEvent(
@@ -121,4 +134,3 @@ def test_domain_timestamps_must_include_a_timezone() -> None:
             trace_id="trace_20260827_001",
             enqueued_at=datetime(2026, 8, 27, 11, 0),
         )
-
