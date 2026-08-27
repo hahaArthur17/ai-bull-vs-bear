@@ -157,9 +157,13 @@ class FakePostgrest:
                 ],
             )
         if table == "watchlists" and request.method == "GET":
+            ticker_by_id = {int(row["id"]): str(row["ticker"]) for row in self.stock_rows}
             return httpx.Response(
                 200,
-                json=[{"stocks": {"ticker": "AAPL"}}] if self.watchlist else [],
+                json=[
+                    {"stocks": {"ticker": ticker_by_id[stock_id]}}
+                    for stock_id in sorted(self.watchlist)
+                ],
             )
         if table == "watchlists" and request.method == "POST":
             self.watchlist.add(body["stock_id"])
@@ -198,6 +202,14 @@ def test_supabase_watchlist_round_trip() -> None:
 
     assert store.add_watchlist("user-1", "AAPL", "user-token") == ["AAPL"]
     assert store.remove_watchlist("user-1", "AAPL", "user-token") == []
+
+
+def test_supabase_watchlist_accepts_catalog_only_stock() -> None:
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    assert store.add_watchlist("user-1", "MSFT", "user-token") == ["MSFT"]
+    assert store.remove_watchlist("user-1", "MSFT", "user-token") == []
 
 
 def test_supabase_catalog_search_and_lookup_use_authoritative_rows() -> None:

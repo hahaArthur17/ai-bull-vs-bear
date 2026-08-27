@@ -51,6 +51,16 @@ def test_catalog_search_is_limited_and_performs_no_external_request(
     assert client.get("/stocks", params={"q": "a", "limit": 26}).status_code == 422
 
 
+def test_catalog_only_stock_can_be_saved_to_watchlist() -> None:
+    headers = {"X-User-Id": "catalog-watchlist-user"}
+
+    add_response = client.post("/watchlist", json={"ticker": "MSFT"}, headers=headers)
+
+    assert add_response.status_code == 201
+    assert add_response.json()["tickers"] == ["MSFT"]
+    assert client.delete("/watchlist/MSFT", headers=headers).json()["tickers"] == []
+
+
 def test_quote_endpoint_returns_the_cached_quote(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import main
 
