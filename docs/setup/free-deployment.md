@@ -80,6 +80,7 @@ provider integration.
 | FastAPI health-check peak RSS | 56,033,280 bytes (about 53.4 MiB) | About 10.4% of Render Free's 512 MB RAM |
 | Backend source copied into image | 316 KB | Negligible |
 | Expo Web export | 616 KB, 3 files | Suitable for a static CDN |
+| Phase 2 stock catalog | estimated 3.9–6.9 MiB including rows/indexes; 15 MiB budget | At most 3% of Supabase Free's 500 MB database quota |
 | Render Free compute | one 0.1 CPU / 512 MB service | One service fits within 750 instance-hours/month |
 
 The development folders are much larger (`backend/.venv` about 244 MB and
@@ -94,7 +95,7 @@ minute. The production frontend therefore uses a 75-second request timeout.
 | Service | Free allowance relevant to this demo | Enforced demo use |
 | --- | --- | --- |
 | Render | 750 free web-service hours/workspace/month; free static site | One backend only; `plan: free`; no payment method, so limit exhaustion suspends instead of billing |
-| Supabase | 500 MB database, 50,000 MAU, 5 GB egress, 5 GB cached egress, 1 GB file storage | Existing small dataset; no file uploads; never upgrade from Free |
+| Supabase | 500 MB database, 50,000 MAU, 5 GB egress, 5 GB cached egress, 1 GB file storage | Keep 100 MB database headroom; catalog budget 15 MiB; no file uploads; never upgrade from Free |
 | Daily market data | Provider free allowance | AAPL only by default, one provider call per weekday refresh, and no retry in the batch command |
 | Groq / Gemini | Provider-specific free rate limits | 0 production requests because `ANALYSIS_PROVIDER=demo` |
 | Apify | $5/month Free prepaid usage, no card required | Disabled; 0 production runs until a concrete Actor is justified |

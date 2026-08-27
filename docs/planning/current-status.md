@@ -140,6 +140,12 @@ the four curated `debate_ready` records. The migrations have not yet been
 applied to the hosted Supabase project, and the current API still reads the old
 four-symbol repository path.
 
+The catalog's stored text is 455,371 bytes. Its table and indexes are estimated
+at 3.9–6.9 MiB, with a conservative 15 MiB deployment budget—3% of the current
+500 MB Supabase Free database quota. The feature remains in scope. Deployment
+must stop if the existing database is already above 400 MB or the measured
+catalog relation exceeds 15 MiB after migration.
+
 ## Boundaries that remain in force
 
 - Educational explanations only; no personalised allocations, trading

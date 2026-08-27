@@ -62,6 +62,21 @@ missing-exchange rows were excluded. The raw source SHA-256 is
 `ab3f22c4c6549d7e3eadfe5ff5420bfff654ea4e4f2c7ea7e96382ea2a98b422`.
 The artifact and refresh instructions live in [`data/catalog`](../../../data/catalog/README.md).
 
+### Free-tier capacity decision
+
+The normalized fields that will be stored in Postgres contain 455,371 bytes of
+UTF-8 text across 7,695 rows. A conservative calculation including tuple
+overhead, four B-tree indexes, and trigram postings estimates roughly 3.9–6.9
+MiB. Phase 2 reserves a 15 MiB catalog budget until the deployed relation can be
+measured directly. That budget is 3% of Supabase Free's current 500 MB database
+quota, so the catalog and coverage-aware Watchlist remain in scope.
+
+Before applying the migrations, the existing database must be below 400 MB so
+at least 100 MB of headroom remains. After applying them, record
+`pg_total_relation_size('public.stocks')` and the total database size. If the
+catalog exceeds 15 MiB, stop and review indexes and catalog scope rather than
+silently accepting the increase.
+
 ## Rejected alternatives
 
 ### Search a market-data provider on demand
@@ -104,6 +119,9 @@ provide country or sector. Inferring those fields would create misleading data.
   as common stock.
 - Search results identify securities only. Price, evidence, and Debate endpoints
   must continue to enforce their own coverage requirements.
+- Evidence text and vector embeddings are expected to be the larger long-term
+  storage risk. Removing Watchlist behaviour would not materially reduce those
+  relations, so storage decisions must be based on measured relation sizes.
 
 ## Implementation gate
 

@@ -92,6 +92,33 @@ Dashboard: <https://supabase.com/dashboard>
 6. Verify row-level security with two separate test users before relying on the
    project for persisted user data.
 
+Before applying the Phase 2 catalog migrations, run this in SQL Editor:
+
+```sql
+select
+  pg_size_pretty(pg_database_size(current_database())) as database_size,
+  pg_database_size(current_database()) as database_bytes;
+```
+
+Do not apply the full catalog when `database_bytes` is above 400,000,000
+(400 MB). This project keeps 100 MB of the Free Plan's 500 MB database quota
+as headroom for evidence, vectors, Debate history, Queue metadata, and normal
+Postgres growth.
+
+After applying `20260827_stock_catalog_coverage.sql` and
+`20260827_stock_catalog_seed.sql`, record the actual catalog footprint:
+
+```sql
+select
+  pg_size_pretty(pg_relation_size('public.stocks')) as table_only,
+  pg_size_pretty(pg_indexes_size('public.stocks')) as indexes,
+  pg_size_pretty(pg_total_relation_size('public.stocks')) as total_with_indexes,
+  pg_size_pretty(pg_database_size(current_database())) as database_total;
+```
+
+The accepted catalog budget is 15 MiB including indexes. Stop and investigate
+if the measured `total_with_indexes` exceeds it.
+
 `SUPABASE_SECRET_KEY` is used only by the backend ingestion script. The mobile
 app needs only the publishable/anon key.
 
