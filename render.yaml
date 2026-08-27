@@ -11,6 +11,7 @@ services:
         - .dockerignore
         - backend/app/**
         - backend/requirements-runtime.txt
+        - data/catalog/**
     envVars:
       - key: ENVIRONMENT
         value: production

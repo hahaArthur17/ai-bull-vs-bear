@@ -10,6 +10,7 @@ COPY backend/requirements-runtime.txt ./requirements.txt
 RUN pip install --no-cache-dir --disable-pip-version-check -r requirements.txt
 
 COPY backend/app ./app
+COPY data/catalog ./data/catalog
 
 RUN useradd --create-home --uid 10001 appuser \
     && chown -R appuser:appuser /srv/api

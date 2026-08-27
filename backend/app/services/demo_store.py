@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 import random
 from datetime import date, timedelta
 from threading import Lock
@@ -60,8 +62,9 @@ STOCKS: list[dict[str, object]] = [
 class DemoStore:
     """Small deterministic repository used when Supabase is not configured."""
 
-    def __init__(self) -> None:
+    def __init__(self, catalog_path: str | Path | None = None) -> None:
         self._lock = Lock()
+        self._stocks = self._build_stock_catalog(catalog_path)
         self._prices = {stock["ticker"]: self._build_prices(stock["ticker"]) for stock in STOCKS}
         self._evidence = self._build_evidence()
         self._watchlists: dict[str, set[str]] = {"demo-user": {"AAPL"}}
@@ -191,19 +194,101 @@ class DemoStore:
             ],
         }
 
-    def list_stocks(self, query: str | None = None) -> list[dict[str, object]]:
-        if not query:
-            return [stock.copy() for stock in STOCKS]
-        normalized = query.strip().lower()
-        return [
-            stock.copy()
-            for stock in STOCKS
-            if normalized in stock["ticker"].lower() or normalized in stock["company_name"].lower()
-        ]
+    @staticmethod
+    def _build_stock_catalog(catalog_path: str | Path | None) -> list[dict[str, object]]:
+        resolved_path = DemoStore._resolve_catalog_path(catalog_path)
+        catalog = {str(stock["ticker"]): stock.copy() for stock in STOCKS}
+        if resolved_path is None:
+            return sorted(catalog.values(), key=lambda stock: str(stock["ticker"]))
+
+        try:
+            snapshot = json.loads(resolved_path.read_text(encoding="utf-8"))
+            source = snapshot["source"]
+            rows = snapshot["stocks"]
+            retrieved_on = str(source["retrieved_on"])
+        except (KeyError, OSError, TypeError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise ValueError(f"Invalid stock catalog snapshot: {resolved_path}") from exc
+        if not isinstance(rows, list):
+            raise ValueError(f"Invalid stock catalog rows: {resolved_path}")
+
+        for row in rows:
+            if not isinstance(row, dict):
+                raise ValueError(f"Invalid stock catalog row: {resolved_path}")
+            ticker = str(row.get("ticker", "")).upper()
+            if not ticker:
+                raise ValueError(f"Stock catalog row is missing a ticker: {resolved_path}")
+            if ticker in catalog:
+                continue
+            catalog[ticker] = {
+                "ticker": ticker,
+                "company_name": str(row["company_name"]),
+                "exchange": str(row["exchange"]),
+                "sector": None,
+                "sec_cik": int(row["sec_cik"]),
+                "country": None,
+                "aliases": [],
+                "is_active": True,
+                "coverage_status": "catalog_only",
+                "coverage_updated_at": f"{retrieved_on}T00:00:00Z",
+            }
+        return sorted(catalog.values(), key=lambda stock: str(stock["ticker"]))
+
+    @staticmethod
+    def _resolve_catalog_path(catalog_path: str | Path | None) -> Path | None:
+        if catalog_path is not None:
+            path = Path(catalog_path)
+            if not path.is_file():
+                raise ValueError(f"Stock catalog snapshot does not exist: {path}")
+            return path
+        filename = "sec-company-tickers-exchange-2026-08-27.json"
+        candidates = (
+            Path(__file__).resolve().parents[3] / "data/catalog" / filename,
+            Path(__file__).resolve().parents[2] / "data/catalog" / filename,
+        )
+        return next((path for path in candidates if path.is_file()), None)
+
+    def list_stocks(
+        self,
+        query: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, object]]:
+        bounded_limit = max(1, min(limit, 25))
+        normalized = (query or "").strip().lower()
+        if not normalized:
+            return [
+                stock.copy()
+                for stock in self._stocks
+                if stock["coverage_status"] == "debate_ready"
+            ][:bounded_limit]
+
+        ranked: list[tuple[int, str, dict[str, object]]] = []
+        for stock in self._stocks:
+            ticker = str(stock["ticker"]).lower()
+            company_name = str(stock["company_name"]).lower()
+            aliases = [str(alias).lower() for alias in stock.get("aliases", [])]
+            rank: int | None = None
+            if ticker == normalized:
+                rank = 0
+            elif ticker.startswith(normalized):
+                rank = 1
+            elif normalized in aliases:
+                rank = 2
+            elif len(normalized) >= 2 and company_name.startswith(normalized):
+                rank = 3
+            elif len(normalized) >= 2 and any(alias.startswith(normalized) for alias in aliases):
+                rank = 4
+            elif len(normalized) >= 3 and normalized in " ".join(
+                [ticker, company_name, *aliases]
+            ):
+                rank = 5
+            if rank is not None:
+                ranked.append((rank, ticker, stock))
+        ranked.sort(key=lambda match: (match[0], match[1]))
+        return [stock.copy() for _, _, stock in ranked[:bounded_limit]]
 
     def get_stock(self, ticker: str) -> dict[str, object] | None:
         normalized = ticker.upper()
-        return next((stock.copy() for stock in STOCKS if stock["ticker"] == normalized), None)
+        return next((stock.copy() for stock in self._stocks if stock["ticker"] == normalized), None)
 
     def get_prices(self, ticker: str) -> list[dict[str, object]]:
         return [point.copy() for point in self._prices.get(ticker.upper(), [])]
