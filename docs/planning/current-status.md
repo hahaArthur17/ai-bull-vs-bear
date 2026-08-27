@@ -120,6 +120,14 @@ Supabase DDL remains unchanged by design. The accepted
 assigns catalog changes to Phase 2, Debate business tables to Phase 3, and the
 `pgmq` Queue migration to Phase 5.
 
+### Phase 2 progress
+
+[`ADR-0002`](../architecture/decisions/0002-sec-static-stock-catalog.md) selects a
+bounded, checked-in SEC ticker/exchange snapshot as the stock identity catalog.
+It will be refreshed manually rather than queried during search, so search has
+no runtime SEC or market-data cost. Country and sector are not inferred from the
+source; imported non-demo symbols begin as `catalog_only`.
+
 ## Boundaries that remain in force
 
 - Educational explanations only; no personalised allocations, trading

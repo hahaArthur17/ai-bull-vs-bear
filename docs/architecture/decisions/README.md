@@ -8,4 +8,4 @@ and do not claim that planned work is already deployed.
 | Decision | Status | Summary |
 | --- | --- | --- |
 | [ADR-0001](0001-staged-supabase-schema-and-queue.md) | Accepted | Evolve application tables and Supabase Queue in separate, phase-owned migrations. |
-
+| [ADR-0002](0002-sec-static-stock-catalog.md) | Accepted | Build the zero-runtime-cost stock identity catalog from a bounded, versioned SEC exchange-association snapshot. |

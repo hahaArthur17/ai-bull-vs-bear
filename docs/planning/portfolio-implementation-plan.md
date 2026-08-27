@@ -950,7 +950,7 @@ Suggested focused commits:
 
 Status: In progress
 
-- [ ] Choose and document a bounded static symbol catalog source.
+- [x] Choose and document a bounded static symbol catalog source.
 - [ ] Add catalog/coverage migration and seed data.
 - [ ] Make Supabase repository stock lookup authoritative instead of inheriting
   the four-item `DemoStore` catalog.
@@ -962,6 +962,12 @@ Status: In progress
 
 Completion rule: an unsupported catalog ticker can be searched, identified, and
 saved without consuming a market-data call or showing synthetic analysis.
+
+Source decision evidence:
+[`ADR-0002`](../architecture/decisions/0002-sec-static-stock-catalog.md) selects a
+versioned SEC ticker/exchange snapshot, filtered to Nasdaq, NYSE, and CBOE and
+bounded to at most 10,000 rows. It is a securities identity catalog rather than a
+claim of live price, evidence, or Debate coverage.
 
 ### Phase 3 — Debate persistence and deterministic state machine
 
@@ -1147,9 +1153,8 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phase 1 is complete. Start Phase 2 by selecting and documenting a bounded,
-redistributable US-symbol catalog source and update date. Then add the catalog
-and coverage migration with its repository tests before changing the mobile
+Phase 1 is complete and the Phase 2 source decision is accepted. Next, add the
+catalog/coverage migration and its repository tests before changing the mobile
 search interface.
 
 The first Phase 2 proof must show that searching a catalog-only ticker performs

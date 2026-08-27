@@ -203,6 +203,7 @@ Detailed fields, state names, and acceptance criteria are canonical in the
 
 Extend `stocks` with bounded catalog and capability metadata:
 
+- sec_cik (nullable and non-unique across share classes)
 - country
 - aliases/search_text
 - is_active
@@ -212,6 +213,14 @@ Extend `stocks` with bounded catalog and capability metadata:
 
 Coverage describes configured capabilities. Response-level source/freshness
 still determines whether cached data is safe to display or use.
+
+[`ADR-0002`](../architecture/decisions/0002-sec-static-stock-catalog.md)
+selects a checked-in snapshot derived from the SEC ticker/exchange association
+file. The first import includes Nasdaq, NYSE, and CBOE rows only, rejects more
+than 10,000 normalized rows, leaves unverified country and sector values null,
+and assigns every non-demo row `catalog_only`. Catalog generation is a manual
+maintenance operation; application search never calls the SEC or a market-data
+provider.
 
 ### `debate_sessions`
 
