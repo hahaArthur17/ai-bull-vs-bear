@@ -30,6 +30,27 @@ def test_health_and_stock_endpoints() -> None:
     assert client.get("/macro/series/vix").json() == []
 
 
+def test_catalog_search_is_limited_and_performs_no_external_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main
+
+    def fail_external_request(*args: object, **kwargs: object) -> None:
+        raise AssertionError("Catalog search must not make an external HTTP request")
+
+    monkeypatch.setattr("httpx.get", fail_external_request)
+    repository = DemoStore()
+    monkeypatch.setattr(main, "store", repository)
+    monkeypatch.setattr(main, "analysis_service", AnalysisService(repository))
+
+    response = client.get("/stocks", params={"q": "microsoft", "limit": 3})
+
+    assert response.status_code == 200
+    assert [stock["ticker"] for stock in response.json()] == ["MSFT"]
+    assert response.json()[0]["coverage_status"] == "catalog_only"
+    assert client.get("/stocks", params={"q": "a", "limit": 26}).status_code == 422
+
+
 def test_quote_endpoint_returns_the_cached_quote(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import main
 

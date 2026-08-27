@@ -94,8 +94,11 @@ def health() -> dict[str, str]:
 
 
 @app.get("/stocks", response_model=list[Stock])
-def list_stocks(q: str | None = Query(default=None, max_length=40)) -> list[Stock]:
-    return [Stock.model_validate(stock) for stock in store.list_stocks(q)]
+def list_stocks(
+    q: str | None = Query(default=None, max_length=40),
+    limit: int = Query(default=20, ge=1, le=25),
+) -> list[Stock]:
+    return [Stock.model_validate(stock) for stock in store.list_stocks(q, limit)]
 
 
 @app.get("/stocks/{ticker}", response_model=Stock)

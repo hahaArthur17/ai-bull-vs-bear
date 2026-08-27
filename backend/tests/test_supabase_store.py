@@ -15,6 +15,35 @@ class FakePostgrest:
         self.responses: dict[str, dict[str, object]] = {}
         self.price_rows: list[dict[str, object]] = []
         self.price_status = 200
+        self.catalog_searches: list[dict[str, object]] = []
+        self.stock_rows = [
+            {
+                "id": 1,
+                "ticker": "AAPL",
+                "company_name": "Apple Inc.",
+                "exchange": "NASDAQ",
+                "sector": "Technology",
+                "sec_cik": 320193,
+                "country": "US",
+                "aliases": ["apple"],
+                "is_active": True,
+                "coverage_status": "debate_ready",
+                "coverage_updated_at": "2026-08-27T00:00:00Z",
+            },
+            {
+                "id": 2,
+                "ticker": "MSFT",
+                "company_name": "MICROSOFT CORP",
+                "exchange": "NASDAQ",
+                "sector": None,
+                "sec_cik": 789019,
+                "country": None,
+                "aliases": [],
+                "is_active": True,
+                "coverage_status": "catalog_only",
+                "coverage_updated_at": "2026-08-27T00:00:00Z",
+            },
+        ]
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["apikey"] == "anon-key"
@@ -23,7 +52,26 @@ class FakePostgrest:
         query = parse_qs(request.url.query.decode())
         body = __import__("json").loads(request.content or b"null")
         if table == "stocks":
-            return httpx.Response(200, json=[{"id": 1}])
+            rows = self.stock_rows
+            if "ticker" in query:
+                ticker = query["ticker"][0].removeprefix("eq.")
+                rows = [row for row in rows if row["ticker"] == ticker]
+            if "coverage_status" in query:
+                coverage = query["coverage_status"][0].removeprefix("eq.")
+                rows = [row for row in rows if row["coverage_status"] == coverage]
+            if query.get("select") == ["id"]:
+                return httpx.Response(200, json=[{"id": row["id"]} for row in rows[:1]])
+            return httpx.Response(200, json=rows)
+        if table == "search_stock_catalog":
+            self.catalog_searches.append(body)
+            search_query = str(body["search_query"]).lower()
+            rows = [
+                row
+                for row in self.stock_rows
+                if search_query in str(row["ticker"]).lower()
+                or search_query in str(row["company_name"]).lower()
+            ]
+            return httpx.Response(200, json=rows[: int(body["result_limit"])])
         if table == "stock_prices":
             return httpx.Response(self.price_status, json=self.price_rows)
         if table == "stock_price_history":
@@ -150,6 +198,26 @@ def test_supabase_watchlist_round_trip() -> None:
 
     assert store.add_watchlist("user-1", "AAPL", "user-token") == ["AAPL"]
     assert store.remove_watchlist("user-1", "AAPL", "user-token") == []
+
+
+def test_supabase_catalog_search_and_lookup_use_authoritative_rows() -> None:
+    fake = FakePostgrest()
+    store = build_store(fake)
+
+    results = store.list_stocks("micro", limit=5)
+    stock = store.get_stock("MSFT")
+
+    assert results[0]["ticker"] == "MSFT"
+    assert results[0]["coverage_status"] == "catalog_only"
+    assert stock == results[0]
+    assert fake.catalog_searches == [{"search_query": "micro", "result_limit": 5}]
+
+
+def test_supabase_default_catalog_list_contains_only_debate_ready_rows() -> None:
+    results = build_store(FakePostgrest()).list_stocks()
+
+    assert [stock["ticker"] for stock in results] == ["AAPL"]
+    assert results[0]["coverage_status"] == "debate_ready"
 
 
 def test_supabase_analysis_round_trip() -> None:

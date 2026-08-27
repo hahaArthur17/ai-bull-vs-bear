@@ -7,7 +7,7 @@ from typing import Any
 import httpx
 from pydantic import ValidationError
 
-from app.schemas import AnalysisResponse
+from app.schemas import AnalysisResponse, Stock
 from app.services.demo_store import DemoStore
 from app.services.evidence_freshness import classify_evidence_freshness
 from app.services.rag import retrieve_evidence
@@ -35,6 +35,69 @@ class SupabaseStore(DemoStore):
         self.anon_key = anon_key
         self.client = client
         self.price_stale_after_days = price_stale_after_days
+
+    def list_stocks(
+        self,
+        query: str | None = None,
+        limit: int = 20,
+    ) -> list[dict[str, object]]:
+        bounded_limit = max(1, min(limit, 25))
+        normalized = (query or "").strip()
+        try:
+            if normalized:
+                response = self._public_rpc(
+                    "search_stock_catalog",
+                    {"search_query": normalized, "result_limit": bounded_limit},
+                )
+            else:
+                response = self._public_request(
+                    "stocks",
+                    params={
+                        "select": self._stock_select(),
+                        "is_active": "eq.true",
+                        "coverage_status": "eq.debate_ready",
+                        "order": "ticker.asc",
+                        "limit": str(bounded_limit),
+                    },
+                )
+        except RepositoryError:
+            logger.warning("Supabase stock catalog unavailable; using the versioned local snapshot")
+            return super().list_stocks(query, bounded_limit)
+        return self._stock_rows(response.json())
+
+    def get_stock(self, ticker: str) -> dict[str, object] | None:
+        normalized = ticker.strip().upper()
+        try:
+            response = self._public_request(
+                "stocks",
+                params={
+                    "select": self._stock_select(),
+                    "ticker": f"eq.{normalized}",
+                    "is_active": "eq.true",
+                    "limit": "1",
+                },
+            )
+        except RepositoryError:
+            logger.warning("Supabase stock lookup unavailable; using the versioned local snapshot")
+            return super().get_stock(normalized)
+        rows = self._stock_rows(response.json())
+        return rows[0] if rows else None
+
+    @staticmethod
+    def _stock_select() -> str:
+        return (
+            "ticker,company_name,exchange,sector,sec_cik,country,aliases,"
+            "is_active,coverage_status,coverage_updated_at"
+        )
+
+    @staticmethod
+    def _stock_rows(payload: object) -> list[dict[str, object]]:
+        if not isinstance(payload, list):
+            raise RepositoryError("Supabase stock catalog returned an invalid payload")
+        try:
+            return [Stock.model_validate(row).model_dump(mode="json") for row in payload]
+        except ValidationError as exc:
+            raise RepositoryError("Supabase stock catalog returned an invalid row") from exc
 
     def _request(
         self,
@@ -339,7 +402,7 @@ class SupabaseStore(DemoStore):
                 timeout=10.0,
             )
         except httpx.RequestError as exc:
-            raise RepositoryError("Supabase evidence retrieval is unavailable") from exc
+            raise RepositoryError("Supabase public data retrieval is unavailable") from exc
         if response.status_code >= 400:
             raise RepositoryError(
                 f"Supabase {table} request failed with status {response.status_code}"
@@ -362,7 +425,7 @@ class SupabaseStore(DemoStore):
                 timeout=10.0,
             )
         except httpx.RequestError as exc:
-            raise RepositoryError("Supabase vector retrieval is unavailable") from exc
+            raise RepositoryError("Supabase RPC is unavailable") from exc
         if response.status_code >= 400:
             raise RepositoryError(
                 f"Supabase RPC {function} failed with status {response.status_code}"
