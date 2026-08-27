@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Annotated, Literal
+from typing import Annotated, Literal, TypeAlias
 from uuid import UUID
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.domain.base import ImmutableDomainModel
 from app.domain.debate import DebateMessage
@@ -84,6 +84,49 @@ class DebateTurnDraft(ImmutableDomainModel):
         if (self.responds_to_message_id is None) != (self.rebuttal_point is None):
             raise ValueError("A rebuttal target and rebuttal point must be supplied together")
         return self
+
+
+class DebateTurnStreamDelta(BaseModel):
+    """One provider-emitted text fragment with whitespace preserved exactly."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=False,
+        allow_inf_nan=False,
+    )
+
+    kind: Literal["delta"] = "delta"
+    chunk_index: int = Field(ge=1)
+    delta: str = Field(min_length=1, max_length=1200)
+    source: Literal[
+        "live_provider",
+        "buffered_compatibility",
+        "deterministic",
+    ]
+
+
+class DebateTurnStreamUsage(ImmutableDomainModel):
+    model_name: str = Field(min_length=1, max_length=160)
+    prompt_tokens: int = Field(default=0, ge=0)
+    completion_tokens: int = Field(default=0, ge=0)
+    total_tokens: int = Field(default=0, ge=0)
+
+    @model_validator(mode="after")
+    def validate_token_total(self) -> DebateTurnStreamUsage:
+        if self.total_tokens != self.prompt_tokens + self.completion_tokens:
+            raise ValueError("Stream token total must equal prompt plus completion tokens")
+        return self
+
+
+class DebateTurnStreamCompleted(ImmutableDomainModel):
+    kind: Literal["completed"] = "completed"
+    draft: DebateTurnDraft
+    finish_reason: Literal["stop", "length", "content_filter"] = "stop"
+    usage: DebateTurnStreamUsage
+
+
+DebateTurnStreamEvent: TypeAlias = DebateTurnStreamDelta | DebateTurnStreamCompleted
 
 
 class DebateJudgeRequest(ImmutableDomainModel):

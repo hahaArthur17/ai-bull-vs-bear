@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Protocol, runtime_checkable
 
 from app.domain.agents import (
@@ -7,6 +8,7 @@ from app.domain.agents import (
     DebateJudgeRequest,
     DebateTurnDraft,
     DebateTurnRequest,
+    DebateTurnStreamEvent,
 )
 
 
@@ -22,10 +24,23 @@ class DebateTurnProvider(Protocol):
 
 
 @runtime_checkable
+class DebateStreamingTurnProvider(Protocol):
+    name: str
+    version: str
+
+    def stream_turn(
+        self,
+        request: DebateTurnRequest,
+    ) -> AsyncIterator[DebateTurnStreamEvent]:
+        """Yield ordered deltas followed by exactly one validated completion."""
+
+        ...
+
+
+@runtime_checkable
 class DebateJudgeProvider(Protocol):
     name: str
     version: str
 
     def generate_judgement(self, request: DebateJudgeRequest) -> DebateJudgeDraft:
         ...
-
