@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     # Phase 3 preview only. The legacy /analysis API remains the public default
     # until streaming and durable Queue transport are implemented and verified.
     debate_workflow_v2: bool = False
+    # The async Debate provider is an independent, explicit opt-in. Keeping it
+    # deterministic prevents a feature-flag change from spending model quota.
+    debate_streaming_provider: str = "deterministic"
     supabase_url: str | None = None
     supabase_anon_key: str | None = None
     supabase_secret_key: str | None = None
@@ -48,7 +51,9 @@ class Settings(BaseSettings):
     weekly_price_history_points: int = Field(default=60, ge=52, le=260)
     groq_api_key: str | None = None
     gemini_api_key: str | None = None
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-20b"
+    debate_groq_model: str = "openai/gpt-oss-20b"
+    debate_provider_timeout_seconds: float = Field(default=45, ge=5, le=120)
     gemini_model: str = "gemini-2.0-flash"
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 

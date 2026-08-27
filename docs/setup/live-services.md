@@ -42,7 +42,10 @@ PRICE_MAX_CALLS_PER_RUN=1
 PRICE_STALE_AFTER_DAYS=5
 
 GROQ_API_KEY=
-GROQ_MODEL=llama-3.3-70b-versatile
+GROQ_MODEL=openai/gpt-oss-20b
+DEBATE_STREAMING_PROVIDER=deterministic
+DEBATE_GROQ_MODEL=openai/gpt-oss-20b
+DEBATE_PROVIDER_TIMEOUT_SECONDS=45
 
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.0-flash
@@ -60,6 +63,13 @@ Console: <https://console.groq.com/keys>
 3. Set `ANALYSIS_PROVIDER=groq`.
 4. Restart the backend and run one analysis request.
 5. Confirm that `token_usage.model_name` contains the configured Groq model.
+
+The former default `llama-3.3-70b-versatile` was retired for Free and
+Developer accounts on 2026-08-16. `openai/gpt-oss-20b` is the current bounded
+default. The live Debate path is a separate opt-in: change
+`DEBATE_STREAMING_PROVIDER` from `deterministic` to `groq` only for an explicit
+local smoke test or after the asynchronous Worker path is deployed. This avoids
+spending six model requests merely by enabling the V2 HTTP preview.
 
 ## Gemini
 
