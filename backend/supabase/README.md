@@ -14,12 +14,21 @@ application is usable before Supabase credentials are available. The SQL schema
 and environment variables are prepared for the persistence/authentication
 milestone.
 
-The Phase 2 stock catalog is split into
-`20260827_stock_catalog_coverage.sql` and the generated
-`20260827_stock_catalog_seed.sql`. Apply them in that order. The seed uses 16
-bounded upsert statements inside one transaction and preserves existing
-coverage, sector, country, and aliases on conflict. Do not edit its generated
-rows manually; regenerate it from the reviewed artifact under `data/catalog`.
+The Phase 2 stock catalog uses three migrations. Apply them in filename order:
+
+1. `20260827_stock_catalog_coverage.sql`
+2. `20260827_stock_catalog_search.sql`
+3. `20260827_stock_catalog_seed.sql`
+
+Before applying them to Supabase Free, verify the database is below 400 MB as
+documented in [`live-services.md`](../../docs/setup/live-services.md). Afterward,
+verify that `public.stocks`, including indexes, is no more than 15 MiB and rerun
+public-read plus two-user Watchlist RLS checks.
+
+The generated seed uses 16 bounded upsert statements inside one transaction and
+preserves existing coverage, sector, country, and aliases on conflict. Do not
+edit its generated rows manually; regenerate it from the reviewed artifact
+under `data/catalog`.
 
 The evidence schema separates canonical chunks from provider-specific
 embeddings. `local-hash-v1` is the deterministic offline baseline; real Gemini,

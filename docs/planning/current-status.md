@@ -12,14 +12,14 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 
 | Area | Status | Current state |
 | --- | --- | --- |
-| Mobile application | Done | Expo/React Native flow includes authentication, watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
-| Backend API | Done | FastAPI exposes stocks, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. |
+| Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
+| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 141 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 156 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -40,11 +40,10 @@ These are limitations of the current implementation, not completed features:
 - Claim examination accepts four fixed question types. It does not accept an
   arbitrary selected term, a free-form question, or a user interruption that
   redirects the debate.
-- Search filters the four already-loaded supported stocks in the client. The
-  API accepts a query parameter, but the production repository still exposes
-  the same four-symbol catalog.
-- Watchlist persistence works for seeded stocks only. A catalog-only stock
-  cannot yet be saved with an explicit data-coverage state.
+- The 7,695-row catalog, ranked search function, and coverage columns are
+  implemented in repository migrations but have not yet been applied to the
+  hosted Supabase project. Hosted production therefore still exposes its
+  previously deployed four-stock data until that controlled migration.
 - Technical indicators, evidence types, and model prompt inputs use several
   fixed schemas in the current API. Common `FactorProvider` contracts and
   adapters now exist, but they are not yet connected to the V2 Debate runtime.
@@ -80,10 +79,9 @@ The complete target architecture, product rules, phase order, acceptance tests,
 and current coding entry point are canonical in
 [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md).
 
-Documentation Phase 0 and modular-boundary Phase 1 are complete. The active
-development phase is Phase 2: add a bounded local/Supabase stock catalog,
-coverage-aware search, and watchlist-only symbols without spending market-data
-provider quota.
+Documentation Phase 0 and modular-boundary Phase 1 are complete. Phase 2
+behaviour is implemented and verified locally; its remaining gate is the
+controlled hosted Supabase migration, size measurement, and RLS verification.
 
 ### Phase 1 completion evidence
 
@@ -134,11 +132,23 @@ generation validates source shape, duplicate tickers, provenance, and the
 10,000-row safety bound.
 
 Repository DDL now adds nullable classification fields, CIK, aliases/search
-text, four explicit coverage states, indexed search, and public-read RLS. A
-generated migration seeds all 7,695 rows in 16 bounded upserts while preserving
-the four curated `debate_ready` records. The migrations have not yet been
-applied to the hosted Supabase project, and the current API still reads the old
-four-symbol repository path.
+text, four explicit coverage states, indexed search, ranked search RPC, and
+public-read RLS. A generated migration seeds all 7,695 rows in 16 bounded
+upserts while preserving the four curated `debate_ready` records. The migrations
+have not yet been applied to the hosted Supabase project.
+
+`DemoStore` searches the versioned snapshot without external calls.
+`SupabaseStore` treats successful Supabase results—including an empty result—as
+authoritative, calls the ranked catalog RPC, and falls back to the same
+versioned snapshot only when the repository is unavailable. Search is limited
+to 25 results and tested to perform zero external SEC or market-data requests.
+
+The API exposes explicit coverage and prevents unsupported work: a
+`catalog_only` identity can be opened and saved to Watchlist; prices/history are
+empty, quote is null, evidence is empty, indicators and analysis are rejected,
+and no synthetic analysis is substituted. The mobile UI debounces server
+search, labels Watchlist-only results, and renders an identity/coverage page
+without requesting the stock bundle.
 
 The catalog's stored text is 455,371 bytes. Its table and indexes are estimated
 at 3.9–6.9 MiB, with a conservative 15 MiB deployment budget—3% of the current

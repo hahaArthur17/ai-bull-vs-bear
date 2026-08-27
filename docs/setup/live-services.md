@@ -105,8 +105,10 @@ Do not apply the full catalog when `database_bytes` is above 400,000,000
 as headroom for evidence, vectors, Debate history, Queue metadata, and normal
 Postgres growth.
 
-After applying `20260827_stock_catalog_coverage.sql` and
-`20260827_stock_catalog_seed.sql`, record the actual catalog footprint:
+Apply `20260827_stock_catalog_coverage.sql`,
+`20260827_stock_catalog_search.sql`, and
+`20260827_stock_catalog_seed.sql` in filename order. Then record the actual
+catalog footprint:
 
 ```sql
 select
@@ -117,7 +119,9 @@ select
 ```
 
 The accepted catalog budget is 15 MiB including indexes. Stop and investigate
-if the measured `total_with_indexes` exceeds it.
+if the measured `total_with_indexes` exceeds it. Before marking Phase 2
+deployed, confirm an anon/public catalog search succeeds and repeat the existing
+two-user test proving that each user can change only their own Watchlist.
 
 `SUPABASE_SECRET_KEY` is used only by the backend ingestion script. The mobile
 app needs only the publishable/anon key.

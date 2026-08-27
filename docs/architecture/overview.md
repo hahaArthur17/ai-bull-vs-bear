@@ -75,12 +75,23 @@ remains Phase 8 work.
 The repository contains a reviewed, versioned SEC ticker/exchange snapshot and
 deterministic generators for both the snapshot and its Supabase seed. Catalog
 DDL adds CIK, nullable classification, aliases/search text, explicit coverage,
-search indexes, and public-read RLS. The generated seed contains 7,695 catalog
-identities and preserves the four curated `debate_ready` rows on conflict.
+search indexes, a ranked search RPC, and public-read RLS. The generated seed
+contains 7,695 catalog identities and preserves the four curated
+`debate_ready` rows on conflict.
 
-These migrations are not yet applied to the hosted project, and
-`SupabaseStore` has not yet replaced its inherited four-stock lookup. No runtime
-SEC or market-data request has been added.
+`DemoStore` searches the checked-in snapshot. `SupabaseStore` uses Supabase as
+the authoritative catalog when available and falls back to that snapshot only
+on repository failure. Search results are bounded to 25 and never query the SEC
+or a market-data provider at runtime. Successful empty Supabase results remain
+authoritative rather than being replaced with demo rows.
+
+Coverage gates allow any known catalog identity to be saved to Watchlist while
+returning no prices, quote, evidence, technical analysis, or Debate for
+`catalog_only` rows. The mobile client performs debounced API search, displays
+coverage, and opens a catalog identity page without loading a stock-data bundle.
+
+The migrations are not yet applied to the hosted project. Phase 2 therefore
+remains in progress until hosted size and RLS verification are recorded.
 
 ## Implemented single-response data flow
 

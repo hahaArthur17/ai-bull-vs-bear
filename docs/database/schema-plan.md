@@ -222,9 +222,12 @@ capability metadata:
 - coverage_updated_at
 
 Coverage describes configured capabilities. Response-level source/freshness
-still determines whether cached data is safe to display or use. Remaining work
-is to apply and verify the migration, make the Supabase repository authoritative,
-and expose ranked coverage-aware search through the API and mobile client.
+still determines whether cached data is safe to display or use. Repository, API,
+and mobile integration are implemented: Supabase is authoritative when
+available, ranked search is bounded to 25, and catalog-only identities can be
+saved without triggering market-data work. Remaining work is to apply the three
+migrations to the hosted project after the size preflight and record relation
+size plus RLS verification.
 
 [`ADR-0002`](../architecture/decisions/0002-sec-static-stock-catalog.md)
 selects a checked-in snapshot derived from the SEC ticker/exchange association

@@ -17,11 +17,24 @@ fallback.
 ### Stocks
 
 GET /stocks
-Returns the four supported stocks. Accepts an optional `q` parameter, although
-the current mobile client filters its already-loaded list locally.
+Without a query, returns the active `debate_ready` stocks. Optional parameters:
+
+- `q`: ticker, issuer name, or alias query, at most 40 characters;
+- `limit`: 1–25 results, default 20.
+
+Search is ranked by exact ticker, ticker prefix, exact alias, company prefix,
+alias prefix, then substring. It reads the local/Supabase identity catalog and
+does not call the SEC, a market-data provider, or a model provider.
 
 GET /stocks/{ticker}
-Returns stock profile.
+Returns a stock/security identity with nullable classification and explicit
+coverage fields: `sec_cik`, `country`, `aliases`, `is_active`,
+`coverage_status`, and `coverage_updated_at`.
+
+GET /stocks/{ticker}/coverage
+Returns `coverage_status`, `has_price_data`, `has_evidence`, and `can_debate`.
+The initial status values are `catalog_only`, `price_cached`, `evidence_ready`,
+and `debate_ready`.
 
 ### Watchlist
 
@@ -29,7 +42,8 @@ GET /watchlist
 Returns user's watchlist.
 
 POST /watchlist
-Adds a stock to watchlist.
+Adds any known active catalog identity to Watchlist, including a
+`catalog_only` identity.
 
 DELETE /watchlist/{ticker}
 Removes a stock from watchlist.
@@ -40,24 +54,29 @@ GET /stocks/{ticker}/prices
 Returns cached daily OHLCV data. Every price point includes `source` with
 `daily_market_cache` or `demo_fallback`, plus `is_stale`. A daily market cache
 is populated from the configured provider (Alpha Vantage when available,
-otherwise Finnhub); it is not an intraday quote.
+otherwise Finnhub); it is not an intraday quote. Returns an empty list for a
+catalog-only identity.
 
 GET /stocks/{ticker}/quote
 Returns a current Finnhub quote when `FINNHUB_API_KEY` is configured, or `null`
 when it is not available. The backend caches this response for 60 seconds. It
-is displayed as a quote, never as a completed daily close.
+is displayed as a quote, never as a completed daily close. A catalog-only
+identity returns `null` without calling the quote provider.
 
 GET /stocks/{ticker}/indicators
-Returns technical indicators.
+Returns technical indicators when price coverage exists. A catalog-only
+identity returns `409 Conflict`.
 
 GET /stocks/{ticker}/evidence
 Returns technical, news, and filing evidence. Supports an optional q query
-parameter for Supabase vector retrieval with deterministic lexical fallback.
+parameter for Supabase vector retrieval with deterministic lexical fallback. A
+catalog-only identity returns an empty list.
 
 ### AI Analysis
 
 POST /analysis/{ticker}
-Starts a Bull vs Bear analysis.
+Starts a Bull vs Bear analysis only when the identity is `debate_ready`.
+Unsupported coverage returns `409 Conflict` before any provider work.
 
 GET /analysis/{analysis_id}
 Returns analysis result.
@@ -85,17 +104,6 @@ Returns focused explanation.
 
 The canonical request/response and SSE event shapes live in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
-
-### Catalog and coverage
-
-```text
-GET /stocks?q=<query>&limit=<limit>
-GET /stocks/{ticker}/coverage
-```
-
-Search will use the local/Supabase catalog and consume no market-data provider
-request. Results include `coverage_status`; catalog-only stocks can be saved to
-the watchlist but cannot start Debate.
 
 ### Debate sessions
 

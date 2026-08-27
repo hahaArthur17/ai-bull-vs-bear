@@ -23,12 +23,18 @@ http://192.168.1.20:8000.
 
 ## Implemented flow
 
-Watchlist -> Stock detail -> Technical indicators -> Evidence board ->
-Bull vs Bear analysis -> Claim cross-examination.
+Security catalog search -> Watchlist -> Stock detail -> Technical indicators ->
+Evidence board -> Bull vs Bear analysis -> Claim cross-examination.
+
+Search is debounced and handled by the FastAPI catalog endpoint rather than by
+filtering four client-side rows. Every result displays coverage. A
+`catalog_only` identity can be saved and opened, but its detail screen explicitly
+omits prices, evidence, technical signals, and Debate; opening it does not load
+the market-data bundle.
 
 The current analysis screen waits for one complete API response. Streamed
-multi-turn messages, Queue status, user interventions, catalog-only stocks, and
-the financial-technology redesign are planned in the canonical
+multi-turn messages, Queue status, user interventions, and the
+financial-technology redesign are planned in the canonical
 [`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
 
 Shared colours, spacing, radii, and app styles live in `src/theme.ts`; reusable

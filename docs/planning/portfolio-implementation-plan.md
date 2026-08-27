@@ -952,13 +952,15 @@ Status: In progress
 
 - [x] Choose and document a bounded static symbol catalog source.
 - [x] Add catalog/coverage migration and seed data.
-- [ ] Make Supabase repository stock lookup authoritative instead of inheriting
+- [x] Make Supabase repository stock lookup authoritative instead of inheriting
   the four-item `DemoStore` catalog.
-- [ ] Implement ranked, limited server-side search.
-- [ ] Allow catalog-only watchlist persistence.
-- [ ] Add coverage badges and catalog-only detail state.
-- [ ] Keep Debate restricted to `debate_ready` symbols.
-- [ ] Prove search causes zero market-data provider requests.
+- [x] Implement ranked, limited server-side search.
+- [x] Allow catalog-only watchlist persistence.
+- [x] Add coverage badges and catalog-only detail state.
+- [x] Keep Debate restricted to `debate_ready` symbols.
+- [x] Prove search causes zero market-data provider requests.
+- [ ] Apply the three catalog migrations to hosted Supabase only after the
+  preflight size check; then record relation size and verify public-read RLS.
 
 Completion rule: an unsupported catalog ticker can be searched, identified, and
 saved without consuming a market-data call or showing synthetic analysis.
@@ -969,11 +971,13 @@ versioned SEC ticker/exchange snapshot, filtered to Nasdaq, NYSE, and CBOE and
 bounded to at most 10,000 rows. It is a securities identity catalog rather than a
 claim of live price, evidence, or Debate coverage.
 
-Catalog migration evidence: `c8fa984`, `f049a59`, `89b0044`, `f99c2da`,
-`e1b088c`, and `40c8fae`. The repository now contains the validated 7,695-row
-snapshot, catalog/coverage DDL, and an idempotent generated seed whose SQL is
-checked against the snapshot. These migrations are prepared but not yet applied
-to the hosted Supabase project.
+Implementation evidence: `c8fa984`, `f049a59`, `89b0044`, `f99c2da`,
+`e1b088c`, `40c8fae`, `0977967`, `6a19c4c`, `e155fb3`, `4846b39`, `ae6e104`,
+`e48a7de`, `4f870e3`, and `791bcc0`. The repository contains the validated
+7,695-row snapshot, coverage/search DDL, idempotent seed, authoritative
+repository paths, API coverage gates, regression proofs, and mobile catalog
+flow. These migrations are prepared but not yet applied to the hosted Supabase
+project.
 
 ### Phase 3 — Debate persistence and deterministic state machine
 
@@ -1159,14 +1163,17 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phase 1 is complete, and the Phase 2 catalog/coverage migration and seed are
-prepared. Next, make `SupabaseStore` stock lookup authoritative and implement
-ranked, limited catalog search with repository/API tests before changing the
-mobile search interface.
+Phase 2 behaviour is implemented and passes local acceptance tests. Before
+declaring the phase done, use the SQL Editor procedure in
+[`live-services.md`](../setup/live-services.md): verify the current hosted
+database is below 400 MB, apply coverage, search, and seed migrations in filename
+order, measure the `stocks` relation against the 15 MiB budget, and rerun
+public-read plus two-user Watchlist RLS checks.
 
-The first Phase 2 proof must show that searching a catalog-only ticker performs
-zero market-data provider calls. Do not connect Redis, Queue, or the V2 Debate
-runtime during this phase.
+Do not connect Redis, Queue, or the V2 Debate runtime until that deployment gate
+is recorded. If hosted database access is intentionally deferred, the next safe
+code-only task is to prepare Phase 3 Debate persistence migrations without
+claiming Phase 2 deployed.
 
 ## 22. Primary implementation references
 

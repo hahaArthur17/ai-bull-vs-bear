@@ -14,10 +14,14 @@ baseline is maintained in
 
 ## What is implemented
 
-- Expo / React Native mobile flow for Watchlist, Stock Detail, Evidence Board,
-  Debate Arena, Cross Examination, History, and About.
-- FastAPI API contract for stocks, prices, indicators, watchlist, analysis,
-  trace, token usage, and claim examination.
+- Expo / React Native mobile flow for coverage-aware security search, Watchlist,
+  Stock Detail, Evidence Board, Debate Arena, Cross Examination, History, and
+  About.
+- FastAPI API contract for ranked catalog search, coverage, prices, indicators,
+  watchlist, analysis, trace, token usage, and claim examination.
+- A versioned 7,695-row SEC ticker/exchange identity catalog. Search makes no
+  runtime SEC or market-data request; catalog-only identities can be saved but
+  cannot show synthetic prices or start Debate.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
@@ -46,10 +50,12 @@ baseline is maintained in
 The implemented Debate is currently a single synchronous Bull/Bear/Judge
 response. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
-defines the next milestone: a factor-provider extension boundary, catalog-aware
-watchlists, durable queued Debate stages, Redis cache/rate-limit/idempotency,
-streamed multi-turn rebuttals, user explanations/interventions, Demo Replay,
-and a reusable financial-technology UI system.
+defines the next milestone: durable queued Debate stages, Redis
+cache/rate-limit/idempotency, streamed multi-turn rebuttals, user
+explanations/interventions, Demo Replay, and a reusable financial-technology UI
+system. Factor-provider and catalog/watchlist foundations are already
+implemented; the catalog's hosted Supabase migration remains a controlled
+deployment gate.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.
