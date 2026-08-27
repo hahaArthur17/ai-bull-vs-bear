@@ -1,10 +1,15 @@
-# Weekly Roadmap and Progress Log
+# Archived Weekly Roadmap and Progress Log Through Week 6
+
+> Historical document, superseded on 2026-08-27. Resume from the
+> [planning index](../README.md) and
+> [`current-status.md`](../current-status.md). The sections below preserve the
+> original weekly record and decision history only.
 
 This file is the project memory for weekly planning. Before starting a new
 week, review the current status, move unfinished items forward, and record the
 result at the end of the week.
 
-Detailed, append-only records now live in [`reports/`](reports/README.md) so
+Detailed, append-only records live in [`../reports/`](../reports/README.md) so
 this roadmap remains a short index instead of growing without bound.
 
 Status values: `Done`, `In progress`, `Planned`, and `Blocked`.
@@ -40,9 +45,9 @@ Status: Done
 Evidence:
 
 - `prototype.html`
-- `docs/planning/mvp-scope.md`
-- `docs/planning/user-stories.md`
-- `docs/planning/data-source-research.md`
+- `docs/planning/archive/original-mvp-scope.md`
+- `docs/planning/archive/original-user-stories.md`
+- `docs/planning/archive/original-data-source-notes.md`
 
 ## Week 2 — Demo backend and mobile experience
 
@@ -88,7 +93,8 @@ and returns data for an authenticated user without exposing secrets.
 
 Status: In progress
 
-Operating checklist: [`week-4-todo.md`](week-4-todo.md)
+Operating checklist at the time:
+[`week-04-operating-checklist.md`](week-04-operating-checklist.md)
 
 - [x] Connect one production-safe daily market price source with caching.
 - [x] Ingest news through an approved RSS source.
@@ -121,7 +127,7 @@ Progress recorded on 2026-08-15:
 - A later 2026-08-15 continuation separated chunks from versioned embedding
   profiles, added source-aware contextual chunking, and added typed SEC XBRL
   facts. Both database migrations are live; backend verification now passes 41
-  tests. See [`reports/project-week-05.md`](reports/project-week-05.md).
+  tests. See [`../reports/project-week-05.md`](../reports/project-week-05.md).
 
 2026-08-20 continuation:
 
@@ -132,7 +138,7 @@ Progress recorded on 2026-08-15:
 - A production evidence audit found that current AAPL news is unavailable for
   Debate, while the retrieval path can still return old filings and demo
   narrative data. The required remedy and its acceptance criteria are task 8
-  in [`week-4-todo.md`](week-4-todo.md).
+  in [`week-04-operating-checklist.md`](week-04-operating-checklist.md).
 
 2026-08-21 continuation:
 
@@ -224,7 +230,7 @@ Status: In progress
   FedWatch reference; never scrape the website or call it a Fed forecast.
 
 Detailed acceptance criteria and the one-year free-data strategy live in
-[`week-4-todo.md`](week-4-todo.md).
+[`week-04-operating-checklist.md`](week-04-operating-checklist.md).
 
 ## Weekly update procedure
 

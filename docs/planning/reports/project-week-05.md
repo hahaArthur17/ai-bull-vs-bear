@@ -105,7 +105,8 @@ and multiple embedding providers while preserving a clear handoff record.
   live AAPL filings. The newest live filing is a 10-Q filed 2026-07-31; no
   current AAPL news item was present. The retrieval response used by Debate
   returned older filing chunks and no current news result.
-- Recorded a P0 follow-up in `week-4-todo.md`: a Debate must bind itself to a
+- Recorded a P0 follow-up in the archived Week 4 operating checklist: a Debate
+  must bind itself to a
   precise market-close date and an immutable, dated evidence snapshot; it must
   surface insufficient contemporaneous evidence instead of inventing a causal
   explanation. Demo evidence must not silently appear in production retrieval.
@@ -225,4 +226,4 @@ available.
 - `docs/setup/live-services.md`
 - `docs/setup/free-deployment.md`
 - `docs/database/schema-plan.md`
-- `../week-4-todo.md`
+- `../archive/week-04-operating-checklist.md`

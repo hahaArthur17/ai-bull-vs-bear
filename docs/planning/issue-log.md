@@ -198,4 +198,4 @@ failed deployment logs if the problem recurs.
 **Related records**
 
 - [`reports/project-week-06.md`](reports/project-week-06.md)
-- [`weekly-roadmap.md`](weekly-roadmap.md)
+- [`current-status.md`](current-status.md)

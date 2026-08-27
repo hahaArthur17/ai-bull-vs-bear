@@ -1,4 +1,8 @@
-# Demo Data Plan
+# Original Demo Data Plan
+
+> Historical document. The implemented live-cache and deterministic fallback
+> design has superseded this early plan. Resume from
+> [`../current-status.md`](../current-status.md).
 
 ## Supported Stocks
 

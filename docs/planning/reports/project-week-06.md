@@ -96,6 +96,6 @@ without letting it become an unsupported causal narrative.
 
 ## Handoff links
 
-- [`../week-4-todo.md`](../week-4-todo.md)
-- [`../weekly-roadmap.md`](../weekly-roadmap.md)
+- [`../current-status.md`](../current-status.md)
+- [`../archive/week-04-operating-checklist.md`](../archive/week-04-operating-checklist.md)
 - [`../../architecture/vectorization-strategy.md`](../../architecture/vectorization-strategy.md)

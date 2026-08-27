@@ -1,4 +1,7 @@
-# MVP Scope
+# Original MVP Scope
+
+> Historical document. This scope records the initial MVP and is not the
+> current implementation plan. Resume from [`../README.md`](../README.md).
 
 ## Must Have
 

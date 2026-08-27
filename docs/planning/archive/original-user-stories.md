@@ -1,4 +1,7 @@
-# User Stories
+# Original User Stories
+
+> Historical document. These were the initial user stories and are not the
+> current implementation backlog. Resume from [`../README.md`](../README.md).
 
 1. As a user, I want to search for a stock so that I can add it to my watchlist.
 

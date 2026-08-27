@@ -1,4 +1,9 @@
-# Week 4 Todo — Authentication, Persistence, and Live Evidence
+# Archived Week 4 Operating Checklist — Authentication, Persistence, and Live Evidence
+
+> Historical document. This checklist has been superseded and must not be used
+> to select new work. Its outcomes are summarized in
+> [`../current-status.md`](../current-status.md) and the dated
+> [`../reports/`](../reports/README.md).
 
 Planning window: 2026-08-17 to 2026-08-23
 
@@ -324,7 +329,7 @@ Live verification — 2026-08-21:
 
 ## End-of-week review
 
-- Update `docs/planning/weekly-roadmap.md` with evidence and blockers.
+- Update the then-active roadmap with evidence and blockers.
 - Update this checklist with completed acceptance criteria.
 - Run backend tests and mobile typecheck.
 - Sync GitHub Project statuses only after the acceptance criteria are met.
