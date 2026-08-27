@@ -54,6 +54,14 @@ file as the Phase 2 catalog source.
 The application reads the checked-in catalog or Supabase rows at runtime. Stock
 search therefore performs zero SEC, market-data, news, or model-provider calls.
 
+### Accepted initial snapshot
+
+The initial snapshot was retrieved on 2026-08-27 and generated with
+`sec-exchange-v1`. It contains 7,695 of 10,388 source rows; 2,693 OTC or
+missing-exchange rows were excluded. The raw source SHA-256 is
+`ab3f22c4c6549d7e3eadfe5ff5420bfff654ea4e4f2c7ea7e96382ea2a98b422`.
+The artifact and refresh instructions live in [`data/catalog`](../../../data/catalog/README.md).
+
 ## Rejected alternatives
 
 ### Search a market-data provider on demand

@@ -128,6 +128,11 @@ It will be refreshed manually rather than queried during search, so search has
 no runtime SEC or market-data cost. Country and sector are not inferred from the
 source; imported non-demo symbols begin as `catalog_only`.
 
+The reviewed 2026-08-27 snapshot contains 7,695 Nasdaq, NYSE, and CBOE tickers
+from 10,388 SEC associations and records the raw source checksum. Snapshot
+generation validates source shape, duplicate tickers, provenance, and the
+10,000-row safety bound.
+
 ## Boundaries that remain in force
 
 - Educational explanations only; no personalised allocations, trading

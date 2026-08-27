@@ -1,9 +1,16 @@
+import json
+from pathlib import Path
+
 import pytest
 
 from app.services.stock_catalog import CatalogSnapshotError, build_catalog_snapshot
 
 
 SOURCE_SHA256 = "a" * 64
+SNAPSHOT_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "data/catalog/sec-company-tickers-exchange-2026-08-27.json"
+)
 
 
 def payload(*rows: list[object]) -> dict[str, object]:
@@ -101,3 +108,28 @@ def test_build_catalog_snapshot_validates_provenance(
             retrieved_on=retrieved_on,
             source_sha256=source_sha256,
         )
+
+
+def test_checked_in_catalog_snapshot_has_reviewed_provenance_and_demo_tickers() -> None:
+    snapshot = json.loads(SNAPSHOT_PATH.read_text(encoding="utf-8"))
+    stocks = snapshot["stocks"]
+    tickers = [stock["ticker"] for stock in stocks]
+
+    assert snapshot["schema_version"] == 1
+    assert snapshot["source"] == {
+        "url": "https://www.sec.gov/files/company_tickers_exchange.json",
+        "retrieved_on": "2026-08-27",
+        "sha256": "ab3f22c4c6549d7e3eadfe5ff5420bfff654ea4e4f2c7ea7e96382ea2a98b422",
+        "raw_row_count": 10_388,
+    }
+    assert snapshot["transformation"] == {
+        "version": "sec-exchange-v1",
+        "allowed_source_exchanges": ["CBOE", "NYSE", "Nasdaq"],
+        "max_rows": 10_000,
+        "excluded_row_count": 2_693,
+    }
+    assert len(stocks) == 7_695
+    assert tickers == sorted(tickers)
+    assert len(tickers) == len(set(tickers))
+    assert {"AAPL", "GOOG", "NVDA", "TSLA"}.issubset(tickers)
+    assert all(stock["exchange"] in {"CBOE", "NASDAQ", "NYSE"} for stock in stocks)

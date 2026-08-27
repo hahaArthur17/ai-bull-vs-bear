@@ -126,7 +126,8 @@ chat messages.
 - backend/tests: API and service tests.
 - backend/supabase: database schema and setup notes.
 - apps/mobile: Expo application.
-- data/demo: demo-data notes and future seed artifacts.
+- data/catalog: versioned, source-attributed stock-identity snapshots.
+- data/demo: deterministic demo-data notes and seed artifacts.
 - docs: planning, API, database, agent, and safety specifications.
 
 ## Disclaimer
