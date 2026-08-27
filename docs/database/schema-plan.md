@@ -7,6 +7,12 @@ migrations. This document summarizes the current schema and the planned
 portfolio additions; planned tables are not implemented until their migration
 phase completes.
 
+The timing and ownership of those migrations are fixed by
+[`ADR-0001`](../architecture/decisions/0001-staged-supabase-schema-and-queue.md).
+In particular, Phase 1 changes domain contracts but does not alter the hosted
+database. Debate business tables arrive in Phase 3, while the `pgmq` Queue is a
+separate Phase 5 migration.
+
 ## Implemented tables
 
 ### stocks
@@ -257,6 +263,10 @@ only when cross-session queries or ingestion volume justify them.
 Enable Supabase Queues/`pgmq` through a focused migration. Create enqueue/claim
 RPCs with the minimum required privileges. User-facing RLS and the server-only
 Worker role remain separate.
+
+Do not manually reproduce `pgmq` transport columns in `public`. The planned
+`public.debate_jobs` relation is an application job ledger; the extension-owned
+active/archive queue tables handle delivery and visibility.
 
 ## Migration rules
 

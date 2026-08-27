@@ -913,6 +913,8 @@ tests, and mobile typecheck. Documentation commits: `fd7bc52`, `5eab700`,
 
 Status: In progress
 
+- [x] Record the staged Supabase business-table and Queue migration decision;
+  Phase 1 intentionally makes no hosted DDL change.
 - [ ] Add characterization tests for current analysis, history, watchlist,
   evidence snapshots, and provider adapters.
 - [ ] Define domain models for factors, sessions, messages, jobs, and events.
