@@ -53,6 +53,17 @@ Database and Queue changes follow
 [`ADR-0001`](decisions/0001-staged-supabase-schema-and-queue.md); no hosted DDL
 is changed during the initial factor work.
 
+### Phase 1 Debate domain foundation
+
+The database-independent domain layer now validates Debate sessions, ordered
+messages, citations, user interventions, jobs, identifier-only Queue payloads,
+and versioned stream events. Deterministic plans encode six Bull/Bear turns plus
+an interim Judge in round one and four rebuttal turns plus a final Judge in
+round two. One state-transition service owns all legal session changes.
+
+Repository and turn/Judge provider protocols are implemented, but no new API,
+Supabase table, Queue consumer, or streaming runtime is connected yet.
+
 ## Implemented single-response data flow
 
 1. The mobile client requests supported stocks and the user's watchlist.

@@ -918,18 +918,19 @@ Status: In progress
 - [x] Add characterization tests for current analysis, history, watchlist,
   evidence snapshots, and provider adapters.
 - [x] Define immutable factor domain models and validation rules.
-- [ ] Define domain models for sessions, messages, jobs, and events.
+- [x] Define domain models for sessions, messages, jobs, and events.
 - [x] Introduce the `FactorProvider` protocol without changing runtime output.
-- [ ] Introduce Debate repository/provider protocols.
+- [x] Introduce Debate repository/provider protocols.
 - [x] Add `FactorRegistry` and wrap the current technical-indicator calculation.
 - [x] Wrap the current macro, news, filing, and financial-fact sources.
 - [x] Add the test-only mock factor extension proof.
 - [ ] Begin extracting mobile screens and shared design tokens without a visual
   rewrite.
 
-Progress evidence: `9374398`, `58c70f8`, `6b415a5`, `598eb3d`, `f689328`, and
-`191f65c`. All current factor categories now have normalized adapters, but the
-factor snapshot is not yet connected to a V2 Debate runtime.
+Progress evidence: `9374398`, `58c70f8`, `6b415a5`, `598eb3d`, `f689328`,
+`191f65c`, `ab206bf`, `2183974`, `4831b22`, `554118f`, and `22bacd3`. All
+current factor categories and Debate domain boundaries are implemented, but the
+factor snapshot and state machine are not yet connected to a V2 API runtime.
 
 Completion rule: current API/mobile behaviour remains compatible and tests prove
 a new factor provider is additive.

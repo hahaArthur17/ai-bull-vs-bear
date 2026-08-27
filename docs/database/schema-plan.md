@@ -13,6 +13,10 @@ In particular, Phase 1 changes domain contracts but does not alter the hosted
 database. Debate business tables arrive in Phase 3, while the `pgmq` Queue is a
 separate Phase 5 migration.
 
+Phase 1 now has validated database-independent models and repository protocols
+for the planned Debate relations. They are the input to Phase 3 DDL design, not
+evidence that the tables already exist.
+
 ## Implemented tables
 
 ### stocks

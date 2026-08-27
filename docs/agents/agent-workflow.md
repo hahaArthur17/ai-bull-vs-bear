@@ -86,6 +86,11 @@ payload. Bull and Bear do not yet see or rebut each other's text.
 
 ## Target stateful workflow
 
+The database-independent session/message/job/event contracts, deterministic
+round plans, state-transition rules, and turn/Judge provider inputs described
+below are now implemented. API, persistence, Worker, and streaming orchestration
+remain target behaviour for later phases.
+
 ### Step 1: Build one immutable analysis context
 
 The Factor Registry calls current `FactorProvider` adapters for technical,
