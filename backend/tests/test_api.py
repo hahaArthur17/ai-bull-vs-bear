@@ -61,6 +61,48 @@ def test_catalog_only_stock_can_be_saved_to_watchlist() -> None:
     assert client.delete("/watchlist/MSFT", headers=headers).json()["tickers"] == []
 
 
+def test_catalog_only_stock_exposes_identity_without_synthetic_coverage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main
+
+    class FailIfCalledQuoteCache:
+        def get(self, ticker: str) -> dict[str, object]:
+            raise AssertionError(f"Quote provider must not be called for {ticker}")
+
+    monkeypatch.setattr(main, "quote_cache", FailIfCalledQuoteCache())
+
+    stock = client.get("/stocks/MSFT")
+    coverage = client.get("/stocks/MSFT/coverage")
+
+    assert stock.status_code == 200
+    assert stock.json()["coverage_status"] == "catalog_only"
+    assert coverage.json() == {
+        "ticker": "MSFT",
+        "coverage_status": "catalog_only",
+        "has_price_data": False,
+        "has_evidence": False,
+        "can_debate": False,
+    }
+    assert client.get("/stocks/MSFT/prices").json() == []
+    assert client.get("/stocks/MSFT/price-history").json() == []
+    assert client.get("/stocks/MSFT/quote").json() is None
+    assert client.get("/stocks/MSFT/evidence").json() == []
+    assert client.get("/stocks/MSFT/indicators").status_code == 409
+
+    debate = client.post(
+        "/analysis/MSFT",
+        json={"question": None},
+        headers={"X-User-Id": "catalog-user"},
+    )
+    assert debate.status_code == 409
+    assert "Debate-ready" in debate.json()["detail"]
+
+
+def test_unknown_stock_coverage_returns_not_found() -> None:
+    assert client.get("/stocks/NOTREAL/coverage").status_code == 404
+
+
 def test_quote_endpoint_returns_the_cached_quote(monkeypatch: pytest.MonkeyPatch) -> None:
     from app import main
 

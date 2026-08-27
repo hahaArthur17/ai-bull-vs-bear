@@ -21,6 +21,7 @@ from app.schemas import (
     PricePoint,
     PriceHistoryPoint,
     Stock,
+    StockCoverage,
     TechnicalIndicators,
     WatchlistRequest,
     WatchlistResponse,
@@ -93,6 +94,29 @@ def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment, "provider": settings.analysis_provider}
 
 
+def _require_stock(ticker: str) -> Stock:
+    stock = store.get_stock(ticker)
+    if stock is None:
+        raise HTTPException(status_code=404, detail="Stock not found")
+    return Stock.model_validate(stock)
+
+
+def _coverage(stock: Stock) -> StockCoverage:
+    has_price_data = stock.coverage_status in {
+        "price_cached",
+        "evidence_ready",
+        "debate_ready",
+    }
+    has_evidence = stock.coverage_status in {"evidence_ready", "debate_ready"}
+    return StockCoverage(
+        ticker=stock.ticker,
+        coverage_status=stock.coverage_status,
+        has_price_data=has_price_data,
+        has_evidence=has_evidence,
+        can_debate=stock.coverage_status == "debate_ready",
+    )
+
+
 @app.get("/stocks", response_model=list[Stock])
 def list_stocks(
     q: str | None = Query(default=None, max_length=40),
@@ -103,16 +127,18 @@ def list_stocks(
 
 @app.get("/stocks/{ticker}", response_model=Stock)
 def get_stock(ticker: str) -> Stock:
-    stock = store.get_stock(ticker)
-    if stock is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
-    return Stock.model_validate(stock)
+    return _require_stock(ticker)
+
+
+@app.get("/stocks/{ticker}/coverage", response_model=StockCoverage)
+def get_stock_coverage(ticker: str) -> StockCoverage:
+    return _coverage(_require_stock(ticker))
 
 
 @app.get("/stocks/{ticker}/prices", response_model=list[PricePoint])
 def get_prices(ticker: str) -> list[PricePoint]:
-    if store.get_stock(ticker) is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    if not _coverage(_require_stock(ticker)).has_price_data:
+        return []
     return [PricePoint.model_validate(point) for point in store.get_prices(ticker)]
 
 
@@ -121,8 +147,8 @@ def get_price_history(
     ticker: str,
     frequency: str = Query(default="weekly", pattern="^weekly$"),
 ) -> list[PriceHistoryPoint]:
-    if store.get_stock(ticker) is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    if not _coverage(_require_stock(ticker)).has_price_data:
+        return []
     return [
         PriceHistoryPoint.model_validate(point)
         for point in store.get_price_history(ticker, frequency)
@@ -131,8 +157,8 @@ def get_price_history(
 
 @app.get("/stocks/{ticker}/quote", response_model=MarketQuote | None)
 def get_quote(ticker: str) -> MarketQuote | None:
-    if store.get_stock(ticker) is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    if not _coverage(_require_stock(ticker)).has_price_data:
+        return None
     if quote_cache is None:
         return None
     try:
@@ -176,8 +202,11 @@ def get_macro_context(
 
 @app.get("/stocks/{ticker}/indicators", response_model=TechnicalIndicators)
 def get_indicators(ticker: str) -> TechnicalIndicators:
-    if store.get_stock(ticker) is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    if not _coverage(_require_stock(ticker)).has_price_data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Technical indicators are unavailable for this catalog-only stock",
+        )
     return TechnicalIndicators.model_validate(calculate_indicators(ticker.upper(), store.get_prices(ticker)))
 
 
@@ -186,8 +215,8 @@ def get_evidence(
     ticker: str,
     q: str | None = Query(default=None, max_length=300),
 ) -> list[EvidenceItem]:
-    if store.get_stock(ticker) is None:
-        raise HTTPException(status_code=404, detail="Stock not found")
+    if not _coverage(_require_stock(ticker)).has_evidence:
+        return []
     documents = store.get_evidence(ticker)
     if q:
         search_evidence = getattr(store, "search_evidence", None)
@@ -234,6 +263,11 @@ def create_analysis(
     request: AnalysisRequest,
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> AnalysisResponse:
+    if not _coverage(_require_stock(ticker)).can_debate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bull vs Bear is available only for Debate-ready stocks",
+        )
     try:
         return analysis_service.create(
             ticker,
