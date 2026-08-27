@@ -2,14 +2,9 @@ from __future__ import annotations
 
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import (
-    BaseModel,
-    ConfigDict,
-    Field,
-    JsonValue,
-    field_validator,
-    model_validator,
-)
+from pydantic import Field, JsonValue, field_validator, model_validator
+
+from app.domain.base import ImmutableDomainModel
 
 
 FactorCategory = Literal["technical", "macro", "company", "fundamental", "other"]
@@ -22,15 +17,6 @@ FactorSourceType = Literal[
     "financial_fact",
     "other",
 ]
-
-
-class ImmutableDomainModel(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        frozen=True,
-        str_strip_whitespace=True,
-        allow_inf_nan=False,
-    )
 
 
 class FactorFreshness(ImmutableDomainModel):
