@@ -33,6 +33,8 @@ When resuming the project:
 - [`project-week-08.md`](project-week-08.md) — zero-cost catalog implementation,
   Debate persistence, deterministic two-round orchestration, and the default-off
   V2 preview API.
+- [`project-week-09.md`](project-week-09.md) — bounded Debate event broker,
+  orchestration events, and resumable authenticated SSE preview.
 
 ## Template for a new report
 

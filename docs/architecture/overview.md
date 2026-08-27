@@ -1,6 +1,6 @@
 # Architecture overview
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 This document distinguishes the implemented baseline from the accepted target.
 The detailed phase order and acceptance criteria live in the canonical
@@ -121,10 +121,19 @@ while disabled. The legacy `/analysis` path is unchanged.
 
 This is an integration seam, not the final transport: it returns `201` only
 after the deterministic stage finishes and labels responses
-`synchronous_preview`. Queue-backed `202`, live provider deltas, SSE,
-cancellation, and reconnect remain later phases. The checked-in persistence
-migrations are still not applied to hosted Supabase, so production keeps V2
-disabled.
+`synchronous_preview`.
+
+Phase 4 now adds a bounded process-local event broker and authenticated SSE
+preview. The orchestrator publishes ordered lifecycle, buffered text, citation,
+Judge, and terminal events; complete messages remain canonical. SSE supports
+sequence cursors, `Last-Event-ID`, heartbeats, owner isolation, and an explicit
+canonical-message reload response when the transient cursor is too old.
+Buffered deltas are labelled and are not represented as live model tokens.
+
+Queue-backed `202`, live provider deltas, mobile stream consumption,
+cancellation, and cross-process reconnect remain later work. The checked-in
+persistence migrations are still not applied to hosted Supabase, so production
+keeps V2 disabled.
 
 ## Implemented single-response data flow
 

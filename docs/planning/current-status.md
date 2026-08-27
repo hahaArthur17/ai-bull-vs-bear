@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last verified: 2026-08-27
+Last verified: 2026-08-28
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -13,13 +13,13 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Area | Status | Current state |
 | --- | --- | --- |
 | Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
-| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 preview adds Session, Message, and Challenge routes. |
+| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 preview adds Session, Message, Challenge, and resumable SSE event routes. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 190 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 207 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -36,8 +36,11 @@ These are limitations of the current implementation, not completed features:
 - A default-off V2 API preview now runs stateful mutual rebuttals and both
   rounds, but it is synchronous, deterministic, not connected to the mobile UI,
   and deliberately disabled in production.
-- There is no SSE/WebSocket stream, durable debate job queue, worker lifecycle,
-  cancellation protocol, or reconnect/resume cursor.
+- V2 has a process-local SSE replay/heartbeat preview, but POST execution is
+  still synchronous and its deltas are buffered from a completed deterministic
+  draft rather than streamed live from a model. There is no durable job queue,
+  Worker lifecycle, cancellation protocol, mobile stream client, or
+  cross-process cursor.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause; arbitrary term
   explanation and mid-generation interruption are not implemented.
@@ -201,6 +204,27 @@ Phase 3 is complete in code with commits `3c921b6`, `e0635e0`, and `6f6d0d7`.
 The Debate migrations are checked in but not applied to hosted Supabase. They
 must not be described as live persistence until the Phase 2 catalog preflight
 and the new Debate RLS/service-role verification are completed.
+
+### Phase 4 progress
+
+A bounded `InMemoryDebateEventBroker` now assigns monotonic per-Session
+sequences, retains at most 256 events for each of 128 recent Sessions, supports
+blocking wait and cursor replay, and emits unbuffered heartbeat control frames.
+The orchestrator publishes Job, Turn, buffered delta, citation, Judge, safe
+failure, and terminal Session events without making this transient path
+canonical or allowing its failure to block persisted work.
+
+The default-off authenticated SSE endpoint enforces Session ownership, supports
+`after_sequence` and `Last-Event-ID`, closes on the current stage terminal event,
+and returns `409` when a cursor has fallen behind the bounded buffer. Tests
+reconstruct complete messages from ordered deltas, verify sensitive provider
+failures never enter events, and cover heartbeat, owner isolation, resume, and
+canonical-reload behavior. Commits: `03627b5`, `cfac90d`, and `82e2374`.
+
+This remains a transport preview: the deterministic provider returns a complete
+turn before it is split into labelled `buffered_preview` chunks. A true
+asynchronous provider stream and the mobile stream client are the next Phase 4
+work.
 
 ## Boundaries that remain in force
 

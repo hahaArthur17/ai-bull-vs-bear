@@ -1,6 +1,6 @@
 # Multi-Agent Workflow
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 The steps immediately below describe the deployed single-response workflow.
 The default-off deterministic multi-turn preview and its remaining target
@@ -91,8 +91,11 @@ round plans, state-transition rules, turn/Judge provider inputs, and Phase 3
 persistence adapters described below are now implemented. A credential-free
 provider/orchestrator also executes both rounds and persists the user Challenge.
 Default-off Session, Message, and Challenge API routes now expose that workflow
-as `synchronous_preview`. Worker/Queue transport, live-provider generation,
-term explanation, cancellation, and streaming remain target behaviour.
+as `synchronous_preview`. A bounded event broker and authenticated SSE endpoint
+also expose ordered buffered preview chunks, citations, Judge events,
+heartbeats, and terminal state with resume cursors. Worker/Queue transport,
+live-provider generation, the mobile stream client, term explanation, and
+cancellation remain target behaviour.
 
 ### Step 1: Build one immutable analysis context
 
@@ -139,6 +142,11 @@ The deterministic Phase 3 orchestrator now proves the transcript, latest-target,
 citation, persistence, and state-transition parts of this step without Queue or
 streaming.
 
+The Phase 4 compatibility path now divides each already completed deterministic
+draft into whitespace-safe `buffered_preview` deltas and publishes them before
+the canonical complete-message event. This proves event ordering and
+reconstruction only; it is not described as provider token streaming.
+
 ### Step 4: Interim Judge and user pause
 
 The Judge summarizes agreements, disagreements, evidence strength, missing
@@ -166,7 +174,8 @@ The final Judge summarizes the complete active branch and the session moves to
 `completed`.
 
 The deterministic Phase 3 path implements this sequence on the current branch;
-live token streaming and cancellation generation handling remain Phase 4.
+live provider token streaming and cancellation generation handling remain
+Phase 4.
 
 ### Step 7: Recover and audit
 

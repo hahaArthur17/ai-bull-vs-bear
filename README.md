@@ -26,7 +26,9 @@ baseline is maintained in
   repositories for sessions, complete messages/citations, interventions, and
   the application job ledger. A deterministic runtime completes both rounds and
   the user-Challenge pause. A default-off V2 preview exposes the Session,
-  Message, and Challenge API synchronously while production remains unchanged.
+  Message, Challenge, and resumable SSE event API while production remains
+  unchanged. Preview deltas are buffered deterministic chunks, not live model
+  tokens.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.

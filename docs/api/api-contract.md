@@ -1,6 +1,6 @@
 # API Contract
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 Endpoints in the first section are implemented. The portfolio target is
 explicitly marked planned and must not be presented as available before its
@@ -114,6 +114,7 @@ POST /debates
 GET  /debates?limit=
 GET  /debates/{session_id}
 GET  /debates/{session_id}/messages
+GET  /debates/{session_id}/events
 POST /debates/{session_id}/interventions
 ```
 
@@ -148,11 +149,26 @@ occur in that message. A valid Challenge persists the user question, runs four
 more alternating turns and the Final Judge, and returns the completed Session.
 Session/detail/history reads are owner-scoped.
 
-This preview is not an asynchronous or streaming claim. It does not implement
-Queue publication, SSE, explanation, cancellation, reconnect, a live provider,
-or Redis. In Supabase persistence mode it also requires the server-only secret
-and the checked-in Debate migrations; production remains disabled until those
-are applied and verified.
+`GET /debates/{session_id}/events` returns authenticated `text/event-stream`.
+Frames use the versioned `DebateEvent` JSON envelope, the per-session sequence
+as the SSE `id`, `Last-Event-ID` or `after_sequence` as a resume cursor, and
+bounded heartbeats while a non-terminal Session is idle. The current-process
+buffer is capped at 256 events for each of at most 128 Sessions. An expired
+cursor returns `409`; the client must reload canonical Session/Messages and
+then attach to newer events.
+
+The deterministic adapter publishes `turn.delta` chunks only after it has
+received one complete provider draft, and labels them
+`source=buffered_preview`. This proves ordering, framing, owner isolation, and
+resume behavior but is not live model token streaming. Complete messages and
+citations remain canonical in the repository; transient event publication
+failure does not block them.
+
+The preview still does not implement Queue publication, live provider streaming,
+explanation, cancellation, a mobile stream client, cross-process replay, or
+Redis. In Supabase persistence mode it additionally requires the server-only
+secret and checked-in Debate migrations; production remains disabled until
+those are applied and verified.
 
 ## Planned portfolio API
 
@@ -162,7 +178,6 @@ The canonical request/response and SSE event shapes live in the
 ### Queue and streaming additions
 
 ```text
-GET  /debates/{session_id}/events
 POST /debates/{session_id}/cancel
 ```
 
@@ -170,9 +185,8 @@ The later Queue phase will change `POST /debates` from the explicit synchronous
 preview contract to `202 Accepted` with session/job IDs and a stream path. It
 will enqueue work rather than block until every model turn completes.
 
-The events endpoint emits authenticated SSE-formatted, versioned events such
-as `job.queued`, `turn.started`, `turn.delta`, `turn.completed`,
-`session.awaiting_user`, and terminal session events.
+The existing events endpoint will later receive true live provider deltas and
+Queue/Worker events rather than buffered deterministic preview chunks.
 
 ### Human interaction
 

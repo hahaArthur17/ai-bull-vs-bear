@@ -5,8 +5,10 @@ so the project can be explored without API keys or a Supabase project.
 
 The public baseline produces one synchronous Bull/Bear/Judge response. A
 default-off `DEBATE_WORKFLOW_V2` preview also exercises the complete
-deterministic two-round Session/Message workflow synchronously. Durable Queue
-delivery, Redis coordination, and streamed Debate are planned, not yet
+deterministic two-round Session/Message workflow synchronously and exposes its
+bounded lifecycle events through resumable SSE. These preview deltas are
+generated from an already completed deterministic turn. Durable Queue delivery,
+Redis coordination, and live provider token streaming are planned, not yet
 implemented. Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.

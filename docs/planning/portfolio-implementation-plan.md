@@ -1,6 +1,6 @@
 # Portfolio Implementation Plan
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 Status: Active
 
@@ -1018,7 +1018,7 @@ Status: In progress
 - [ ] Refactor provider adapters from one full JSON draft to one bounded turn at
   a time while retaining a compatibility adapter for the old flow.
 - [ ] Add asynchronous streaming support to the chosen first live provider.
-- [ ] Implement the versioned event envelope and heartbeat.
+- [x] Implement the versioned event envelope and heartbeat.
 - [ ] Add authenticated Web/React Native stream client abstraction.
 - [ ] Validate/correct citations at turn completion.
 - [ ] Implement reconnect from canonical completed messages.
@@ -1027,6 +1027,13 @@ Status: In progress
 Completion rule: one local Live AI round streams in order, persists validated
 messages, reconnects safely, and never exposes partial output as a completed
 claim.
+
+Progress evidence: `03627b5`, `cfac90d`, and `82e2374` add a bounded
+process-local broker, ordered orchestration events, labelled buffered preview
+deltas, authenticated SSE, heartbeat, owner isolation, sequence/Last-Event-ID
+resume, and expired-cursor recovery through canonical messages. This does not
+satisfy the completion rule yet: provider generation remains synchronous and
+the mobile client does not consume the stream.
 
 ### Phase 5 — Durable Queue and Worker
 
@@ -1193,11 +1200,12 @@ tests, and legacy `/analysis` remains compatible. Production remains disabled
 because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
-The next code-only step is Phase 4's bounded per-turn provider/stream boundary.
-Start with versioned in-process events and the deterministic provider, then add
-one live streaming adapter behind the same default-off flag. Do not claim
-`202`, durable delivery, retry, Redis, or cross-process resume until their later
-phases and deployment checks are complete.
+The next code-only step is one live asynchronous per-turn provider adapter plus
+the authenticated Web/React Native `DebateStreamClient`. It must use the new
+event boundary, retain the deterministic buffered preview for zero-cost tests,
+and persist only validated complete messages. Do not claim `202`, durable
+delivery, retry, Redis, or cross-process resume until their later phases and
+deployment checks are complete.
 
 ## 22. Primary implementation references
 
