@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    JsonValue,
+    field_validator,
+    model_validator,
+)
 
 
 FactorCategory = Literal["technical", "macro", "company", "fundamental", "other"]
@@ -26,6 +33,13 @@ class ImmutableDomainModel(BaseModel):
     )
 
 
+class FactorFreshness(ImmutableDomainModel):
+    status: Literal["current", "stale", "unknown"] = "unknown"
+    age_days: int | None = Field(default=None, ge=0)
+    max_age_days: int | None = Field(default=None, ge=0)
+    evaluated_at: str | None = Field(default=None, max_length=40)
+
+
 class AnalysisPricePoint(ImmutableDomainModel):
     date: str = Field(min_length=1, max_length=40)
     open: float = Field(ge=0)
@@ -37,12 +51,67 @@ class AnalysisPricePoint(ImmutableDomainModel):
     is_stale: bool | None = None
 
 
+class AnalysisEvidenceItem(ImmutableDomainModel):
+    id: str = Field(min_length=1, max_length=240)
+    ticker: str = Field(min_length=1, max_length=16)
+    source_type: Literal["news", "filing", "technical"]
+    title: str = Field(min_length=1, max_length=500)
+    url: str | None = Field(default=None, max_length=2048)
+    published_at: str | None = Field(default=None, max_length=40)
+    excerpt: str = Field(min_length=1, max_length=6000)
+    freshness: FactorFreshness = Field(default_factory=FactorFreshness)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        return value.upper()
+
+
+class AnalysisMacroObservation(ImmutableDomainModel):
+    code: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=200)
+    source: str = Field(min_length=1, max_length=80)
+    unit: str = Field(min_length=1, max_length=80)
+    observation_date: str = Field(min_length=1, max_length=40)
+    value: float
+    retrieved_at: str = Field(min_length=1, max_length=40)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+
+class AnalysisFinancialFact(ImmutableDomainModel):
+    id: str = Field(min_length=1, max_length=240)
+    ticker: str = Field(min_length=1, max_length=16)
+    taxonomy: str = Field(min_length=1, max_length=80)
+    concept: str = Field(min_length=1, max_length=200)
+    label: str = Field(min_length=1, max_length=300)
+    value: float
+    unit: str = Field(min_length=1, max_length=80)
+    period_start: str = Field(min_length=1, max_length=40)
+    period_end: str = Field(min_length=1, max_length=40)
+    filed_at: str = Field(min_length=1, max_length=40)
+    form: str = Field(min_length=1, max_length=40)
+    accession_number: str = Field(min_length=1, max_length=80)
+    source_url: str = Field(min_length=1, max_length=2048)
+    fiscal_year: int | None = None
+    fiscal_period: str | None = Field(default=None, max_length=40)
+    metadata: dict[str, JsonValue] = Field(default_factory=dict)
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        return value.upper()
+
+
 class AnalysisContext(ImmutableDomainModel):
     """Immutable inputs shared by factor providers for one analysis snapshot."""
 
     ticker: str = Field(min_length=1, max_length=16)
     as_of: str = Field(min_length=1, max_length=40)
     prices: tuple[AnalysisPricePoint, ...] = ()
+    evidence: tuple[AnalysisEvidenceItem, ...] = ()
+    macro_context: tuple[AnalysisMacroObservation, ...] = ()
+    financial_facts: tuple[AnalysisFinancialFact, ...] = ()
     question: str | None = Field(default=None, max_length=500)
     allowed_evidence_ids: frozenset[str] = frozenset()
     metadata: dict[str, JsonValue] = Field(default_factory=dict)
@@ -52,12 +121,16 @@ class AnalysisContext(ImmutableDomainModel):
     def normalize_ticker(cls, value: str) -> str:
         return value.upper()
 
-
-class FactorFreshness(ImmutableDomainModel):
-    status: Literal["current", "stale", "unknown"] = "unknown"
-    age_days: int | None = Field(default=None, ge=0)
-    max_age_days: int | None = Field(default=None, ge=0)
-    evaluated_at: str | None = Field(default=None, max_length=40)
+    @model_validator(mode="after")
+    def validate_ticker_scoped_inputs(self) -> AnalysisContext:
+        if any(item.ticker != self.ticker for item in self.evidence):
+            raise ValueError("Evidence ticker does not match the analysis context")
+        if any(item.ticker != self.ticker for item in self.financial_facts):
+            raise ValueError("Financial-fact ticker does not match the analysis context")
+        evidence_ids = {item.id for item in self.evidence}
+        if evidence_ids and not self.allowed_evidence_ids <= evidence_ids:
+            raise ValueError("Allowed evidence IDs must exist in the context snapshot")
+        return self
 
 
 class FactorSourceReference(ImmutableDomainModel):

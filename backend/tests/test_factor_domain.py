@@ -3,11 +3,15 @@ from pydantic import ValidationError
 
 from app.domain.factors import (
     AnalysisContext,
+    AnalysisEvidenceItem,
+    AnalysisFinancialFact,
+    AnalysisMacroObservation,
     AnalysisPricePoint,
     FactorObservation,
     FactorProvider,
     FactorSourceReference,
 )
+from app.services.analysis_context import build_analysis_context
 
 
 def build_context() -> AnalysisContext:
@@ -108,3 +112,76 @@ def test_factor_provider_is_a_structural_extension_contract() -> None:
     assert isinstance(MockFactorProvider(), FactorProvider)
     assert MockFactorProvider().collect(build_context())[0].provider == "mock-sentiment"
 
+
+def test_analysis_context_normalizes_existing_typed_source_inputs() -> None:
+    context = build_analysis_context(
+        "aapl",
+        as_of="2026-08-26",
+        prices=build_context().prices,
+        evidence=(
+            AnalysisEvidenceItem(
+                id="news-aapl-1",
+                ticker="aapl",
+                source_type="news",
+                title="Company update",
+                published_at="2026-08-25",
+                excerpt="A dated company update used only as context.",
+                freshness={"status": "current", "age_days": 1, "max_age_days": 7},
+            ),
+        ),
+        macro_context=(
+            AnalysisMacroObservation(
+                code="vix",
+                name="CBOE Volatility Index",
+                source="fred",
+                unit="index points",
+                observation_date="2026-08-25",
+                value=17.25,
+                retrieved_at="2026-08-26T00:00:00+00:00",
+            ),
+        ),
+        financial_facts=(
+            AnalysisFinancialFact(
+                id="fact-aapl-revenue-2026-q2",
+                ticker="aapl",
+                taxonomy="us-gaap",
+                concept="RevenueFromContractWithCustomerExcludingAssessedTax",
+                label="Revenue",
+                value=94_000_000_000,
+                unit="USD",
+                period_start="2026-04-01",
+                period_end="2026-06-30",
+                filed_at="2026-07-31",
+                form="10-Q",
+                accession_number="0000320193-26-000001",
+                source_url="https://www.sec.gov/example",
+                fiscal_year=2026,
+                fiscal_period="Q2",
+            ),
+        ),
+        question="What context is available?",
+    )
+
+    assert context.ticker == "AAPL"
+    assert context.allowed_evidence_ids == frozenset({"news-aapl-1"})
+    assert context.evidence[0].freshness.status == "current"
+    assert context.macro_context[0].value == 17.25
+    assert context.financial_facts[0].unit == "USD"
+    assert AnalysisContext.model_validate_json(context.model_dump_json()) == context
+
+
+def test_analysis_context_rejects_cross_ticker_inputs() -> None:
+    with pytest.raises(ValidationError, match="Evidence ticker"):
+        AnalysisContext(
+            ticker="AAPL",
+            as_of="2026-08-26",
+            evidence=(
+                AnalysisEvidenceItem(
+                    id="news-goog-1",
+                    ticker="GOOG",
+                    source_type="news",
+                    title="Wrong company",
+                    excerpt="This item must not enter an AAPL snapshot.",
+                ),
+            ),
+        )
