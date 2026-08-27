@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.config import get_settings
 from app.debate_schemas import (
@@ -17,6 +18,7 @@ from app.debate_schemas import (
     DebateSessionDetail,
 )
 from app.domain.debate import DebateSession
+from app.domain.events import DebateEvent
 from app.providers.current_factors import build_current_factor_registry
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.debate_repository import (
@@ -47,6 +49,11 @@ from app.services.analysis import AnalysisService
 from app.services.analysis_context import build_analysis_context
 from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_token
 from app.services.debate_orchestrator import DebateOrchestrationError
+from app.services.debate_event_broker import (
+    DebateEventCursorExpired,
+    InMemoryDebateEventBroker,
+    format_debate_sse,
+)
 from app.services.debate_preview import DebatePreviewService
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
@@ -68,6 +75,7 @@ if settings.persistence_mode.lower().strip() == "supabase":
 else:
     store = DemoStore()
 analysis_service = AnalysisService(store)
+debate_event_broker = InMemoryDebateEventBroker()
 debate_preview_service: DebatePreviewService | None
 if settings.persistence_mode.lower().strip() == "supabase":
     if settings.supabase_url and settings.supabase_secret_key:
@@ -80,6 +88,7 @@ if settings.persistence_mode.lower().strip() == "supabase":
             debate_repository,
             debate_provider,
             debate_provider,
+            event_publisher=debate_event_broker,
         )
     else:
         debate_preview_service = None
@@ -90,6 +99,7 @@ else:
         debate_repository,
         debate_provider,
         debate_provider,
+        event_publisher=debate_event_broker,
     )
 quote_cache = (
     QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))
@@ -282,6 +292,69 @@ def _debate_detail(session: DebateSession) -> DebateSessionDetail:
         session=session,
         messages=_debate_message_records(session),
     )
+
+
+def _debate_event_cursor(
+    after_sequence: int | None,
+    last_event_id: str | None,
+) -> int:
+    if after_sequence is not None:
+        return after_sequence
+    if not last_event_id:
+        return 0
+    try:
+        cursor = int(last_event_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="Last-Event-ID must be a sequence") from exc
+    if cursor < 0:
+        raise HTTPException(status_code=400, detail="Last-Event-ID cannot be negative")
+    return cursor
+
+
+def _debate_sse_frames(
+    session: DebateSession,
+    *,
+    after_sequence: int,
+    initial_events: tuple[DebateEvent, ...] = (),
+    heartbeat_seconds: float = 15.0,
+) -> Iterator[str]:
+    cursor = after_sequence
+    pending = initial_events
+    terminal_types = {
+        "session.awaiting_user",
+        "session.completed",
+        "session.cancelled",
+        "session.failed",
+    }
+    while True:
+        events = pending
+        pending = ()
+        if not events:
+            try:
+                events = debate_event_broker.wait_for_events(
+                    session.id,
+                    after_sequence=cursor,
+                    timeout=heartbeat_seconds,
+                )
+            except DebateEventCursorExpired:
+                return
+        if events:
+            for event in events:
+                cursor = event.sequence
+                yield format_debate_sse(event)
+                if event.type in terminal_types:
+                    return
+            continue
+        assert debate_preview_service is not None
+        current = debate_preview_service.repository.get_session(session.id, session.user_id)
+        if current is None or current.status in {
+            "awaiting_user",
+            "completed",
+            "cancelled",
+            "failed",
+        }:
+            return
+        yield format_debate_sse(debate_event_broker.heartbeat(session.id))
 
 
 @app.get("/stocks", response_model=list[Stock])
@@ -511,6 +584,46 @@ def get_debate_messages(
 ) -> list[DebateMessageRecord]:
     session = _debate_session_or_404(session_id, _debate_user_id(auth))
     return list(_debate_message_records(session))
+
+
+@app.get(
+    "/debates/{session_id}/events",
+    include_in_schema=settings.debate_workflow_v2,
+)
+def stream_debate_events(
+    session_id: UUID,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+    after_sequence: int | None = Query(default=None, ge=0),
+    last_event_id: Annotated[str | None, Header(alias="Last-Event-ID")] = None,
+) -> StreamingResponse:
+    session = _debate_session_or_404(session_id, _debate_user_id(auth))
+    cursor = _debate_event_cursor(after_sequence, last_event_id)
+    try:
+        initial_events = debate_event_broker.replay(
+            session.id,
+            after_sequence=cursor,
+        )
+    except DebateEventCursorExpired as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                "Event cursor expired; reload canonical Debate messages before reconnecting"
+            ),
+        ) from exc
+    return StreamingResponse(
+        _debate_sse_frames(
+            session,
+            after_sequence=cursor,
+            initial_events=initial_events,
+        ),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.post(

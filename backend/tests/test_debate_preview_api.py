@@ -9,8 +9,10 @@ from app import main
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.analysis import AnalysisService
+from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
 from app.services.demo_store import DemoStore
+from test_debate_orchestrator import build_queued_round_one
 
 
 client = TestClient(main.app)
@@ -21,9 +23,16 @@ def isolated_preview(monkeypatch: pytest.MonkeyPatch) -> None:
     store = DemoStore()
     repository = InMemoryDebateRepository()
     provider = DeterministicDebateProvider()
-    service = DebatePreviewService(repository, provider, provider)
+    event_broker = InMemoryDebateEventBroker()
+    service = DebatePreviewService(
+        repository,
+        provider,
+        provider,
+        event_publisher=event_broker,
+    )
     monkeypatch.setattr(main, "store", store)
     monkeypatch.setattr(main, "analysis_service", AnalysisService(store))
+    monkeypatch.setattr(main, "debate_event_broker", event_broker)
     monkeypatch.setattr(main, "debate_preview_service", service)
     monkeypatch.setattr(main.settings, "auth_mode", "demo")
     monkeypatch.setattr(main.settings, "debate_workflow_v2", False)
@@ -181,6 +190,119 @@ def test_challenge_persists_user_question_and_completes_round_two(
         question in record["message"]["content"]
         for record in payload["messages"][8:12]
     )
+
+
+def test_event_stream_replays_ordered_round_one_and_supports_resume(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_round = create_round_one(monkeypatch)
+    session_id = first_round["session"]["id"]
+    headers = {"X-User-Id": "preview-user"}
+
+    response = client.get(f"/debates/{session_id}/events", headers=headers)
+
+    assert response.status_code == 200
+    assert response.headers["content-type"].startswith("text/event-stream")
+    assert response.headers["cache-control"] == "no-cache, no-transform"
+    frames = [frame for frame in response.text.strip().split("\n\n") if frame]
+    event_types = [
+        next(line.removeprefix("event: ") for line in frame.splitlines() if line.startswith("event: "))
+        for frame in frames
+    ]
+    event_ids = [
+        int(next(line.removeprefix("id: ") for line in frame.splitlines() if line.startswith("id: ")))
+        for frame in frames
+    ]
+    assert event_ids == list(range(1, len(event_ids) + 1))
+    assert event_types[:3] == ["session.created", "job.queued", "job.started"]
+    assert event_types[-1] == "session.awaiting_user"
+    assert "turn.delta" in event_types
+    assert "judge.completed" in event_types
+
+    resume_cursor = event_ids[-3]
+    resumed = client.get(
+        f"/debates/{session_id}/events",
+        headers={**headers, "Last-Event-ID": str(resume_cursor)},
+    )
+    resumed_ids = [
+        int(line.removeprefix("id: "))
+        for line in resumed.text.splitlines()
+        if line.startswith("id: ")
+    ]
+    assert resumed.status_code == 200
+    assert resumed_ids == event_ids[-2:]
+
+
+def test_event_stream_is_owner_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
+    first_round = create_round_one(monkeypatch, user="stream-owner")
+    session_id = first_round["session"]["id"]
+
+    response = client.get(
+        f"/debates/{session_id}/events",
+        headers={"X-User-Id": "different-user"},
+    )
+
+    assert response.status_code == 404
+
+
+def test_running_event_stream_emits_an_unbuffered_heartbeat() -> None:
+    queued, _ = build_queued_round_one()
+    assert main.debate_preview_service is not None
+    main.debate_preview_service.repository.create_session(queued)
+    frames = main._debate_sse_frames(
+        queued,
+        after_sequence=0,
+        heartbeat_seconds=0,
+    )
+
+    heartbeat = next(frames)
+    frames.close()
+
+    assert heartbeat.startswith("event: heartbeat\n")
+    assert "id:" not in heartbeat
+    assert '"latest_sequence":0' in heartbeat
+
+
+def test_expired_event_cursor_requires_canonical_message_reload(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    repository = InMemoryDebateRepository()
+    provider = DeterministicDebateProvider()
+    event_broker = InMemoryDebateEventBroker(max_events_per_session=3)
+    service = DebatePreviewService(
+        repository,
+        provider,
+        provider,
+        event_publisher=event_broker,
+    )
+    monkeypatch.setattr(main, "debate_event_broker", event_broker)
+    monkeypatch.setattr(main, "debate_preview_service", service)
+    first_round = create_round_one(monkeypatch)
+    session_id = first_round["session"]["id"]
+
+    response = client.get(
+        f"/debates/{session_id}/events?after_sequence=0",
+        headers={"X-User-Id": "preview-user"},
+    )
+
+    assert response.status_code == 409
+    assert "reload canonical Debate messages" in response.json()["detail"]
+
+
+@pytest.mark.parametrize("last_event_id", ["not-a-sequence", "-1"])
+def test_event_stream_rejects_invalid_last_event_id(
+    monkeypatch: pytest.MonkeyPatch,
+    last_event_id: str,
+) -> None:
+    first_round = create_round_one(monkeypatch)
+    session_id = first_round["session"]["id"]
+
+    response = client.get(
+        f"/debates/{session_id}/events",
+        headers={"X-User-Id": "preview-user", "Last-Event-ID": last_event_id},
+    )
+
+    assert response.status_code == 400
 
 
 @pytest.mark.parametrize(
