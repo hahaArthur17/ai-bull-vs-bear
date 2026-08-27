@@ -64,6 +64,12 @@ round two. One state-transition service owns all legal session changes.
 Repository and turn/Judge provider protocols are implemented, but no new API,
 Supabase table, Queue consumer, or streaming runtime is connected yet.
 
+The mobile boundary has also started moving out of the original single-file
+implementation. Shared design tokens and base UI components are centralized,
+and Watchlist, History, and About are standalone screens. This refactor retains
+the existing appearance and behaviour; the financial-technology redesign
+remains Phase 8 work.
+
 ## Implemented single-response data flow
 
 1. The mobile client requests supported stocks and the user's watchlist.

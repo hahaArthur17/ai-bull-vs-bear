@@ -2,7 +2,7 @@
 
 Period: 2026-08-27
 
-Status: Phase 1 in progress
+Status: Phase 1 complete
 
 ## Goal
 
@@ -40,6 +40,12 @@ factor boundary.
   protocols (`554118f`).
 - Added grounded turn/Judge request, draft, and provider protocols that require
   the latest opponent message as the rebuttal target (`22bacd3`).
+- Extracted shared mobile design tokens and the existing app style sheet without
+  changing rendered values (`330f1f9`).
+- Extracted reusable base UI components and bottom-navigation button
+  (`29d1251`).
+- Extracted Watchlist, History, and About into standalone screen modules while
+  preserving their props and behaviour (`731844d`).
 
 ## Decisions
 
@@ -59,24 +65,26 @@ Focused checks passed after each change. The phase checkpoint uses:
 ```shell
 PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
 cd apps/mobile && npm run typecheck
+cd apps/mobile && npm run build:web
 ```
 
-Result on 2026-08-27: 123 backend tests passed, mobile TypeScript passed, and all
-local Markdown links resolved. The only backend warning remains the existing
-Starlette/httpx test-client deprecation.
+Result on 2026-08-27: 123 backend tests passed, mobile TypeScript and Expo Web
+export passed, and all local Markdown links resolved. The only backend warning
+remains the existing Starlette/httpx test-client deprecation.
 
-## Unfinished work
+## Work deferred to later phases
 
-- Begin mobile screen/token extraction without changing visual behaviour.
 - Do not apply Supabase DDL until the migration phase and its RLS tests are
   ready.
+- Stock detail, charting, Debate, Evidence, and Examination remain in `App.tsx`
+  for incremental extraction alongside their owning feature phases.
 
 ## Recommended next tasks
 
-1. Begin extracting mobile screens and shared tokens without changing visual
-   behaviour.
-2. Complete the Phase 1 compatibility gate and documentation checkpoint.
-3. Start Phase 2 catalog-source selection only after Phase 1 is marked done.
+1. Select and document a bounded, redistributable US-symbol catalog source.
+2. Add the Phase 2 catalog/coverage migration and repository tests.
+3. Prove catalog search performs zero market-data provider calls before changing
+   the mobile search interface.
 
 ## Related documents
 

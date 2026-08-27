@@ -911,7 +911,7 @@ tests, and mobile typecheck. Documentation commits: `fd7bc52`, `5eab700`,
 
 ### Phase 1 — Characterization and modular boundaries
 
-Status: In progress
+Status: Done
 
 - [x] Record the staged Supabase business-table and Queue migration decision;
   Phase 1 intentionally makes no hosted DDL change.
@@ -924,16 +924,19 @@ Status: In progress
 - [x] Add `FactorRegistry` and wrap the current technical-indicator calculation.
 - [x] Wrap the current macro, news, filing, and financial-fact sources.
 - [x] Add the test-only mock factor extension proof.
-- [ ] Begin extracting mobile screens and shared design tokens without a visual
+- [x] Begin extracting mobile screens and shared design tokens without a visual
   rewrite.
 
 Progress evidence: `9374398`, `58c70f8`, `6b415a5`, `598eb3d`, `f689328`,
-`191f65c`, `ab206bf`, `2183974`, `4831b22`, `554118f`, and `22bacd3`. All
-current factor categories and Debate domain boundaries are implemented, but the
-factor snapshot and state machine are not yet connected to a V2 API runtime.
+`191f65c`, `ab206bf`, `2183974`, `4831b22`, `554118f`, `22bacd3`, `330f1f9`,
+`29d1251`, and `731844d`. All current factor categories and Debate domain
+boundaries are implemented. Shared mobile tokens/components and the Watchlist,
+History, and About screens are extracted without changing behaviour. The factor
+snapshot and state machine are not yet connected to a V2 API runtime.
 
 Completion rule: current API/mobile behaviour remains compatible and tests prove
-a new factor provider is additive.
+a new factor provider is additive. Verified with 123 backend tests, mobile
+TypeScript, and Expo Web export on 2026-08-27.
 
 Suggested focused commits:
 
@@ -945,7 +948,7 @@ Suggested focused commits:
 
 ### Phase 2 — Catalog search and coverage-aware watchlist
 
-Status: Planned
+Status: In progress
 
 - [ ] Choose and document a bounded static symbol catalog source.
 - [ ] Add catalog/coverage migration and seed data.
@@ -1142,19 +1145,16 @@ When a phase completes:
 - add a milestone report with verification and commit IDs; and
 - keep historical reports append-only.
 
-## 21. First coding task after this plan
+## 21. Current coding entry point
 
-Start Phase 1 with characterization and domain contracts, not Redis credentials
-or UI styling:
+Phase 1 is complete. Start Phase 2 by selecting and documenting a bounded,
+redistributable US-symbol catalog source and update date. Then add the catalog
+and coverage migration with its repository tests before changing the mobile
+search interface.
 
-1. pin the current single-analysis response and store behaviour with tests;
-2. define `FactorObservation`, `AnalysisContext`, and `FactorProvider`;
-3. adapt the current technical factor path without changing API output;
-4. add the mock-provider extension test; and
-5. commit each step separately.
-
-This creates the stable extension boundary required by later Debate, Queue, and
-Redis work while keeping the deployed application operational.
+The first Phase 2 proof must show that searching a catalog-only ticker performs
+zero market-data provider calls. Do not connect Redis, Queue, or the V2 Debate
+runtime during this phase.
 
 ## 22. Primary implementation references
 

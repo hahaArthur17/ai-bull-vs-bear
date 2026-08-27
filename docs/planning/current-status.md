@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 123 backend tests and the mobile TypeScript check pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 123 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -46,13 +46,14 @@ These are limitations of the current implementation, not completed features:
 - Watchlist persistence works for seeded stocks only. A catalog-only stock
   cannot yet be saved with an explicit data-coverage state.
 - Technical indicators, evidence types, and model prompt inputs use several
-  fixed schemas. Existing technical, macro, news, filing, and financial-fact
-  data are present, but there is no common `FactorProvider` extension contract.
+  fixed schemas in the current API. Common `FactorProvider` contracts and
+  adapters now exist, but they are not yet connected to the V2 Debate runtime.
 - Redis is not configured. The current quote cache is process-local and other
   persistent cached data is read from Supabase.
 - No durable message queue is connected to the analysis request path.
-- Most mobile UI and navigation logic remains in one large `App.tsx`, making a
-  consistent financial-technology visual redesign harder to maintain.
+- Stock detail, charting, Debate, Evidence, and Examination UI still live in a
+  large `App.tsx`; the shared theme/components and three low-coupling screens
+  are now extracted, but the remaining UI needs incremental modularization.
 
 ## Accepted product direction
 
@@ -76,14 +77,15 @@ of production-scale market-traffic capacity. It will:
   components.
 
 The complete target architecture, product rules, phase order, acceptance tests,
-and first coding task are canonical in
+and current coding entry point are canonical in
 [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md).
 
-Documentation Phase 0 is complete. The active development phase is Phase 1:
-characterize the current behaviour, introduce factor/domain contracts, and
-prove that a mock factor can be added without changing the existing API output.
+Documentation Phase 0 and modular-boundary Phase 1 are complete. The active
+development phase is Phase 2: add a bounded local/Supabase stock catalog,
+coverage-aware search, and watchlist-only symbols without spending market-data
+provider quota.
 
-### Phase 1 progress
+### Phase 1 completion evidence
 
 The synchronous analysis contract now has explicit characterization tests.
 Immutable `AnalysisContext`/`FactorObservation` contracts, a validating
@@ -106,6 +108,12 @@ the full two-round path, Judge prerequisites, cancellation, failure, and
 terminal states. Turn-provider inputs require the latest opponent message as
 the rebuttal target. Repository protocols define the future Supabase boundary
 without claiming that persistence or Queue adapters already exist.
+
+The mobile baseline now imports shared colour/spacing/radius tokens and shared
+UI primitives. Watchlist, History, and About are separate screen modules;
+`App.tsx` fell from 1365 to 1091 lines without a visual or navigation rewrite.
+The completion gate passed with 123 backend tests, mobile TypeScript, and Expo
+Web export.
 
 Supabase DDL remains unchanged by design. The accepted
 [`ADR-0001`](../architecture/decisions/0001-staged-supabase-schema-and-queue.md)
@@ -130,4 +138,5 @@ assigns catalog changes to Phase 2, Debate business tables to Phase 3, and the
 ```shell
 PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
 cd apps/mobile && npm run typecheck
+cd apps/mobile && npm run build:web
 ```

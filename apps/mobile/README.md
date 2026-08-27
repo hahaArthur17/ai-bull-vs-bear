@@ -31,5 +31,11 @@ multi-turn messages, Queue status, user interventions, catalog-only stocks, and
 the financial-technology redesign are planned in the canonical
 [`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
 
+Shared colours, spacing, radii, and app styles live in `src/theme.ts`; reusable
+base UI components live under `src/components/`. Watchlist, History, and About
+are standalone screen modules under `src/screens/`. Stock detail, charts,
+Debate, Evidence, and Examination remain in `App.tsx` and will be extracted
+incrementally with their owning feature phases.
+
 The mobile app intentionally presents analysis as educational context and
 always shows the financial-advice disclaimer.
