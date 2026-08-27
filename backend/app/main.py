@@ -610,6 +610,11 @@ def stream_debate_events(
             detail=(
                 "Event cursor expired; reload canonical Debate messages before reconnecting"
             ),
+            headers={
+                "X-Debate-Latest-Sequence": str(
+                    debate_event_broker.latest_sequence(session.id)
+                )
+            },
         ) from exc
     return StreamingResponse(
         _debate_sse_frames(

@@ -287,6 +287,7 @@ def test_expired_event_cursor_requires_canonical_message_reload(
 
     assert response.status_code == 409
     assert "reload canonical Debate messages" in response.json()["detail"]
+    assert int(response.headers["X-Debate-Latest-Sequence"]) > 3
 
 
 @pytest.mark.parametrize("last_event_id", ["not-a-sequence", "-1"])
