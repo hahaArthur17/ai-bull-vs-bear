@@ -35,6 +35,9 @@ When resuming the project:
   V2 preview API.
 - [`project-week-09.md`](project-week-09.md) — bounded Debate event broker,
   orchestration events, and resumable authenticated SSE preview.
+- [`project-week-10.md`](project-week-10.md) — async per-Turn provider contract,
+  compatibility/native deterministic adapters, and validated stream
+  persistence.
 
 ## Template for a new report
 

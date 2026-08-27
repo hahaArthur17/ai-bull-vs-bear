@@ -130,6 +130,15 @@ sequence cursors, `Last-Event-ID`, heartbeats, owner isolation, and an explicit
 canonical-message reload response when the transient cursor is too old.
 Buffered deltas are labelled and are not represented as live model tokens.
 
+The next Phase 4 layer now exists behind that transport: an async per-Turn
+Provider protocol emits whitespace-preserving ordered deltas followed by one
+validated completion. A whole-draft adapter keeps existing providers usable
+without blocking the event loop, while a zero-token deterministic async
+provider exercises the native contract. The async orchestrator publishes each
+arriving delta, accounts for Turn token usage, and writes a message only after
+the complete text, finish reason, output bound, rebuttal target, and evidence
+IDs validate. Interrupted streams leave no incomplete canonical message.
+
 Queue-backed `202`, live provider deltas, mobile stream consumption,
 cancellation, and cross-process reconnect remain later work. The checked-in
 persistence migrations are still not applied to hosted Supabase, so production

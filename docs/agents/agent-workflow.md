@@ -143,9 +143,17 @@ citation, persistence, and state-transition parts of this step without Queue or
 streaming.
 
 The Phase 4 compatibility path now divides each already completed deterministic
-draft into whitespace-safe `buffered_preview` deltas and publishes them before
+draft into whitespace-safe `buffered_compatibility` deltas and publishes them before
 the canonical complete-message event. This proves event ordering and
 reconstruction only; it is not described as provider token streaming.
+
+An async Provider contract and orchestrator path are also implemented in code.
+They accept contiguous whitespace-preserving deltas as they arrive, require one
+normal completion whose full draft exactly matches those deltas, enforce the
+Turn output bound and frozen evidence/rebuttal target, and then persist. A
+mid-stream failure publishes the safe Session failure but never creates a
+complete message for the partial text. The selected HTTP preview still uses the
+compatibility path until one live provider and client stream are verified.
 
 ### Step 4: Interim Judge and user pause
 

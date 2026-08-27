@@ -13,6 +13,13 @@ implemented. Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.
 
+The Phase 4 domain also includes an async per-Turn stream protocol, a
+whole-draft compatibility adapter, a zero-token deterministic async provider,
+and an async orchestrator path. That path publishes deltas as they arrive but
+persists only after a normal completion frame passes text, output-bound,
+rebuttal-target, and evidence-ID validation. It is currently exercised in code
+and tests, not selected by the HTTP preview or production configuration.
+
 ## Run locally
 
     cd backend

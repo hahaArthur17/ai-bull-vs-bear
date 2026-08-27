@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 207 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 223 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -37,8 +37,9 @@ These are limitations of the current implementation, not completed features:
   rounds, but it is synchronous, deterministic, not connected to the mobile UI,
   and deliberately disabled in production.
 - V2 has a process-local SSE replay/heartbeat preview, but POST execution is
-  still synchronous and its deltas are buffered from a completed deterministic
-  draft rather than streamed live from a model. There is no durable job queue,
+  still synchronous and its HTTP deltas are buffered from a completed
+  deterministic draft rather than streamed live from a model. The code-only
+  async Provider/orchestrator path is not yet selected by the API. There is no durable job queue,
   Worker lifecycle, cancellation protocol, mobile stream client, or
   cross-process cursor.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
@@ -221,10 +222,21 @@ reconstruct complete messages from ordered deltas, verify sensitive provider
 failures never enter events, and cover heartbeat, owner isolation, resume, and
 canonical-reload behavior. Commits: `03627b5`, `cfac90d`, and `82e2374`.
 
-This remains a transport preview: the deterministic provider returns a complete
-turn before it is split into labelled `buffered_preview` chunks. A true
-asynchronous provider stream and the mobile stream client are the next Phase 4
-work.
+The async per-Turn contract now preserves exact delta whitespace, requires
+contiguous chunk indexes and one normal completion, records validated usage,
+and rejects truncated, inconsistent, over-length, wrongly targeted, or
+out-of-snapshot results. `WholeDraftTurnStreamAdapter` keeps blocking legacy
+providers off the event-loop thread, while
+`DeterministicStreamingDebateProvider` exercises the native async protocol with
+zero tokens. The async orchestrator publishes deltas immediately, aggregates
+Turn token usage into the Job, and persists only after stream collection and
+validation. An interrupted stream leaves temporary deltas plus a safe failure,
+but no incomplete canonical message. Commits: `5209db1`, `cfc5dfa`, and
+`149a7ed`.
+
+The selected HTTP preview still returns a complete deterministic Turn before
+splitting it into labelled `buffered_compatibility` chunks. One live provider
+adapter and the mobile stream client are the next Phase 4 work.
 
 ## Boundaries that remain in force
 

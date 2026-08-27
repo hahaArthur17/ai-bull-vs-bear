@@ -157,12 +157,18 @@ buffer is capped at 256 events for each of at most 128 Sessions. An expired
 cursor returns `409`; the client must reload canonical Session/Messages and
 then attach to newer events.
 
-The deterministic adapter publishes `turn.delta` chunks only after it has
-received one complete provider draft, and labels them
-`source=buffered_preview`. This proves ordering, framing, owner isolation, and
+The HTTP preview's compatibility adapter publishes `turn.delta` chunks only
+after it has received one complete provider draft, and labels them
+`source=buffered_compatibility`. This proves ordering, framing, owner isolation, and
 resume behavior but is not live model token streaming. Complete messages and
 citations remain canonical in the repository; transient event publication
 failure does not block them.
+
+A separate code-only async orchestration path now accepts real ordered Provider
+deltas. It rejects missing/late completion, non-contiguous chunks, truncated
+finish reasons, text mismatch, output overflow, wrong rebuttal targets, and
+out-of-snapshot evidence before persistence. It is not yet selected by an HTTP
+creation mode, so this section does not present it as an available live API.
 
 The preview still does not implement Queue publication, live provider streaming,
 explanation, cancellation, a mobile stream client, cross-process replay, or

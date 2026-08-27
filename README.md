@@ -28,7 +28,8 @@ baseline is maintained in
   the user-Challenge pause. A default-off V2 preview exposes the Session,
   Message, Challenge, and resumable SSE event API while production remains
   unchanged. Preview deltas are buffered deterministic chunks, not live model
-  tokens.
+  tokens. A code-only async per-Turn contract now validates true provider
+  streams before persistence; no external provider is selected yet.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.

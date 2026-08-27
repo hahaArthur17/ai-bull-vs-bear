@@ -1015,12 +1015,12 @@ keeps `DEBATE_WORKFLOW_V2=false`.
 
 Status: In progress
 
-- [ ] Refactor provider adapters from one full JSON draft to one bounded turn at
+- [x] Refactor provider adapters from one full JSON draft to one bounded turn at
   a time while retaining a compatibility adapter for the old flow.
 - [ ] Add asynchronous streaming support to the chosen first live provider.
 - [x] Implement the versioned event envelope and heartbeat.
 - [ ] Add authenticated Web/React Native stream client abstraction.
-- [ ] Validate/correct citations at turn completion.
+- [x] Validate/correct citations at turn completion.
 - [ ] Implement reconnect from canonical completed messages.
 - [ ] Add cancellation generation IDs and late-event rejection.
 
@@ -1032,8 +1032,15 @@ Progress evidence: `03627b5`, `cfac90d`, and `82e2374` add a bounded
 process-local broker, ordered orchestration events, labelled buffered preview
 deltas, authenticated SSE, heartbeat, owner isolation, sequence/Last-Event-ID
 resume, and expired-cursor recovery through canonical messages. This does not
-satisfy the completion rule yet: provider generation remains synchronous and
-the mobile client does not consume the stream.
+satisfy the completion rule yet: the HTTP preview still selects synchronous
+whole-draft generation, no live external stream adapter is implemented, and the
+mobile client does not consume the stream.
+
+Additional evidence: `5209db1`, `cfc5dfa`, and `149a7ed` define the async
+per-Turn stream/completion contract, preserve whitespace, provide whole-draft
+and zero-token deterministic adapters, validate completion/length/target/
+citations, account for tokens, and ensure an interrupted stream never persists
+an incomplete message. No live external provider or HTTP selection is claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
@@ -1200,8 +1207,8 @@ tests, and legacy `/analysis` remains compatible. Production remains disabled
 because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
-The next code-only step is one live asynchronous per-turn provider adapter plus
-the authenticated Web/React Native `DebateStreamClient`. It must use the new
+The next code-only step is one live asynchronous per-Turn provider adapter plus
+the authenticated Web/React Native `DebateStreamClient`. They must use the new
 event boundary, retain the deterministic buffered preview for zero-cost tests,
 and persist only validated complete messages. Do not claim `202`, durable
 delivery, retry, Redis, or cross-process resume until their later phases and
