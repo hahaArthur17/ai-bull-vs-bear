@@ -17,19 +17,14 @@ from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateRepositoryError,
 )
-from app.services.debate_state import allowed_session_transitions
+from app.services.debate_persistence import (
+    DebatePersistenceValidationError,
+    validate_job_update,
+    validate_session_update,
+)
 
 
 DomainModel = TypeVar("DomainModel", bound=ImmutableDomainModel)
-
-
-ALLOWED_JOB_TRANSITIONS: dict[DebateJobStatus, frozenset[DebateJobStatus]] = {
-    "queued": frozenset({"running", "failed", "cancelled"}),
-    "running": frozenset({"completed", "failed", "cancelled"}),
-    "completed": frozenset(),
-    "failed": frozenset(),
-    "cancelled": frozenset(),
-}
 
 
 def _clone(model: DomainModel) -> DomainModel:
@@ -97,7 +92,10 @@ class InMemoryDebateRepository:
                 raise DebateRepositoryError("Debate session not found")
             if current.status != expected_status:
                 raise DebateConcurrencyError("Debate session status changed concurrently")
-            self._validate_session_update(current, session)
+            try:
+                validate_session_update(current, session)
+            except DebatePersistenceValidationError as exc:
+                raise DebateRepositoryError(str(exc)) from exc
             self._sessions[session.id] = _clone(session)
             return _clone(session)
 
@@ -213,7 +211,10 @@ class InMemoryDebateRepository:
                 raise DebateRepositoryError("Debate job not found")
             if current.status != expected_status:
                 raise DebateConcurrencyError("Debate job status changed concurrently")
-            self._validate_job_update(current, job)
+            try:
+                validate_job_update(current, job)
+            except DebatePersistenceValidationError as exc:
+                raise DebateRepositoryError(str(exc)) from exc
             self._jobs[job.id] = _clone(job)
             return _clone(job)
 
@@ -239,32 +240,6 @@ class InMemoryDebateRepository:
             return _clone(session), _clone(job)
 
     @staticmethod
-    def _validate_session_update(current: DebateSession, updated: DebateSession) -> None:
-        immutable_fields = (
-            "id",
-            "user_id",
-            "stock_id",
-            "ticker",
-            "mode",
-            "opening_side",
-            "initial_question",
-            "analysis_context",
-            "factor_snapshot",
-            "created_at",
-        )
-        if any(getattr(current, field) != getattr(updated, field) for field in immutable_fields):
-            raise DebateRepositoryError("Immutable Debate session fields cannot change")
-        if updated.updated_at < current.updated_at:
-            raise DebateRepositoryError("Debate session update time cannot move backwards")
-        if updated.status != current.status:
-            if updated.status not in allowed_session_transitions(current.status):
-                raise DebateRepositoryError("Invalid Debate session status transition")
-            if updated.status == "awaiting_user" and updated.interim_judge_message_id is None:
-                raise DebateRepositoryError("Round one requires an interim Judge")
-            if updated.status == "completed" and updated.final_judge_message_id is None:
-                raise DebateRepositoryError("Round two requires a final Judge")
-
-    @staticmethod
     def _validate_citations(
         message: DebateMessage,
         citations: tuple[DebateMessageEvidence, ...],
@@ -280,22 +255,3 @@ class InMemoryDebateRepository:
         session = self._sessions.get(job.session_id)
         if session is None or session.user_id != job.user_id:
             raise DebateRepositoryError("Debate session not found")
-
-    @staticmethod
-    def _validate_job_update(current: DebateJob, updated: DebateJob) -> None:
-        immutable_fields = (
-            "id",
-            "session_id",
-            "user_id",
-            "job_type",
-            "idempotency_key",
-            "max_attempts",
-            "available_at",
-            "created_at",
-        )
-        if any(getattr(current, field) != getattr(updated, field) for field in immutable_fields):
-            raise DebateRepositoryError("Immutable Debate job fields cannot change")
-        if updated.updated_at < current.updated_at:
-            raise DebateRepositoryError("Debate job update time cannot move backwards")
-        if updated.status != current.status and updated.status not in ALLOWED_JOB_TRANSITIONS[current.status]:
-            raise DebateRepositoryError("Invalid Debate job status transition")

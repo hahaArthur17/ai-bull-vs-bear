@@ -6,6 +6,10 @@ MIGRATION_SQL = (
     REPOSITORY_ROOT
     / "backend/supabase/migrations/20260827_v2_debate_persistence.sql"
 ).read_text(encoding="utf-8")
+RPC_MIGRATION_SQL = (
+    REPOSITORY_ROOT
+    / "backend/supabase/migrations/20260827_v2_debate_persistence_rpc.sql"
+).read_text(encoding="utf-8")
 
 
 DEBATE_TABLES = (
@@ -105,3 +109,18 @@ def test_debate_migration_has_owner_and_query_path_indexes() -> None:
         "debate_jobs_session_created_idx",
     ):
         assert f"create index if not exists {index}" in MIGRATION_SQL
+
+
+def test_debate_transaction_rpcs_are_service_only_and_queue_independent() -> None:
+    assert "function public.create_debate_session_with_job" in RPC_MIGRATION_SQL
+    assert "function public.append_debate_message" in RPC_MIGRATION_SQL
+    assert "jsonb_populate_record(null::public.debate_sessions" in RPC_MIGRATION_SQL
+    assert "jsonb_populate_record(null::public.debate_jobs" in RPC_MIGRATION_SQL
+    assert "jsonb_populate_record(null::public.debate_messages" in RPC_MIGRATION_SQL
+    assert "jsonb_populate_recordset(" in RPC_MIGRATION_SQL
+    assert "errcode = '23505'" in RPC_MIGRATION_SQL
+    assert "set search_path = ''" in RPC_MIGRATION_SQL
+    assert "from public, anon, authenticated" in RPC_MIGRATION_SQL
+    assert RPC_MIGRATION_SQL.count("to service_role;") == 2
+    assert "security definer" not in RPC_MIGRATION_SQL.lower()
+    assert "pgmq" not in RPC_MIGRATION_SQL.lower()
