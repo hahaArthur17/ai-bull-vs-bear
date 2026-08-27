@@ -79,6 +79,10 @@ The complete target architecture, product rules, phase order, acceptance tests,
 and first coding task are canonical in
 [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md).
 
+Documentation Phase 0 is complete. The active development phase is Phase 1:
+characterize the current behaviour, introduce factor/domain contracts, and
+prove that a mock factor can be added without changing the existing API output.
+
 ## Boundaries that remain in force
 
 - Educational explanations only; no personalised allocations, trading

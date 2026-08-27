@@ -896,21 +896,22 @@ Only one phase should be marked `In progress` at a time.
 
 ### Phase 0 — Documentation baseline
 
-Status: In progress
+Status: Done
 
 - [x] Establish a canonical planning index and verified current-status file.
 - [x] Archive superseded week-numbered plans and original MVP notes.
 - [x] Add this canonical implementation plan.
-- [ ] Align architecture, API, agent, database, setup, and root documentation
+- [x] Align architecture, API, agent, database, setup, and root documentation
   with current-versus-target terminology.
-- [ ] Verify local Markdown links.
+- [x] Verify local Markdown links.
 
 Completion evidence: focused documentation commits, clean link check, backend
-tests, and mobile typecheck.
+tests, and mobile typecheck. Documentation commits: `fd7bc52`, `5eab700`,
+`bf901be`, `85df94e`, and `40ec318`.
 
 ### Phase 1 — Characterization and modular boundaries
 
-Status: Planned
+Status: In progress
 
 - [ ] Add characterization tests for current analysis, history, watchlist,
   evidence snapshots, and provider adapters.
