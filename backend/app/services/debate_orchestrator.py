@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 import logging
@@ -7,7 +8,13 @@ from uuid import UUID, uuid5
 
 from pydantic import JsonValue
 
-from app.domain.agents import DebateJudgeRequest, DebateTurnRequest
+from app.domain.agents import (
+    DebateJudgeRequest,
+    DebateTurnDraft,
+    DebateTurnRequest,
+    DebateTurnStreamDelta,
+    DebateTurnStreamUsage,
+)
 from app.domain.debate import (
     DebateIntervention,
     DebateMessage,
@@ -17,11 +24,20 @@ from app.domain.debate import (
 )
 from app.domain.events import DebateEventType
 from app.domain.jobs import DebateJob
-from app.providers.debate_agents import DebateJudgeProvider, DebateTurnProvider
+from app.providers.debate_agents import (
+    DebateJudgeProvider,
+    DebateStreamingTurnProvider,
+    DebateTurnProvider,
+)
+from app.providers.streaming_debate import (
+    WholeDraftTurnStreamAdapter,
+    preview_text_chunks,
+)
 from app.repositories.debate_repository import DebateUnitOfWork
 from app.services.debate_job_state import complete_job, fail_job, start_job
 from app.services.debate_event_broker import DebateEventPublisher
 from app.services.debate_state import attach_judge_message, transition_session
+from app.services.debate_streaming import collect_debate_turn_stream
 
 
 logger = logging.getLogger(__name__)
@@ -38,12 +54,16 @@ class DebateOrchestrator:
         turn_provider: DebateTurnProvider,
         judge_provider: DebateJudgeProvider,
         *,
+        streaming_turn_provider: DebateStreamingTurnProvider | None = None,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
         self.turn_provider = turn_provider
         self.judge_provider = judge_provider
+        self.streaming_turn_provider = streaming_turn_provider or WholeDraftTurnStreamAdapter(
+            turn_provider
+        )
         self.event_publisher = event_publisher
         self.clock = clock or (lambda: datetime.now(timezone.utc))
 
@@ -157,6 +177,127 @@ class DebateOrchestrator:
             self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
             raise DebateOrchestrationError("Debate job execution failed") from exc
 
+    async def execute_job_streaming(self, job_id: UUID) -> DebateSession:
+        """Execute a stage through the async per-turn provider contract."""
+
+        job = self.repository.get_job(job_id)
+        if job is None:
+            raise DebateOrchestrationError("Debate job not found")
+        session = self.repository.get_session(job.session_id, job.user_id)
+        if session is None:
+            raise DebateOrchestrationError("Debate session not found")
+        if job.status == "completed":
+            return session
+        if job.status != "queued" or job.job_type not in {"round_1", "round_2"}:
+            raise DebateOrchestrationError("Debate job is not executable")
+
+        round_number = 1 if job.job_type == "round_1" else 2
+        queued_status = "queued_round_1" if round_number == 1 else "queued_round_2"
+        running_status = "running_round_1" if round_number == 1 else "running_round_2"
+        if session.status != queued_status:
+            raise DebateOrchestrationError("Debate session is not ready for this job")
+
+        provider_request_count = 0
+        prompt_tokens = 0
+        completion_tokens = 0
+        try:
+            running_job = start_job(job, at=self._at_or_after(job.updated_at))
+            running_job = self.repository.update_job(running_job, expected_status="queued")
+            self._emit(
+                session.id,
+                "job.started",
+                {
+                    "job_id": str(running_job.id),
+                    "job_type": running_job.job_type,
+                    "attempt_count": running_job.attempt_count,
+                    "execution_mode": "async_stream",
+                },
+            )
+            running_session = transition_session(
+                session,
+                running_status,
+                at=self._at_or_after(session.updated_at),
+            )
+            running_session = self.repository.update_session(
+                running_session,
+                expected_status=queued_status,
+            )
+            plan = build_round_plan(round_number, running_session.opening_side)
+            transcript = self.repository.list_messages(
+                running_session.id,
+                running_session.user_id,
+                branch_id=running_session.active_branch_id,
+            )
+            user_intervention = next(
+                (
+                    message.content
+                    for message in reversed(transcript)
+                    if message.role == "user" and message.message_kind == "question"
+                ),
+                None,
+            )
+
+            for turn in plan.turns:
+                provider_request_count += 1
+                if turn.role == "judge":
+                    running_session = await asyncio.to_thread(
+                        self._append_judge,
+                        running_session,
+                        transcript,
+                        phase=turn.judge_phase or "final",
+                        round_number=round_number,
+                    )
+                else:
+                    _, usage = await self._append_streaming_turn(
+                        running_session,
+                        transcript,
+                        role=turn.role,
+                        message_kind=turn.message_kind,
+                        round_number=round_number,
+                        exchange_number=turn.exchange_number,
+                        user_intervention=user_intervention,
+                    )
+                    prompt_tokens += usage.prompt_tokens
+                    completion_tokens += usage.completion_tokens
+                transcript = self.repository.list_messages(
+                    running_session.id,
+                    running_session.user_id,
+                    branch_id=running_session.active_branch_id,
+                )
+
+            target_status = "awaiting_user" if round_number == 1 else "completed"
+            finished_session = transition_session(
+                running_session,
+                target_status,
+                at=self._at_or_after(running_session.updated_at),
+            )
+            finished_session = self.repository.update_session(
+                finished_session,
+                expected_status=running_status,
+            )
+            completed_job = complete_job(
+                running_job,
+                at=self._at_or_after(running_job.updated_at),
+                provider_request_count=provider_request_count,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            self.repository.update_job(completed_job, expected_status="running")
+            self._emit(
+                finished_session.id,
+                "session.awaiting_user" if round_number == 1 else "session.completed",
+                {
+                    "status": finished_session.status,
+                    "generation_id": str(finished_session.active_generation_id),
+                    "job_id": str(completed_job.id),
+                    "execution_mode": "async_stream",
+                },
+            )
+            return finished_session
+        except Exception as exc:
+            self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
+            raise DebateOrchestrationError("Debate streaming job execution failed") from exc
+
     def submit_challenge(
         self,
         intervention: DebateIntervention,
@@ -239,6 +380,103 @@ class DebateOrchestrator:
         exchange_number: int,
         user_intervention: str | None,
     ) -> DebateMessage:
+        target_id, sequence_number, message_id, request = self._prepare_turn(
+            session,
+            transcript,
+            role=role,
+            message_kind=message_kind,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            user_intervention=user_intervention,
+        )
+        draft = self.turn_provider.generate_turn(request)
+        for delta_index, delta in enumerate(preview_text_chunks(draft.content), start=1):
+            self._emit_turn_delta(
+                session,
+                message_id=message_id,
+                role=role,
+                delta_index=delta_index,
+                delta=delta,
+                source="buffered_compatibility",
+            )
+        return self._persist_turn_draft(
+            session,
+            target_id=target_id,
+            sequence_number=sequence_number,
+            message_id=message_id,
+            role=role,
+            message_kind=message_kind,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            draft=draft,
+            provider_name=self.turn_provider.name,
+            provider_version=self.turn_provider.version,
+            stream_mode="buffered_compatibility",
+        )
+
+    async def _append_streaming_turn(
+        self,
+        session: DebateSession,
+        transcript: list[DebateMessage],
+        *,
+        role: str,
+        message_kind: str,
+        round_number: int,
+        exchange_number: int,
+        user_intervention: str | None,
+    ) -> tuple[DebateMessage, DebateTurnStreamUsage]:
+        target_id, sequence_number, message_id, request = self._prepare_turn(
+            session,
+            transcript,
+            role=role,
+            message_kind=message_kind,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            user_intervention=user_intervention,
+        )
+
+        async def publish_delta(event: DebateTurnStreamDelta) -> None:
+            self._emit_turn_delta(
+                session,
+                message_id=message_id,
+                role=role,
+                delta_index=event.chunk_index,
+                delta=event.delta,
+                source=event.source,
+            )
+
+        collected = await collect_debate_turn_stream(
+            self.streaming_turn_provider,
+            request,
+            on_delta=publish_delta,
+        )
+        message = self._persist_turn_draft(
+            session,
+            target_id=target_id,
+            sequence_number=sequence_number,
+            message_id=message_id,
+            role=role,
+            message_kind=message_kind,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            draft=collected.draft,
+            provider_name=self.streaming_turn_provider.name,
+            provider_version=self.streaming_turn_provider.version,
+            stream_mode="async_provider",
+        )
+        return message, collected.usage
+
+    def _prepare_turn(
+        self,
+        session: DebateSession,
+        transcript: list[DebateMessage],
+        *,
+        role: str,
+        message_kind: str,
+        round_number: int,
+        exchange_number: int,
+        user_intervention: str | None,
+    ) -> tuple[UUID | None, int, UUID, DebateTurnRequest]:
         opponent = "bear" if role == "bull" else "bull"
         latest_opponent = next(
             (message for message in reversed(transcript) if message.role == opponent),
@@ -281,26 +519,30 @@ class DebateOrchestrator:
                 if message.metadata.get("rebuttal_point")
             )[-30:],
         )
-        draft = self.turn_provider.generate_turn(request)
+        return target_id, sequence_number, message_id, request
+
+    def _persist_turn_draft(
+        self,
+        session: DebateSession,
+        *,
+        target_id: UUID | None,
+        sequence_number: int,
+        message_id: UUID,
+        role: str,
+        message_kind: str,
+        round_number: int,
+        exchange_number: int,
+        draft: DebateTurnDraft,
+        provider_name: str,
+        provider_version: str,
+        stream_mode: str,
+    ) -> DebateMessage:
         if draft.responds_to_message_id != target_id:
             raise DebateOrchestrationError("Turn provider returned the wrong rebuttal target")
         evidence_ids = self._validated_evidence_ids(
             draft.evidence_ids,
             session.analysis_context.allowed_evidence_ids,
         )
-        for delta_index, delta in enumerate(self._buffered_deltas(draft.content), start=1):
-            self._emit(
-                session.id,
-                "turn.delta",
-                {
-                    "message_id": str(message_id),
-                    "generation_id": str(session.active_generation_id),
-                    "role": role,
-                    "delta_index": delta_index,
-                    "delta": delta,
-                    "source": "buffered_preview",
-                },
-            )
         message = DebateMessage(
             id=message_id,
             session_id=session.id,
@@ -316,8 +558,9 @@ class DebateOrchestrator:
             signal_strength=draft.signal_strength,
             terms=draft.terms,
             metadata={
-                "provider": self.turn_provider.name,
-                "provider_version": self.turn_provider.version,
+                "provider": provider_name,
+                "provider_version": provider_version,
+                "stream_mode": stream_mode,
                 "responds_to_message_id": str(target_id) if target_id else None,
                 "rebuttal_point": draft.rebuttal_point,
                 "risk_meaning": draft.risk_meaning,
@@ -353,6 +596,29 @@ class DebateOrchestrator:
             },
         )
         return stored_message
+
+    def _emit_turn_delta(
+        self,
+        session: DebateSession,
+        *,
+        message_id: UUID,
+        role: str,
+        delta_index: int,
+        delta: str,
+        source: str,
+    ) -> None:
+        self._emit(
+            session.id,
+            "turn.delta",
+            {
+                "message_id": str(message_id),
+                "generation_id": str(session.active_generation_id),
+                "role": role,
+                "delta_index": delta_index,
+                "delta": delta,
+                "source": source,
+            },
+        )
 
     def _append_judge(
         self,
@@ -516,25 +782,6 @@ class DebateOrchestrator:
             session.id,
             f"message:{session.active_branch_id}:{sequence_number}",
         )
-
-    @staticmethod
-    def _buffered_deltas(content: str, *, max_characters: int = 96) -> tuple[str, ...]:
-        if max_characters < 1:
-            raise ValueError("Buffered Debate delta size must be positive")
-        # DebateEvent strips outer whitespace as part of its domain safety
-        # configuration. Keep whitespace inside frames so concatenation remains
-        # byte-for-byte equivalent to the canonical complete message.
-        chunks: list[str] = []
-        start = 0
-        while start < len(content):
-            end = min(start + max_characters, len(content))
-            while end < len(content) and (
-                content[end].isspace() or content[end - 1].isspace()
-            ):
-                end += 1
-            chunks.append(content[start:end])
-            start = end
-        return tuple(chunks)
 
     def _emit(
         self,

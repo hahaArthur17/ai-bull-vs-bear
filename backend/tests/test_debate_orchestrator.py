@@ -291,7 +291,7 @@ def test_round_one_publishes_ordered_reconstructable_preview_events() -> None:
         ]
         assert "".join(deltas) == message["content"]
         assert all(
-            event.payload["source"] == "buffered_preview"
+            event.payload["source"] == "buffered_compatibility"
             for event in events
             if event.type == "turn.delta"
             and event.payload["message_id"] == message_id
