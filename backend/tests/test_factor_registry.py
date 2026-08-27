@@ -102,3 +102,50 @@ def test_required_provider_failure_stops_collection_with_a_safe_error() -> None:
             AnalysisContext(ticker="AAPL", as_of="2026-08-26")
         )
 
+
+def test_mock_sentiment_provider_is_an_additive_extension() -> None:
+    class MockSentimentFactorProvider:
+        name = "mock-sentiment"
+        version = "test-v1"
+        required = False
+
+        def collect(self, context: AnalysisContext) -> list[FactorObservation]:
+            return [
+                FactorObservation(
+                    id=f"{self.name}:{context.ticker}:{context.as_of}",
+                    ticker=context.ticker,
+                    factor_key="other.mock-sentiment",
+                    category="other",
+                    provider=self.name,
+                    label="Test-only sentiment",
+                    as_of=context.as_of,
+                    value={"score": 0.25, "sample_size": 10},
+                    unit="normalized score",
+                    interpretation=(
+                        "Synthetic test data proves registration only; it is not market evidence."
+                    ),
+                    direction="mixed",
+                    confidence="low",
+                    metadata={"test_only": True},
+                    provider_version=self.version,
+                )
+            ]
+
+    context = build_context()
+    registry = FactorRegistry([TechnicalFactorProvider()])
+    original_snapshot = registry.collect(context)
+
+    registry.register(MockSentimentFactorProvider())
+    extended_snapshot = registry.collect(context)
+
+    original_ids = {item.id for item in original_snapshot.observations}
+    extended_ids = {item.id for item in extended_snapshot.observations}
+    mock_factor = next(
+        item
+        for item in extended_snapshot.observations
+        if item.provider == "mock-sentiment"
+    )
+    assert original_ids <= extended_ids
+    assert extended_ids - original_ids == {mock_factor.id}
+    assert mock_factor.factor_key == "other.mock-sentiment"
+    assert registry.provider_names == ("technical-indicators", "mock-sentiment")
