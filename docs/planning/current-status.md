@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 123 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 141 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -115,7 +115,7 @@ UI primitives. Watchlist, History, and About are separate screen modules;
 The completion gate passed with 123 backend tests, mobile TypeScript, and Expo
 Web export.
 
-Supabase DDL remains unchanged by design. The accepted
+Phase 1 left Supabase DDL unchanged by design. The accepted
 [`ADR-0001`](../architecture/decisions/0001-staged-supabase-schema-and-queue.md)
 assigns catalog changes to Phase 2, Debate business tables to Phase 3, and the
 `pgmq` Queue migration to Phase 5.
@@ -132,6 +132,13 @@ The reviewed 2026-08-27 snapshot contains 7,695 Nasdaq, NYSE, and CBOE tickers
 from 10,388 SEC associations and records the raw source checksum. Snapshot
 generation validates source shape, duplicate tickers, provenance, and the
 10,000-row safety bound.
+
+Repository DDL now adds nullable classification fields, CIK, aliases/search
+text, four explicit coverage states, indexed search, and public-read RLS. A
+generated migration seeds all 7,695 rows in 16 bounded upserts while preserving
+the four curated `debate_ready` records. The migrations have not yet been
+applied to the hosted Supabase project, and the current API still reads the old
+four-symbol repository path.
 
 ## Boundaries that remain in force
 

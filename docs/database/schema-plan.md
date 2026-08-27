@@ -2,10 +2,10 @@
 
 Last reviewed: 2026-08-27
 
-The authoritative implemented DDL is `backend/supabase/schema.sql` plus its
-migrations. This document summarizes the current schema and the planned
-portfolio additions; planned tables are not implemented until their migration
-phase completes.
+The authoritative repository DDL is `backend/supabase/schema.sql` plus its
+migrations. This document distinguishes checked-in schema work from the hosted
+database; a prepared migration is not considered deployed until the live
+verification step records it.
 
 The timing and ownership of those migrations are fixed by
 [`ADR-0001`](../architecture/decisions/0001-staged-supabase-schema-and-queue.md).
@@ -21,7 +21,9 @@ evidence that the tables already exist.
 
 ### stocks
 
-Stores supported stock tickers.
+Stores catalog identities and their configured data/Debate coverage. The Phase
+2 fields and seed are implemented in repository migrations but are not yet
+applied to the hosted project.
 
 Fields:
 - id
@@ -29,6 +31,13 @@ Fields:
 - company_name
 - exchange
 - sector
+- sec_cik
+- country
+- aliases
+- search_text
+- is_active
+- coverage_status
+- coverage_updated_at
 
 ### stock_prices
 
@@ -199,9 +208,10 @@ The current DDL also includes:
 Detailed fields, state names, and acceptance criteria are canonical in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
 
-### Stock catalog coverage
+### Stock catalog repository integration
 
-Extend `stocks` with bounded catalog and capability metadata:
+The checked-in Phase 2 migration extends `stocks` with bounded catalog and
+capability metadata:
 
 - sec_cik (nullable and non-unique across share classes)
 - country
@@ -212,7 +222,9 @@ Extend `stocks` with bounded catalog and capability metadata:
 - coverage_updated_at
 
 Coverage describes configured capabilities. Response-level source/freshness
-still determines whether cached data is safe to display or use.
+still determines whether cached data is safe to display or use. Remaining work
+is to apply and verify the migration, make the Supabase repository authoritative,
+and expose ranked coverage-aware search through the API and mobile client.
 
 [`ADR-0002`](../architecture/decisions/0002-sec-static-stock-catalog.md)
 selects a checked-in snapshot derived from the SEC ticker/exchange association

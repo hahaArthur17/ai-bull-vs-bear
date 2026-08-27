@@ -70,6 +70,18 @@ and Watchlist, History, and About are standalone screens. This refactor retains
 the existing appearance and behaviour; the financial-technology redesign
 remains Phase 8 work.
 
+### Phase 2 catalog foundation
+
+The repository contains a reviewed, versioned SEC ticker/exchange snapshot and
+deterministic generators for both the snapshot and its Supabase seed. Catalog
+DDL adds CIK, nullable classification, aliases/search text, explicit coverage,
+search indexes, and public-read RLS. The generated seed contains 7,695 catalog
+identities and preserves the four curated `debate_ready` rows on conflict.
+
+These migrations are not yet applied to the hosted project, and
+`SupabaseStore` has not yet replaced its inherited four-stock lookup. No runtime
+SEC or market-data request has been added.
+
 ## Implemented single-response data flow
 
 1. The mobile client requests supported stocks and the user's watchlist.

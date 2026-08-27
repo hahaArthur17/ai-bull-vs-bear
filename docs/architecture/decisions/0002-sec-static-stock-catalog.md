@@ -98,6 +98,10 @@ provide country or sector. Inferring those fields would create misleading data.
   evidence.
 - A periodic manual refresh is required. The UI must not claim that the catalog
   is complete or real-time.
+- The source can include ETFs, acquisition vehicles, units, rights, or other
+  listed securities and does not provide a reliable instrument-type field. The
+  initial UI identifies a ticker and coverage only; it must not label every row
+  as common stock.
 - Search results identify securities only. Price, evidence, and Debate endpoints
   must continue to enforce their own coverage requirements.
 

@@ -951,7 +951,7 @@ Suggested focused commits:
 Status: In progress
 
 - [x] Choose and document a bounded static symbol catalog source.
-- [ ] Add catalog/coverage migration and seed data.
+- [x] Add catalog/coverage migration and seed data.
 - [ ] Make Supabase repository stock lookup authoritative instead of inheriting
   the four-item `DemoStore` catalog.
 - [ ] Implement ranked, limited server-side search.
@@ -968,6 +968,12 @@ Source decision evidence:
 versioned SEC ticker/exchange snapshot, filtered to Nasdaq, NYSE, and CBOE and
 bounded to at most 10,000 rows. It is a securities identity catalog rather than a
 claim of live price, evidence, or Debate coverage.
+
+Catalog migration evidence: `c8fa984`, `f049a59`, `89b0044`, `f99c2da`,
+`e1b088c`, and `40c8fae`. The repository now contains the validated 7,695-row
+snapshot, catalog/coverage DDL, and an idempotent generated seed whose SQL is
+checked against the snapshot. These migrations are prepared but not yet applied
+to the hosted Supabase project.
 
 ### Phase 3 — Debate persistence and deterministic state machine
 
@@ -1153,9 +1159,10 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phase 1 is complete and the Phase 2 source decision is accepted. Next, add the
-catalog/coverage migration and its repository tests before changing the mobile
-search interface.
+Phase 1 is complete, and the Phase 2 catalog/coverage migration and seed are
+prepared. Next, make `SupabaseStore` stock lookup authoritative and implement
+ranked, limited catalog search with repository/API tests before changing the
+mobile search interface.
 
 The first Phase 2 proof must show that searching a catalog-only ticker performs
 zero market-data provider calls. Do not connect Redis, Queue, or the V2 Debate
