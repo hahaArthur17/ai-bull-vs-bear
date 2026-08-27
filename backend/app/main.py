@@ -2,12 +2,29 @@ from __future__ import annotations
 
 import logging
 from typing import Annotated
+from uuid import NAMESPACE_URL, UUID, uuid5
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.config import get_settings
+from app.debate_schemas import (
+    DebateChallengeRequest,
+    DebateCreateRequest,
+    DebateMessageRecord,
+    DebateMutationResponse,
+    DebateSessionDetail,
+)
+from app.domain.debate import DebateSession
+from app.providers.current_factors import build_current_factor_registry
+from app.providers.deterministic_debate import DeterministicDebateProvider
+from app.repositories.debate_repository import (
+    DebateConcurrencyError,
+    DebateRepositoryError,
+)
+from app.repositories.memory_debate_repository import InMemoryDebateRepository
+from app.repositories.supabase_debate_repository import SupabaseDebateRepository
 from app.schemas import (
     AnalysisRequest,
     AnalysisResponse,
@@ -27,7 +44,10 @@ from app.schemas import (
     WatchlistResponse,
 )
 from app.services.analysis import AnalysisService
+from app.services.analysis_context import build_analysis_context
 from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_token
+from app.services.debate_orchestrator import DebateOrchestrationError
+from app.services.debate_preview import DebatePreviewService
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
@@ -48,6 +68,29 @@ if settings.persistence_mode.lower().strip() == "supabase":
 else:
     store = DemoStore()
 analysis_service = AnalysisService(store)
+debate_preview_service: DebatePreviewService | None
+if settings.persistence_mode.lower().strip() == "supabase":
+    if settings.supabase_url and settings.supabase_secret_key:
+        debate_repository = SupabaseDebateRepository(
+            settings.supabase_url,
+            settings.supabase_secret_key,
+        )
+        debate_provider = DeterministicDebateProvider()
+        debate_preview_service = DebatePreviewService(
+            debate_repository,
+            debate_provider,
+            debate_provider,
+        )
+    else:
+        debate_preview_service = None
+else:
+    debate_repository = InMemoryDebateRepository()
+    debate_provider = DeterministicDebateProvider()
+    debate_preview_service = DebatePreviewService(
+        debate_repository,
+        debate_provider,
+        debate_provider,
+    )
 quote_cache = (
     QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))
     if settings.finnhub_api_key and settings.environment != "test"
@@ -67,6 +110,30 @@ def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResp
     return JSONResponse(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         content={"detail": "Persistence service unavailable"},
+    )
+
+
+@app.exception_handler(DebateConcurrencyError)
+def debate_concurrency_error_handler(
+    request: Request,
+    exc: DebateConcurrencyError,
+) -> JSONResponse:
+    logger.warning("Debate request conflicted: %s", exc)
+    return JSONResponse(
+        status_code=status.HTTP_409_CONFLICT,
+        content={"detail": "Debate state changed; refresh the session and try again"},
+    )
+
+
+@app.exception_handler(DebateRepositoryError)
+def debate_repository_error_handler(
+    request: Request,
+    exc: DebateRepositoryError,
+) -> JSONResponse:
+    logger.warning("Debate persistence request failed: %s", exc)
+    return JSONResponse(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        content={"detail": "Debate persistence service unavailable"},
     )
 
 
@@ -114,6 +181,106 @@ def _coverage(stock: Stock) -> StockCoverage:
         has_price_data=has_price_data,
         has_evidence=has_evidence,
         can_debate=stock.coverage_status == "debate_ready",
+    )
+
+
+def require_debate_workflow_v2() -> None:
+    if not settings.debate_workflow_v2:
+        raise HTTPException(status_code=404, detail="Debate V2 is not enabled")
+    if debate_preview_service is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Debate V2 persistence is not configured",
+        )
+
+
+def _debate_user_id(auth: AuthContext) -> UUID:
+    if settings.auth_mode.lower().strip() == "demo":
+        return uuid5(NAMESPACE_URL, f"ai-bull-vs-bear:user:{auth.user_id}")
+    try:
+        return UUID(auth.user_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid authenticated user") from exc
+
+
+def _debate_context(ticker: str, question: str | None):
+    prices = store.get_prices(ticker)
+    if not prices:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Debate requires a cached price snapshot",
+        )
+    as_of = str(prices[-1]["date"])
+    macro_context: list[dict[str, object]] = []
+    try:
+        for raw_series in store.get_macro_series():
+            series = MacroSeries.model_validate(raw_series)
+            candidates = [
+                MacroObservation.model_validate(row)
+                for row in store.get_macro_observations(series.code, limit=10)
+                if str(row.get("observation_date", "")) <= as_of
+            ]
+            if not candidates:
+                continue
+            latest = max(candidates, key=lambda item: item.observation_date)
+            macro_context.append(
+                {
+                    "code": series.code,
+                    "name": series.name,
+                    "source": series.source,
+                    "unit": series.unit,
+                    "observation_date": latest.observation_date,
+                    "value": latest.value,
+                    "retrieved_at": latest.retrieved_at,
+                    "metadata": latest.metadata,
+                }
+            )
+    except Exception:
+        logger.warning("Optional macro snapshot unavailable for Debate %s", ticker)
+    context = build_analysis_context(
+        ticker,
+        as_of=as_of,
+        prices=prices,
+        evidence=store.get_evidence(ticker),
+        macro_context=macro_context,
+        question=question,
+    )
+    return context, build_current_factor_registry().collect(context)
+
+
+def _debate_session_or_404(session_id: UUID, user_id: UUID) -> DebateSession:
+    assert debate_preview_service is not None
+    session = debate_preview_service.repository.get_session(session_id, user_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="Debate session not found")
+    return session
+
+
+def _debate_message_records(
+    session: DebateSession,
+) -> tuple[DebateMessageRecord, ...]:
+    assert debate_preview_service is not None
+    messages = debate_preview_service.repository.list_messages(
+        session.id,
+        session.user_id,
+        branch_id=session.active_branch_id,
+    )
+    return tuple(
+        DebateMessageRecord(
+            message=message,
+            citations=debate_preview_service.repository.list_message_evidence(
+                message.id,
+                session.user_id,
+            ),
+        )
+        for message in messages
+    )
+
+
+def _debate_detail(session: DebateSession) -> DebateSessionDetail:
+    return DebateSessionDetail(
+        session=session,
+        messages=_debate_message_records(session),
     )
 
 
@@ -254,6 +421,152 @@ def remove_watchlist(
     return WatchlistResponse(
         user_id=auth.user_id,
         tickers=store.remove_watchlist(auth.user_id, ticker, auth.access_token),
+    )
+
+
+@app.post(
+    "/debates",
+    response_model=DebateMutationResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=settings.debate_workflow_v2,
+)
+def create_debate(
+    request: DebateCreateRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateMutationResponse:
+    stock = _require_stock(request.ticker)
+    if not _coverage(stock).can_debate:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Bull vs Bear is available only for Debate-ready stocks",
+        )
+    assert debate_preview_service is not None
+    context, factor_snapshot = _debate_context(stock.ticker, request.question)
+    try:
+        stock_id = store.get_stock_record_id(stock.ticker, auth.access_token)
+        session, job = debate_preview_service.create_and_execute_round_one(
+            user_id=_debate_user_id(auth),
+            stock_id=stock_id,
+            ticker=stock.ticker,
+            opening_side=request.opening_side,
+            question=request.question,
+            analysis_context=context,
+            factor_snapshot=factor_snapshot,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Stock not found") from exc
+    except DebateOrchestrationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Debate preview execution failed",
+        ) from exc
+    detail = _debate_detail(session)
+    return DebateMutationResponse(
+        session=detail.session,
+        messages=detail.messages,
+        job_id=job.id,
+    )
+
+
+@app.get(
+    "/debates",
+    response_model=list[DebateSession],
+    include_in_schema=settings.debate_workflow_v2,
+)
+def list_debates(
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+    limit: int = Query(default=50, ge=1, le=100),
+) -> list[DebateSession]:
+    assert debate_preview_service is not None
+    return debate_preview_service.repository.list_sessions(
+        _debate_user_id(auth),
+        limit=limit,
+    )
+
+
+@app.get(
+    "/debates/{session_id}",
+    response_model=DebateSessionDetail,
+    include_in_schema=settings.debate_workflow_v2,
+)
+def get_debate(
+    session_id: UUID,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
+    return _debate_detail(_debate_session_or_404(session_id, _debate_user_id(auth)))
+
+
+@app.get(
+    "/debates/{session_id}/messages",
+    response_model=list[DebateMessageRecord],
+    include_in_schema=settings.debate_workflow_v2,
+)
+def get_debate_messages(
+    session_id: UUID,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> list[DebateMessageRecord]:
+    session = _debate_session_or_404(session_id, _debate_user_id(auth))
+    return list(_debate_message_records(session))
+
+
+@app.post(
+    "/debates/{session_id}/interventions",
+    response_model=DebateMutationResponse,
+    status_code=status.HTTP_201_CREATED,
+    include_in_schema=settings.debate_workflow_v2,
+)
+def challenge_debate(
+    session_id: UUID,
+    request: DebateChallengeRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateMutationResponse:
+    assert debate_preview_service is not None
+    session = _debate_session_or_404(session_id, _debate_user_id(auth))
+    if session.status != "awaiting_user":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Debate session is not awaiting a user challenge",
+        )
+    target = next(
+        (
+            record.message
+            for record in _debate_message_records(session)
+            if record.message.id == request.selected_message_id
+        ),
+        None,
+    )
+    if target is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Challenge target is not in the active Debate branch",
+        )
+    if request.selected_text not in target.content:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Selected text is not present in the target message",
+        )
+    try:
+        completed, job = debate_preview_service.submit_challenge_and_execute_round_two(
+            session=session,
+            selected_message_id=request.selected_message_id,
+            selected_text=request.selected_text,
+            question=request.question,
+        )
+    except DebateOrchestrationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Debate challenge could not be applied",
+        ) from exc
+    detail = _debate_detail(completed)
+    return DebateMutationResponse(
+        session=detail.session,
+        messages=detail.messages,
+        job_id=job.id,
     )
 
 
