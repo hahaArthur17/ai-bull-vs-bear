@@ -51,6 +51,13 @@ class ContractOnlyRepository:
     ) -> list[DebateMessage]:
         return []
 
+    def list_message_evidence(
+        self,
+        message_id: UUID,
+        user_id: UUID,
+    ) -> tuple[DebateMessageEvidence, ...]:
+        return ()
+
     def create_intervention(
         self,
         intervention: DebateIntervention,
@@ -85,4 +92,3 @@ def test_repository_contracts_are_structural_and_database_independent() -> None:
     assert isinstance(repository, DebateSessionRepository)
     assert isinstance(repository, DebateJobRepository)
     assert isinstance(repository, DebateUnitOfWork)
-

@@ -61,6 +61,13 @@ class DebateSessionRepository(Protocol):
     ) -> list[DebateMessage]:
         ...
 
+    def list_message_evidence(
+        self,
+        message_id: UUID,
+        user_id: UUID,
+    ) -> tuple[DebateMessageEvidence, ...]:
+        ...
+
     def create_intervention(
         self,
         intervention: DebateIntervention,
@@ -95,4 +102,3 @@ class DebateUnitOfWork(DebateSessionRepository, DebateJobRepository, Protocol):
         """Persist initial state atomically before Queue publication."""
 
         ...
-

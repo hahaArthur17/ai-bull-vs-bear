@@ -1,0 +1,203 @@
+from datetime import timedelta
+from uuid import UUID
+
+import pytest
+
+from app.domain.debate import DebateIntervention, DebateMessage, DebateMessageEvidence, DebateSession
+from app.domain.jobs import DebateJob
+from app.repositories.debate_repository import (
+    DebateConcurrencyError,
+    DebateRepositoryError,
+    DebateUnitOfWork,
+)
+from app.repositories.memory_debate_repository import InMemoryDebateRepository
+from app.services.debate_state import transition_session
+from test_debate_domain import BRANCH_ID, GENERATION_ID, NOW, SESSION_ID, USER_ID, build_session
+
+
+OTHER_USER_ID = UUID("00000000-0000-4000-8000-000000000099")
+JOB_ID = UUID("00000000-0000-4000-8000-000000000100")
+MESSAGE_ID = UUID("00000000-0000-4000-8000-000000000101")
+
+
+def build_job(session: DebateSession, **updates: object) -> DebateJob:
+    return DebateJob.model_validate(
+        {
+            "id": JOB_ID,
+            "session_id": session.id,
+            "user_id": session.user_id,
+            "job_type": "round_1",
+            "status": "queued",
+            "idempotency_key": f"round-1:{session.id}:{session.active_branch_id}",
+            "available_at": NOW,
+            "created_at": NOW,
+            "updated_at": NOW,
+            **updates,
+        }
+    )
+
+
+def build_message(**updates: object) -> DebateMessage:
+    return DebateMessage.model_validate(
+        {
+            "id": MESSAGE_ID,
+            "session_id": SESSION_ID,
+            "branch_id": BRANCH_ID,
+            "generation_id": GENERATION_ID,
+            "sequence_number": 1,
+            "round_number": 1,
+            "exchange_number": 1,
+            "role": "bull",
+            "message_kind": "argument",
+            "content": "A bounded opening argument with explicit uncertainty.",
+            "created_at": NOW,
+            **updates,
+        }
+    )
+
+
+def test_memory_repository_implements_the_unit_of_work_contract() -> None:
+    assert isinstance(InMemoryDebateRepository(), DebateUnitOfWork)
+
+
+def test_atomic_session_job_creation_is_idempotent_and_owner_scoped() -> None:
+    repository = InMemoryDebateRepository()
+    session = build_session()
+    job = build_job(session)
+
+    created = repository.create_session_with_job(session, job)
+    repeated = repository.create_session_with_job(session, job)
+
+    assert created == repeated == (session, job)
+    assert repository.get_session(session.id, session.user_id) == session
+    assert repository.get_session(session.id, OTHER_USER_ID) is None
+    assert repository.list_sessions(OTHER_USER_ID) == []
+
+    mismatched_session = DebateSession.model_validate(
+        {
+            **session.model_dump(mode="python"),
+            "id": UUID("00000000-0000-4000-8000-000000000102"),
+        }
+    )
+    mismatched_job = build_job(
+        mismatched_session,
+        id=UUID("00000000-0000-4000-8000-000000000103"),
+        user_id=OTHER_USER_ID,
+        session_id=mismatched_session.id,
+        idempotency_key="round-1:mismatched-owner",
+    )
+    with pytest.raises(DebateRepositoryError, match="owner"):
+        repository.create_session_with_job(mismatched_session, mismatched_job)
+    assert repository.get_session(mismatched_session.id, mismatched_session.user_id) is None
+
+
+def test_session_updates_use_optimistic_status_and_domain_transition_rules() -> None:
+    repository = InMemoryDebateRepository()
+    session = repository.create_session(build_session())
+    queued = transition_session(session, "queued_round_1", at=NOW + timedelta(seconds=1))
+
+    assert repository.update_session(queued, expected_status="created") == queued
+
+    running = transition_session(queued, "running_round_1", at=NOW + timedelta(seconds=2))
+    with pytest.raises(DebateConcurrencyError, match="concurrently"):
+        repository.update_session(running, expected_status="created")
+
+    invalid_repository = InMemoryDebateRepository()
+    invalid_repository.create_session(session)
+    skipped = DebateSession.model_validate(
+        {
+            **session.model_dump(mode="python"),
+            "status": "running_round_1",
+            "updated_at": NOW + timedelta(seconds=1),
+        }
+    )
+    with pytest.raises(DebateRepositoryError, match="Invalid Debate session"):
+        invalid_repository.update_session(skipped, expected_status="created")
+
+
+def test_messages_and_citations_are_atomic_idempotent_and_owner_scoped() -> None:
+    repository = InMemoryDebateRepository()
+    repository.create_session(build_session())
+    message = build_message()
+    citation = DebateMessageEvidence(
+        message_id=message.id,
+        evidence_id="technical-aapl-001",
+        citation_order=1,
+        support_span="Moving-average context only; not a prediction.",
+    )
+
+    assert repository.append_message(message, (citation,)) == message
+    assert repository.append_message(message, (citation,)) == message
+    assert repository.list_messages(SESSION_ID, USER_ID, branch_id=BRANCH_ID) == [message]
+    assert repository.list_messages(SESSION_ID, OTHER_USER_ID, branch_id=BRANCH_ID) == []
+    assert repository.list_message_evidence(message.id, USER_ID) == (citation,)
+    assert repository.list_message_evidence(message.id, OTHER_USER_ID) == ()
+
+    collision = build_message(
+        id=UUID("00000000-0000-4000-8000-000000000104"),
+        content="A conflicting message for the same canonical sequence.",
+    )
+    with pytest.raises(DebateConcurrencyError, match="sequence"):
+        repository.append_message(collision)
+
+
+def test_interventions_must_target_a_message_owned_by_the_same_session_user() -> None:
+    repository = InMemoryDebateRepository()
+    repository.create_session(build_session())
+    message = build_message()
+    repository.append_message(message)
+    intervention = DebateIntervention(
+        id=UUID("00000000-0000-4000-8000-000000000105"),
+        session_id=SESSION_ID,
+        user_id=USER_ID,
+        selected_message_id=message.id,
+        selected_text="moving average",
+        question="What does this mean here?",
+        mode="explain",
+        created_at=NOW,
+    )
+
+    assert repository.create_intervention(intervention) == intervention
+    assert repository.create_intervention(intervention) == intervention
+
+    wrong_owner = DebateIntervention.model_validate(
+        {**intervention.model_dump(mode="python"), "user_id": OTHER_USER_ID}
+    )
+    with pytest.raises(DebateRepositoryError, match="session not found"):
+        repository.create_intervention(wrong_owner)
+
+
+def test_jobs_enforce_idempotency_owner_and_optimistic_state_transitions() -> None:
+    repository = InMemoryDebateRepository()
+    session = repository.create_session(build_session())
+    queued = repository.create_job(build_job(session))
+    assert repository.create_job(queued) == queued
+
+    running = DebateJob.model_validate(
+        {
+            **queued.model_dump(mode="python"),
+            "status": "running",
+            "attempt_count": 1,
+            "started_at": NOW + timedelta(seconds=1),
+            "updated_at": NOW + timedelta(seconds=1),
+        }
+    )
+    assert repository.update_job(running, expected_status="queued") == running
+
+    completed = DebateJob.model_validate(
+        {
+            **running.model_dump(mode="python"),
+            "status": "completed",
+            "finished_at": NOW + timedelta(seconds=2),
+            "updated_at": NOW + timedelta(seconds=2),
+        }
+    )
+    with pytest.raises(DebateConcurrencyError, match="concurrently"):
+        repository.update_job(completed, expected_status="queued")
+
+    duplicate_key = build_job(
+        session,
+        id=UUID("00000000-0000-4000-8000-000000000106"),
+    )
+    with pytest.raises(DebateConcurrencyError, match="idempotency"):
+        repository.create_job(duplicate_key)
