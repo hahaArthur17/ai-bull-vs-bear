@@ -75,6 +75,10 @@ of production-scale market-traffic capacity. It will:
 - redesign the UI around reusable finance/technology design tokens and
   components.
 
+The complete target architecture, product rules, phase order, acceptance tests,
+and first coding task are canonical in
+[`portfolio-implementation-plan.md`](portfolio-implementation-plan.md).
+
 ## Boundaries that remain in force
 
 - Educational explanations only; no personalised allocations, trading

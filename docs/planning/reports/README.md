@@ -13,7 +13,8 @@ When resuming the project:
 2. read the [project issue log](../issue-log.md) for unresolved risks and
    prior incident evidence;
 3. read the latest report in this folder;
-4. open the active implementation plan linked by the planning index;
+4. open the active
+   [`portfolio-implementation-plan.md`](../portfolio-implementation-plan.md);
 5. open only the architecture/setup documents relevant to the selected task;
    and
 6. compare the repository state and passing tests with the documentation before

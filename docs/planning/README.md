@@ -9,13 +9,16 @@ When resuming development:
 
 1. read [`current-status.md`](current-status.md) for the verified baseline and
    known gaps;
-2. review the [project issue log](issue-log.md) for unresolved or recurring
+2. read the active
+   [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) and
+   select only its current phase;
+3. review the [project issue log](issue-log.md) for unresolved or recurring
    risks;
-3. read the latest entry in [`reports/`](reports/README.md) when historical
+4. read the latest entry in [`reports/`](reports/README.md) when historical
    implementation detail is needed;
-4. open only the architecture, API, database, agent, or setup document relevant
+5. open only the architecture, API, database, agent, or setup document relevant
    to the selected task; and
-5. compare documentation with the repository and tests before changing code.
+6. compare documentation with the repository and tests before changing code.
 
 The repository and passing verification checks are the implementation source
 of truth. Planning documents describe intent and must be updated when an
@@ -26,8 +29,12 @@ accepted design or completion state changes.
 | Document | Purpose |
 | --- | --- |
 | [`current-status.md`](current-status.md) | Concise, verified current state and limitations. |
+| [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) | Canonical architecture, phases, acceptance tests, and next coding task. |
 | [`issue-log.md`](issue-log.md) | Append-only material incidents and remediation evidence. |
 | [`reports/`](reports/README.md) | Append-only weekly implementation and verification history. |
+
+Superseded plans and original MVP notes are preserved under
+[`archive/`](archive/README.md) and must not be used as the active backlog.
 
 ## Working rules
 
