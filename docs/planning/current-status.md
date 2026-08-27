@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 173 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 181 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -175,9 +175,17 @@ not enable or call the durable Queue; that remains Phase 5.
 database-independent unit-of-work contract. Tests cover atomic/idempotent
 writes, optimistic session/job states, immutable snapshots, citation sequence
 conflicts, owner-scoped reads, safe remote failures, and current versus legacy
-Supabase secret headers. The deterministic two-round plan already exists, but a
-runtime orchestration service has not yet called the turn/Judge providers or
-exposed V2 API routes.
+Supabase secret headers.
+
+The deterministic provider and `DebateOrchestrator` now execute and persist the
+complete Phase 3 path: six mutually aware Round 1 messages, Interim Judge,
+`awaiting_user`, one idempotent user Challenge, four Round 2 messages, Final
+Judge, and terminal Session/Job state. Every rebuttal request is tested against
+the latest opponent message. Provider failure preserves completed messages,
+records attempted provider calls, and exposes only `debate_execution_failed`.
+Re-executing a completed Job or resubmitting the same Challenge does no duplicate
+provider work. V2 API routes and their default-off compatibility flag are still
+pending.
 
 The Debate migrations are checked in but not applied to hosted Supabase. They
 must not be described as live persistence until the Phase 2 catalog preflight

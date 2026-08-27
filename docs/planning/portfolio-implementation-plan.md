@@ -987,20 +987,24 @@ Status: In progress
   and interventions.
 - [x] Add repositories and state-transition validation.
 - [x] Implement deterministic round-one and round-two turn plans.
-- [ ] Persist every complete message and citation.
-- [ ] Implement interim and final Judge states using the demo provider first.
+- [x] Persist every complete message and citation.
+- [x] Implement interim and final Judge states using the demo provider first.
 - [ ] Add legacy-analysis compatibility and feature flag.
-- [ ] Prove Bull/Bear inputs contain the prior opponent message.
+- [x] Prove Bull/Bear inputs contain the prior opponent message.
 
 Completion rule: deterministic tests complete the entire two-round workflow,
 including awaiting-user, without streaming or a live provider.
 
-Persistence evidence: `7830a65`, `334e853`, and `fb0c474`. The repository now
+Implementation evidence: `7830a65`, `334e853`, `fb0c474`, `b1686dc`, and
+`d96bd46`. The repository now
 contains five constrained Debate tables, owner-read RLS, service-only writes,
 transaction RPCs for Session+Job and Message+citations, an in-memory adapter,
 and a Supabase adapter. Both adapters enforce optimistic state transitions and
-idempotency. The migrations are prepared but not applied to hosted Supabase;
-the deterministic turn/Judge orchestration service and V2 API remain pending.
+idempotency. The deterministic provider/orchestrator now completes six Round 1
+turns plus Interim Judge, pauses for a persisted Challenge, then completes four
+Round 2 turns plus Final Judge. Tests inspect every request's latest-opponent
+target and safe failure state. The migrations are prepared but not applied to
+hosted Supabase; the feature-flagged V2 API remains pending.
 
 ### Phase 4 — Provider turn generation and SSE
 
@@ -1178,12 +1182,11 @@ order, measure the `stocks` relation against the 15 MiB budget, and rerun
 public-read plus two-user Watchlist RLS checks.
 
 Do not connect Redis or Queue until that deployment gate is recorded. The safe
-code-only Phase 3 persistence preparation is complete. Next, implement the
-deterministic orchestration service over `DebateUnitOfWork`: execute the existing
-round plans one bounded turn at a time, persist complete messages/citations,
-attach interim/final Judge messages, and prove every rebuttal request targets
-the latest opponent. Keep it behind the future `DEBATE_WORKFLOW_V2` flag and do
-not add SSE or a live provider during this step.
+code-only Phase 3 persistence and deterministic orchestration are complete.
+Next, add `DEBATE_WORKFLOW_V2=false` by default and expose the new Session,
+Message, and Challenge API alongside the unchanged legacy `/analysis` routes.
+The preview path must use the deterministic provider and local repository in
+tests, remain disabled in production, and avoid SSE or live provider work.
 
 ## 22. Primary implementation references
 

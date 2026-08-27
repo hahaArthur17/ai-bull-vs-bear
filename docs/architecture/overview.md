@@ -106,9 +106,14 @@ atomic and idempotent, while updates use expected-status filters plus shared
 domain validation. This persistence foundation is implemented locally but not
 applied to hosted Supabase.
 
-No V2 route or orchestration runtime is connected yet. The next Phase 3 step is
-to execute the existing deterministic round plans through the repository and
-demo turn/Judge providers before adding Queue transport or streaming.
+The deterministic orchestration runtime now executes the existing plans through
+the repository and credential-free Turn/Judge provider. Stable message IDs,
+expected-status writes, and provider-input validation make completed jobs and
+Challenges idempotent; safe failure preserves the canonical partial transcript.
+
+No V2 route is connected yet. The next Phase 3 step is a default-off feature
+flag and preview API alongside the unchanged legacy `/analysis` path. Queue
+transport, a live provider, and streaming remain later phases.
 
 ## Implemented single-response data flow
 

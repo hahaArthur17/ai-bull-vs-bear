@@ -88,9 +88,10 @@ payload. Bull and Bear do not yet see or rebut each other's text.
 
 The database-independent session/message/job/event contracts, deterministic
 round plans, state-transition rules, turn/Judge provider inputs, and Phase 3
-persistence adapters described below are now implemented. API orchestration,
-provider execution, Worker/Queue transport, and streaming remain target
-behaviour for later steps.
+persistence adapters described below are now implemented. A credential-free
+provider/orchestrator also executes both rounds and persists the user Challenge.
+Feature-flagged API routes, Worker/Queue transport, live-provider generation,
+and streaming remain target behaviour for later steps.
 
 ### Step 1: Build one immutable analysis context
 
@@ -129,6 +130,10 @@ Every rebuttal receives the complete prior transcript and explicitly targets
 the latest opponent message. Every completed message is guardrailed, filtered
 to allowed citations, stored, and then exposed as complete to the UI.
 
+The deterministic Phase 3 orchestrator now proves the transcript, latest-target,
+citation, persistence, and state-transition parts of this step without Queue or
+streaming.
+
 ### Step 4: Interim Judge and user pause
 
 The Judge summarizes agreements, disagreements, evidence strength, missing
@@ -154,6 +159,9 @@ The Queue runs four messages focused on the user's question:
 
 The final Judge summarizes the complete active branch and the session moves to
 `completed`.
+
+The deterministic Phase 3 path implements this sequence on the current branch;
+live token streaming and cancellation generation handling remain Phase 4.
 
 ### Step 7: Recover and audit
 

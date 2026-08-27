@@ -24,7 +24,8 @@ baseline is maintained in
   cannot show synthetic prices or start Debate.
 - Database-independent multi-turn Debate contracts plus local/Supabase
   repositories for sessions, complete messages/citations, interventions, and
-  the application job ledger. The V2 runtime/API is not connected yet.
+  the application job ledger. A deterministic runtime completes both rounds and
+  the user-Challenge pause; the V2 API is not connected yet.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
