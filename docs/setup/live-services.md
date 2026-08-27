@@ -1,7 +1,14 @@
 # Live Services Setup
 
+Last reviewed: 2026-08-27
+
 This document records the non-secret configuration needed to move AI Bull vs
 Bear from deterministic demo mode to real services.
+
+It is a setup guide, not the active backlog or current-state source of truth.
+Use [`current-status.md`](../planning/current-status.md) and the
+[`portfolio implementation plan`](../planning/portfolio-implementation-plan.md)
+for those purposes.
 
 Never commit `.env`, API keys, database passwords, service-role keys, access
 tokens, or screenshots that display credentials.
@@ -193,44 +200,44 @@ be selected before an ingestion adapter can be implemented.
 - [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
   mocked tests.
 - [x] Authentication works for two disposable test users.
-- [ ] Watchlist and analysis history survive a backend restart.
+- [x] Watchlist and analysis history survive a backend restart.
 - [x] Row-level security prevents one user from reading or writing another
   user's watchlist data.
 - [x] Refresh live evidence with a server secret and compliant SEC User-Agent.
-- [ ] Populate the price cache with a server secret and Alpha Vantage key.
+- [x] Populate the AAPL price cache with a server secret and Alpha Vantage key.
 - [x] Populate structured SEC XBRL facts with a server secret and compliant
   SEC User-Agent.
 
-## Current live configuration
+## Last verified live-service baseline
 
-Last verified: 2026-08-15
+The detailed data/deployment evidence is retained in the
+[`Week 6 report`](../planning/reports/project-week-06.md). As of the latest
+checks:
 
-- Groq is the selected local provider, and a real structured analysis completed
-  successfully with provider token usage.
-- The dedicated Supabase project is running in the Asia-Pacific region.
-- Supabase authentication, bearer-token forwarding, persistent watchlists, and
-  persistent analysis history are implemented. Two disposable users now pass
-  owner read/write, hidden cross-user reads, rejected cross-user writes, and
-  database-reconnect persistence checks.
-- A read-only live check returned AAPL, GOOG, NVDA, and TSLA plus six evidence
-  documents (two news and four filing records), six chunks, and six populated
-  vectors.
-- The 2026-08-15 embedding-profile migration is live. All six existing vectors
-  are registered as `local-hash-v1` with 1,536 dimensions, and anonymous vector
-  RPC retrieval still succeeds. This profile is a deterministic word-hash
-  integration baseline, not a learned semantic model.
-- A dedicated server-only current-format secret key is configured locally.
-  Service-role grants and request headers support that key without broadening
-  anon/authenticated privileges.
-- Live ingestion now holds 20 evidence documents, 107 contextual chunks, and
-  611 typed financial facts. Filing records include selected narrative sections
-  when SEC source HTML is available.
-- The `stock_prices` table is currently empty. Price ingestion and mobile
-  provenance display are implemented, but Alpha Vantage terms acceptance and
-  key issuance are still pending, so live price refresh is unverified.
-- The initially generated database password was exposed during setup and must
-  be rotated in the Supabase Database Settings page before direct Postgres
-  connections are used.
+- Production uses Supabase Auth/persistence and the deterministic analysis
+  provider; Groq was verified locally but is not required for the public demo.
+- Two-user tests proved owner access, cross-user RLS isolation, and persistence
+  across a new backend/database connection.
+- AAPL has verified daily and separately labelled weekly price caches. Normal
+  screen/API reads do not call the market-data provider.
+- Apple Newsroom/SEC evidence, contextual chunks, vectors, and structured SEC
+  facts are stored with source metadata.
+- Seven FRED/EIA series are cached and exposed as dated, non-causal market
+  background.
+- Public frontend and API health were rechecked on 2026-08-27; the API reported
+  `environment=production` and `provider=demo`.
+
+The future Queue Worker will need a server-only Supabase secret on the backend.
+Add it only during Queue Phase 5 after the new migrations, grants, RLS, and
+Worker access tests pass. Redis configuration belongs to Phase 6 and must
+remain optional with a tested fallback.
+
+### Credential hygiene follow-up
+
+The initially generated direct-database password was exposed during setup. Do
+not use it. Confirm rotation in Supabase Database Settings before enabling any
+direct Postgres connection. The current application uses project-scoped API
+keys rather than that password.
 
 ## Rotation and incident response
 

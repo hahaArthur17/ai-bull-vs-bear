@@ -1,6 +1,13 @@
-# Zero-Cost Demo Deployment
+# Current Zero-Cost Demo Deployment
 
-Last verified: 2026-08-16
+Last detailed deployment audit: 2026-08-16
+
+Public frontend/API health rechecked: 2026-08-27
+
+This document describes the currently deployed single-response baseline. The
+Queue, Redis, streaming, and Replay target is planned in the
+[`portfolio implementation plan`](../planning/portfolio-implementation-plan.md)
+and must not be treated as deployed before its phase checks pass.
 
 ## Non-negotiable rule
 
@@ -20,8 +27,27 @@ or temporary suspension until the quota resets.
 - Pytest forces demo auth, persistence, and analysis settings before importing
   the application, so a developer's local `.env` cannot make tests call live
   Supabase or model providers.
-- Prices and evidence are read from Supabase caches. Missing or unavailable
-  data falls back to the deterministic demo dataset.
+- Prices and evidence are read from Supabase caches. Missing verified price or
+  current external evidence is labelled explicitly and can reduce/disable
+  analysis confidence. Production does not silently insert deterministic
+  external narrative into a current-close Debate.
+
+## Planned zero-cost portfolio additions
+
+The accepted target keeps the same static site, FastAPI web service, and
+Supabase project:
+
+- Supabase Queues will hold durable Debate stage jobs.
+- A bounded Queue consumer will initially run inside the FastAPI lifespan
+  because Render does not provide a separate free Background Worker.
+- A Redis-compatible free service will provide optional cache, rate limits, and
+  idempotency locks; Supabase remains canonical if Redis is unavailable.
+- Live AI will exercise the real Queue/Worker/stream path when provider quota is
+  available. A clearly labelled Demo Replay will use the same event contract
+  for reliable classroom presentation.
+
+These additions demonstrate architecture and failure handling. They do not
+remove Render Free cold starts, single-instance capacity, or lack of SLA.
 
 The root `render.yaml` creates only the free web service and free static site.
 The root `Dockerfile` installs `backend/requirements-runtime.txt`, which omits
@@ -99,14 +125,21 @@ model verification.
    - frontend `EXPO_PUBLIC_SUPABASE_URL` and
      `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 
-6. Do **not** add `SUPABASE_SECRET_KEY`, SEC, Alpha Vantage, Apify, Finnhub,
-   Groq, Gemini, or RLS-test-user credentials to either Render service. Put the
-   three price-refresh secrets in GitHub Actions instead: `SUPABASE_URL`,
-   `SUPABASE_SECRET_KEY`, and `ALPHA_VANTAGE_API_KEY`. A Finnhub key can be
-   used instead only when that account has daily-candle access. To enable the
-   separate current-quote display, set `FINNHUB_API_KEY` on the backend web
-   service (never the static frontend).
-7. After both deploys complete, open `/health`, sign in with a disposable test
+6. For the current deployed baseline, do **not** add `SUPABASE_SECRET_KEY`, SEC,
+   Alpha Vantage, Apify, Groq, Gemini, or RLS-test-user credentials to either
+   Render service. Put price-refresh secrets in GitHub Actions instead:
+   `SUPABASE_URL`, `SUPABASE_SECRET_KEY`, and `ALPHA_VANTAGE_API_KEY`. A
+   Finnhub key can be used instead only when that account has daily-candle
+   access. To enable the separate current-quote display, set
+   `FINNHUB_API_KEY` on the backend web service only.
+7. When Queue Phase 5 is implemented, the backend Worker will require narrowly
+   reviewed server-side Supabase access. Add that secret only to the backend
+   after Queue migrations, grants, and two-user/Worker tests pass; update this
+   guide and `render.yaml` in the same focused change. Never expose it through
+   an `EXPO_PUBLIC_` variable or a Queue payload.
+8. When Redis Phase 6 is implemented, keep its endpoint/token on the backend and
+   verify that removing it produces the documented local/database fallback.
+9. After both deploys complete, open `/health`, sign in with a disposable test
    user, run one analysis, reload, and confirm that history persists.
 
 The Supabase URL and anon/publishable key are intentionally public client
@@ -120,7 +153,10 @@ server secret and all provider keys must stay out of the frontend bundle.
 - If neither daily-price provider is available or configured, the UI clearly
   labels the value as unavailable and does not render the synthetic fallback as
   a market price.
-- If cached evidence retrieval fails, deterministic evidence remains available.
+- If production evidence retrieval fails, the app reports the unavailable or
+  limited state instead of presenting deterministic external narrative as live
+  evidence. The separately labelled demo/replay path remains available for the
+  presentation.
 - Model quota cannot interrupt the demo because the deployed analysis provider
   is deterministic.
 - If a free hosting quota is exhausted, wait for the reset; do not upgrade.

@@ -3,6 +3,12 @@
 The backend is a FastAPI service. It runs in deterministic demo mode by default,
 so the project can be explored without API keys or a Supabase project.
 
+The current runtime produces one synchronous Bull/Bear/Judge response. Durable
+Queue jobs, Redis coordination, and streamed multi-turn Debate are planned, not
+yet implemented. Follow the canonical
+[`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
+rather than adding these concerns directly to the current analysis service.
+
 ## Run locally
 
     cd backend

@@ -35,7 +35,24 @@ baseline is maintained in
   provenance and deterministic price fallback.
 - Database-local evidence vectors and ticker-filtered pgvector retrieval with a
   deterministic cached fallback.
+- Immutable completed-close/evidence snapshots with source freshness, dated
+  citations, and confidence reduction when current company evidence is missing.
+- Interactive 1M/3M daily and 6M/1Y weekly price views with moving averages,
+  RSI, MACD, volume, volatility, and dated macro-market context.
 - Financial-advice rewrites and a required educational disclaimer.
+
+## Planned portfolio milestone
+
+The implemented Debate is currently a single synchronous Bull/Bear/Judge
+response. The active
+[`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
+defines the next milestone: a factor-provider extension boundary, catalog-aware
+watchlists, durable queued Debate stages, Redis cache/rate-limit/idempotency,
+streamed multi-turn rebuttals, user explanations/interventions, Demo Replay,
+and a reusable financial-technology UI system.
+
+Planned features are documented separately from implemented behaviour so the
+repository does not overstate its current capabilities.
 
 ## Run the backend
 

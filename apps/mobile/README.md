@@ -26,5 +26,10 @@ http://192.168.1.20:8000.
 Watchlist -> Stock detail -> Technical indicators -> Evidence board ->
 Bull vs Bear analysis -> Claim cross-examination.
 
+The current analysis screen waits for one complete API response. Streamed
+multi-turn messages, Queue status, user interventions, catalog-only stocks, and
+the financial-technology redesign are planned in the canonical
+[`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
+
 The mobile app intentionally presents analysis as educational context and
 always shows the financial-advice disclaimer.

@@ -21,6 +21,30 @@ duplicating implementation detail.
 
 ---
 
+## 2026-08-27 — Direct-database password rotation lacks recorded verification
+
+**Status:** Open owner verification; no current API-path impact.
+
+**Known evidence**
+
+- The live-services setup record states that the initially generated direct
+  Postgres password was exposed during setup.
+- The current application uses Supabase project-scoped API keys and does not
+  require that direct-database password for its normal mobile/API paths.
+- No repository record currently proves that the direct-database password was
+  rotated.
+
+**Required action**
+
+- Before enabling any direct Postgres connection, rotate the password in
+  Supabase Database Settings.
+- Record only the completion date. Do not record the old or replacement value,
+  screenshots, or connection strings.
+- Once verified, mark this entry resolved and update the credential-hygiene
+  note in [`../setup/live-services.md`](../setup/live-services.md).
+
+---
+
 ## 2026-08-21 — Debate view crashed on timestamp-formatted evidence dates
 
 **Status:** Resolved and production-verified.
