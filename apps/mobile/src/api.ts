@@ -1,10 +1,14 @@
 import type {
   AnalysisResponse,
+  DebateMessageRecord,
+  DebateSessionDetail,
   ExaminationResponse,
   Stock,
   StockBundle,
   WatchlistResponse,
 } from "./types";
+import { DebateStreamClient } from "./debateStream";
+import type { DebateStreamSnapshot } from "./debateStream";
 import { supabase } from "./supabase";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
@@ -74,6 +78,14 @@ export const api = {
 
   listAnalyses: (): Promise<AnalysisResponse[]> => request<AnalysisResponse[]>("/analysis"),
 
+  getDebate: (sessionId: string): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>("/debates/" + encodeURIComponent(sessionId)),
+
+  getDebateMessages: (sessionId: string): Promise<DebateMessageRecord[]> =>
+    request<DebateMessageRecord[]>(
+      "/debates/" + encodeURIComponent(sessionId) + "/messages",
+    ),
+
   addToWatchlist: (ticker: string): Promise<WatchlistResponse> =>
     request<WatchlistResponse>("/watchlist", {
       method: "POST",
@@ -113,3 +125,19 @@ export const api = {
       body: JSON.stringify({ question_type: questionType }),
     }),
 };
+
+export function createDebateStreamClient(
+  sessionId: string,
+  onSnapshot: (snapshot: DebateStreamSnapshot) => void,
+): DebateStreamClient {
+  const encodedSessionId = encodeURIComponent(sessionId);
+  return new DebateStreamClient({
+    eventUrl: `${API_URL}/debates/${encodedSessionId}/events`,
+    getAccessToken: async () => {
+      const session = supabase ? (await supabase.auth.getSession()).data.session : null;
+      return session?.access_token || null;
+    },
+    loadCanonical: () => api.getDebate(sessionId),
+    onSnapshot,
+  });
+}

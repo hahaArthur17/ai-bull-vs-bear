@@ -184,3 +184,100 @@ export type WatchlistResponse = {
   user_id: string;
   tickers: string[];
 };
+
+export type DebateSessionStatus =
+  | "created"
+  | "queued_round_1"
+  | "running_round_1"
+  | "awaiting_user"
+  | "queued_round_2"
+  | "running_round_2"
+  | "completed"
+  | "cancel_requested"
+  | "cancelled"
+  | "failed";
+
+export type DebateMessage = {
+  id: string;
+  session_id: string;
+  branch_id: string;
+  generation_id: string;
+  sequence_number: number;
+  round_number: number;
+  exchange_number: number;
+  role: "bull" | "bear" | "judge" | "user" | "explainer" | "system";
+  message_kind: "argument" | "rebuttal" | "summary" | "question" | "explanation";
+  content: string;
+  confidence?: "low" | "medium" | "high" | null;
+  signal_strength?: "weak" | "medium" | "strong" | null;
+  terms: string[];
+  metadata: Record<string, unknown>;
+  is_complete: boolean;
+  cancelled_at?: string | null;
+  created_at: string;
+};
+
+export type DebateMessageEvidence = {
+  message_id: string;
+  evidence_id: string;
+  citation_order: number;
+  support_span?: string | null;
+  metadata: Record<string, unknown>;
+};
+
+export type DebateMessageRecord = {
+  message: DebateMessage;
+  citations: DebateMessageEvidence[];
+};
+
+export type DebateSessionSummary = {
+  id: string;
+  ticker: string;
+  status: DebateSessionStatus;
+  active_branch_id: string;
+  active_generation_id: string;
+  opening_side: "bull" | "bear";
+  initial_question?: string | null;
+  interim_judge_message_id?: string | null;
+  final_judge_message_id?: string | null;
+  safe_error_code?: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at?: string | null;
+};
+
+export type DebateSessionDetail = {
+  session: DebateSessionSummary;
+  messages: DebateMessageRecord[];
+  execution_mode: "synchronous_preview";
+};
+
+export type DebateEventType =
+  | "session.created"
+  | "job.queued"
+  | "job.started"
+  | "turn.started"
+  | "turn.delta"
+  | "turn.citation"
+  | "turn.completed"
+  | "judge.started"
+  | "judge.completed"
+  | "session.awaiting_user"
+  | "explanation.started"
+  | "explanation.delta"
+  | "explanation.completed"
+  | "session.cancel_requested"
+  | "session.cancelled"
+  | "session.completed"
+  | "session.failed"
+  | "heartbeat";
+
+export type DebateEvent = {
+  version: 1;
+  event_id: string;
+  session_id: string;
+  sequence: number;
+  type: DebateEventType;
+  timestamp: string;
+  payload: Record<string, unknown>;
+};
