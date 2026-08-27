@@ -5,11 +5,55 @@ from datetime import date, timedelta
 from threading import Lock
 
 
-STOCKS: list[dict[str, str]] = [
-    {"ticker": "AAPL", "company_name": "Apple Inc.", "exchange": "NASDAQ", "sector": "Technology"},
-    {"ticker": "GOOG", "company_name": "Alphabet Inc.", "exchange": "NASDAQ", "sector": "Communication Services"},
-    {"ticker": "NVDA", "company_name": "NVIDIA Corporation", "exchange": "NASDAQ", "sector": "Technology"},
-    {"ticker": "TSLA", "company_name": "Tesla, Inc.", "exchange": "NASDAQ", "sector": "Consumer Discretionary"},
+STOCKS: list[dict[str, object]] = [
+    {
+        "ticker": "AAPL",
+        "company_name": "Apple Inc.",
+        "exchange": "NASDAQ",
+        "sector": "Technology",
+        "sec_cik": 320193,
+        "country": "US",
+        "aliases": ["apple"],
+        "is_active": True,
+        "coverage_status": "debate_ready",
+        "coverage_updated_at": "2026-08-27T00:00:00Z",
+    },
+    {
+        "ticker": "GOOG",
+        "company_name": "Alphabet Inc.",
+        "exchange": "NASDAQ",
+        "sector": "Communication Services",
+        "sec_cik": 1652044,
+        "country": "US",
+        "aliases": ["alphabet", "google"],
+        "is_active": True,
+        "coverage_status": "debate_ready",
+        "coverage_updated_at": "2026-08-27T00:00:00Z",
+    },
+    {
+        "ticker": "NVDA",
+        "company_name": "NVIDIA Corporation",
+        "exchange": "NASDAQ",
+        "sector": "Technology",
+        "sec_cik": 1045810,
+        "country": "US",
+        "aliases": ["nvidia"],
+        "is_active": True,
+        "coverage_status": "debate_ready",
+        "coverage_updated_at": "2026-08-27T00:00:00Z",
+    },
+    {
+        "ticker": "TSLA",
+        "company_name": "Tesla, Inc.",
+        "exchange": "NASDAQ",
+        "sector": "Consumer Discretionary",
+        "sec_cik": 1318605,
+        "country": "US",
+        "aliases": ["tesla"],
+        "is_active": True,
+        "coverage_status": "debate_ready",
+        "coverage_updated_at": "2026-08-27T00:00:00Z",
+    },
 ]
 
 
@@ -147,7 +191,7 @@ class DemoStore:
             ],
         }
 
-    def list_stocks(self, query: str | None = None) -> list[dict[str, str]]:
+    def list_stocks(self, query: str | None = None) -> list[dict[str, object]]:
         if not query:
             return [stock.copy() for stock in STOCKS]
         normalized = query.strip().lower()
@@ -157,7 +201,7 @@ class DemoStore:
             if normalized in stock["ticker"].lower() or normalized in stock["company_name"].lower()
         ]
 
-    def get_stock(self, ticker: str) -> dict[str, str] | None:
+    def get_stock(self, ticker: str) -> dict[str, object] | None:
         normalized = ticker.upper()
         return next((stock.copy() for stock in STOCKS if stock["ticker"] == normalized), None)
 

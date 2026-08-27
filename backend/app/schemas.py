@@ -1,15 +1,37 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, Field
+
+
+CoverageStatus: TypeAlias = Literal[
+    "catalog_only",
+    "price_cached",
+    "evidence_ready",
+    "debate_ready",
+]
 
 
 class Stock(BaseModel):
     ticker: str
     company_name: str
     exchange: str
-    sector: str
+    sector: str | None = None
+    sec_cik: int | None = None
+    country: str | None = None
+    aliases: list[str] = Field(default_factory=list)
+    is_active: bool = True
+    coverage_status: CoverageStatus = "catalog_only"
+    coverage_updated_at: str | None = None
+
+
+class StockCoverage(BaseModel):
+    ticker: str
+    coverage_status: CoverageStatus
+    has_price_data: bool
+    has_evidence: bool
+    can_debate: bool
 
 
 class PricePoint(BaseModel):

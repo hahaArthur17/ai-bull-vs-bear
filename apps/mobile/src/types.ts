@@ -2,7 +2,13 @@ export type Stock = {
   ticker: string;
   company_name: string;
   exchange: string;
-  sector: string;
+  sector: string | null;
+  sec_cik: number | null;
+  country: string | null;
+  aliases: string[];
+  is_active: boolean;
+  coverage_status: "catalog_only" | "price_cached" | "evidence_ready" | "debate_ready";
+  coverage_updated_at: string | null;
 };
 
 export type PricePoint = {
