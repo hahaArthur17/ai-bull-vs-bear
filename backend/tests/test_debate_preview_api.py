@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import asyncio
-from uuid import UUID, uuid4
+from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from fastapi.testclient import TestClient
@@ -12,7 +12,7 @@ from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.analysis import AnalysisService
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
-from app.services.debate_admission import DebateAdmissionPolicy
+from app.services.debate_admission import DebateAdmissionPolicy, DebateIdempotencyGuard
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
@@ -41,15 +41,21 @@ def isolated_preview(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "analysis_service", AnalysisService(store))
     monkeypatch.setattr(main, "debate_event_broker", event_broker)
     monkeypatch.setattr(main, "debate_preview_service", service)
+    coordination_backend = ResilientCacheBackend(LocalCacheBackend())
     monkeypatch.setattr(
         main,
         "debate_admission_policy",
         DebateAdmissionPolicy(
-            ResilientCacheBackend(LocalCacheBackend()),
+            coordination_backend,
             rate_limit=3,
             rate_window_seconds=3600,
             active_ttl_seconds=1200,
         ),
+    )
+    monkeypatch.setattr(
+        main,
+        "debate_idempotency_guard",
+        DebateIdempotencyGuard(coordination_backend, ttl_seconds=120),
     )
     monkeypatch.setattr(main.settings, "auth_mode", "demo")
     monkeypatch.setattr(main.settings, "debate_workflow_v2", False)
@@ -329,14 +335,20 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     enable_preview(monkeypatch)
     monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
     admission_backend = LocalCacheBackend()
+    coordination_backend = ResilientCacheBackend(admission_backend)
     admission_policy = DebateAdmissionPolicy(
-        ResilientCacheBackend(admission_backend),
+        coordination_backend,
         rate_limit=3,
         rate_window_seconds=3600,
         active_ttl_seconds=1200,
         clock=lambda: 3700.0,
     )
+    idempotency_guard = DebateIdempotencyGuard(
+        coordination_backend,
+        ttl_seconds=120,
+    )
     monkeypatch.setattr(main, "debate_admission_policy", admission_policy)
+    monkeypatch.setattr(main, "debate_idempotency_guard", idempotency_guard)
     request = {
         "ticker": "AAPL",
         "question": "Which dated factors support each side?",
@@ -357,6 +369,12 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     assert first.json()["messages"] == []
     admitted_user_id = UUID(first.json()["session"]["user_id"])
     assert admission_backend.get(admission_policy.rate_key(admitted_user_id, 1)) == "1"
+    assert (
+        admission_backend.get(
+            idempotency_guard.lock_key(admitted_user_id, request["idempotency_key"])
+        )
+        is None
+    )
     assert main.debate_preview_service is not None
     repository = main.debate_preview_service.repository
     admitted_job = repository.get_job(UUID(first.json()["job_id"]))
@@ -383,6 +401,65 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     assert completed.status_code == 200
     assert completed.json()["session"]["status"] == "awaiting_user"
     assert len(completed.json()["messages"]) == 7
+
+
+def test_queued_create_returns_retryable_conflict_while_idempotency_lock_is_held(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    user = "queue-lock-owner"
+    user_id = uuid5(NAMESPACE_URL, f"ai-bull-vs-bear:user:{user}")
+    idempotency_key = "classroom_demo_locked"
+    held = main.debate_idempotency_guard.acquire(user_id, idempotency_key)
+    original_context = main._debate_context
+    context_calls = 0
+
+    def counting_context(ticker: str, question: str | None):
+        nonlocal context_calls
+        context_calls += 1
+        return original_context(ticker, question)
+
+    monkeypatch.setattr(main, "_debate_context", counting_context)
+    try:
+        response = client.post(
+            "/debates",
+            headers={"X-User-Id": user},
+            json={"ticker": "AAPL", "idempotency_key": idempotency_key},
+        )
+    finally:
+        main.debate_idempotency_guard.release(held)
+
+    assert response.status_code == 409
+    assert response.headers["retry-after"] == "1"
+    assert response.json() == {
+        "detail": "An equivalent Debate request is being admitted; retry shortly"
+    }
+    assert context_calls == 0
+
+
+def test_queued_create_releases_idempotency_lock_after_context_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    user = "queue-failed-owner"
+    user_id = uuid5(NAMESPACE_URL, f"ai-bull-vs-bear:user:{user}")
+    idempotency_key = "classroom_demo_failed"
+
+    def fail_context(_ticker: str, _question: str | None):
+        raise ValueError("simulated context failure")
+
+    monkeypatch.setattr(main, "_debate_context", fail_context)
+    response = client.post(
+        "/debates",
+        headers={"X-User-Id": user},
+        json={"ticker": "AAPL", "idempotency_key": idempotency_key},
+    )
+    recovered = main.debate_idempotency_guard.acquire(user_id, idempotency_key)
+    main.debate_idempotency_guard.release(recovered)
+
+    assert response.status_code == 404
 
 
 def test_queued_create_rejects_reusing_key_for_different_request(

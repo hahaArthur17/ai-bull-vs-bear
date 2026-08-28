@@ -58,6 +58,9 @@ baseline is maintained in
   admissions per configurable one-hour window. Redis provides the atomic fast
   path when enabled; the process-local fallback and canonical Session check
   remain active when it is disabled or unavailable.
+- Queued V2 creation with a client idempotency key uses a hashed, owner-scoped
+  Redis lock before factor work. Deterministic IDs, a PostgreSQL transaction
+  lock, and the Job idempotency unique key remain the canonical fallback.
 - Database-local evidence vectors and ticker-filtered pgvector retrieval with a
   deterministic cached fallback.
 - Immutable completed-close/evidence snapshots with source freshness, dated
@@ -74,11 +77,11 @@ state and persistence but does not start background work or select the live
 stream path. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
 defines the next milestone: hosted verification of durable queued Debate stages,
-the remaining Redis rate-limit/idempotency work, streamed multi-turn rebuttals, user
-explanations/interventions, Demo Replay, and a reusable financial-technology UI
-system. Factor-provider and catalog/watchlist foundations are already
-implemented; the catalog's hosted Supabase migration remains a controlled
-deployment gate.
+the remaining Redis outage/latency evidence, streamed multi-turn rebuttals,
+user explanations/interventions, Demo Replay, and a reusable
+financial-technology UI system. Factor-provider and catalog/watchlist
+foundations are already implemented; the catalog's hosted Supabase migration
+remains a controlled deployment gate.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.

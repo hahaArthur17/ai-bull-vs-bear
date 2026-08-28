@@ -11,8 +11,9 @@ preview whose deltas come from an already completed Turn. With the Queue flag
 enabled, Round 1 and Round 2 return `202 Accepted`, publish atomically to a
 durable Supabase Queue, and run through bounded background Workers. Redis
 adapters and public stock-search/bundle caching are implemented with a local
-failure fallback; Debate rate limits and idempotency locks are not yet wired.
-Follow the canonical
+failure fallback. Per-user Debate admission limits and duplicate-request locks
+are wired into the default-off V2 path; Redis never replaces canonical Debate
+persistence. Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.
 
@@ -68,7 +69,11 @@ default of three new admissions per hour. `DEBATE_RATE_LIMIT_PER_WINDOW`,
 bounded policy. Successful new admissions expose remaining capacity; an active
 Session returns `409`, and an exhausted window returns `429` with
 `Retry-After`. Sequential queued idempotency replays do not consume another
-slot. The distributed duplicate-request lock remains the next Phase 6 slice.
+slot. Queued creation with an idempotency key also acquires an owner-scoped,
+hashed duplicate-request lock before factor work;
+`DEBATE_IDEMPOTENCY_LOCK_TTL_SECONDS` controls its two-minute default. A
+competing request returns `409` with a short `Retry-After`, while deterministic
+IDs and the database transaction/unique constraints remain the final fallback.
 
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set

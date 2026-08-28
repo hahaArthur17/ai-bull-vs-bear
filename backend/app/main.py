@@ -68,6 +68,9 @@ from app.services.debate_admission import (
     ActiveDebateExists,
     DebateAdmissionPolicy,
     DebateAdmissionReservation,
+    DebateIdempotencyGuard,
+    DebateIdempotencyLockBusy,
+    DebateIdempotencyReservation,
     DebateRateLimitExceeded,
 )
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
@@ -155,6 +158,10 @@ debate_admission_policy = DebateAdmissionPolicy(
     rate_limit=settings.debate_rate_limit_per_window,
     rate_window_seconds=settings.debate_rate_limit_window_seconds,
     active_ttl_seconds=settings.debate_active_ttl_seconds,
+)
+debate_idempotency_guard = DebateIdempotencyGuard(
+    cache_backend,
+    ttl_seconds=settings.debate_idempotency_lock_ttl_seconds,
 )
 
 
@@ -703,37 +710,32 @@ def create_debate(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Stock not found") from exc
 
-    idempotent_retry = (
-        settings.debate_queue_enabled
-        and debate_preview_service.has_queued_round_one_admission(
-            user_id,
-            request.idempotency_key,
-        )
-    )
+    idempotency_reservation: DebateIdempotencyReservation | None = None
     reservation: DebateAdmissionReservation | None = None
-    if not idempotent_retry:
-        try:
+    confirmed_reservation = False
+    try:
+        if settings.debate_queue_enabled and request.idempotency_key:
+            idempotency_reservation = debate_idempotency_guard.acquire(
+                user_id,
+                request.idempotency_key,
+            )
+
+        idempotent_retry = (
+            settings.debate_queue_enabled
+            and debate_preview_service.has_queued_round_one_admission(
+                user_id,
+                request.idempotency_key,
+            )
+        )
+        if not idempotent_retry:
             reservation = debate_admission_policy.reserve(
                 user_id,
                 debate_preview_service.repository,
             )
-        except ActiveDebateExists as exc:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Finish or cancel the active Debate before starting another",
-            ) from exc
-        except DebateRateLimitExceeded as exc:
-            raise HTTPException(
-                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                detail="Debate generation limit reached; retry later",
-                headers={"Retry-After": str(exc.retry_after_seconds)},
-            ) from exc
-        response.headers["X-RateLimit-Limit"] = str(reservation.rate_limit)
-        response.headers["X-RateLimit-Remaining"] = str(reservation.remaining)
+            response.headers["X-RateLimit-Limit"] = str(reservation.rate_limit)
+            response.headers["X-RateLimit-Remaining"] = str(reservation.remaining)
 
-    execution_mode = "synchronous_preview"
-    confirmed_reservation = False
-    try:
+        execution_mode = "synchronous_preview"
         context, factor_snapshot, cache_status = _debate_context(
             stock.ticker,
             request.question,
@@ -765,6 +767,31 @@ def create_debate(
         if reservation is not None:
             debate_admission_policy.confirm(reservation, session)
             confirmed_reservation = True
+        detail = _debate_detail(session)
+        return DebateMutationResponse(
+            session=detail.session,
+            messages=detail.messages,
+            job=detail.job,
+            job_id=job.id,
+            execution_mode=execution_mode,
+        )
+    except DebateIdempotencyLockBusy as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An equivalent Debate request is being admitted; retry shortly",
+            headers={"Retry-After": "1"},
+        ) from exc
+    except ActiveDebateExists as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Finish or cancel the active Debate before starting another",
+        ) from exc
+    except DebateRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Debate generation limit reached; retry later",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Stock not found") from exc
     except DebateOrchestrationError as exc:
@@ -775,14 +802,8 @@ def create_debate(
     finally:
         if reservation is not None and not confirmed_reservation:
             debate_admission_policy.release(reservation)
-    detail = _debate_detail(session)
-    return DebateMutationResponse(
-        session=detail.session,
-        messages=detail.messages,
-        job=detail.job,
-        job_id=job.id,
-        execution_mode=execution_mode,
-    )
+        if idempotency_reservation is not None:
+            debate_idempotency_guard.release(idempotency_reservation)
 
 
 @app.get(

@@ -1119,7 +1119,7 @@ Status: In progress
 - [x] Cache stock search and stock bundle reads.
 - [x] Add standard-Debate snapshot cache where privacy rules allow it.
 - [x] Add per-user rate limits and one-active-Debate rule.
-- [ ] Add distributed idempotency lock with database unique fallback.
+- [x] Add distributed idempotency lock with database unique fallback.
 - [x] Add cache status instrumentation.
 - [ ] Prove correct Redis-outage degradation.
 - [ ] Record before/after latency and call-count evidence.
@@ -1143,7 +1143,15 @@ canonical repository for non-terminal Sessions, and increments a configurable
 expiring admission counter before expensive work. The default is three new V2
 admissions per hour. `409`, `429`, remaining-capacity headers, bounded
 `Retry-After`, terminal-session recovery, and sequential idempotency replay are
-covered. The simultaneous duplicate-request lock remains separate.
+covered.
+
+The fourth slice wraps queued creation requests that carry an idempotency key
+in a configurable, owner-scoped lock before factor work begins. The key hashes
+the user and client key; concurrent duplicates receive a retryable `409`, and
+success, failure, or TTL expiry safely releases or recovers ownership.
+Deterministic Session/Job IDs, the PostgreSQL transaction advisory lock, and
+the unique Job idempotency key remain the canonical fallback when Redis is
+disabled or degraded.
 
 Completion rule: cache and locks create measurable effects, while disabling
 Redis does not corrupt or disable canonical workflows.
