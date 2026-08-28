@@ -15,6 +15,7 @@ from app.repositories.debate_repository import (
     DebateUnitOfWork,
 )
 from app.repositories.supabase_debate_repository import SupabaseDebateRepository
+from app.services.debate_job_state import start_job
 from app.services.debate_state import transition_session
 from test_debate_domain import BRANCH_ID, NOW, USER_ID, build_session
 from test_memory_debate_repository import build_job, build_message
@@ -99,6 +100,59 @@ class FakeDebatePostgrest:
             return httpx.Response(
                 200,
                 json=int(body["queue_message_id"]) in self.queue_messages,
+            )
+        if path == "rpc/requeue_debate_job":
+            self.rpc_calls.append(path)
+            job = self.jobs[body["debate_job_id"]]
+            session = self.sessions[str(job["session_id"])]
+            retried_job = {
+                **job,
+                "status": "queued",
+                "started_at": None,
+                "provider_request_count": max(
+                    int(job["provider_request_count"]),
+                    int(body["observed_provider_request_count"]),
+                ),
+                "prompt_tokens": max(
+                    int(job["prompt_tokens"]),
+                    int(body["observed_prompt_tokens"]),
+                ),
+                "completion_tokens": max(
+                    int(job["completion_tokens"]),
+                    int(body["observed_completion_tokens"]),
+                ),
+            }
+            retried_job["total_tokens"] = int(retried_job["prompt_tokens"]) + int(
+                retried_job["completion_tokens"]
+            )
+            retried_session = {**session, "status": "queued_round_1"}
+            self.jobs[str(job["id"])] = retried_job
+            self.sessions[str(session["id"])] = retried_session
+            return httpx.Response(
+                200,
+                json={"session": retried_session, "job": retried_job},
+            )
+        if path == "rpc/fail_exhausted_debate_job":
+            self.rpc_calls.append(path)
+            job = self.jobs[body["debate_job_id"]]
+            session = self.sessions[str(job["session_id"])]
+            failed_job = {
+                **job,
+                "status": "failed",
+                "finished_at": job["updated_at"],
+                "safe_error_code": "debate_retry_exhausted",
+            }
+            failed_session = {
+                **session,
+                "status": "failed",
+                "safe_error_code": "debate_retry_exhausted",
+                "completed_at": session["updated_at"],
+            }
+            self.jobs[str(job["id"])] = failed_job
+            self.sessions[str(session["id"])] = failed_session
+            return httpx.Response(
+                200,
+                json={"session": failed_session, "job": failed_job},
             )
         if path == "rpc/append_debate_message":
             self.rpc_calls.append(path)
@@ -323,3 +377,68 @@ def test_supabase_repository_round_trips_durable_queue_operations() -> None:
     assert repository.retry_job_message(claimed.queue_message_id, delay_seconds=30)
     assert repository.archive_job_message(claimed.queue_message_id)
     assert repository.claim_job(visibility_timeout_seconds=900) is None
+
+
+def test_supabase_repository_round_trips_atomic_retry_settlement() -> None:
+    fake = FakeDebatePostgrest()
+    repository = build_repository(fake)
+    queued_session = transition_session(
+        build_session(),
+        "queued_round_1",
+        at=NOW + timedelta(seconds=1),
+    )
+    queued_job = build_job(
+        queued_session,
+        max_attempts=2,
+        available_at=queued_session.updated_at,
+        created_at=queued_session.updated_at,
+        updated_at=queued_session.updated_at,
+    )
+    message = DebateQueueMessage(
+        job_id=queued_job.id,
+        session_id=queued_session.id,
+        job_type=queued_job.job_type,
+        trace_id="trace_retry_002",
+        enqueued_at=queued_session.updated_at,
+    )
+    _, queued_job = repository.create_session_with_job_and_enqueue(
+        queued_session,
+        queued_job,
+        message,
+    )
+    running_job = start_job(queued_job, at=NOW + timedelta(seconds=2))
+    repository.update_job(running_job, expected_status="queued")
+    running_session = transition_session(
+        queued_session,
+        "running_round_1",
+        at=NOW + timedelta(seconds=2),
+    )
+    repository.update_session(running_session, expected_status="queued_round_1")
+
+    retried_session, retried_job = repository.requeue_running_job(
+        queued_job.id,
+        expected_attempt_count=1,
+        provider_request_count=1,
+    )
+    second_job = start_job(
+        retried_job,
+        at=NOW + timedelta(seconds=3),
+    )
+    repository.update_job(second_job, expected_status="queued")
+    second_session = transition_session(
+        retried_session,
+        "running_round_1",
+        at=NOW + timedelta(seconds=3),
+    )
+    repository.update_session(second_session, expected_status="queued_round_1")
+    failed_session, failed_job = repository.fail_exhausted_job(
+        queued_job.id,
+        expected_attempt_count=2,
+    )
+
+    assert retried_session.status == "queued_round_1"
+    assert retried_job.status == "queued"
+    assert failed_session.safe_error_code == "debate_retry_exhausted"
+    assert failed_job.safe_error_code == "debate_retry_exhausted"
+    assert "rpc/requeue_debate_job" in fake.rpc_calls
+    assert "rpc/fail_exhausted_debate_job" in fake.rpc_calls

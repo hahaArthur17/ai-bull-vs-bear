@@ -136,3 +136,26 @@ class DebateQueueRepository(Protocol):
 
     def retry_job_message(self, queue_message_id: int, *, delay_seconds: int) -> bool:
         ...
+
+    def requeue_running_job(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+        provider_request_count: int = 0,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+    ) -> tuple[DebateSession, DebateJob]:
+        """Atomically return a running Job and Session to their queued states."""
+
+        ...
+
+    def fail_exhausted_job(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+    ) -> tuple[DebateSession, DebateJob]:
+        """Atomically terminalize a running Job whose retry budget is exhausted."""
+
+        ...

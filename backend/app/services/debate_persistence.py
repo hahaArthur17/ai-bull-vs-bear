@@ -57,6 +57,11 @@ def validate_job_update(current: DebateJob, updated: DebateJob) -> None:
     )
     if any(getattr(current, field) != getattr(updated, field) for field in immutable_fields):
         raise DebatePersistenceValidationError("Immutable Debate job fields cannot change")
+    if (
+        current.queue_message_id is not None
+        and updated.queue_message_id != current.queue_message_id
+    ):
+        raise DebatePersistenceValidationError("A bound Queue message cannot change")
     if updated.updated_at < current.updated_at:
         raise DebatePersistenceValidationError("Debate job update time cannot move backwards")
     if (

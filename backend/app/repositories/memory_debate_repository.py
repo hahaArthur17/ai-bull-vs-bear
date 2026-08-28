@@ -30,6 +30,8 @@ from app.services.debate_persistence import (
     validate_job_update,
     validate_session_update,
 )
+from app.services.debate_job_state import fail_job, requeue_job
+from app.services.debate_state import transition_session
 
 
 DomainModel = TypeVar("DomainModel", bound=ImmutableDomainModel)
@@ -376,6 +378,90 @@ class InMemoryDebateRepository:
                 return False
             envelope.visible_at = self._queue_now() + timedelta(seconds=delay_seconds)
             return True
+
+    def requeue_running_job(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+        provider_request_count: int = 0,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+    ) -> tuple[DebateSession, DebateJob]:
+        with self._lock:
+            job, session = self._running_retry_records(
+                job_id,
+                expected_attempt_count=expected_attempt_count,
+                require_exhausted=False,
+            )
+            at = max(self._queue_now(), job.updated_at, session.updated_at)
+            retried_job = requeue_job(
+                job,
+                at=at,
+                provider_request_count=provider_request_count,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            queued_status = "queued_round_1" if job.job_type == "round_1" else "queued_round_2"
+            retried_session = transition_session(session, queued_status, at=at)
+            self._jobs[job.id] = _clone(retried_job)
+            self._sessions[session.id] = _clone(retried_session)
+            return _clone(retried_session), _clone(retried_job)
+
+    def fail_exhausted_job(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+    ) -> tuple[DebateSession, DebateJob]:
+        with self._lock:
+            job, session = self._running_retry_records(
+                job_id,
+                expected_attempt_count=expected_attempt_count,
+                require_exhausted=True,
+            )
+            at = max(self._queue_now(), job.updated_at, session.updated_at)
+            failed_job = fail_job(
+                job,
+                at=at,
+                safe_error_code="debate_retry_exhausted",
+                provider_request_count=job.provider_request_count,
+            )
+            failed_session = transition_session(
+                session,
+                "failed",
+                at=at,
+                safe_error_code="debate_retry_exhausted",
+            )
+            self._jobs[job.id] = _clone(failed_job)
+            self._sessions[session.id] = _clone(failed_session)
+            return _clone(failed_session), _clone(failed_job)
+
+    def _running_retry_records(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+        require_exhausted: bool,
+    ) -> tuple[DebateJob, DebateSession]:
+        job = self._jobs.get(job_id)
+        if (
+            job is None
+            or job.status != "running"
+            or job.attempt_count != expected_attempt_count
+            or job.job_type not in {"round_1", "round_2"}
+        ):
+            raise DebateConcurrencyError("Running Debate retry state changed concurrently")
+        exhausted = job.attempt_count >= job.max_attempts
+        if exhausted != require_exhausted:
+            raise DebateConcurrencyError("Debate retry budget does not match the requested action")
+        session = self._sessions.get(job.session_id)
+        running_status = (
+            "running_round_1" if job.job_type == "round_1" else "running_round_2"
+        )
+        if session is None or session.user_id != job.user_id or session.status != running_status:
+            raise DebateConcurrencyError("Debate Session is not running the claimed Job")
+        return job, session
 
     @staticmethod
     def _validate_citations(

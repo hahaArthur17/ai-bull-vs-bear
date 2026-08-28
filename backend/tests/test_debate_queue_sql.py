@@ -47,5 +47,10 @@ def test_queue_migration_wraps_visibility_redelivery_archive_and_retry() -> None
     assert "pgmq.archive('debate_jobs', queue_message_id)" in QUEUE_SQL
     assert "function public.retry_debate_job" in QUEUE_SQL
     assert "pgmq.set_vt('debate_jobs', queue_message_id, delay_seconds)" in QUEUE_SQL
-    assert QUEUE_SQL.count("security definer") == 4
-    assert QUEUE_SQL.count("set search_path = ''") == 4
+    assert "function public.requeue_debate_job" in QUEUE_SQL
+    assert "function public.fail_exhausted_debate_job" in QUEUE_SQL
+    assert "status = 'queued'" in QUEUE_SQL
+    assert "safe_error_code = 'debate_retry_exhausted'" in QUEUE_SQL
+    assert QUEUE_SQL.count("security definer") == 6
+    assert QUEUE_SQL.count("set search_path = ''") == 6
+    assert QUEUE_SQL.count("to service_role;") == 6

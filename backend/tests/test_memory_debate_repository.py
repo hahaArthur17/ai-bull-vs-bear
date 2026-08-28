@@ -12,6 +12,7 @@ from app.repositories.debate_repository import (
     DebateUnitOfWork,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
+from app.services.debate_job_state import start_job
 from app.services.debate_state import transition_session
 from test_debate_domain import BRANCH_ID, GENERATION_ID, NOW, SESSION_ID, USER_ID, build_session
 
@@ -282,6 +283,16 @@ def test_memory_queue_redelivers_after_visibility_and_archives_idempotently() ->
     assert admitted_session == session
     assert admitted_job.queue_message_id == 1
     assert repeated == (admitted_session, admitted_job)
+    with pytest.raises(DebateRepositoryError, match="bound Queue message"):
+        repository.update_job(
+            DebateJob.model_validate(
+                {
+                    **admitted_job.model_dump(mode="python"),
+                    "queue_message_id": None,
+                }
+            ),
+            expected_status="queued",
+        )
 
     first = repository.claim_job(visibility_timeout_seconds=30)
     assert first is not None and first.read_count == 1
@@ -329,3 +340,80 @@ def test_memory_queue_rejects_mismatched_admission_without_partial_state() -> No
         repository.create_session_with_job_and_enqueue(session, job, wrong_message)
     assert repository.get_session(session.id, session.user_id) is None
     assert repository.get_job(job.id) is None
+
+
+def test_memory_queue_atomically_requeues_then_terminalizes_exhausted_work() -> None:
+    class MutableClock:
+        def __init__(self) -> None:
+            self.now = NOW + timedelta(seconds=5)
+
+        def __call__(self) -> datetime:
+            return self.now
+
+    clock = MutableClock()
+    repository = InMemoryDebateRepository(clock=clock)
+    queued_session = transition_session(
+        build_session(),
+        "queued_round_1",
+        at=NOW + timedelta(seconds=1),
+    )
+    queued_job = build_job(
+        queued_session,
+        max_attempts=2,
+        available_at=queued_session.updated_at,
+        created_at=queued_session.updated_at,
+        updated_at=queued_session.updated_at,
+    )
+    message = DebateQueueMessage(
+        job_id=queued_job.id,
+        session_id=queued_session.id,
+        job_type=queued_job.job_type,
+        trace_id="trace_retry_001",
+        enqueued_at=queued_session.updated_at,
+    )
+    _, queued_job = repository.create_session_with_job_and_enqueue(
+        queued_session,
+        queued_job,
+        message,
+    )
+    running_job = start_job(queued_job, at=NOW + timedelta(seconds=2))
+    repository.update_job(running_job, expected_status="queued")
+    running_session = transition_session(
+        queued_session,
+        "running_round_1",
+        at=NOW + timedelta(seconds=2),
+    )
+    repository.update_session(running_session, expected_status="queued_round_1")
+
+    retried_session, retried_job = repository.requeue_running_job(
+        queued_job.id,
+        expected_attempt_count=1,
+        provider_request_count=2,
+        prompt_tokens=10,
+        completion_tokens=5,
+    )
+
+    assert (retried_session.status, retried_job.status) == (
+        "queued_round_1",
+        "queued",
+    )
+    assert retried_job.provider_request_count == 2
+    assert retried_job.total_tokens == 15
+
+    clock.now = NOW + timedelta(seconds=7)
+    second_job = start_job(retried_job, at=NOW + timedelta(seconds=6))
+    repository.update_job(second_job, expected_status="queued")
+    second_session = transition_session(
+        retried_session,
+        "running_round_1",
+        at=NOW + timedelta(seconds=6),
+    )
+    repository.update_session(second_session, expected_status="queued_round_1")
+    failed_session, failed_job = repository.fail_exhausted_job(
+        queued_job.id,
+        expected_attempt_count=2,
+    )
+
+    assert failed_session.status == failed_job.status == "failed"
+    assert failed_session.safe_error_code == "debate_retry_exhausted"
+    assert failed_job.safe_error_code == "debate_retry_exhausted"

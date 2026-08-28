@@ -397,6 +397,81 @@ class SupabaseDebateRepository:
             raise DebateRepositoryError("Supabase Queue retry returned an invalid response")
         return payload
 
+    def requeue_running_job(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+        provider_request_count: int = 0,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+    ) -> tuple[DebateSession, DebateJob]:
+        if expected_attempt_count < 1 or min(
+            provider_request_count,
+            prompt_tokens,
+            completion_tokens,
+        ) < 0:
+            raise DebateRepositoryError("Debate retry observations are outside safe bounds")
+        response = self._request(
+            "POST",
+            "rpc/requeue_debate_job",
+            json={
+                "debate_job_id": str(job_id),
+                "expected_attempt_count": expected_attempt_count,
+                "observed_provider_request_count": provider_request_count,
+                "observed_prompt_tokens": prompt_tokens,
+                "observed_completion_tokens": completion_tokens,
+            },
+        )
+        payload = self._object(response.json(), "Retried Debate transaction")
+        session = self._model(payload.get("session"), DebateSession, "Debate session")
+        job = self._model(payload.get("job"), DebateJob, "Debate job")
+        expected_session_status = (
+            "queued_round_1" if job.job_type == "round_1" else "queued_round_2"
+        )
+        if (
+            job.id != job_id
+            or job.status != "queued"
+            or job.attempt_count != expected_attempt_count
+            or session.id != job.session_id
+            or session.user_id != job.user_id
+            or session.status != expected_session_status
+        ):
+            raise DebateConcurrencyError("Supabase Debate retry returned conflicting state")
+        return session, job
+
+    def fail_exhausted_job(
+        self,
+        job_id: UUID,
+        *,
+        expected_attempt_count: int,
+    ) -> tuple[DebateSession, DebateJob]:
+        if expected_attempt_count < 1:
+            raise DebateRepositoryError("Debate retry attempt is outside safe bounds")
+        response = self._request(
+            "POST",
+            "rpc/fail_exhausted_debate_job",
+            json={
+                "debate_job_id": str(job_id),
+                "expected_attempt_count": expected_attempt_count,
+            },
+        )
+        payload = self._object(response.json(), "Exhausted Debate transaction")
+        session = self._model(payload.get("session"), DebateSession, "Debate session")
+        job = self._model(payload.get("job"), DebateJob, "Debate job")
+        if (
+            job.id != job_id
+            or job.status != "failed"
+            or job.safe_error_code != "debate_retry_exhausted"
+            or session.id != job.session_id
+            or session.status != "failed"
+            or session.safe_error_code != "debate_retry_exhausted"
+        ):
+            raise DebateConcurrencyError(
+                "Supabase exhausted Debate Job returned conflicting state"
+            )
+        return session, job
+
     def _request(
         self,
         method: str,

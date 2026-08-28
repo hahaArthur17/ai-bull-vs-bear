@@ -196,6 +196,165 @@ begin
 end;
 $$;
 
+create or replace function public.requeue_debate_job(
+  debate_job_id uuid,
+  expected_attempt_count integer,
+  observed_provider_request_count integer default 0,
+  observed_prompt_tokens integer default 0,
+  observed_completion_tokens integer default 0
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_job public.debate_jobs%rowtype;
+  current_session public.debate_sessions%rowtype;
+  queued_session_status text;
+  changed_at timestamptz := statement_timestamp();
+begin
+  if expected_attempt_count < 1
+     or observed_provider_request_count < 0
+     or observed_prompt_tokens < 0
+     or observed_completion_tokens < 0 then
+    raise exception using
+      errcode = '22023',
+      message = 'Debate retry observations are outside safe bounds';
+  end if;
+
+  select * into current_job
+  from public.debate_jobs
+  where id = debate_job_id
+  for update;
+  if not found
+     or current_job.status <> 'running'
+     or current_job.attempt_count <> expected_attempt_count
+     or current_job.attempt_count >= current_job.max_attempts
+     or current_job.job_type not in ('round_1', 'round_2') then
+    raise exception using
+      errcode = '23505',
+      message = 'Running Debate retry state changed concurrently';
+  end if;
+
+  select * into current_session
+  from public.debate_sessions
+  where id = current_job.session_id and user_id = current_job.user_id
+  for update;
+  queued_session_status := case current_job.job_type
+    when 'round_1' then 'queued_round_1'
+    else 'queued_round_2'
+  end;
+  if not found
+     or current_session.status <> replace(queued_session_status, 'queued', 'running') then
+    raise exception using
+      errcode = '23505',
+      message = 'Debate Session is not running the claimed Job';
+  end if;
+
+  update public.debate_jobs
+  set status = 'queued',
+      started_at = null,
+      provider_request_count = greatest(
+        current_job.provider_request_count,
+        observed_provider_request_count
+      ),
+      prompt_tokens = greatest(current_job.prompt_tokens, observed_prompt_tokens),
+      completion_tokens = greatest(
+        current_job.completion_tokens,
+        observed_completion_tokens
+      ),
+      total_tokens = greatest(current_job.prompt_tokens, observed_prompt_tokens)
+        + greatest(current_job.completion_tokens, observed_completion_tokens),
+      updated_at = greatest(changed_at, current_job.updated_at)
+  where id = current_job.id
+  returning * into current_job;
+
+  update public.debate_sessions
+  set status = queued_session_status,
+      updated_at = greatest(changed_at, current_session.updated_at)
+  where id = current_session.id
+  returning * into current_session;
+
+  return jsonb_build_object(
+    'session', to_jsonb(current_session),
+    'job', to_jsonb(current_job)
+  );
+end;
+$$;
+
+create or replace function public.fail_exhausted_debate_job(
+  debate_job_id uuid,
+  expected_attempt_count integer
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  current_job public.debate_jobs%rowtype;
+  current_session public.debate_sessions%rowtype;
+  expected_session_status text;
+  changed_at timestamptz := statement_timestamp();
+begin
+  if expected_attempt_count < 1 then
+    raise exception using
+      errcode = '22023',
+      message = 'Debate retry attempt is outside safe bounds';
+  end if;
+
+  select * into current_job
+  from public.debate_jobs
+  where id = debate_job_id
+  for update;
+  if not found
+     or current_job.status <> 'running'
+     or current_job.attempt_count <> expected_attempt_count
+     or current_job.attempt_count < current_job.max_attempts
+     or current_job.job_type not in ('round_1', 'round_2') then
+    raise exception using
+      errcode = '23505',
+      message = 'Exhausted Debate Job state changed concurrently';
+  end if;
+
+  select * into current_session
+  from public.debate_sessions
+  where id = current_job.session_id and user_id = current_job.user_id
+  for update;
+  expected_session_status := case current_job.job_type
+    when 'round_1' then 'running_round_1'
+    else 'running_round_2'
+  end;
+  if not found or current_session.status <> expected_session_status then
+    raise exception using
+      errcode = '23505',
+      message = 'Debate Session is not running the exhausted Job';
+  end if;
+
+  update public.debate_jobs
+  set status = 'failed',
+      finished_at = greatest(changed_at, current_job.updated_at),
+      safe_error_code = 'debate_retry_exhausted',
+      updated_at = greatest(changed_at, current_job.updated_at)
+  where id = current_job.id
+  returning * into current_job;
+
+  update public.debate_sessions
+  set status = 'failed',
+      safe_error_code = 'debate_retry_exhausted',
+      completed_at = greatest(changed_at, current_session.updated_at),
+      updated_at = greatest(changed_at, current_session.updated_at)
+  where id = current_session.id
+  returning * into current_session;
+
+  return jsonb_build_object(
+    'session', to_jsonb(current_session),
+    'job', to_jsonb(current_job)
+  );
+end;
+$$;
+
 revoke all on function public.enqueue_debate_session_job(jsonb, jsonb, jsonb)
   from public, anon, authenticated;
 revoke all on function public.claim_debate_job(integer)
@@ -203,6 +362,10 @@ revoke all on function public.claim_debate_job(integer)
 revoke all on function public.archive_debate_job(bigint)
   from public, anon, authenticated;
 revoke all on function public.retry_debate_job(bigint, integer)
+  from public, anon, authenticated;
+revoke all on function public.requeue_debate_job(uuid, integer, integer, integer, integer)
+  from public, anon, authenticated;
+revoke all on function public.fail_exhausted_debate_job(uuid, integer)
   from public, anon, authenticated;
 
 grant execute on function public.enqueue_debate_session_job(jsonb, jsonb, jsonb)
@@ -212,4 +375,8 @@ grant execute on function public.claim_debate_job(integer)
 grant execute on function public.archive_debate_job(bigint)
   to service_role;
 grant execute on function public.retry_debate_job(bigint, integer)
+  to service_role;
+grant execute on function public.requeue_debate_job(uuid, integer, integer, integer, integer)
+  to service_role;
+grant execute on function public.fail_exhausted_debate_job(uuid, integer)
   to service_role;
