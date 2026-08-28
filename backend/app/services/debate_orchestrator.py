@@ -489,6 +489,24 @@ class DebateOrchestrator:
                 return session
         if session.status != "awaiting_user":
             raise DebateOrchestrationError("Debate session is not awaiting a user challenge")
+        queued, question = self.prepare_challenge(intervention, round_two_job)
+        self.repository.create_intervention(intervention)
+        self.repository.append_message(question)
+        self.repository.create_job(round_two_job)
+        return self.repository.update_session(queued, expected_status="awaiting_user")
+
+    def prepare_challenge(
+        self,
+        intervention: DebateIntervention,
+        round_two_job: DebateJob,
+    ) -> tuple[DebateSession, DebateMessage]:
+        """Validate and build Round 2 records without mutating persistence."""
+
+        if intervention.mode != "challenge":
+            raise DebateOrchestrationError("Only a challenge can queue Debate round two")
+        session = self.repository.get_session(intervention.session_id, intervention.user_id)
+        if session is None or session.status != "awaiting_user":
+            raise DebateOrchestrationError("Debate session is not awaiting a user challenge")
         if (
             round_two_job.session_id != session.id
             or round_two_job.user_id != session.user_id
@@ -502,9 +520,21 @@ class DebateOrchestrator:
             session.user_id,
             branch_id=session.active_branch_id,
         )
-        if not any(message.id == intervention.selected_message_id for message in transcript):
+        target = next(
+            (
+                message
+                for message in transcript
+                if message.id == intervention.selected_message_id
+            ),
+            None,
+        )
+        if target is None:
             raise DebateOrchestrationError("Challenge target is not in the active Debate branch")
-        generation_id = expected_generation_id
+        if intervention.selected_text not in target.content:
+            raise DebateOrchestrationError(
+                "Selected challenge text is not present in its target message"
+            )
+        generation_id = uuid5(session.id, f"generation:{intervention.id}")
         question = DebateMessage(
             id=uuid5(session.id, f"intervention-message:{intervention.id}"),
             session_id=session.id,
@@ -524,9 +554,6 @@ class DebateOrchestrator:
             },
             created_at=self._at_or_after(session.updated_at),
         )
-        self.repository.create_intervention(intervention)
-        self.repository.append_message(question)
-        self.repository.create_job(round_two_job)
         prepared = DebateSession.model_validate(
             {
                 **session.model_dump(mode="python"),
@@ -538,7 +565,7 @@ class DebateOrchestrator:
             "queued_round_2",
             at=self._at_or_after(session.updated_at),
         )
-        return self.repository.update_session(queued, expected_status="awaiting_user")
+        return queued, question
 
     def _append_turn(
         self,

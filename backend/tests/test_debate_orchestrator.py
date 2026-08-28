@@ -220,6 +220,42 @@ def test_user_challenge_runs_round_two_and_persists_final_judge() -> None:
     assert repository.get_job(ROUND_TWO_JOB_ID).provider_request_count == 5
 
 
+def test_challenge_preparation_builds_records_without_mutating_persistence() -> None:
+    repository, _, orchestrator, awaiting = start_round_one()
+    messages = repository.list_messages(
+        awaiting.id,
+        awaiting.user_id,
+        branch_id=awaiting.active_branch_id,
+    )
+    target = messages[-1]
+    intervention = DebateIntervention(
+        id=INTERVENTION_ID,
+        session_id=awaiting.id,
+        user_id=awaiting.user_id,
+        selected_message_id=target.id,
+        selected_text=target.content[:40],
+        question="Which evidence could change the interim assessment?",
+        mode="challenge",
+        created_at=awaiting.updated_at + timedelta(seconds=1),
+    )
+
+    queued, question = orchestrator.prepare_challenge(
+        intervention,
+        build_round_two_job(awaiting),
+    )
+
+    assert queued.status == "queued_round_2"
+    assert question.role == "user"
+    assert question.generation_id == queued.active_generation_id
+    assert repository.get_session(awaiting.id, awaiting.user_id) == awaiting
+    assert repository.get_job(ROUND_TWO_JOB_ID) is None
+    assert repository.list_messages(
+        awaiting.id,
+        awaiting.user_id,
+        branch_id=awaiting.active_branch_id,
+    ) == messages
+
+
 def test_provider_failure_marks_session_and_job_with_safe_codes() -> None:
     provider = FailingProvider()
     repository = InMemoryDebateRepository()
