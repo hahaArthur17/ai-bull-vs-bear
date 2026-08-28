@@ -185,3 +185,16 @@ def test_analysis_context_rejects_cross_ticker_inputs() -> None:
                 ),
             ),
         )
+
+
+def test_analysis_context_serializes_allowed_evidence_ids_canonically() -> None:
+    context = AnalysisContext(
+        ticker="AAPL",
+        as_of="2026-08-27",
+        allowed_evidence_ids=frozenset({"evidence-z", "evidence-a"}),
+    )
+
+    assert context.model_dump(mode="json")["allowed_evidence_ids"] == [
+        "evidence-a",
+        "evidence-z",
+    ]

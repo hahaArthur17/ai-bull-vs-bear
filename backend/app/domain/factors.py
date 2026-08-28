@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal, Protocol, runtime_checkable
 
-from pydantic import Field, JsonValue, field_validator, model_validator
+from pydantic import Field, JsonValue, field_serializer, field_validator, model_validator
 
 from app.domain.base import ImmutableDomainModel
 
@@ -52,7 +52,6 @@ class AnalysisEvidenceItem(ImmutableDomainModel):
     @classmethod
     def normalize_ticker(cls, value: str) -> str:
         return value.upper()
-
 
 class AnalysisMacroObservation(ImmutableDomainModel):
     code: str = Field(min_length=1, max_length=80)
@@ -106,6 +105,10 @@ class AnalysisContext(ImmutableDomainModel):
     @classmethod
     def normalize_ticker(cls, value: str) -> str:
         return value.upper()
+
+    @field_serializer("allowed_evidence_ids")
+    def serialize_allowed_evidence_ids(self, value: frozenset[str]) -> list[str]:
+        return sorted(value)
 
     @model_validator(mode="after")
     def validate_ticker_scoped_inputs(self) -> AnalysisContext:
