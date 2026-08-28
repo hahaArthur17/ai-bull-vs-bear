@@ -1,6 +1,6 @@
 # Live Services Setup
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-29
 
 This document records the non-secret configuration needed to move AI Bull vs
 Bear from deterministic demo mode to real services.
@@ -286,7 +286,11 @@ The first Phase 6 Redis slice is implemented but remains optional. Keep
 bounded local fallback; Redis is not canonical persistence or Queue transport.
 The standard `question=null` Debate may reuse only its public normalized factor
 snapshot for six hours; custom questions bypass this cache. Rate limits and
-Debate idempotency wiring remain future Phase 6 work.
+the one-active-Debate rule run through Redis when enabled and the bounded local
+fallback otherwise. Their safe defaults are three admissions per 3,600 seconds
+and a 1,200-second active-key TTL; canonical non-terminal Sessions remain the
+authority after the TTL. Distributed Debate idempotency locking remains future
+Phase 6 work.
 
 ### Credential hygiene follow-up
 

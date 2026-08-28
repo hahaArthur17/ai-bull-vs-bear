@@ -54,6 +54,10 @@ baseline is maintained in
 - A six-hour shared factor-snapshot cache is available only for the standard
   V2 Debate request with no user question or user metadata. Custom questions,
   Sessions, Messages, Jobs, and history are never shared through this cache.
+- New V2 generation is bounded to one non-terminal Debate per user and three
+  admissions per configurable one-hour window. Redis provides the atomic fast
+  path when enabled; the process-local fallback and canonical Session check
+  remain active when it is disabled or unavailable.
 - Database-local evidence vectors and ticker-filtered pgvector retrieval with a
   deterministic cached fallback.
 - Immutable completed-close/evidence snapshots with source freshness, dated

@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     redis_url: str | None = Field(default=None, repr=False)
     redis_connect_timeout_seconds: float = Field(default=0.75, ge=0.1, le=5)
     redis_socket_timeout_seconds: float = Field(default=0.75, ge=0.1, le=5)
+    debate_rate_limit_per_window: int = Field(default=3, ge=1, le=100)
+    debate_rate_limit_window_seconds: int = Field(default=3600, ge=60, le=86400)
+    debate_active_ttl_seconds: int = Field(default=1200, ge=60, le=86400)
     # The async Debate provider is an independent, explicit opt-in. Keeping it
     # deterministic prevents a feature-flag change from spending model quota.
     debate_streaming_provider: str = "deterministic"

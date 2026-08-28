@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last verified: 2026-08-28
+Last verified: 2026-08-29
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 291 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 296 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -58,9 +58,9 @@ These are limitations of the current implementation, not completed features:
 - Redis remains disabled in safe defaults and is not configured in production.
   Optional Redis/local adapters and public stock search/bundle caching now
   exist. Standard V2 requests can reuse only a public factor snapshot; custom
-  questions bypass that shared cache. Rate limits and distributed idempotency
-  are not yet wired. The current quote remains outside the bundle response
-  cache.
+  questions bypass that shared cache. Per-user generation limits and the
+  one-active-Debate rule are wired; the simultaneous duplicate-request lock is
+  not. The current quote remains outside the bundle response cache.
 - The durable Queue is connected only to the default-off V2 Debate path. The
   public legacy `/analysis` path remains synchronous by design.
 - Stock detail, charting, legacy Debate, Evidence, and Examination UI still
@@ -333,9 +333,16 @@ users prove only factor collection is reused: each request still creates
 distinct canonical Session and Message IDs, and generated Debate text is never
 cached.
 
-Phase 6 remains in progress. Per-user limits, the one-active-Debate rule,
-distributed idempotency wiring, outage-level API proof, and recorded latency
-measurements remain.
+The third slice adds hashed per-user admission keys, an atomic active-slot
+reservation, a canonical non-terminal Session check, and a configurable
+expiring generation counter. The default allows three new V2 admissions per
+hour and one active Debate. Successful responses expose remaining capacity;
+active conflicts return `409`, and limit exhaustion returns `429` with
+`Retry-After`. Sequential queued idempotency retries reuse their deterministic
+Session/Job without another count.
+
+Phase 6 remains in progress. The distributed idempotency lock, outage-level API
+proof, and recorded latency measurements remain.
 
 ## Boundaries that remain in force
 

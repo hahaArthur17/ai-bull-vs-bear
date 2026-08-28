@@ -62,6 +62,14 @@ question or top-level context metadata forces `BYPASS`. Only the derived factor
 snapshot is reused; every user still receives new canonical Session, Message,
 Job, and history records, and model-generated Debate messages are not cached.
 
+V2 admission also enforces one non-terminal Debate per user and a configurable
+default of three new admissions per hour. `DEBATE_RATE_LIMIT_PER_WINDOW`,
+`DEBATE_RATE_LIMIT_WINDOW_SECONDS`, and `DEBATE_ACTIVE_TTL_SECONDS` control the
+bounded policy. Successful new admissions expose remaining capacity; an active
+Session returns `409`, and an exhausted window returns `429` with
+`Retry-After`. Sequential queued idempotency replays do not consume another
+slot. The distributed duplicate-request lock remains the next Phase 6 slice.
+
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set
 `DEBATE_QUEUE_ENABLED=true` only after the checked-in catalog, Debate, and Queue

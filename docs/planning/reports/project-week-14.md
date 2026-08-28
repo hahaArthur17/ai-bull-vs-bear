@@ -83,3 +83,25 @@ The updated local gate is 291 backend tests, 11 mobile stream/view-state tests,
 mobile TypeScript, and Expo Web export. The next Phase 6 slice is per-user
 admission limits plus the one-active-Debate rule; distributed idempotency remains
 separate.
+
+## Follow-up — per-user Debate admission
+
+Date: 2026-08-29
+
+The third Phase 6 slice adds a configurable admission boundary before factor or
+model work. It hashes user IDs in all coordination keys, checks the canonical
+repository for non-terminal Sessions, atomically reserves one active slot, and
+increments an expiring per-user counter. The safe defaults are one active
+Debate and three new admissions per 3,600-second window.
+
+Successful new requests expose `X-RateLimit-Limit` and
+`X-RateLimit-Remaining`. An active Session returns `409`; exhausted capacity
+returns `429` with a bounded `Retry-After`. A terminal canonical Session makes a
+stale active-cache entry recoverable, so the 1,200-second coordination TTL is
+never the authority. Sequential queued retries backed by the existing
+deterministic Session/Job IDs do not consume a second slot.
+
+The updated local gate is 296 backend tests, 11 mobile stream/view-state tests,
+mobile TypeScript, and Expo Web export. The simultaneous distributed
+idempotency lock is deliberately left for the next small commit; outage-level
+API evidence and performance measurements remain before Phase 6 completion.

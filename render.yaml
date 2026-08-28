@@ -29,6 +29,12 @@ services:
         value: deterministic
       - key: REDIS_ENABLED
         value: "false"
+      - key: DEBATE_RATE_LIMIT_PER_WINDOW
+        value: "3"
+      - key: DEBATE_RATE_LIMIT_WINDOW_SECONDS
+        value: "3600"
+      - key: DEBATE_ACTIVE_TTL_SECONDS
+        value: "1200"
       - key: CORS_ORIGINS
         sync: false
       - key: SUPABASE_URL

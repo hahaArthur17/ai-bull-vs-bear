@@ -64,6 +64,12 @@ from app.services.analysis import AnalysisService
 from app.services.analysis_context import build_analysis_context
 from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_token
 from app.services.cache import build_cache_backend
+from app.services.debate_admission import (
+    ActiveDebateExists,
+    DebateAdmissionPolicy,
+    DebateAdmissionReservation,
+    DebateRateLimitExceeded,
+)
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
@@ -144,6 +150,12 @@ cache_backend = build_cache_backend(
 )
 response_cache = JsonResponseCache(cache_backend, enabled=settings.redis_enabled)
 debate_snapshot_cache = StandardDebateSnapshotCache(response_cache)
+debate_admission_policy = DebateAdmissionPolicy(
+    cache_backend,
+    rate_limit=settings.debate_rate_limit_per_window,
+    rate_window_seconds=settings.debate_rate_limit_window_seconds,
+    active_ttl_seconds=settings.debate_active_ttl_seconds,
+)
 
 
 def build_configured_debate_worker() -> DebateWorker:
@@ -685,15 +697,48 @@ def create_debate(
             detail="Bull vs Bear is available only for Debate-ready stocks",
         )
     assert debate_preview_service is not None
-    context, factor_snapshot, cache_status = _debate_context(
-        stock.ticker,
-        request.question,
-    )
-    response.headers["X-Cache-Status"] = cache_status
-    execution_mode = "synchronous_preview"
+    user_id = _debate_user_id(auth)
     try:
         stock_id = store.get_stock_record_id(stock.ticker, auth.access_token)
-        user_id = _debate_user_id(auth)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="Stock not found") from exc
+
+    idempotent_retry = (
+        settings.debate_queue_enabled
+        and debate_preview_service.has_queued_round_one_admission(
+            user_id,
+            request.idempotency_key,
+        )
+    )
+    reservation: DebateAdmissionReservation | None = None
+    if not idempotent_retry:
+        try:
+            reservation = debate_admission_policy.reserve(
+                user_id,
+                debate_preview_service.repository,
+            )
+        except ActiveDebateExists as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Finish or cancel the active Debate before starting another",
+            ) from exc
+        except DebateRateLimitExceeded as exc:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail="Debate generation limit reached; retry later",
+                headers={"Retry-After": str(exc.retry_after_seconds)},
+            ) from exc
+        response.headers["X-RateLimit-Limit"] = str(reservation.rate_limit)
+        response.headers["X-RateLimit-Remaining"] = str(reservation.remaining)
+
+    execution_mode = "synchronous_preview"
+    confirmed_reservation = False
+    try:
+        context, factor_snapshot, cache_status = _debate_context(
+            stock.ticker,
+            request.question,
+        )
+        response.headers["X-Cache-Status"] = cache_status
         if settings.debate_queue_enabled:
             session, job = debate_preview_service.create_queued_round_one(
                 user_id=user_id,
@@ -717,6 +762,9 @@ def create_debate(
                 analysis_context=context,
                 factor_snapshot=factor_snapshot,
             )
+        if reservation is not None:
+            debate_admission_policy.confirm(reservation, session)
+            confirmed_reservation = True
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Stock not found") from exc
     except DebateOrchestrationError as exc:
@@ -724,6 +772,9 @@ def create_debate(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Debate preview execution failed",
         ) from exc
+    finally:
+        if reservation is not None and not confirmed_reservation:
+            debate_admission_policy.release(reservation)
     detail = _debate_detail(session)
     return DebateMutationResponse(
         session=detail.session,
@@ -1020,5 +1071,10 @@ app = CORSMiddleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
-    expose_headers=["X-Cache-Status"],
+    expose_headers=[
+        "X-Cache-Status",
+        "X-RateLimit-Limit",
+        "X-RateLimit-Remaining",
+        "Retry-After",
+    ],
 )

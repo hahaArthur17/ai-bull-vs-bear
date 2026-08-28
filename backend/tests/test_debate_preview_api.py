@@ -12,6 +12,7 @@ from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.analysis import AnalysisService
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
+from app.services.debate_admission import DebateAdmissionPolicy
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
@@ -40,6 +41,16 @@ def isolated_preview(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "analysis_service", AnalysisService(store))
     monkeypatch.setattr(main, "debate_event_broker", event_broker)
     monkeypatch.setattr(main, "debate_preview_service", service)
+    monkeypatch.setattr(
+        main,
+        "debate_admission_policy",
+        DebateAdmissionPolicy(
+            ResilientCacheBackend(LocalCacheBackend()),
+            rate_limit=3,
+            rate_window_seconds=3600,
+            active_ttl_seconds=1200,
+        ),
+    )
     monkeypatch.setattr(main.settings, "auth_mode", "demo")
     monkeypatch.setattr(main.settings, "debate_workflow_v2", False)
     monkeypatch.setattr(main.settings, "debate_queue_enabled", False)
@@ -133,6 +144,88 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
         "execution_mode": "synchronous_preview",
     }
     assert len(client.get(f"/debates/{session_id}/messages", headers=headers).json()) == 7
+
+
+def test_one_active_debate_is_enforced_before_new_factor_work(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    headers = {"X-User-Id": "single-active-user"}
+    original_context = main._debate_context
+    context_calls = 0
+
+    def counting_context(ticker: str, question: str | None):
+        nonlocal context_calls
+        context_calls += 1
+        return original_context(ticker, question)
+
+    monkeypatch.setattr(main, "_debate_context", counting_context)
+
+    first = client.post(
+        "/debates",
+        headers=headers,
+        json={"ticker": "AAPL"},
+    )
+    second = client.post(
+        "/debates",
+        headers=headers,
+        json={"ticker": "GOOG"},
+    )
+
+    assert first.status_code == 201
+    assert first.headers["x-ratelimit-limit"] == "3"
+    assert first.headers["x-ratelimit-remaining"] == "2"
+    assert second.status_code == 409
+    assert context_calls == 1
+    assert second.json() == {
+        "detail": "Finish or cancel the active Debate before starting another"
+    }
+
+
+def test_debate_rate_limit_allows_terminal_sessions_then_returns_retry_after(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(
+        main,
+        "debate_admission_policy",
+        DebateAdmissionPolicy(
+            ResilientCacheBackend(LocalCacheBackend()),
+            rate_limit=2,
+            rate_window_seconds=3600,
+            active_ttl_seconds=1200,
+            clock=lambda: 3700.0,
+        ),
+    )
+    headers = {"X-User-Id": "rate-limited-user"}
+
+    for ticker in ("AAPL", "GOOG"):
+        created = client.post(
+            "/debates",
+            headers=headers,
+            json={"ticker": ticker},
+        )
+        assert created.status_code == 201
+        session = created.json()["session"]
+        cancelled = client.post(
+            f"/debates/{session['id']}/cancel",
+            headers=headers,
+            json={"generation_id": session["active_generation_id"]},
+        )
+        assert cancelled.status_code == 202
+        assert cancelled.json()["session"]["status"] == "cancelled"
+
+    limited = client.post(
+        "/debates",
+        headers=headers,
+        json={"ticker": "NVDA"},
+    )
+
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "3500"
+    assert limited.json() == {
+        "detail": "Debate generation limit reached; retry later"
+    }
 
 
 def test_standard_debate_reuses_only_factor_snapshot_across_users(
@@ -235,6 +328,15 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
 ) -> None:
     enable_preview(monkeypatch)
     monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    admission_backend = LocalCacheBackend()
+    admission_policy = DebateAdmissionPolicy(
+        ResilientCacheBackend(admission_backend),
+        rate_limit=3,
+        rate_window_seconds=3600,
+        active_ttl_seconds=1200,
+        clock=lambda: 3700.0,
+    )
+    monkeypatch.setattr(main, "debate_admission_policy", admission_policy)
     request = {
         "ticker": "AAPL",
         "question": "Which dated factors support each side?",
@@ -253,6 +355,8 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     assert first.json()["job"]["status"] == "queued"
     assert first.json()["session"]["status"] == "queued_round_1"
     assert first.json()["messages"] == []
+    admitted_user_id = UUID(first.json()["session"]["user_id"])
+    assert admission_backend.get(admission_policy.rate_key(admitted_user_id, 1)) == "1"
     assert main.debate_preview_service is not None
     repository = main.debate_preview_service.repository
     admitted_job = repository.get_job(UUID(first.json()["job_id"]))

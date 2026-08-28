@@ -1,6 +1,6 @@
 # Portfolio Implementation Plan
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-29
 
 Status: Active
 
@@ -659,10 +659,10 @@ cache outage does not stall the API.
 | `cache:stock-search:v1:{query_hash}` | Normalized catalog result | 30 minutes |
 | `cache:stock-bundle:v1:{ticker}:{data_version}` | Hot stock detail reads | 5 minutes |
 | `cache:standard-debate:v1:{snapshot_hash}` | Reusable standard-question factor snapshot only | 6 hours |
-| `lock:debate:v1:{idempotency_key}` | Duplicate job prevention | 20 minutes |
-| `active-debate:v1:{user_id}` | One active live debate per user | 20 minutes, renewed while active |
-| `rate:debate:v1:{user_id}:{window}` | Live Debate admission | window length |
-| `rate:explain:v1:{user_id}:{window}` | Explanation admission | window length |
+| `lock:debate:v1:{idempotency_hash}` | Duplicate job prevention | 20 minutes |
+| `active-debate:v1:{user_hash}` | One active live debate per user | 20 minutes, renewed while active |
+| `rate:debate:v1:{user_hash}:{window}` | Live Debate admission | window length |
+| `rate:explain:v1:{user_hash}:{window}` | Explanation admission | window length |
 
 Hash normalized values; never place a raw free-form question, email address,
 access token, or user financial information in a Redis key.
@@ -1118,7 +1118,7 @@ Status: In progress
 - [x] Add Redis/local coordination adapters and configuration validation.
 - [x] Cache stock search and stock bundle reads.
 - [x] Add standard-Debate snapshot cache where privacy rules allow it.
-- [ ] Add per-user rate limits and one-active-Debate rule.
+- [x] Add per-user rate limits and one-active-Debate rule.
 - [ ] Add distributed idempotency lock with database unique fallback.
 - [x] Add cache status instrumentation.
 - [ ] Prove correct Redis-outage degradation.
@@ -1137,6 +1137,13 @@ The second slice caches only the normalized factor snapshot for
 context and ordered factor-provider contract. Custom questions and top-level
 metadata return `BYPASS`. Cross-user tests prove Session, Message, Job, and
 generated text records remain separate.
+
+The third slice hashes user IDs, atomically reserves an active slot, checks the
+canonical repository for non-terminal Sessions, and increments a configurable
+expiring admission counter before expensive work. The default is three new V2
+admissions per hour. `409`, `429`, remaining-capacity headers, bounded
+`Retry-After`, terminal-session recovery, and sequential idempotency replay are
+covered. The simultaneous duplicate-request lock remains separate.
 
 Completion rule: cache and locks create measurable effects, while disabling
 Redis does not corrupt or disable canonical workflows.
@@ -1277,8 +1284,10 @@ hosted Supabase.
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
 experience are implemented and verified locally. Phase 6 now has its
 Redis/local adapter, public stock-search/bundle cache, and privacy-bounded
-standard-Debate factor snapshot cache. The next code-only slice is per-user
-admission limits and the one-active-Debate rule. Independently,
+standard-Debate factor snapshot cache, per-user admission limits, and the
+one-active-Debate rule. The next code-only slice is the distributed
+duplicate-request lock with database uniqueness as the final fallback.
+Independently,
 apply the catalog, Debate, and Queue migrations to hosted Supabase in filename
 order and record size/RLS/restart evidence before enabling hosted flags. Do not
 claim Redis, hosted Queue durability, or cross-process transient-event replay

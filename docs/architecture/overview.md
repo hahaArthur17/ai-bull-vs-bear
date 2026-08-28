@@ -1,6 +1,6 @@
 # Architecture overview
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-29
 
 This document distinguishes the implemented baseline from the accepted target.
 The detailed phase order and acceptance criteria live in the canonical
@@ -191,8 +191,16 @@ flags, and expected categories. It can reuse the resulting `FactorSnapshot` for
 six hours. Eligibility requires `question=null` and empty top-level context metadata.
 Arbitrary questions always bypass the shared cache, and canonical Sessions,
 Messages, Jobs, history, and generated agent text remain per-user repository
-records. Admission limits and distributed idempotency remain later Phase 6
-slices.
+records.
+
+The admission boundary now hashes user IDs before constructing Redis/local
+keys, atomically reserves one active slot, checks canonical non-terminal
+Sessions, and increments a configurable expiring per-user counter before factor
+or model work. The default is three new V2 generations per hour and one active
+Debate. A cache TTL cannot bypass the canonical Session check. Sequential
+queued idempotency replays are recognized from their deterministic
+Session/Job records and do not consume another slot. A simultaneous
+duplicate-request lock remains the next Phase 6 slice.
 
 ## Implemented single-response data flow
 

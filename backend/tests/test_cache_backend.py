@@ -100,7 +100,11 @@ def test_redis_failure_degrades_without_leaking_key_or_exception_message(
 
 
 def test_redis_configuration_is_explicit_and_url_scheme_is_validated() -> None:
-    assert Settings(redis_enabled=False).redis_enabled is False
+    defaults = Settings(redis_enabled=False)
+    assert defaults.redis_enabled is False
+    assert defaults.debate_rate_limit_per_window == 3
+    assert defaults.debate_rate_limit_window_seconds == 3600
+    assert defaults.debate_active_ttl_seconds == 1200
     with pytest.raises(ValueError, match="REDIS_URL"):
         Settings(redis_enabled=True)
     with pytest.raises(ValueError, match="redis:// or rediss://"):

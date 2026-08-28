@@ -215,6 +215,22 @@ class DebatePreviewService:
         )
         return queued, job
 
+    def has_queued_round_one_admission(
+        self,
+        user_id: UUID,
+        idempotency_key: str | None,
+    ) -> bool:
+        """Detect an idempotent retry before applying new-work admission limits."""
+
+        if not idempotency_key or not isinstance(self.repository, DebateQueueRepository):
+            return False
+        session_id = uuid5(user_id, f"debate:{idempotency_key}")
+        job_id = uuid5(session_id, "job:round-1")
+        return (
+            self.repository.get_session(session_id, user_id) is not None
+            or self.repository.get_job(job_id) is not None
+        )
+
     def submit_challenge_and_execute_round_two(
         self,
         *,

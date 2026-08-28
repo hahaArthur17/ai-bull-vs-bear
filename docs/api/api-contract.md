@@ -1,6 +1,6 @@
 # API Contract
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-08-29
 
 Endpoints in the first section are implemented. The portfolio target is
 explicitly marked planned and must not be presented as available before its
@@ -146,6 +146,15 @@ and the response exposes `X-Cache-Status`. A custom question or top-level
 context metadata always returns `BYPASS`; user identity, Session,
 Message, Job, history, and generated Debate text are not shared or cached by
 this boundary.
+
+A genuinely new V2 request is admitted only when the user has no canonical
+non-terminal Debate and remains within the configured generation window
+(default: three admissions per hour). Success exposes `X-RateLimit-Limit` and
+`X-RateLimit-Remaining`. Another active Debate returns `409`; an exhausted
+window returns `429` with a bounded `Retry-After`. A repository-confirmed
+sequential retry of the same queued idempotency key returns the existing
+Session/Job without consuming another admission. The distributed concurrency
+lock for simultaneous duplicate requests remains a separate Phase 6 slice.
 
 Only `debate_ready` stocks are accepted. The transport is controlled by the
 separate `DEBATE_QUEUE_ENABLED` flag:
