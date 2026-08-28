@@ -151,6 +151,38 @@ test("reducer rejects a missing event or provider delta", () => {
 });
 
 
+test("reducer advances past a late event without mutating the active generation", () => {
+  const snapshot: DebateStreamSnapshot = {
+    status: "live",
+    canonicalMessages: [],
+    drafts: {
+      "message-1": {
+        messageId: "message-1",
+        generationId: "generation-1",
+        role: "bull",
+        content: "current",
+        nextDeltaIndex: 2,
+        citations: [],
+      },
+    },
+    lastSequence: 3,
+    activeGenerationId: "generation-1",
+    safeError: null,
+  };
+
+  const reduced = reduceDebateEvent(snapshot, event(4, "turn.delta", {
+    message_id: "old-message",
+    generation_id: "old-generation",
+    delta_index: 99,
+    delta: "must be ignored",
+  }));
+
+  assert.equal(reduced.snapshot.lastSequence, 4);
+  assert.equal(reduced.snapshot.drafts["message-1"].content, "current");
+  assert.equal(reduced.snapshot.drafts["old-message"], undefined);
+});
+
+
 test("client reloads canonical state at the server recovery cursor", async () => {
   let openCount = 0;
   const cursors: number[] = [];
