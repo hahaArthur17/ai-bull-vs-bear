@@ -69,6 +69,63 @@ def test_session_cannot_skip_round_states() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    ("queued_status", "running_status"),
+    [
+        ("queued_round_1", "running_round_1"),
+        ("queued_round_2", "running_round_2"),
+    ],
+)
+def test_running_session_can_return_to_its_queue_for_retry(
+    queued_status: str,
+    running_status: str,
+) -> None:
+    session = build_session()
+    if queued_status == "queued_round_2":
+        session = transition_session(
+            session,
+            "queued_round_1",
+            at=NOW + timedelta(seconds=1),
+        )
+        session = transition_session(
+            session,
+            "running_round_1",
+            at=NOW + timedelta(seconds=2),
+        )
+        session = attach_judge_message(
+            session,
+            phase="interim",
+            message_id=INTERIM_JUDGE_ID,
+            at=NOW + timedelta(seconds=3),
+        )
+        session = transition_session(
+            session,
+            "awaiting_user",
+            at=NOW + timedelta(seconds=4),
+        )
+        offset = 5
+    else:
+        offset = 1
+    queued = transition_session(
+        session,
+        queued_status,  # type: ignore[arg-type]
+        at=NOW + timedelta(seconds=offset),
+    )
+    running = transition_session(
+        queued,
+        running_status,  # type: ignore[arg-type]
+        at=NOW + timedelta(seconds=offset + 1),
+    )
+    retried = transition_session(
+        running,
+        queued_status,  # type: ignore[arg-type]
+        at=NOW + timedelta(seconds=offset + 2),
+    )
+
+    assert retried.status == queued_status
+    assert retried.completed_at is None
+
+
 def test_cancel_request_is_explicit_and_terminal() -> None:
     session = transition_session(
         build_session(),

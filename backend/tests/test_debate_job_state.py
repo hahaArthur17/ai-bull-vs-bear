@@ -7,6 +7,7 @@ from app.services.debate_job_state import (
     cancel_job,
     complete_job,
     fail_job,
+    requeue_job,
     start_job,
 )
 from test_job_event_domain import NOW, build_job
@@ -65,3 +66,32 @@ def test_job_state_cancellation_supports_queued_and_running_jobs() -> None:
     assert cancelled_running.total_tokens == 15
     with pytest.raises(DebateJobTransitionError, match="Only an active"):
         cancel_job(cancelled_running, at=NOW + timedelta(seconds=3))
+
+
+def test_job_state_retry_preserves_attempt_and_cumulative_usage() -> None:
+    running = start_job(build_job(), at=NOW + timedelta(seconds=1))
+    retried = requeue_job(
+        running,
+        at=NOW + timedelta(seconds=2),
+        provider_request_count=2,
+        prompt_tokens=10,
+        completion_tokens=5,
+    )
+    second_attempt = start_job(retried, at=NOW + timedelta(seconds=3))
+
+    assert retried.status == "queued"
+    assert retried.attempt_count == 1
+    assert retried.started_at is None
+    assert retried.provider_request_count == 2
+    assert retried.total_tokens == 15
+    assert second_attempt.attempt_count == 2
+
+
+def test_job_state_retry_rejects_an_exhausted_attempt_budget() -> None:
+    exhausted = start_job(
+        build_job(max_attempts=1),
+        at=NOW + timedelta(seconds=1),
+    )
+
+    with pytest.raises(DebateJobTransitionError, match="exhausted"):
+        requeue_job(exhausted, at=NOW + timedelta(seconds=2))

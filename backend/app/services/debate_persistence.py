@@ -11,7 +11,7 @@ class DebatePersistenceValidationError(ValueError):
 
 ALLOWED_JOB_TRANSITIONS: dict[DebateJobStatus, frozenset[DebateJobStatus]] = {
     "queued": frozenset({"running", "failed", "cancelled"}),
-    "running": frozenset({"completed", "failed", "cancelled"}),
+    "running": frozenset({"queued", "completed", "failed", "cancelled"}),
     "completed": frozenset(),
     "failed": frozenset(),
     "cancelled": frozenset(),

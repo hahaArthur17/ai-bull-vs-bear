@@ -74,6 +74,38 @@ def fail_job(
     )
 
 
+def requeue_job(
+    job: DebateJob,
+    *,
+    at: AwareDatetime,
+    provider_request_count: int | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+) -> DebateJob:
+    if job.status != "running":
+        raise DebateJobTransitionError("Only a running Debate job can be retried")
+    if at < job.updated_at:
+        raise DebateJobTransitionError("Job retry time cannot precede its current state")
+    if job.attempt_count >= job.max_attempts:
+        raise DebateJobTransitionError("Debate job has exhausted its attempts")
+
+    requests = max(job.provider_request_count, provider_request_count or 0)
+    prompts = max(job.prompt_tokens, prompt_tokens or 0)
+    completions = max(job.completion_tokens, completion_tokens or 0)
+    return _updated(
+        job,
+        status="queued",
+        started_at=None,
+        finished_at=None,
+        safe_error_code=None,
+        provider_request_count=requests,
+        prompt_tokens=prompts,
+        completion_tokens=completions,
+        total_tokens=prompts + completions,
+        updated_at=at,
+    )
+
+
 def cancel_job(
     job: DebateJob,
     *,

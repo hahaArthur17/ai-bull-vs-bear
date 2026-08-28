@@ -18,10 +18,14 @@ ALLOWED_SESSION_TRANSITIONS: Mapping[
 ] = {
     "created": frozenset({"queued_round_1", "cancel_requested", "failed"}),
     "queued_round_1": frozenset({"running_round_1", "cancel_requested", "failed"}),
-    "running_round_1": frozenset({"awaiting_user", "cancel_requested", "failed"}),
+    "running_round_1": frozenset(
+        {"queued_round_1", "awaiting_user", "cancel_requested", "failed"}
+    ),
     "awaiting_user": frozenset({"queued_round_2", "cancel_requested", "failed"}),
     "queued_round_2": frozenset({"running_round_2", "cancel_requested", "failed"}),
-    "running_round_2": frozenset({"completed", "cancel_requested", "failed"}),
+    "running_round_2": frozenset(
+        {"queued_round_2", "completed", "cancel_requested", "failed"}
+    ),
     "cancel_requested": frozenset({"cancelled", "failed"}),
     "completed": frozenset(),
     "cancelled": frozenset(),
