@@ -77,11 +77,12 @@ state and persistence but does not start background work or select the live
 stream path. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
 defines the next milestone: hosted verification of durable queued Debate stages,
-the remaining Redis outage/latency evidence, streamed multi-turn rebuttals,
-user explanations/interventions, Demo Replay, and a reusable
-financial-technology UI system. Factor-provider and catalog/watchlist
-foundations are already implemented; the catalog's hosted Supabase migration
-remains a controlled deployment gate.
+a quota-controlled live streamed Debate check, user explanations/interventions,
+Demo Replay, and a reusable financial-technology UI system. Redis cache and
+coordination work is complete in code and local verification; its measurements
+remain explicitly separate from hosted performance claims. Factor-provider and
+catalog/watchlist foundations are already implemented; the catalog's hosted
+Supabase migration remains a controlled deployment gate.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.

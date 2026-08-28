@@ -362,8 +362,16 @@ state without returning Redis errors. `GET /health/cache` reports only safe
 mode, reachability, and degraded-operation counts, with an optional bounded
 probe; it never returns the Redis URL, cache keys, or exception messages.
 
-Phase 6 remains in progress. Recorded latency and call-count measurements
-remain.
+A reproducible in-process benchmark completes the sixth slice. Across 100
+stock-search requests, the zero-delay profile reduced median latency from 3.787
+ms uncached to 0.692 ms on a cache hit; a controlled 5 ms repository-delay
+profile reduced it from 10.352 ms to 0.711 ms. Both profiles reduced repository
+calls from 100 to 1. The method, p95 values, commands, and limitations are
+recorded in [`project-week-15.md`](reports/project-week-15.md).
+
+Phase 6 is complete in code and local verification. These in-process results
+demonstrate the cache boundary and are not hosted Supabase/Redis measurements
+or a production latency SLA.
 
 ## Boundaries that remain in force
 

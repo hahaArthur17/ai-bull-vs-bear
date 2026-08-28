@@ -57,6 +57,13 @@ expose `X-Cache-Status`; Redis failure must not prevent canonical repository
 reads. `GET /health/cache` exposes only safe mode, reachability, and degraded
 operation counts; add `?probe=true` for a bounded connectivity check. The
 current slice does not use Redis as Debate persistence or Queue transport.
+Reproduce the local stock-search latency and repository-call evidence with:
+
+    PYTHONPATH=backend backend/.venv/bin/python \
+      scripts/benchmark_stock_search_cache.py
+
+The recorded method and non-SLA limits are in the
+[`Week 15 report`](../docs/planning/reports/project-week-15.md).
 
 The default V2 request (`question=null`) may also reuse its public normalized
 `FactorSnapshot` for six hours when Redis caching is enabled. Any custom

@@ -1113,7 +1113,7 @@ gate.
 
 ### Phase 6 — Redis cache and coordination
 
-Status: In progress
+Status: Done in code and local verification
 
 - [x] Add Redis/local coordination adapters and configuration validation.
 - [x] Cache stock search and stock bundle reads.
@@ -1122,7 +1122,7 @@ Status: In progress
 - [x] Add distributed idempotency lock with database unique fallback.
 - [x] Add cache status instrumentation.
 - [x] Prove correct Redis-outage degradation.
-- [ ] Record before/after latency and call-count evidence.
+- [x] Record before/after latency and call-count evidence.
 
 Progress evidence: `7058acd` adds Redis/local TTL, lock, and counter adapters,
 strict timeouts, configuration validation, health state, and failure-open local
@@ -1159,6 +1159,14 @@ and reuses correct process-local data, while two queued submissions still
 produce one canonical Session/Job and one admission count. `GET /health/cache`
 exposes safe degraded mode, reachability, and operation counts without Redis
 URLs, cache keys, or exception details.
+
+The sixth slice adds a reproducible TestClient benchmark for stock search. In
+the recorded 100-request runs, a zero-delay local profile reduced the median
+from 3.787 ms uncached to 0.692 ms on HIT, while a controlled 5 ms repository
+delay reduced it from 10.352 ms to 0.711 ms. Both runs reduced repository calls
+from 100 to 1. Full p95 values, commands, environment, and explicit non-SLA
+limitations are recorded in
+[`project-week-15.md`](reports/project-week-15.md).
 
 Completion rule: cache and locks create measurable effects, while disabling
 Redis does not corrupt or disable canonical workflows.
