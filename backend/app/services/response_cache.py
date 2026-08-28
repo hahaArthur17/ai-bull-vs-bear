@@ -7,6 +7,7 @@ from threading import RLock
 from time import time
 from typing import Callable, Literal
 
+from app.domain.factors import AnalysisContext
 from app.services.cache import ResilientCacheBackend
 
 
@@ -54,9 +55,7 @@ class JsonResponseCache:
 
     def read(self, key: str) -> CacheRead:
         if not self.enabled:
-            result = CacheRead(status="BYPASS", value=None)
-            self.metrics.record(result.status)
-            return result
+            return self.bypass()
         raw = self.backend.get(key)
         degraded = self.backend.mode == "degraded"
         if raw is None:
@@ -71,6 +70,11 @@ class JsonResponseCache:
             self.metrics.record(result.status)
             return result
         result = CacheRead(status="DEGRADED" if degraded else "HIT", value=value)
+        self.metrics.record(result.status)
+        return result
+
+    def bypass(self) -> CacheRead:
+        result = CacheRead(status="BYPASS", value=None)
         self.metrics.record(result.status)
         return result
 
@@ -108,3 +112,26 @@ def stock_bundle_cache_key(
         raise ValueError("ticker is invalid")
     data_version = int(clock() // version_seconds)
     return f"cache:stock-bundle:v1:{normalized}:{data_version}"
+
+
+def standard_debate_snapshot_cache_key(
+    context: AnalysisContext,
+    *,
+    provider_contract: object,
+) -> str:
+    if context.question is not None or context.metadata:
+        raise ValueError("only a standard Debate context can use the shared cache")
+    payload = json.dumps(
+        {
+            "context": context.model_dump(
+                mode="json",
+                exclude={"question", "metadata"},
+            ),
+            "provider_contract": provider_contract,
+        },
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    )
+    digest = sha256(payload.encode("utf-8")).hexdigest()
+    return f"cache:standard-debate:v1:{digest}"

@@ -7,13 +7,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.providers.current_factors import build_current_factor_registry
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.analysis import AnalysisService
+from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
+from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
+from app.services.response_cache import JsonResponseCache
 from test_debate_orchestrator import build_queued_round_one
 
 
@@ -129,6 +133,101 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
         "execution_mode": "synchronous_preview",
     }
     assert len(client.get(f"/debates/{session_id}/messages", headers=headers).json()) == 7
+
+
+def test_standard_debate_reuses_only_factor_snapshot_across_users(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    registry = build_current_factor_registry()
+    original_collect = registry.collect
+    collect_calls = 0
+
+    def counting_collect(context):
+        nonlocal collect_calls
+        collect_calls += 1
+        return original_collect(context)
+
+    cache = JsonResponseCache(
+        ResilientCacheBackend(LocalCacheBackend()),
+        enabled=True,
+    )
+    monkeypatch.setattr(registry, "collect", counting_collect)
+    monkeypatch.setattr(main, "build_current_factor_registry", lambda: registry)
+    monkeypatch.setattr(
+        main,
+        "debate_snapshot_cache",
+        StandardDebateSnapshotCache(cache),
+    )
+
+    first = client.post(
+        "/debates",
+        headers={"X-User-Id": "standard-cache-user-a"},
+        json={"ticker": "AAPL", "opening_side": "bull"},
+    )
+    second = client.post(
+        "/debates",
+        headers={"X-User-Id": "standard-cache-user-b"},
+        json={"ticker": "AAPL", "opening_side": "bull"},
+    )
+
+    assert first.status_code == second.status_code == 201
+    assert first.headers["x-cache-status"] == "MISS"
+    assert second.headers["x-cache-status"] == "HIT"
+    assert collect_calls == 1
+    assert first.json()["session"]["user_id"] != second.json()["session"]["user_id"]
+    assert first.json()["session"]["id"] != second.json()["session"]["id"]
+    assert first.json()["messages"][0]["message"]["id"] != (
+        second.json()["messages"][0]["message"]["id"]
+    )
+
+
+def test_custom_debate_question_bypasses_shared_snapshot_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    registry = build_current_factor_registry()
+    original_collect = registry.collect
+    collect_calls = 0
+
+    def counting_collect(context):
+        nonlocal collect_calls
+        collect_calls += 1
+        return original_collect(context)
+
+    cache = JsonResponseCache(
+        ResilientCacheBackend(LocalCacheBackend()),
+        enabled=True,
+    )
+    monkeypatch.setattr(registry, "collect", counting_collect)
+    monkeypatch.setattr(main, "build_current_factor_registry", lambda: registry)
+    monkeypatch.setattr(
+        main,
+        "debate_snapshot_cache",
+        StandardDebateSnapshotCache(cache),
+    )
+    request = {
+        "ticker": "AAPL",
+        "question": "My private scenario question",
+        "opening_side": "bull",
+    }
+
+    first = client.post(
+        "/debates",
+        headers={"X-User-Id": "custom-cache-user-a"},
+        json=request,
+    )
+    second = client.post(
+        "/debates",
+        headers={"X-User-Id": "custom-cache-user-b"},
+        json=request,
+    )
+
+    assert first.status_code == second.status_code == 201
+    assert first.headers["x-cache-status"] == "BYPASS"
+    assert second.headers["x-cache-status"] == "BYPASS"
+    assert collect_calls == 2
+    assert cache.metrics.snapshot()["HIT"] == 0
 
 
 def test_queued_create_returns_before_worker_and_is_http_idempotent(

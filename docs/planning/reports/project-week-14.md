@@ -63,3 +63,23 @@ questions and personalized context outside shared cache entries.
 - [`api-contract.md`](../../api/api-contract.md)
 - [`architecture overview`](../../architecture/overview.md)
 - [`live-services.md`](../../setup/live-services.md)
+
+## Follow-up — privacy-bounded standard Debate snapshot
+
+The next Phase 6 slice adds a six-hour cache for only the normalized
+`FactorSnapshot` used by a standard V2 request with `question=null`. The cache
+key hashes the full immutable public `AnalysisContext` and ordered
+factor-provider contract; no raw question, user identifier, Session ID, or
+Message ID enters the key. A provider version or expected-category change
+therefore creates a different entry.
+
+Custom questions and non-empty top-level context metadata always return
+`BYPASS`. Cache hits reuse factor collection only. Cross-user API tests prove
+that each request still creates distinct canonical Sessions and Messages, and
+generated Debate text is not cached. Invalid or mismatched cached snapshots are
+discarded and recollected from the current canonical context.
+
+The updated local gate is 291 backend tests, 11 mobile stream/view-state tests,
+mobile TypeScript, and Expo Web export. The next Phase 6 slice is per-user
+admission limits plus the one-active-Debate rule; distributed idempotency remains
+separate.

@@ -36,6 +36,22 @@ class FactorRegistry:
     def provider_names(self) -> tuple[str, ...]:
         return tuple(provider.name for provider in self._providers)
 
+    @property
+    def snapshot_contract(self) -> dict[str, object]:
+        """Stable cache identity for the providers that shape one snapshot."""
+
+        return {
+            "providers": [
+                {
+                    "name": provider.name,
+                    "version": provider.version,
+                    "required": provider.required,
+                }
+                for provider in self._providers
+            ],
+            "expected_categories": list(self._expected_categories),
+        }
+
     def register(self, provider: FactorProvider) -> None:
         if not isinstance(provider, FactorProvider):
             raise FactorRegistryError("Factor provider does not implement the required contract")
@@ -121,4 +137,3 @@ class FactorRegistry:
             code=code,  # type: ignore[arg-type]
             detail=f"Optional factor provider {provider.name} was omitted from this snapshot.",
         )
-

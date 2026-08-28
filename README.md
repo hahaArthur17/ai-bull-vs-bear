@@ -51,6 +51,9 @@ baseline is maintained in
 - Optional Redis-backed public stock-search and stock-bundle response caching
   with strict timeouts, local outage fallback, hashed search keys, and visible
   cache status. Redis remains disabled by default.
+- A six-hour shared factor-snapshot cache is available only for the standard
+  V2 Debate request with no user question or user metadata. Custom questions,
+  Sessions, Messages, Jobs, and history are never shared through this cache.
 - Database-local evidence vectors and ticker-filtered pgvector retrieval with a
   deterministic cached fallback.
 - Immutable completed-close/evidence snapshots with source freshness, dated

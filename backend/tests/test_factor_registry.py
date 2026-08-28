@@ -75,6 +75,16 @@ def test_registry_builds_an_immutable_snapshot_and_records_missing_categories() 
     assert snapshot.missing_categories == ("macro", "company")
     assert all(item.freshness.status == "stale" for item in snapshot.observations)
     assert FactorObservation.model_validate(snapshot.observations[0])
+    assert registry.snapshot_contract == {
+        "providers": [
+            {
+                "name": "technical-indicators",
+                "version": "1",
+                "required": True,
+            }
+        ],
+        "expected_categories": ["technical", "macro", "company"],
+    }
 
 
 def test_optional_provider_failure_is_recorded_without_losing_valid_factors() -> None:

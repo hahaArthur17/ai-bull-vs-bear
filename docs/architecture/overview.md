@@ -183,8 +183,16 @@ disabled by default and is never the source of truth.
 keys for 30 minutes. `GET /stocks/{ticker}/bundle` replaces seven mobile detail
 reads with one response and caches its public core for five minutes. The current
 quote is resolved outside that bundle cache. Both endpoints expose
-`X-Cache-Status`; standard-Debate caching, admission limits, and distributed
-idempotency remain later Phase 6 slices.
+`X-Cache-Status`.
+
+The standard V2 Debate path now hashes its exact immutable public
+`AnalysisContext` plus the ordered factor-provider names, versions, required
+flags, and expected categories. It can reuse the resulting `FactorSnapshot` for
+six hours. Eligibility requires `question=null` and empty top-level context metadata.
+Arbitrary questions always bypass the shared cache, and canonical Sessions,
+Messages, Jobs, history, and generated agent text remain per-user repository
+records. Admission limits and distributed idempotency remain later Phase 6
+slices.
 
 ## Implemented single-response data flow
 

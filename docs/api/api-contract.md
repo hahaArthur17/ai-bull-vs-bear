@@ -139,6 +139,14 @@ Create request:
 }
 ```
 
+For the standard request with `question=null`, the server may reuse the public
+normalized `FactorSnapshot` for the exact immutable input snapshot. The cache
+key digests that context together with the ordered factor-provider versions,
+and the response exposes `X-Cache-Status`. A custom question or top-level
+context metadata always returns `BYPASS`; user identity, Session,
+Message, Job, history, and generated Debate text are not shared or cached by
+this boundary.
+
 Only `debate_ready` stocks are accepted. The transport is controlled by the
 separate `DEBATE_QUEUE_ENABLED` flag:
 

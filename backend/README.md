@@ -56,6 +56,12 @@ expose `X-Cache-Status`; Redis failure must not prevent canonical repository
 reads. The current slice does not use Redis as Debate persistence or Queue
 transport.
 
+The default V2 request (`question=null`) may also reuse its public normalized
+`FactorSnapshot` for six hours when Redis caching is enabled. Any custom
+question or top-level context metadata forces `BYPASS`. Only the derived factor
+snapshot is reused; every user still receives new canonical Session, Message,
+Job, and history records, and model-generated Debate messages are not cached.
+
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set
 `DEBATE_QUEUE_ENABLED=true` only after the checked-in catalog, Debate, and Queue

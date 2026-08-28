@@ -658,7 +658,7 @@ cache outage does not stall the API.
 | --- | --- | ---: |
 | `cache:stock-search:v1:{query_hash}` | Normalized catalog result | 30 minutes |
 | `cache:stock-bundle:v1:{ticker}:{data_version}` | Hot stock detail reads | 5 minutes |
-| `cache:standard-debate:v1:{snapshot_hash}` | Reusable standard-question result only | 6 hours |
+| `cache:standard-debate:v1:{snapshot_hash}` | Reusable standard-question factor snapshot only | 6 hours |
 | `lock:debate:v1:{idempotency_key}` | Duplicate job prevention | 20 minutes |
 | `active-debate:v1:{user_id}` | One active live debate per user | 20 minutes, renewed while active |
 | `rate:debate:v1:{user_id}:{window}` | Live Debate admission | window length |
@@ -680,6 +680,8 @@ access token, or user financial information in a Redis key.
 - A stock bundle key includes a data version or latest cache timestamp.
 - A standard Debate cache key includes the immutable snapshot hash.
 - Do not share/cache arbitrary user questions across users.
+- Do not cache canonical Sessions, Messages, Jobs, history, or generated Debate
+  text at this shared boundary.
 - On Redis failure, stock/search reads fall through to Supabase.
 - Database unique constraints remain the final idempotency guard.
 - If Redis rate limiting is unavailable, use a bounded in-process fallback and
@@ -1115,7 +1117,7 @@ Status: In progress
 
 - [x] Add Redis/local coordination adapters and configuration validation.
 - [x] Cache stock search and stock bundle reads.
-- [ ] Add standard-Debate snapshot cache where privacy rules allow it.
+- [x] Add standard-Debate snapshot cache where privacy rules allow it.
 - [ ] Add per-user rate limits and one-active-Debate rule.
 - [ ] Add distributed idempotency lock with database unique fallback.
 - [x] Add cache status instrumentation.
@@ -1129,6 +1131,12 @@ entries, versioned five-minute public stock bundles, cache-status headers and
 counters, and one mobile bundle request in place of seven detail reads. The
 current quote remains outside the cached bundle core. API and unit tests prove
 repeat reads avoid repository calls without caching raw query text.
+
+The second slice caches only the normalized factor snapshot for
+`question=null`, keyed by a digest of the exact immutable public analysis
+context and ordered factor-provider contract. Custom questions and top-level
+metadata return `BYPASS`. Cross-user tests prove Session, Message, Job, and
+generated text records remain separate.
 
 Completion rule: cache and locks create measurable effects, while disabling
 Redis does not corrupt or disable canonical workflows.
@@ -1268,8 +1276,9 @@ hosted Supabase.
 
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
 experience are implemented and verified locally. Phase 6 now has its
-Redis/local adapter plus public stock-search/bundle cache; the next code-only
-slice is privacy-bounded standard-Debate snapshot caching. Independently,
+Redis/local adapter, public stock-search/bundle cache, and privacy-bounded
+standard-Debate factor snapshot cache. The next code-only slice is per-user
+admission limits and the one-active-Debate rule. Independently,
 apply the catalog, Debate, and Queue migrations to hosted Supabase in filename
 order and record size/RLS/restart evidence before enabling hosted flags. Do not
 claim Redis, hosted Queue durability, or cross-process transient-event replay

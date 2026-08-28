@@ -64,6 +64,7 @@ from app.services.analysis import AnalysisService
 from app.services.analysis_context import build_analysis_context
 from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_token
 from app.services.cache import build_cache_backend
+from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
     DebateEventCursorExpired,
@@ -142,6 +143,7 @@ cache_backend = build_cache_backend(
     socket_timeout_seconds=settings.redis_socket_timeout_seconds,
 )
 response_cache = JsonResponseCache(cache_backend, enabled=settings.redis_enabled)
+debate_snapshot_cache = StandardDebateSnapshotCache(response_cache)
 
 
 def build_configured_debate_worker() -> DebateWorker:
@@ -333,7 +335,13 @@ def _debate_context(ticker: str, question: str | None):
         macro_context=macro_context,
         question=question,
     )
-    return context, build_current_factor_registry().collect(context)
+    registry = build_current_factor_registry()
+    cached_snapshot = debate_snapshot_cache.get_or_collect(
+        context,
+        registry.collect,
+        provider_contract=registry.snapshot_contract,
+    )
+    return context, cached_snapshot.snapshot, cached_snapshot.status
 
 
 def _debate_session_or_404(session_id: UUID, user_id: UUID) -> DebateSession:
@@ -677,7 +685,11 @@ def create_debate(
             detail="Bull vs Bear is available only for Debate-ready stocks",
         )
     assert debate_preview_service is not None
-    context, factor_snapshot = _debate_context(stock.ticker, request.question)
+    context, factor_snapshot, cache_status = _debate_context(
+        stock.ticker,
+        request.question,
+    )
+    response.headers["X-Cache-Status"] = cache_status
     execution_mode = "synchronous_preview"
     try:
         stock_id = store.get_stock_record_id(stock.ticker, auth.access_token)
