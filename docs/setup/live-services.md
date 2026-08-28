@@ -277,10 +277,11 @@ checks:
 - Public frontend and API health were rechecked on 2026-08-27; the API reported
   `environment=production` and `provider=demo`.
 
-The future Queue Worker will need a server-only Supabase secret on the backend.
-Add it only during Queue Phase 5 after the new migrations, grants, RLS, and
-Worker access tests pass. Redis configuration belongs to Phase 6 and must
-remain optional with a tested fallback.
+The implemented, default-off Queue Worker needs a server-only Supabase secret
+on the backend. Add it only for the controlled Phase 5 hosted verification
+after applying the new migrations and checking grants, RLS, and Worker access.
+Redis configuration belongs to Phase 6 and must remain optional with a tested
+fallback.
 
 ### Credential hygiene follow-up
 

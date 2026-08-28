@@ -13,13 +13,13 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Area | Status | Current state |
 | --- | --- | --- |
 | Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
-| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 preview adds Session, Message, Challenge, generation-scoped Cancellation, and resumable SSE event routes. |
+| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 path adds Session, Message, Challenge, generation-scoped Cancellation, resumable SSE, and optional durable Queue admission. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 239 backend tests, 6 mobile stream tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 276 backend tests, 7 mobile stream tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -33,19 +33,17 @@ These are limitations of the current implementation, not completed features:
 - The deployed/mobile Debate remains one synchronous
   `POST /analysis/{ticker}` request. It returns one Bull claim, one Bear claim,
   and one Judge summary only after the full JSON response has been generated.
-- A default-off V2 API preview now runs stateful mutual rebuttals and both
-  rounds, but it is synchronous, deterministic, not connected to the mobile UI,
-  and deliberately disabled in production.
-- V2 has a process-local SSE replay/heartbeat preview, but POST execution is
-  still synchronous and its HTTP deltas are buffered from a completed
-  deterministic draft rather than streamed live from a model. A real async
-  Groq Turn provider and a resumable mobile stream-client module now exist
-  behind explicit boundaries, but neither is selected by the API or current
-  Debate screen. Generation-scoped cancellation is implemented across the API,
-  orchestrator, persistence adapters, events, and mobile reducer, but the
-  synchronous create route cannot expose an active generation to the screen in
-  time to interrupt it. There is no durable job queue, Worker lifecycle, or
-  cross-process cursor.
+- A default-off V2 path now runs stateful mutual rebuttals and both rounds. With
+  `DEBATE_QUEUE_ENABLED=false` it retains the synchronous deterministic preview;
+  with the Queue flag enabled it atomically admits Round 1 and Round 2, returns
+  `202`, and executes them in bounded background Workers. Production keeps both
+  V2 flags disabled until the hosted migrations and RLS checks are completed.
+- V2 has a process-local SSE replay/heartbeat broker and the queued Worker can
+  publish real async provider deltas. A real Groq Turn provider and resumable
+  mobile stream client exist behind explicit boundaries, but the V2 client is
+  not yet mounted in the current Debate screen and no live Groq smoke test has
+  consumed quota. Complete messages remain durable; transient event replay is
+  not cross-process.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause. Arbitrary term
   explanation is not implemented, and the mid-generation cancellation protocol
@@ -59,7 +57,8 @@ These are limitations of the current implementation, not completed features:
   the V2 Session snapshot, so a future provider is additive at that boundary.
 - Redis is not configured. The current quote cache is process-local and other
   persistent cached data is read from Supabase.
-- No durable message queue is connected to the analysis request path.
+- The durable Queue is connected only to the default-off V2 Debate path. The
+  public legacy `/analysis` path remains synchronous by design.
 - Stock detail, charting, Debate, Evidence, and Examination UI still live in a
   large `App.tsx`; the shared theme/components and three low-coupling screens
   are now extracted, but the remaining UI needs incremental modularization.
@@ -266,11 +265,40 @@ events. Controlled concurrency testing proves a provider completion released
 after cancellation persists no message and never marks the Session failed.
 Commits: `4caa46c`, `ca9cf45`, and `9f772cf`.
 
-The selected HTTP preview still returns a complete deterministic Turn before
-splitting it into labelled `buffered_compatibility` chunks. The client module is
-not mounted in `App.tsx`, because the current POST does not return a Session ID
-until generation has already finished. A durable Queue/Worker start path is the
-next integration boundary.
+With Queue admission disabled, the selected HTTP preview still returns a
+complete deterministic Turn before splitting it into labelled
+`buffered_compatibility` chunks. With Queue admission enabled, the API returns
+the Session/Job immediately and the bounded Worker selects the async Turn path.
+The mobile reducer understands queued, running, retry, failed, cancelled, and
+terminal states, but the V2 stream client is not yet mounted in `App.tsx`.
+
+### Phase 5 progress
+
+The focused Queue migration enables a logged `pgmq` queue and provides
+service-role-only functions for atomic Round 1/2 admission, claim, archive,
+visibility-delay retry, and terminal settlement. Queue payloads contain only
+versioned identifiers; protected snapshot and question content stays in the
+canonical Debate tables. The migration is checked in but has not been applied
+to the hosted Supabase project.
+
+The default-off API now returns `202 Accepted` for idempotent queued Round 1 and
+Round 2 creation. A bounded Worker can run in the FastAPI lifespan or through
+`python -m app.debate_worker_main`, resumes from already persisted turns,
+classifies temporary provider failures, respects bounded `Retry-After`, safely
+requeues with a visibility delay, recovers stale running jobs, and reaches a
+safe terminal failure after the configured attempt limit.
+
+Atomic repository transitions keep the Queue message and application Job
+ledger consistent. Tests prove duplicate admission is idempotent, crash
+redelivery does not duplicate completed messages, cancellation survives crash
+recovery, retries resume from the next missing turn, and two Workers enforce
+backpressure while a third submitted session remains queued. Job retry/failure
+events and canonical active-job state are represented in the mobile stream
+reducer. Commits: `c00dc13` through `a5c7688`.
+
+Phase 5 is complete in code except for mounting visible queue/job status in the
+V2 screen and the controlled hosted migration/restart verification. The flags
+remain off in production, so no hosted durability claim is made yet.
 
 ## Boundaries that remain in force
 

@@ -100,13 +100,13 @@ Request body:
 
 Returns focused explanation.
 
-### Default-off Debate V2 preview
+### Default-off Debate V2
 
 `DEBATE_WORKFLOW_V2=false` is the default. In that state all `/debates` routes
 return `404` and are omitted from OpenAPI. Existing `/analysis` and claim
 examination behavior is unchanged.
 
-When the flag is deliberately enabled, these authenticated Phase 3 routes are
+When the flag is deliberately enabled, these authenticated routes are
 implemented:
 
 ```text
@@ -124,15 +124,25 @@ Create request:
 {
   "ticker": "AAPL",
   "question": "Which dated factors support each side?",
-  "opening_side": "bull"
+  "opening_side": "bull",
+  "idempotency_key": "classroom_demo_001"
 }
 ```
 
-Only `debate_ready` stocks are accepted. `POST /debates` synchronously runs six
-alternating Bull/Bear messages and an Interim Judge, persists complete messages
-and citations, then returns `201 Created` with `session`, `messages`, `job_id`,
-and `execution_mode=synchronous_preview`. The Session is then
-`awaiting_user`.
+Only `debate_ready` stocks are accepted. The transport is controlled by the
+separate `DEBATE_QUEUE_ENABLED` flag:
+
+- `false` (default): `POST /debates` synchronously runs six alternating
+  Bull/Bear messages and an Interim Judge, then returns `201 Created` with
+  `execution_mode=synchronous_preview`;
+- `true`: Session, Job, and Queue message creation is atomic and idempotent, the
+  route returns `202 Accepted` immediately with `execution_mode=queued`, and a
+  bounded background Worker performs Round 1.
+
+Both responses contain `session`, `messages`, `job`, and `job_id`. A supplied
+idempotency key must be 8–80 URL-safe alphanumeric/underscore/hyphen characters.
+Repeating the same key and same request returns the same queued Session/Job;
+conflicting reuse returns `409`.
 
 Challenge request:
 
@@ -140,14 +150,17 @@ Challenge request:
 {
   "selected_message_id": "uuid",
   "selected_text": "exact text selected from that message",
-  "question": "Does this rebuttal underweight the filing risk?"
+  "question": "Does this rebuttal underweight the filing risk?",
+  "idempotency_key": "round_two_demo_001"
 }
 ```
 
 The target must belong to the owner's active branch and the selected text must
-occur in that message. A valid Challenge persists the user question, runs four
-more alternating turns and the Final Judge, and returns the completed Session.
-Session/detail/history reads are owner-scoped.
+occur in that message. With Queue disabled, a valid Challenge persists the user
+question, runs four alternating turns plus the Final Judge synchronously, and
+returns `201`. With Queue enabled, intervention, user question, Session/Job
+transition, and Queue publication are atomic; the route returns `202` and the
+Worker performs Round 2. Session/detail/history reads are owner-scoped.
 
 `GET /debates/{session_id}/events` returns authenticated `text/event-stream`.
 Frames use the versioned `DebateEvent` JSON envelope, the per-session sequence
@@ -158,22 +171,19 @@ cursor returns `409`; the client must reload canonical Session/Messages and
 then attach to newer events. The response includes
 `X-Debate-Latest-Sequence`, which is the safe resume cursor after that reload.
 
-The HTTP preview's compatibility adapter publishes `turn.delta` chunks only
-after it has received one complete provider draft, and labels them
-`source=buffered_compatibility`. This proves ordering, framing, owner isolation, and
-resume behavior but is not live model token streaming. Complete messages and
+With Queue disabled, the compatibility adapter publishes `turn.delta` chunks
+only after it has received one complete provider draft and labels them
+`source=buffered_compatibility`. With Queue enabled, the Worker selects the
+async Turn provider and publishes deltas as they arrive. Complete messages and
 citations remain canonical in the repository; transient event publication
 failure does not block them.
 
-A separate code-only async orchestration path now accepts real ordered Provider
-deltas. It rejects missing/late completion, non-contiguous chunks, truncated
-finish reasons, text mismatch, output overflow, wrong rebuttal targets, and
-out-of-snapshot evidence before persistence. It is not yet selected by an HTTP
-creation mode, so this section does not present it as an available live API.
-
-The code-only path now has one real Groq async Turn adapter and an authenticated
-Web/React Native stream client. Both are default-off and mock-tested; no live
-provider request was made. A generation-scoped cancel route is now implemented:
+The async path rejects missing/late completion, non-contiguous chunks,
+truncated finish reasons, text mismatch, output overflow, wrong rebuttal
+targets, and out-of-snapshot evidence before persistence. It has deterministic
+and Groq implementations; Groq is explicit opt-in and mock-tested, and no live
+provider request has been recorded. A generation-scoped cancel route is also
+implemented:
 
 ```text
 POST /debates/{session_id}/cancel
@@ -196,11 +206,19 @@ the Job, and moves the Session to `cancelled`. Provider transport cancellation
 is best effort, but late output cannot pass the repository's atomic
 status/generation check or become a new canonical message.
 
-The preview still does not select live generation or mount the client in the
-current screen, and does not implement Queue publication, explanation,
-cross-process replay, or Redis. In Supabase persistence mode it additionally
-requires the server-only secret and checked-in Debate migrations; production
-remains disabled until those are applied and verified.
+`GET /debates/{session_id}` includes the current active Job, if one exists.
+Events include `job.queued`, `job.started`, `job.retry_scheduled`, and
+`job.failed`; retry payloads expose a safe attempt count/delay, never a provider
+response body. The durable Worker retries bounded temporary failures, resumes
+after visibility timeout from the next missing complete turn, and records a
+safe terminal failure when attempts are exhausted.
+
+The authenticated Web/React Native stream client and reducer implement these
+states but are not yet mounted in the current screen. Explanation,
+cross-process transient-event replay, and Redis are not implemented. In
+Supabase persistence mode V2 additionally requires the server-only secret and
+checked-in catalog/Debate/Queue migrations; production remains disabled until
+those are applied and verified.
 
 ## Planned portfolio API
 
@@ -209,12 +227,10 @@ The canonical request/response and SSE event shapes live in the
 
 ### Queue and streaming additions
 
-The later Queue phase will change `POST /debates` from the explicit synchronous
-preview contract to `202 Accepted` with session/job IDs and a stream path. It
-will enqueue work rather than block until every model turn completes.
-
-The existing events endpoint will later receive true live provider deltas and
-Queue/Worker events rather than buffered deterministic preview chunks.
+Queued Round 1 and Round 2 creation, Worker events, live async deltas, retry,
+redelivery, and terminal handling are implemented behind
+`DEBATE_QUEUE_ENABLED=false`. The remaining integration work is the visible V2
+screen and controlled hosted Supabase verification.
 
 ### Human interaction
 
@@ -222,10 +238,10 @@ Queue/Worker events rather than buffered deterministic preview chunks.
 POST /debates/{session_id}/explanations
 ```
 
-Explanation will not change Debate state. The implemented Challenge endpoint
-will later gain Queue-backed Round 2 from the last complete message. The cancel
-route is already generation-scoped; the queued start contract is what will make
-mid-generation cancellation reachable from the active screen.
+Explanation will not change Debate state. The Challenge endpoint already has a
+Queue-backed Round 2 path from the last complete message. The cancel route is
+generation-scoped; mounting the queued client is what will make this control
+reachable from the active screen.
 
 ### Compatibility
 

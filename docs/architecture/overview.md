@@ -63,8 +63,8 @@ an interim Judge in round one and four rebuttal turns plus a final Judge in
 round two. One state-transition service owns all legal session changes.
 
 Repository and turn/Judge provider protocols are implemented. Phase 3 adds the
-local V2 API and repository adapters described below; no Queue consumer or
-streaming runtime is connected yet.
+local V2 API and repository adapters described below; Phase 5 now connects the
+optional Queue/Worker transport described below.
 
 The mobile boundary has also started moving out of the original single-file
 implementation. Shared design tokens and base UI components are centralized,
@@ -99,7 +99,7 @@ remains in progress until hosted size and RLS verification are recorded.
 
 Repository migrations now define the five canonical V2 Debate tables and
 service-only transaction functions. The application job ledger is deliberately
-separate from future Queue transport. Authenticated users receive owner-scoped
+separate from the Phase 5 Queue transport. Authenticated users receive owner-scoped
 read policies only; the API/Worker will write through a server-only secret.
 
 Both the credential-free in-memory adapter and the Supabase adapter implement
@@ -156,10 +156,17 @@ status/generation again inside the atomic complete-message write. Queued Jobs
 cancel immediately; an executing Job settles when it observes the invalidated
 generation.
 
-Queue-backed asynchronous start, mounted live mobile consumption,
-a recorded external-provider smoke test, explanation, and cross-process
-reconnect remain later work. The checked-in persistence migrations are still
-not applied to hosted Supabase, so production keeps V2 disabled.
+Phase 5 adds a logged Supabase Queue migration, atomic Round 1/2 enqueue RPCs,
+identifier-only transport messages, bounded lifespan and standalone Workers,
+and async `202 Accepted` admission. Visibility timeout, retry classification,
+bounded `Retry-After`, completed-turn resume, terminal failure, cancellation
+recovery, and two-Worker backpressure are covered by automated tests. The
+mobile reducer also understands queued/running/retry/failed Job events.
+
+Mounted live mobile consumption, a recorded external-provider smoke test,
+explanation, Redis, and cross-process transient-event reconnect remain later
+work. The checked-in catalog, Debate, and Queue migrations are still not
+applied to hosted Supabase, so production keeps V2 and Queue flags disabled.
 
 ## Implemented single-response data flow
 
@@ -199,8 +206,9 @@ Target responsibilities:
   milestone.
 - Supabase remains the source of truth for sessions, jobs, complete messages,
   citations, interventions, history, and immutable snapshots.
-- Supabase Queues provides durable admission, retry, visibility timeout, and
-  backpressure for Debate stages.
+- Supabase Queues now provides the implemented, default-off transport for
+  durable admission, retry, visibility timeout, and backpressure for Debate
+  stages; hosted verification remains.
 - Redis accelerates hot reads, rate limits expensive work, and coordinates
   duplicate-request locks. It is not the canonical Queue or history store.
 - Authenticated SSE-formatted events stream the active turn. Complete validated

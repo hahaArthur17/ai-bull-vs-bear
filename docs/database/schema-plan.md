@@ -1,6 +1,6 @@
 # Database Schema Plan
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-08-28
 
 The authoritative repository DDL is `backend/supabase/schema.sql` plus its
 migrations. This document distinguishes checked-in schema work from the hosted
@@ -13,9 +13,10 @@ In particular, Phase 1 changes domain contracts but does not alter the hosted
 database. Debate business tables arrive in Phase 3, while the `pgmq` Queue is a
 separate Phase 5 migration.
 
-Phase 1 now has validated database-independent models and repository protocols
-for the planned Debate relations. They are the input to Phase 3 DDL design, not
-evidence that the tables already exist.
+Phase 1 introduced validated database-independent models and repository
+protocols. The resulting Debate business and Queue migrations are now checked
+in; none of the 2026-08-27/28 migrations is considered hosted until the live
+verification procedure records it.
 
 ## Implemented tables
 
@@ -203,7 +204,7 @@ The current DDL also includes:
 - `claim_evidence` for analysis-claim citations; and
 - RLS/grants and vector-search functions used by the API and ingestion jobs.
 
-## Planned portfolio additions
+## Portfolio additions
 
 Detailed fields, state names, and acceptance criteria are canonical in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
@@ -260,7 +261,7 @@ Persistent application job ledger paired with the Supabase Queue:
 - safe failure code, provider call count, and token usage.
 
 Implemented as an application ledger in the Phase 3 migration. It is not a
-replacement for the Phase 5 Queue transport.
+replacement for the separate Phase 5 Queue transport.
 
 A partial unique index now permits at most one `queued` or `running` Job per
 Session. Completed, failed, and cancelled historical Jobs remain available for
@@ -311,11 +312,22 @@ only when cross-session queries or ingestion volume justify them.
 
 ### Queue extension
 
-Enable Supabase Queues/`pgmq` through a focused migration. Create enqueue/claim
-RPCs with the minimum required privileges. User-facing RLS and the server-only
-Worker role remain separate.
+Implemented in `20260828_v2_debate_queue.sql`. The focused migration enables
+the logged Supabase Queues/`pgmq` extension, creates `debate_jobs`, enables RLS
+on its active transport table, and exposes service-role-only functions for:
 
-Do not manually reproduce `pgmq` transport columns in `public`. The planned
+- atomic Session/Job/Queue admission for Round 1;
+- atomic Intervention/User Message/Session/Job/Queue admission for Round 2;
+- single-message claim with visibility timeout;
+- archive after durable completion;
+- delayed retry through `set_vt`; and
+- atomic retry/exhaustion settlement against the application Job ledger.
+
+User-facing RLS and the server-only Worker role remain separate. The migration
+is locally inspected and adapter-tested but is not yet applied to hosted
+Supabase.
+
+Do not manually reproduce `pgmq` transport columns in `public`. The
 `public.debate_jobs` relation is an application job ledger; the extension-owned
 active/archive queue tables handle delivery and visibility.
 

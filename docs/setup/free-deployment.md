@@ -129,7 +129,8 @@ model verification.
    - frontend `EXPO_PUBLIC_SUPABASE_URL` and
      `EXPO_PUBLIC_SUPABASE_ANON_KEY`.
 
-   Keep the Blueprint-provided `DEBATE_WORKFLOW_V2=false` unchanged.
+   Keep the Blueprint-provided `DEBATE_WORKFLOW_V2=false` and
+   `DEBATE_QUEUE_ENABLED=false` unchanged.
 
 6. For the current deployed baseline, do **not** add `SUPABASE_SECRET_KEY`, SEC,
    Alpha Vantage, Apify, Groq, Gemini, or RLS-test-user credentials to either
@@ -138,11 +139,11 @@ model verification.
    Finnhub key can be used instead only when that account has daily-candle
    access. To enable the separate current-quote display, set
    `FINNHUB_API_KEY` on the backend web service only.
-7. When Queue Phase 5 is implemented, the backend Worker will require narrowly
-   reviewed server-side Supabase access. Add that secret only to the backend
-   after Queue migrations, grants, and two-user/Worker tests pass; update this
-   guide and `render.yaml` in the same focused change. Never expose it through
-   an `EXPO_PUBLIC_` variable or a Queue payload.
+7. The Queue/Worker code is implemented but not hosted. To verify it later, add
+   `SUPABASE_SECRET_KEY` only to the backend after applying the catalog, Debate,
+   and Queue migrations and passing grants, two-user RLS, and Worker tests.
+   Then enable the V2 and Queue flags in a controlled smoke test. Never expose
+   the secret through an `EXPO_PUBLIC_` variable or a Queue payload.
 8. When Redis Phase 6 is implemented, keep its endpoint/token on the backend and
    verify that removing it produces the documented local/database fallback.
 9. After both deploys complete, open `/health`, sign in with a disposable test

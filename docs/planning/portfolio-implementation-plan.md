@@ -536,6 +536,8 @@ Required event types:
 - `session.created`
 - `job.queued`
 - `job.started`
+- `job.retry_scheduled`
+- `job.failed`
 - `turn.started`
 - `turn.delta`
 - `turn.citation`
@@ -1060,28 +1062,47 @@ Session settlement, and mobile cancellation reduction. A controlled async test
 releases provider output only after cancellation and proves that no late
 message, completion event, or failure state is produced.
 
-This still does not satisfy the full Phase completion rule: the HTTP creation
-route remains synchronous and deterministic, no real Groq quota was consumed
-for a recorded live smoke test, the client module is not mounted in the current
-Debate screen. No Queue durability, background execution, or production
-live-stream selection is claimed.
+With the Phase 5 Queue flag enabled, HTTP creation now returns before the
+Worker selects the async Turn provider. This still does not satisfy the full
+Phase 4 completion rule: no real Groq quota was consumed for a recorded live
+smoke test and the client module is not mounted in the current Debate screen.
+Production live-stream selection is not claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
-Status: Planned
+Status: In progress
 
-- [ ] Enable/configure Supabase Queues through a migration.
-- [ ] Implement atomic session/job creation and enqueue.
-- [ ] Implement the bounded Worker consumer and standalone entry point.
-- [ ] Move round-one/round-two execution behind queued stage jobs.
-- [ ] Add retry, visibility timeout, safe failure classification, and terminal
+- [x] Enable/configure Supabase Queues through a migration.
+- [x] Implement atomic session/job creation and enqueue.
+- [x] Implement the bounded Worker consumer and standalone entry point.
+- [x] Move round-one/round-two execution behind queued stage jobs.
+- [x] Add retry, visibility timeout, safe failure classification, and terminal
   job handling.
-- [ ] Add startup recovery and idempotent completed-turn checks.
+- [x] Add startup recovery and idempotent completed-turn checks.
 - [ ] Display queue/job status in the client.
-- [ ] Run crash, redelivery, duplicate, and backpressure tests.
+- [x] Run crash, redelivery, duplicate, and backpressure tests.
 
 Completion rule: the API returns `202`, several jobs queue, only configured
 concurrency runs, and a crash/retry cannot duplicate a turn.
+
+Progress evidence: `c00dc13` adds the logged `pgmq` migration, identifier-only
+Queue transport, service-role-only atomic enqueue/claim/archive/retry RPCs, and
+matching in-memory/Supabase repository adapters. `1b3393e`, `97127b0`, and the
+intervening admission commits add a bounded same-process consumer, standalone
+entry point, idempotent `202` Round 1 creation, and safe configuration defaults.
+
+`f18ac80` through `2c6bca9` add retryable provider classification, atomic
+Job/Queue retry settlement, bounded `Retry-After`, visibility-timeout crash
+recovery, completed-turn resume, terminal failure, and cancellation recovery.
+`fb5549c` repeatedly proves that two Workers run only two of three submitted
+sessions while the third remains queued. `f240ce7` through `2c26702` add atomic,
+idempotent queued Round 2 admission. `d340d40` and `a5c7688` expose active Job,
+retry, and failure state through the API/event/mobile contracts.
+
+All Queue behaviour is locally verified with deterministic/in-memory or mocked
+Supabase boundaries. The migration has not been applied to hosted Supabase,
+production flags remain off, and the reducer is not yet mounted in a visible V2
+screen. Those are the two remaining Phase 5 gates.
 
 ### Phase 6 — Redis cache and coordination
 
@@ -1218,7 +1239,7 @@ When a phase completes:
 ## 21. Current coding entry point
 
 Phase 2 behaviour is implemented and passes local acceptance tests. Before
-declaring the phase done, use the SQL Editor procedure in
+declaring the hosted phase done, use the SQL Editor procedure in
 [`live-services.md`](../setup/live-services.md): verify the current hosted
 database is below 400 MB, apply coverage, search, and seed migrations in filename
 order, measure the `stocks` relation against the 15 MiB budget, and rerun
@@ -1231,14 +1252,13 @@ tests, and legacy `/analysis` remains compatible. Production remains disabled
 because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
-The cancellation generation boundary is now implemented and verified. The next
-code-only step is Phase 5: make Session creation return before work begins
-through a durable Queue and Worker, which is the point where the current stream
-client and cancellation action can replace the synchronous Debate screen. Do
-not claim queued creation, retry, Redis, or cross-process resume until their
-later phases and deployment checks are complete. The existing cancellation
-endpoint returns `202` only for acceptance of a cancel request; it is not a
-claim that Debate creation is already asynchronous.
+The cancellation generation boundary and Phase 5 Queue/Worker code are now
+implemented and verified locally. The next code-only step is to mount the V2
+stream client and visible Job state behind a default-off mobile flag. After that
+local gate, apply the catalog, Debate, and Queue migrations to hosted Supabase
+in filename order and record size/RLS/restart evidence before enabling hosted
+flags. Redis remains Phase 6; do not claim Redis, hosted Queue durability, or
+cross-process transient-event replay before those checks are complete.
 
 ## 22. Primary implementation references
 

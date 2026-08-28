@@ -4,24 +4,25 @@ The backend is a FastAPI service. It runs in deterministic demo mode by default,
 so the project can be explored without API keys or a Supabase project.
 
 The public baseline produces one synchronous Bull/Bear/Judge response. A
-default-off `DEBATE_WORKFLOW_V2` preview also exercises the complete
-deterministic two-round Session/Message workflow synchronously and exposes its
-bounded lifecycle events through resumable SSE. These preview deltas are
-generated from an already completed deterministic turn. Durable Queue delivery,
-Redis coordination, and selection of live streaming by the HTTP preview are
-not yet implemented. Follow the canonical
+default-off `DEBATE_WORKFLOW_V2` path exercises the complete two-round
+Session/Message workflow and exposes bounded lifecycle events through resumable
+SSE. With `DEBATE_QUEUE_ENABLED=false`, it remains a synchronous deterministic
+preview whose deltas come from an already completed Turn. With the Queue flag
+enabled, Round 1 and Round 2 return `202 Accepted`, publish atomically to a
+durable Supabase Queue, and run through bounded background Workers. Redis
+coordination is not yet implemented. Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.
 
-The Phase 4 domain also includes an async per-Turn stream protocol, a
+The Phase 4/5 domain also includes an async per-Turn stream protocol, a
 whole-draft compatibility adapter, a zero-token deterministic async provider,
 an async orchestrator path, and a real Groq `AsyncGroq` Turn adapter. That path
 publishes deltas as they arrive but persists only after a normal completion
 frame passes text, output-bound, rebuttal-target, evidence-ID, and financial
 language validation. `DEBATE_STREAMING_PROVIDER=deterministic` is the safe
-default; `groq` is an explicit, quota-consuming selection. The path is
-currently exercised with mocks, not selected by the HTTP preview or production
-configuration. The default-off API also exposes generation-scoped cancellation:
+default; `groq` is an explicit, quota-consuming selection. Queue Workers select
+this async path. The real provider remains mock-tested and is not selected by
+production configuration. The default-off API also exposes generation-scoped cancellation:
 queued work stops immediately, running work stops at its next generation check,
 and the repository rejects any late completion after cancellation.
 
@@ -46,11 +47,22 @@ Copy the repository-level .env.example to .env when you are ready to add
 Supabase or model-provider credentials. The deterministic demo provider remains
 the default until a real provider is selected explicitly.
 
-`DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the local
-Phase 3 preview routes; it does not enable streaming or a Queue. In Supabase
-persistence mode the preview additionally requires `SUPABASE_SECRET_KEY` and
-the checked-in Debate migrations to have been applied. Production keeps the
-flag false until those deployment checks pass.
+`DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
+routes but does not by itself enable Queue admission. Set
+`DEBATE_QUEUE_ENABLED=true` only after the checked-in catalog, Debate, and Queue
+migrations have been applied to Supabase and the service-role/RLS checks pass.
+This makes create/challenge return `202` and starts
+`DEBATE_WORKER_CONCURRENCY` lifespan consumers (1 by default, maximum 2) using
+`DEBATE_WORKER_VISIBILITY_TIMEOUT_SECONDS` and
+`DEBATE_WORKER_POLL_SECONDS`. Production keeps both flags false until those
+deployment checks pass.
+
+The same Worker can be run separately from the `backend` directory:
+
+    python -m app.debate_worker_main
+
+Do not run the standalone command at the same time as lifespan consumers unless
+the additional bounded concurrency is intentional.
 
 `DEBATE_STREAMING_PROVIDER` is separate from both `DEBATE_WORKFLOW_V2` and
 `ANALYSIS_PROVIDER`. Keep it at `deterministic` for tests and the deployed

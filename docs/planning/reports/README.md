@@ -42,6 +42,9 @@ When resuming the project:
   streaming, current model migration, and the resumable mobile SSE client.
 - [`project-week-12.md`](project-week-12.md) — generation-scoped cancellation,
   atomic late-write prevention, and mobile stale-output rejection.
+- [`project-week-13.md`](project-week-13.md) — durable Supabase Queue transport,
+  bounded Workers, retry/redelivery recovery, queued Round 2, and mobile Job
+  state contracts.
 
 ## Template for a new report
 
