@@ -245,6 +245,50 @@ def test_event_stream_is_owner_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
     assert response.status_code == 404
 
 
+def test_cancel_endpoint_is_owner_scoped_generation_safe_and_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    first_round = create_round_one(monkeypatch, user="cancel-owner")
+    session = first_round["session"]
+    session_id = session["id"]
+    headers = {"X-User-Id": "cancel-owner"}
+
+    wrong_owner = client.post(
+        f"/debates/{session_id}/cancel",
+        headers={"X-User-Id": "different-user"},
+        json={"generation_id": session["active_generation_id"]},
+    )
+    assert wrong_owner.status_code == 404
+
+    stale = client.post(
+        f"/debates/{session_id}/cancel",
+        headers=headers,
+        json={"generation_id": str(uuid4())},
+    )
+    assert stale.status_code == 409
+    assert "generation changed" in stale.json()["detail"]
+
+    cancelled = client.post(
+        f"/debates/{session_id}/cancel",
+        headers=headers,
+        json={"generation_id": session["active_generation_id"]},
+    )
+    repeated = client.post(
+        f"/debates/{session_id}/cancel",
+        headers=headers,
+        json={"generation_id": session["active_generation_id"]},
+    )
+
+    assert cancelled.status_code == 202
+    assert repeated.status_code == 202
+    assert cancelled.json() == repeated.json()
+    assert cancelled.json()["session"]["status"] == "cancelled"
+    assert cancelled.json()["session"]["active_generation_id"] != session[
+        "active_generation_id"
+    ]
+    assert len(cancelled.json()["messages"]) == 7
+
+
 def test_running_event_stream_emits_an_unbuffered_heartbeat() -> None:
     queued, _ = build_queued_round_one()
     assert main.debate_preview_service is not None

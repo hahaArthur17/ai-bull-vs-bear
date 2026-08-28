@@ -86,6 +86,15 @@ export const api = {
       "/debates/" + encodeURIComponent(sessionId) + "/messages",
     ),
 
+  cancelDebate: (sessionId: string, generationId: string): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>(
+      "/debates/" + encodeURIComponent(sessionId) + "/cancel",
+      {
+        method: "POST",
+        body: JSON.stringify({ generation_id: generationId }),
+      },
+    ),
+
   addToWatchlist: (ticker: string): Promise<WatchlistResponse> =>
     request<WatchlistResponse>("/watchlist", {
       method: "POST",

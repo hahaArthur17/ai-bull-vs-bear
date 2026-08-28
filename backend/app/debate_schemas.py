@@ -49,6 +49,10 @@ class DebateChallengeRequest(BaseModel):
         return normalized
 
 
+class DebateCancelRequest(BaseModel):
+    generation_id: UUID
+
+
 class DebateMessageRecord(BaseModel):
     message: DebateMessage
     citations: tuple[DebateMessageEvidence, ...] = ()

@@ -263,6 +263,13 @@ export function reduceDebateEvent(
     activeGenerationId = generationId;
     drafts = {};
   }
+  if (
+    (event.type === "session.cancel_requested" || event.type === "session.cancelled")
+    && generationId
+  ) {
+    activeGenerationId = generationId;
+    drafts = {};
+  }
   const isLateGeneration = generationId !== null
     && activeGenerationId !== null
     && generationId !== activeGenerationId;

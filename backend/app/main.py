@@ -11,6 +11,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 
 from app.config import get_settings
 from app.debate_schemas import (
+    DebateCancelRequest,
     DebateChallengeRequest,
     DebateCreateRequest,
     DebateMessageRecord,
@@ -629,6 +630,35 @@ def stream_debate_events(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.post(
+    "/debates/{session_id}/cancel",
+    response_model=DebateSessionDetail,
+    status_code=status.HTTP_202_ACCEPTED,
+    include_in_schema=settings.debate_workflow_v2,
+)
+def cancel_debate(
+    session_id: UUID,
+    request: DebateCancelRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
+    assert debate_preview_service is not None
+    user_id = _debate_user_id(auth)
+    _debate_session_or_404(session_id, user_id)
+    try:
+        cancelled = debate_preview_service.orchestrator.request_cancellation(
+            session_id,
+            user_id,
+            request.generation_id,
+        )
+    except DebateOrchestrationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    return _debate_detail(cancelled)
 
 
 @app.post(

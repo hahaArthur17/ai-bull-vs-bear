@@ -183,6 +183,52 @@ test("reducer advances past a late event without mutating the active generation"
 });
 
 
+test("cancellation rotates generation, clears drafts, and ignores late output", () => {
+  const snapshot: DebateStreamSnapshot = {
+    status: "live",
+    canonicalMessages: [],
+    drafts: {
+      "message-1": {
+        messageId: "message-1",
+        generationId: "generation-1",
+        role: "bull",
+        content: "partial output",
+        nextDeltaIndex: 2,
+        citations: [],
+      },
+    },
+    lastSequence: 3,
+    activeGenerationId: "generation-1",
+    safeError: null,
+  };
+
+  const requested = reduceDebateEvent(snapshot, event(4, "session.cancel_requested", {
+    status: "cancel_requested",
+    cancelled_generation_id: "generation-1",
+    generation_id: "cancel-generation",
+  }));
+  assert.equal(requested.terminal, false);
+  assert.equal(requested.snapshot.activeGenerationId, "cancel-generation");
+  assert.deepEqual(requested.snapshot.drafts, {});
+
+  const late = reduceDebateEvent(requested.snapshot, event(5, "turn.delta", {
+    message_id: "message-1",
+    generation_id: "generation-1",
+    delta_index: 2,
+    delta: " that must be ignored",
+  }));
+  assert.equal(late.snapshot.lastSequence, 5);
+  assert.deepEqual(late.snapshot.drafts, {});
+
+  const cancelled = reduceDebateEvent(late.snapshot, event(6, "session.cancelled", {
+    status: "cancelled",
+    generation_id: "cancel-generation",
+  }));
+  assert.equal(cancelled.terminal, true);
+  assert.equal(cancelled.snapshot.status, "closed");
+});
+
+
 test("client reloads canonical state at the server recovery cursor", async () => {
   let openCount = 0;
   const cursors: number[] = [];
