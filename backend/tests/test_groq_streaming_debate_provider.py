@@ -239,6 +239,44 @@ def test_private_upstream_error_is_not_exposed_by_the_stream_contract() -> None:
 
     assert str(error.value) == "Turn provider stream failed"
     assert "private request" not in str(error.value)
+    assert not error.value.retryable
+
+
+def test_rate_limit_is_safely_classified_with_bounded_retry_after() -> None:
+    class RateLimitFailure(RuntimeError):
+        status_code = 429
+        response = SimpleNamespace(
+            status_code=429,
+            headers={"Retry-After": "2.2", "X-Private-Request": "secret"},
+        )
+
+    provider = GroqStreamingDebateProvider(
+        api_key="test-key",
+        client=FakeGroqClient(RateLimitFailure("private provider response")),
+    )
+
+    with pytest.raises(DebateTurnStreamError) as error:
+        collect(provider)
+
+    assert str(error.value) == "Turn provider stream failed"
+    assert error.value.retryable
+    assert error.value.retry_after_seconds == 3
+    assert "private" not in str(error.value)
+
+
+def test_invalid_provider_output_remains_a_permanent_failure() -> None:
+    provider = GroqStreamingDebateProvider(
+        api_key="test-key",
+        client=FakeGroqClient(
+            [chunk("An uncited assertion."), chunk(finish_reason="stop")]
+        ),
+    )
+
+    with pytest.raises(DebateTurnStreamError) as error:
+        collect(provider)
+
+    assert not error.value.retryable
+    assert error.value.retry_after_seconds is None
 
 
 def test_provider_factory_defaults_off_and_requires_explicit_live_configuration() -> None:

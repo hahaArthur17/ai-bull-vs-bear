@@ -15,6 +15,17 @@ from app.providers.debate_agents import DebateStreamingTurnProvider
 class DebateTurnStreamError(RuntimeError):
     """A provider stream cannot safely become a canonical complete message."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
+
 
 @dataclass(frozen=True)
 class CollectedDebateTurn:
@@ -52,7 +63,20 @@ async def collect_debate_turn_stream(
     except DebateTurnStreamError:
         raise
     except Exception as exc:
-        raise DebateTurnStreamError("Turn provider stream failed") from exc
+        retryable = bool(getattr(exc, "retryable", False))
+        retry_after_seconds = getattr(exc, "retry_after_seconds", None)
+        if (
+            not retryable
+            or not isinstance(retry_after_seconds, int)
+            or isinstance(retry_after_seconds, bool)
+            or not 1 <= retry_after_seconds <= 3600
+        ):
+            retry_after_seconds = None
+        raise DebateTurnStreamError(
+            "Turn provider stream failed",
+            retryable=retryable,
+            retry_after_seconds=retry_after_seconds,
+        ) from exc
 
     if completion is None:
         raise DebateTurnStreamError("Turn stream ended without a completion")

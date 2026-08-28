@@ -46,6 +46,51 @@ class GroqDebateConfigurationError(RuntimeError):
 class GroqDebateStreamError(RuntimeError):
     """A safe public error for an unusable upstream Debate stream."""
 
+    def __init__(
+        self,
+        message: str,
+        *,
+        retryable: bool = False,
+        retry_after_seconds: int | None = None,
+    ) -> None:
+        super().__init__(message)
+        self.retryable = retryable
+        self.retry_after_seconds = retry_after_seconds
+
+
+_RETRYABLE_STATUS_CODES = {408, 409, 429, 500, 502, 503, 504}
+_RETRYABLE_EXCEPTION_NAMES = {
+    "APIConnectionError",
+    "APITimeoutError",
+    "InternalServerError",
+    "RateLimitError",
+}
+
+
+def _safe_upstream_failure(message: str, exc: Exception) -> GroqDebateStreamError:
+    response = getattr(exc, "response", None)
+    status_code = getattr(exc, "status_code", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+    retryable = (
+        status_code in _RETRYABLE_STATUS_CODES
+        or type(exc).__name__ in _RETRYABLE_EXCEPTION_NAMES
+    )
+    retry_after_seconds = None
+    headers = getattr(response, "headers", None)
+    if retryable and headers is not None:
+        try:
+            parsed_delay = float(headers.get("Retry-After", ""))
+        except (TypeError, ValueError):
+            parsed_delay = -1
+        if 0 <= parsed_delay <= 3600:
+            retry_after_seconds = max(1, int(parsed_delay + 0.999))
+    return GroqDebateStreamError(
+        message,
+        retryable=retryable,
+        retry_after_seconds=retry_after_seconds,
+    )
+
 
 def _truncate(value: str | None, limit: int) -> str | None:
     if value is None:
@@ -277,7 +322,10 @@ class GroqStreamingDebateProvider:
                 stream=True,
             )
         except Exception as exc:
-            raise GroqDebateStreamError("Groq Debate stream could not be started") from exc
+            raise _safe_upstream_failure(
+                "Groq Debate stream could not be started",
+                exc,
+            ) from exc
 
         raw_content = ""
         emitted_content = ""
@@ -321,7 +369,10 @@ class GroqStreamingDebateProvider:
         except GroqDebateStreamError:
             raise
         except Exception as exc:
-            raise GroqDebateStreamError("Groq Debate stream was interrupted") from exc
+            raise _safe_upstream_failure(
+                "Groq Debate stream was interrupted",
+                exc,
+            ) from exc
 
         if finish_reason != "stop":
             raise GroqDebateStreamError("Groq Debate stream did not finish normally")
