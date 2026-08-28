@@ -14,7 +14,12 @@ from app.domain.debate import (
     DebateSession,
     DebateSessionStatus,
 )
-from app.domain.jobs import DebateJob, DebateJobStatus
+from app.domain.jobs import (
+    ClaimedDebateQueueMessage,
+    DebateJob,
+    DebateJobStatus,
+    DebateQueueMessage,
+)
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateRepositoryError,
@@ -303,6 +308,94 @@ class SupabaseDebateRepository:
         if stored_session != session or stored_job != job:
             raise DebateConcurrencyError("Initial Debate idempotency conflict")
         return stored_session, stored_job
+
+    def create_session_with_job_and_enqueue(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> tuple[DebateSession, DebateJob]:
+        if job.session_id != session.id or job.user_id != session.user_id:
+            raise DebateRepositoryError("Initial Debate job owner does not match its session")
+        if job.status != "queued" or job.queue_message_id is not None:
+            raise DebateRepositoryError("A new Queue admission requires an unbound queued job")
+        if (
+            message.job_id != job.id
+            or message.session_id != session.id
+            or message.job_type != job.job_type
+        ):
+            raise DebateRepositoryError("Debate Queue message does not match its job")
+        response = self._request(
+            "POST",
+            "rpc/enqueue_debate_session_job",
+            json={
+                "session_payload": session.model_dump(mode="json"),
+                "job_payload": job.model_dump(mode="json"),
+                "queue_payload": message.model_dump(mode="json"),
+            },
+        )
+        payload = self._object(response.json(), "Queued Debate admission")
+        stored_session = self._model(payload.get("session"), DebateSession, "Debate session")
+        stored_job = self._model(payload.get("job"), DebateJob, "Debate job")
+        if stored_job.queue_message_id is None:
+            raise DebateRepositoryError("Queued Debate job is missing its Queue message")
+        expected_job = DebateJob.model_validate(
+            {
+                **job.model_dump(mode="python"),
+                "queue_message_id": stored_job.queue_message_id,
+            }
+        )
+        if stored_session != session or stored_job != expected_job:
+            raise DebateConcurrencyError("Queued Debate admission idempotency conflict")
+        if payload.get("queue_message_id") != stored_job.queue_message_id:
+            raise DebateConcurrencyError("Queued Debate message identifier conflict")
+        return stored_session, stored_job
+
+    def claim_job(
+        self,
+        *,
+        visibility_timeout_seconds: int,
+    ) -> ClaimedDebateQueueMessage | None:
+        if not 30 <= visibility_timeout_seconds <= 3600:
+            raise DebateRepositoryError("Queue visibility timeout is outside safe bounds")
+        response = self._request(
+            "POST",
+            "rpc/claim_debate_job",
+            json={"visibility_timeout_seconds": visibility_timeout_seconds},
+        )
+        payload = response.json()
+        if payload is None:
+            return None
+        return self._model(payload, ClaimedDebateQueueMessage, "Claimed Debate Queue message")
+
+    def archive_job_message(self, queue_message_id: int) -> bool:
+        if queue_message_id <= 0:
+            raise DebateRepositoryError("Queue message identifier must be positive")
+        response = self._request(
+            "POST",
+            "rpc/archive_debate_job",
+            json={"queue_message_id": queue_message_id},
+        )
+        payload = response.json()
+        if not isinstance(payload, bool):
+            raise DebateRepositoryError("Supabase Queue archive returned an invalid response")
+        return payload
+
+    def retry_job_message(self, queue_message_id: int, *, delay_seconds: int) -> bool:
+        if queue_message_id <= 0 or not 0 <= delay_seconds <= 3600:
+            raise DebateRepositoryError("Queue retry arguments are outside safe bounds")
+        response = self._request(
+            "POST",
+            "rpc/retry_debate_job",
+            json={
+                "queue_message_id": queue_message_id,
+                "delay_seconds": delay_seconds,
+            },
+        )
+        payload = response.json()
+        if not isinstance(payload, bool):
+            raise DebateRepositoryError("Supabase Queue retry returned an invalid response")
+        return payload
 
     def _request(
         self,

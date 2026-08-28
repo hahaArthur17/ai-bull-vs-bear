@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.events import DebateEvent
-from app.domain.jobs import DebateJob, DebateQueueMessage
+from app.domain.jobs import ClaimedDebateQueueMessage, DebateJob, DebateQueueMessage
 
 
 NOW = datetime(2026, 8, 27, 11, 0, tzinfo=timezone.utc)
@@ -83,6 +83,33 @@ def test_queue_message_accepts_identifiers_only() -> None:
     with pytest.raises(ValidationError, match="extra_forbidden"):
         DebateQueueMessage.model_validate(
             {**message.model_dump(mode="python"), "authorization": "Bearer secret"}
+        )
+
+
+def test_claimed_queue_message_tracks_redelivery_and_visibility() -> None:
+    payload = DebateQueueMessage(
+        job_id=JOB_ID,
+        session_id=SESSION_ID,
+        job_type="round_1",
+        trace_id="trace_20260827_001",
+        enqueued_at=NOW,
+    )
+    claimed = ClaimedDebateQueueMessage(
+        queue_message_id=12,
+        read_count=2,
+        enqueued_at=NOW,
+        visibility_deadline=NOW.replace(minute=15),
+        payload=payload,
+    )
+
+    assert claimed.read_count == 2
+    assert claimed.payload.job_id == JOB_ID
+    with pytest.raises(ValidationError, match="visibility deadline"):
+        ClaimedDebateQueueMessage.model_validate(
+            {
+                **claimed.model_dump(mode="python"),
+                "visibility_deadline": NOW.replace(hour=10),
+            }
         )
 
 

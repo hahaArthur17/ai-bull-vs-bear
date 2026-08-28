@@ -71,3 +71,17 @@ class DebateQueueMessage(ImmutableDomainModel):
         pattern=r"^[A-Za-z0-9_-]+$",
     )
     enqueued_at: AwareDatetime
+
+
+class ClaimedDebateQueueMessage(ImmutableDomainModel):
+    queue_message_id: int = Field(gt=0)
+    read_count: int = Field(ge=1)
+    enqueued_at: AwareDatetime
+    visibility_deadline: AwareDatetime
+    payload: DebateQueueMessage
+
+    @model_validator(mode="after")
+    def validate_visibility_window(self) -> ClaimedDebateQueueMessage:
+        if self.visibility_deadline < self.enqueued_at:
+            raise ValueError("Queue visibility deadline cannot precede enqueue time")
+        return self

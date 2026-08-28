@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import TypeVar
 from uuid import UUID
@@ -12,7 +15,12 @@ from app.domain.debate import (
     DebateSession,
     DebateSessionStatus,
 )
-from app.domain.jobs import DebateJob, DebateJobStatus
+from app.domain.jobs import (
+    ClaimedDebateQueueMessage,
+    DebateJob,
+    DebateJobStatus,
+    DebateQueueMessage,
+)
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateRepositoryError,
@@ -25,6 +33,14 @@ from app.services.debate_persistence import (
 
 
 DomainModel = TypeVar("DomainModel", bound=ImmutableDomainModel)
+
+
+@dataclass
+class _QueueEnvelope:
+    message: DebateQueueMessage
+    enqueued_at: datetime
+    visible_at: datetime
+    read_count: int = 0
 
 
 def _clone(model: DomainModel) -> DomainModel:
@@ -41,7 +57,7 @@ class InMemoryDebateRepository:
     protocols and optimistic status checks.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, clock: Callable[[], datetime] | None = None) -> None:
         self._sessions: dict[UUID, DebateSession] = {}
         self._messages: dict[UUID, DebateMessage] = {}
         self._message_keys: dict[tuple[UUID, UUID, int], UUID] = {}
@@ -49,6 +65,10 @@ class InMemoryDebateRepository:
         self._interventions: dict[UUID, DebateIntervention] = {}
         self._jobs: dict[UUID, DebateJob] = {}
         self._job_keys: dict[str, UUID] = {}
+        self._queue_messages: dict[int, _QueueEnvelope] = {}
+        self._archived_queue_messages: dict[int, _QueueEnvelope] = {}
+        self._next_queue_message_id = 1
+        self._clock = clock or (lambda: datetime.now(timezone.utc))
         self._lock = RLock()
 
     def create_session(self, session: DebateSession) -> DebateSession:
@@ -256,6 +276,107 @@ class InMemoryDebateRepository:
             self._job_keys[job.idempotency_key] = job.id
             return _clone(session), _clone(job)
 
+    def create_session_with_job_and_enqueue(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> tuple[DebateSession, DebateJob]:
+        with self._lock:
+            self._validate_queue_admission(session, job, message)
+            existing_session = self._sessions.get(session.id)
+            existing_job = self._jobs.get(job.id)
+            if existing_session is not None or existing_job is not None:
+                if existing_session is None or existing_job is None:
+                    raise DebateConcurrencyError("Queued Debate admission is incomplete")
+                queue_message_id = existing_job.queue_message_id
+                envelope = (
+                    self._queue_messages.get(queue_message_id or 0)
+                    or self._archived_queue_messages.get(queue_message_id or 0)
+                )
+                expected_job = DebateJob.model_validate(
+                    {
+                        **job.model_dump(mode="python"),
+                        "queue_message_id": queue_message_id,
+                    }
+                )
+                if (
+                    existing_session == session
+                    and existing_job == expected_job
+                    and envelope is not None
+                    and envelope.message == message
+                ):
+                    return _clone(existing_session), _clone(existing_job)
+                raise DebateConcurrencyError("Queued Debate admission already exists")
+            if job.idempotency_key in self._job_keys:
+                raise DebateConcurrencyError("Debate job idempotency key already exists")
+            self._validate_one_active_job(job)
+
+            queue_message_id = self._next_queue_message_id
+            queued_job = DebateJob.model_validate(
+                {
+                    **job.model_dump(mode="python"),
+                    "queue_message_id": queue_message_id,
+                }
+            )
+            enqueued_at = self._queue_now()
+            envelope = _QueueEnvelope(
+                message=_clone(message),
+                enqueued_at=enqueued_at,
+                visible_at=enqueued_at,
+            )
+            self._sessions[session.id] = _clone(session)
+            self._jobs[job.id] = _clone(queued_job)
+            self._job_keys[job.idempotency_key] = job.id
+            self._queue_messages[queue_message_id] = envelope
+            self._next_queue_message_id += 1
+            return _clone(session), _clone(queued_job)
+
+    def claim_job(
+        self,
+        *,
+        visibility_timeout_seconds: int,
+    ) -> ClaimedDebateQueueMessage | None:
+        if not 30 <= visibility_timeout_seconds <= 3600:
+            raise DebateRepositoryError("Queue visibility timeout is outside safe bounds")
+        with self._lock:
+            now = self._queue_now()
+            available = [
+                (queue_message_id, envelope)
+                for queue_message_id, envelope in self._queue_messages.items()
+                if envelope.visible_at <= now
+            ]
+            if not available:
+                return None
+            queue_message_id, envelope = min(available, key=lambda item: item[0])
+            envelope.read_count += 1
+            envelope.visible_at = now + timedelta(seconds=visibility_timeout_seconds)
+            return ClaimedDebateQueueMessage(
+                queue_message_id=queue_message_id,
+                read_count=envelope.read_count,
+                enqueued_at=envelope.enqueued_at,
+                visibility_deadline=envelope.visible_at,
+                payload=_clone(envelope.message),
+            )
+
+    def archive_job_message(self, queue_message_id: int) -> bool:
+        with self._lock:
+            envelope = self._queue_messages.pop(queue_message_id, None)
+            if envelope is None:
+                return queue_message_id in self._archived_queue_messages
+            self._archived_queue_messages[queue_message_id] = envelope
+            return True
+
+    def retry_job_message(self, queue_message_id: int, *, delay_seconds: int) -> bool:
+        if not 0 <= delay_seconds <= 3600:
+            raise DebateRepositoryError("Queue retry delay is outside safe bounds")
+        with self._lock:
+            envelope = self._queue_messages.get(queue_message_id)
+            if envelope is None:
+                return False
+            envelope.visible_at = self._queue_now() + timedelta(seconds=delay_seconds)
+            return True
+
     @staticmethod
     def _validate_citations(
         message: DebateMessage,
@@ -298,3 +419,26 @@ class InMemoryDebateRepository:
             for existing in self._jobs.values()
         ):
             raise DebateConcurrencyError("Debate session already has an active job")
+
+    @staticmethod
+    def _validate_queue_admission(
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> None:
+        if job.session_id != session.id or job.user_id != session.user_id:
+            raise DebateRepositoryError("Initial Debate job owner does not match its session")
+        if job.status != "queued" or job.queue_message_id is not None:
+            raise DebateRepositoryError("A new Queue admission requires an unbound queued job")
+        if (
+            message.job_id != job.id
+            or message.session_id != session.id
+            or message.job_type != job.job_type
+        ):
+            raise DebateRepositoryError("Debate Queue message does not match its job")
+
+    def _queue_now(self) -> datetime:
+        now = self._clock()
+        if now.tzinfo is None or now.utcoffset() is None:
+            raise DebateRepositoryError("Queue clock must return a timezone-aware value")
+        return now

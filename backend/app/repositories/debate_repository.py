@@ -10,7 +10,12 @@ from app.domain.debate import (
     DebateSession,
     DebateSessionStatus,
 )
-from app.domain.jobs import DebateJob, DebateJobStatus
+from app.domain.jobs import (
+    ClaimedDebateQueueMessage,
+    DebateJob,
+    DebateJobStatus,
+    DebateQueueMessage,
+)
 
 
 class DebateRepositoryError(RuntimeError):
@@ -104,4 +109,30 @@ class DebateUnitOfWork(DebateSessionRepository, DebateJobRepository, Protocol):
     ) -> tuple[DebateSession, DebateJob]:
         """Persist initial state atomically before Queue publication."""
 
+        ...
+
+
+@runtime_checkable
+class DebateQueueRepository(Protocol):
+    def create_session_with_job_and_enqueue(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> tuple[DebateSession, DebateJob]:
+        """Atomically create canonical admission records and enqueue one stage."""
+
+        ...
+
+    def claim_job(
+        self,
+        *,
+        visibility_timeout_seconds: int,
+    ) -> ClaimedDebateQueueMessage | None:
+        ...
+
+    def archive_job_message(self, queue_message_id: int) -> bool:
+        ...
+
+    def retry_job_message(self, queue_message_id: int, *, delay_seconds: int) -> bool:
         ...

@@ -7,10 +7,11 @@ import httpx
 import pytest
 
 from app.domain.debate import DebateIntervention, DebateMessageEvidence
-from app.domain.jobs import DebateJob
+from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateRepositoryError,
+    DebateQueueRepository,
     DebateUnitOfWork,
 )
 from app.repositories.supabase_debate_repository import SupabaseDebateRepository
@@ -27,6 +28,9 @@ class FakeDebatePostgrest:
         self.citations: dict[str, list[dict[str, object]]] = {}
         self.interventions: dict[str, dict[str, object]] = {}
         self.rpc_calls: list[str] = []
+        self.queue_messages: dict[int, dict[str, object]] = {}
+        self.queue_read_counts: dict[int, int] = {}
+        self.next_queue_message_id = 1
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["apikey"] == "sb_secret_debate"
@@ -45,6 +49,56 @@ class FakeDebatePostgrest:
             return httpx.Response(
                 200,
                 json={"session": self.sessions[session["id"]], "job": self.jobs[job["id"]]},
+            )
+        if path == "rpc/enqueue_debate_session_job":
+            self.rpc_calls.append(path)
+            session = body["session_payload"]
+            requested_job = body["job_payload"]
+            stored_job = self.jobs.get(requested_job["id"])
+            if stored_job is None:
+                queue_message_id = self.next_queue_message_id
+                self.next_queue_message_id += 1
+                stored_job = {**requested_job, "queue_message_id": queue_message_id}
+                self.sessions[session["id"]] = session
+                self.jobs[requested_job["id"]] = stored_job
+                self.queue_messages[queue_message_id] = body["queue_payload"]
+            queue_message_id = int(stored_job["queue_message_id"])
+            return httpx.Response(
+                200,
+                json={
+                    "session": self.sessions[session["id"]],
+                    "job": stored_job,
+                    "queue_message_id": queue_message_id,
+                },
+            )
+        if path == "rpc/claim_debate_job":
+            self.rpc_calls.append(path)
+            if not self.queue_messages:
+                return httpx.Response(200, content=b"null")
+            queue_message_id = min(self.queue_messages)
+            payload = self.queue_messages[queue_message_id]
+            read_count = self.queue_read_counts.get(queue_message_id, 0) + 1
+            self.queue_read_counts[queue_message_id] = read_count
+            return httpx.Response(
+                200,
+                json={
+                    "queue_message_id": queue_message_id,
+                    "read_count": read_count,
+                    "enqueued_at": payload["enqueued_at"],
+                    "visibility_deadline": (NOW + timedelta(minutes=15)).isoformat(),
+                    "payload": payload,
+                },
+            )
+        if path == "rpc/archive_debate_job":
+            self.rpc_calls.append(path)
+            queue_message_id = int(body["queue_message_id"])
+            archived = self.queue_messages.pop(queue_message_id, None) is not None
+            return httpx.Response(200, json=archived)
+        if path == "rpc/retry_debate_job":
+            self.rpc_calls.append(path)
+            return httpx.Response(
+                200,
+                json=int(body["queue_message_id"]) in self.queue_messages,
             )
         if path == "rpc/append_debate_message":
             self.rpc_calls.append(path)
@@ -143,6 +197,7 @@ def test_supabase_repository_uses_service_only_atomic_creation() -> None:
     job = build_job(session)
 
     assert isinstance(repository, DebateUnitOfWork)
+    assert isinstance(repository, DebateQueueRepository)
     assert repository.create_session_with_job(session, job) == (session, job)
     assert repository.create_session_with_job(session, job) == (session, job)
     assert fake.rpc_calls == [
@@ -231,3 +286,40 @@ def test_supabase_repository_maps_remote_errors_without_leaking_response_payload
     with pytest.raises(DebateRepositoryError) as error:
         repository.get_job(UUID("00000000-0000-4000-8000-000000000108"))
     assert "must-not-leak" not in str(error.value)
+
+
+def test_supabase_repository_round_trips_durable_queue_operations() -> None:
+    fake = FakeDebatePostgrest()
+    repository = build_repository(fake)
+    session = transition_session(
+        build_session(),
+        "queued_round_1",
+        at=NOW + timedelta(seconds=1),
+    )
+    job = build_job(
+        session,
+        available_at=session.updated_at,
+        created_at=session.updated_at,
+        updated_at=session.updated_at,
+    )
+    message = DebateQueueMessage(
+        job_id=job.id,
+        session_id=session.id,
+        job_type=job.job_type,
+        trace_id="trace_queue_003",
+        enqueued_at=session.updated_at,
+    )
+
+    admitted = repository.create_session_with_job_and_enqueue(session, job, message)
+    repeated = repository.create_session_with_job_and_enqueue(session, job, message)
+    assert admitted == repeated
+    assert admitted[1].queue_message_id == 1
+
+    claimed = repository.claim_job(visibility_timeout_seconds=900)
+    assert claimed is not None
+    assert claimed.queue_message_id == admitted[1].queue_message_id
+    assert claimed.payload == message
+    assert claimed.read_count == 1
+    assert repository.retry_job_message(claimed.queue_message_id, delay_seconds=30)
+    assert repository.archive_job_message(claimed.queue_message_id)
+    assert repository.claim_job(visibility_timeout_seconds=900) is None

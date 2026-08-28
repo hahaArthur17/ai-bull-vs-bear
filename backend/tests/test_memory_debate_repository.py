@@ -1,13 +1,14 @@
-from datetime import timedelta
+from datetime import datetime, timedelta
 from uuid import UUID
 
 import pytest
 
 from app.domain.debate import DebateIntervention, DebateMessage, DebateMessageEvidence, DebateSession
-from app.domain.jobs import DebateJob
+from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateRepositoryError,
+    DebateQueueRepository,
     DebateUnitOfWork,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
@@ -66,6 +67,7 @@ def store_running_round_one(repository: InMemoryDebateRepository) -> DebateSessi
 
 def test_memory_repository_implements_the_unit_of_work_contract() -> None:
     assert isinstance(InMemoryDebateRepository(), DebateUnitOfWork)
+    assert isinstance(InMemoryDebateRepository(), DebateQueueRepository)
 
 
 def test_atomic_session_job_creation_is_idempotent_and_owner_scoped() -> None:
@@ -240,3 +242,90 @@ def test_new_agent_messages_require_the_current_running_generation() -> None:
     repository.update_session(cancel_requested, expected_status="running_round_1")
     with pytest.raises(DebateConcurrencyError, match="no longer accepts"):
         repository.append_message(build_message())
+
+
+def test_memory_queue_redelivers_after_visibility_and_archives_idempotently() -> None:
+    class MutableClock:
+        def __init__(self) -> None:
+            self.now = NOW
+
+        def __call__(self) -> datetime:
+            return self.now
+
+    clock = MutableClock()
+    repository = InMemoryDebateRepository(clock=clock)
+    session = transition_session(
+        build_session(),
+        "queued_round_1",
+        at=NOW + timedelta(seconds=1),
+    )
+    job = build_job(
+        session,
+        available_at=session.updated_at,
+        created_at=session.updated_at,
+        updated_at=session.updated_at,
+    )
+    message = DebateQueueMessage(
+        job_id=job.id,
+        session_id=session.id,
+        job_type=job.job_type,
+        trace_id="trace_queue_001",
+        enqueued_at=session.updated_at,
+    )
+
+    admitted_session, admitted_job = repository.create_session_with_job_and_enqueue(
+        session,
+        job,
+        message,
+    )
+    repeated = repository.create_session_with_job_and_enqueue(session, job, message)
+    assert admitted_session == session
+    assert admitted_job.queue_message_id == 1
+    assert repeated == (admitted_session, admitted_job)
+
+    first = repository.claim_job(visibility_timeout_seconds=30)
+    assert first is not None and first.read_count == 1
+    assert repository.claim_job(visibility_timeout_seconds=30) is None
+
+    clock.now += timedelta(seconds=30)
+    redelivered = repository.claim_job(visibility_timeout_seconds=30)
+    assert redelivered is not None and redelivered.read_count == 2
+    assert redelivered.queue_message_id == first.queue_message_id
+
+    assert repository.retry_job_message(first.queue_message_id, delay_seconds=60)
+    clock.now += timedelta(seconds=59)
+    assert repository.claim_job(visibility_timeout_seconds=30) is None
+    clock.now += timedelta(seconds=1)
+    assert repository.claim_job(visibility_timeout_seconds=30).read_count == 3
+
+    assert repository.archive_job_message(first.queue_message_id)
+    assert repository.archive_job_message(first.queue_message_id)
+    assert repository.claim_job(visibility_timeout_seconds=30) is None
+    assert not repository.retry_job_message(first.queue_message_id, delay_seconds=0)
+
+
+def test_memory_queue_rejects_mismatched_admission_without_partial_state() -> None:
+    repository = InMemoryDebateRepository(clock=lambda: NOW)
+    session = transition_session(
+        build_session(),
+        "queued_round_1",
+        at=NOW + timedelta(seconds=1),
+    )
+    job = build_job(
+        session,
+        available_at=session.updated_at,
+        created_at=session.updated_at,
+        updated_at=session.updated_at,
+    )
+    wrong_message = DebateQueueMessage(
+        job_id=UUID("00000000-0000-4000-8000-000000000199"),
+        session_id=session.id,
+        job_type=job.job_type,
+        trace_id="trace_queue_002",
+        enqueued_at=session.updated_at,
+    )
+
+    with pytest.raises(DebateRepositoryError, match="does not match"):
+        repository.create_session_with_job_and_enqueue(session, job, wrong_message)
+    assert repository.get_session(session.id, session.user_id) is None
+    assert repository.get_job(job.id) is None

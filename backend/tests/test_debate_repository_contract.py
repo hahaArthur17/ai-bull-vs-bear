@@ -10,6 +10,7 @@ from app.domain.debate import (
 from app.domain.jobs import DebateJob, DebateJobStatus
 from app.repositories.debate_repository import (
     DebateJobRepository,
+    DebateQueueRepository,
     DebateSessionRepository,
     DebateUnitOfWork,
 )
@@ -95,3 +96,4 @@ def test_repository_contracts_are_structural_and_database_independent() -> None:
     assert isinstance(repository, DebateSessionRepository)
     assert isinstance(repository, DebateJobRepository)
     assert isinstance(repository, DebateUnitOfWork)
+    assert not isinstance(repository, DebateQueueRepository)
