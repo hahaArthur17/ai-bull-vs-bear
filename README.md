@@ -28,8 +28,9 @@ baseline is maintained in
   the user-Challenge pause. A default-off V2 preview exposes the Session,
   Message, Challenge, and resumable SSE event API while production remains
   unchanged. Preview deltas are buffered deterministic chunks, not live model
-  tokens. A code-only async per-Turn contract now validates true provider
-  streams before persistence; no external provider is selected yet.
+  tokens. A code-only async per-Turn contract and real default-off Groq adapter
+  now validate true provider streams before persistence. A resumable mobile SSE
+  client exists but is not mounted in the current synchronous screen.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
@@ -57,7 +58,8 @@ baseline is maintained in
 
 The deployed mobile Debate is currently a single synchronous Bull/Bear/Judge
 response; the code-only V2 API preview already proves deterministic multi-turn
-state and persistence but does not stream or enqueue. The active
+state and persistence but does not start background work or select the live
+stream path. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
 defines the next milestone: durable queued Debate stages, Redis
 cache/rate-limit/idempotency, streamed multi-turn rebuttals, user

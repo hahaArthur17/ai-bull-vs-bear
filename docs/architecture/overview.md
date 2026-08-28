@@ -139,10 +139,23 @@ arriving delta, accounts for Turn token usage, and writes a message only after
 the complete text, finish reason, output bound, rebuttal target, and evidence
 IDs validate. Interrupted streams leave no incomplete canonical message.
 
-Queue-backed `202`, live provider deltas, mobile stream consumption,
-cancellation, and cross-process reconnect remain later work. The checked-in
-persistence migrations are still not applied to hosted Supabase, so production
-keeps V2 disabled.
+The first live implementation uses Groq `AsyncGroq` with a current
+`openai/gpt-oss-20b` default. It streams plain user-facing prose; evidence IDs,
+rebuttal targets, confidence/signal metadata, risk meaning, citation validation,
+and financial guardrails remain server-owned. This avoids exposing partial JSON
+and respects Groq's current incompatibility between Structured Outputs and
+streaming. Selection is independent and defaults to deterministic.
+
+The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
+remain temporary by message/generation, a completion replaces them with the
+canonical message, gaps trigger a canonical reload, and expired cursors resume
+from the server-advertised latest sequence. It is an integration boundary, not
+yet the active screen path.
+
+Queue-backed asynchronous start, mounted live mobile consumption,
+cancellation, a recorded external-provider smoke test, and cross-process
+reconnect remain later work. The checked-in persistence migrations are still
+not applied to hosted Supabase, so production keeps V2 disabled.
 
 ## Implemented single-response data flow
 

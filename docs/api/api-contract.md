@@ -155,7 +155,8 @@ as the SSE `id`, `Last-Event-ID` or `after_sequence` as a resume cursor, and
 bounded heartbeats while a non-terminal Session is idle. The current-process
 buffer is capped at 256 events for each of at most 128 Sessions. An expired
 cursor returns `409`; the client must reload canonical Session/Messages and
-then attach to newer events.
+then attach to newer events. The response includes
+`X-Debate-Latest-Sequence`, which is the safe resume cursor after that reload.
 
 The HTTP preview's compatibility adapter publishes `turn.delta` chunks only
 after it has received one complete provider draft, and labels them
@@ -170,11 +171,14 @@ finish reasons, text mismatch, output overflow, wrong rebuttal targets, and
 out-of-snapshot evidence before persistence. It is not yet selected by an HTTP
 creation mode, so this section does not present it as an available live API.
 
-The preview still does not implement Queue publication, live provider streaming,
-explanation, cancellation, a mobile stream client, cross-process replay, or
-Redis. In Supabase persistence mode it additionally requires the server-only
-secret and checked-in Debate migrations; production remains disabled until
-those are applied and verified.
+The code-only path now has one real Groq async Turn adapter and an authenticated
+Web/React Native stream client. Both are default-off and mock-tested; no live
+provider request was made. The preview still does not select live generation or
+mount the client in the current screen, and does not implement Queue
+publication, explanation, cancellation, cross-process replay, or Redis. In
+Supabase persistence mode it additionally requires the server-only secret and
+checked-in Debate migrations; production remains disabled until those are
+applied and verified.
 
 ## Planned portfolio API
 

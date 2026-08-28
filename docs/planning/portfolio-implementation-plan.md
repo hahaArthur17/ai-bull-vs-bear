@@ -1017,11 +1017,11 @@ Status: In progress
 
 - [x] Refactor provider adapters from one full JSON draft to one bounded turn at
   a time while retaining a compatibility adapter for the old flow.
-- [ ] Add asynchronous streaming support to the chosen first live provider.
+- [x] Add asynchronous streaming support to the chosen first live provider.
 - [x] Implement the versioned event envelope and heartbeat.
-- [ ] Add authenticated Web/React Native stream client abstraction.
+- [x] Add authenticated Web/React Native stream client abstraction.
 - [x] Validate/correct citations at turn completion.
-- [ ] Implement reconnect from canonical completed messages.
+- [x] Implement reconnect from canonical completed messages.
 - [ ] Add cancellation generation IDs and late-event rejection.
 
 Completion rule: one local Live AI round streams in order, persists validated
@@ -1033,14 +1033,30 @@ process-local broker, ordered orchestration events, labelled buffered preview
 deltas, authenticated SSE, heartbeat, owner isolation, sequence/Last-Event-ID
 resume, and expired-cursor recovery through canonical messages. This does not
 satisfy the completion rule yet: the HTTP preview still selects synchronous
-whole-draft generation, no live external stream adapter is implemented, and the
-mobile client does not consume the stream.
+whole-draft generation.
 
 Additional evidence: `5209db1`, `cfc5dfa`, and `149a7ed` define the async
 per-Turn stream/completion contract, preserve whitespace, provide whole-draft
 and zero-token deterministic adapters, validate completion/length/target/
 citations, account for tokens, and ensure an interrupted stream never persists
-an incomplete message. No live external provider or HTTP selection is claimed.
+an incomplete message.
+
+`77c33c4` replaces the retired Groq model default with
+`openai/gpt-oss-20b` and keeps the independent Debate provider selector at
+`deterministic`. `a6529c3` adds a real `AsyncGroq` Turn stream with bounded
+plain-text prompts, server-owned evidence aliases/metadata, cross-chunk
+financial guardrails, completion validation, safe errors, and mock-only tests.
+It deliberately avoids Structured Outputs because Groq does not support that
+mode together with streaming. `b1ba884` exposes the latest event sequence on
+cursor expiry. `7057628` adds the authenticated XHR Web/React Native client,
+fragment-safe SSE parsing, temporary draft state, canonical completion
+replacement, generation filtering, cursor recovery, and five Node tests.
+
+This still does not satisfy the full Phase completion rule: the HTTP creation
+route remains synchronous and deterministic, no real Groq quota was consumed
+for a recorded live smoke test, the client module is not mounted in the current
+Debate screen, and cancellation is pending. No Queue durability, background
+execution, or production live-stream selection is claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
@@ -1207,12 +1223,14 @@ tests, and legacy `/analysis` remains compatible. Production remains disabled
 because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
-The next code-only step is one live asynchronous per-Turn provider adapter plus
-the authenticated Web/React Native `DebateStreamClient`. They must use the new
-event boundary, retain the deterministic buffered preview for zero-cost tests,
-and persist only validated complete messages. Do not claim `202`, durable
-delivery, retry, Redis, or cross-process resume until their later phases and
-deployment checks are complete.
+The next code-only step is the cancellation generation boundary: accept a
+cancel request, prevent the active generation from persisting late completion,
+and make the stream client discard late-generation events. After that, Phase 5
+can make Session creation return before work begins through a durable Queue and
+Worker, which is the point where the current stream client can replace the
+synchronous Debate screen. Do not claim durable `202`, retry, Redis, or
+cross-process resume until their later phases and deployment checks are
+complete.
 
 ## 22. Primary implementation references
 

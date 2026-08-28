@@ -8,17 +8,20 @@ default-off `DEBATE_WORKFLOW_V2` preview also exercises the complete
 deterministic two-round Session/Message workflow synchronously and exposes its
 bounded lifecycle events through resumable SSE. These preview deltas are
 generated from an already completed deterministic turn. Durable Queue delivery,
-Redis coordination, and live provider token streaming are planned, not yet
-implemented. Follow the canonical
+Redis coordination, and selection of live streaming by the HTTP preview are
+not yet implemented. Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.
 
 The Phase 4 domain also includes an async per-Turn stream protocol, a
 whole-draft compatibility adapter, a zero-token deterministic async provider,
-and an async orchestrator path. That path publishes deltas as they arrive but
-persists only after a normal completion frame passes text, output-bound,
-rebuttal-target, and evidence-ID validation. It is currently exercised in code
-and tests, not selected by the HTTP preview or production configuration.
+an async orchestrator path, and a real Groq `AsyncGroq` Turn adapter. That path
+publishes deltas as they arrive but persists only after a normal completion
+frame passes text, output-bound, rebuttal-target, evidence-ID, and financial
+language validation. `DEBATE_STREAMING_PROVIDER=deterministic` is the safe
+default; `groq` is an explicit, quota-consuming selection. The path is
+currently exercised with mocks, not selected by the HTTP preview or production
+configuration.
 
 ## Run locally
 
@@ -46,6 +49,11 @@ Phase 3 preview routes; it does not enable streaming or a Queue. In Supabase
 persistence mode the preview additionally requires `SUPABASE_SECRET_KEY` and
 the checked-in Debate migrations to have been applied. Production keeps the
 flag false until those deployment checks pass.
+
+`DEBATE_STREAMING_PROVIDER` is separate from both `DEBATE_WORKFLOW_V2` and
+`ANALYSIS_PROVIDER`. Keep it at `deterministic` for tests and the deployed
+preview. A deliberate local `groq` selection additionally requires
+`GROQ_API_KEY`; `DEBATE_GROQ_MODEL` defaults to `openai/gpt-oss-20b`.
 
 Supported model providers:
 

@@ -93,8 +93,10 @@ provider/orchestrator also executes both rounds and persists the user Challenge.
 Default-off Session, Message, and Challenge API routes now expose that workflow
 as `synchronous_preview`. A bounded event broker and authenticated SSE endpoint
 also expose ordered buffered preview chunks, citations, Judge events,
-heartbeats, and terminal state with resume cursors. Worker/Queue transport,
-live-provider generation, the mobile stream client, term explanation, and
+heartbeats, and terminal state with resume cursors. A default-off Groq async
+Turn adapter and a resumable Web/React Native client now implement the two ends
+of the live stream boundary, but the current HTTP creation route and screen do
+not select them. Worker/Queue transport, term explanation, mounted live UI, and
 cancellation remain target behaviour.
 
 ### Step 1: Build one immutable analysis context

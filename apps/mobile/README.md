@@ -32,9 +32,14 @@ filtering four client-side rows. Every result displays coverage. A
 omits prices, evidence, technical signals, and Debate; opening it does not load
 the market-data bundle.
 
-The current analysis screen waits for one complete API response. Streamed
-multi-turn messages, Queue status, user interventions, and the
-financial-technology redesign are planned in the canonical
+The current analysis screen still waits for one complete API response. A
+`DebateStreamClient` module now provides authenticated XHR SSE consumption for
+Web/React Native, fragmented-frame parsing, ordered resume, temporary draft
+text, canonical completion replacement, and expired-cursor reload. It is not
+mounted in the screen yet because the current synchronous POST returns the
+Session only after generation ends. Queue status, live screen integration,
+user interventions, and the financial-technology redesign remain planned in
+the canonical
 [`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
 
 Shared colours, spacing, radii, and app styles live in `src/theme.ts`; reusable

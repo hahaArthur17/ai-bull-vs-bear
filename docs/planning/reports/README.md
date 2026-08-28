@@ -38,6 +38,8 @@ When resuming the project:
 - [`project-week-10.md`](project-week-10.md) — async per-Turn provider contract,
   compatibility/native deterministic adapters, and validated stream
   persistence.
+- [`project-week-11.md`](project-week-11.md) — default-off live Groq Turn
+  streaming, current model migration, and the resumable mobile SSE client.
 
 ## Template for a new report
 

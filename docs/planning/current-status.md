@@ -17,9 +17,9 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
-| Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. A real provider was verified locally. |
+| Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 223 backend tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 233 backend tests, 5 mobile stream tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -38,10 +38,11 @@ These are limitations of the current implementation, not completed features:
   and deliberately disabled in production.
 - V2 has a process-local SSE replay/heartbeat preview, but POST execution is
   still synchronous and its HTTP deltas are buffered from a completed
-  deterministic draft rather than streamed live from a model. The code-only
-  async Provider/orchestrator path is not yet selected by the API. There is no durable job queue,
-  Worker lifecycle, cancellation protocol, mobile stream client, or
-  cross-process cursor.
+  deterministic draft rather than streamed live from a model. A real async
+  Groq Turn provider and a resumable mobile stream-client module now exist
+  behind explicit boundaries, but neither is selected by the API or current
+  Debate screen. There is no durable job queue, Worker lifecycle, cancellation
+  protocol, or cross-process cursor.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause; arbitrary term
   explanation and mid-generation interruption are not implemented.
@@ -234,9 +235,28 @@ validation. An interrupted stream leaves temporary deltas plus a safe failure,
 but no incomplete canonical message. Commits: `5209db1`, `cfc5dfa`, and
 `149a7ed`.
 
+The first real adapter now uses Groq's async Chat Completions stream with
+`openai/gpt-oss-20b`. It sends bounded plain prose rather than streamed JSON,
+maps public `[E1]` aliases to frozen server-side evidence IDs, withholds a
+cross-chunk guardrail window, rejects missing/invalid citations and abnormal
+finishes, and owns confidence/signal/risk metadata on the server. Selection is
+independent through `DEBATE_STREAMING_PROVIDER`, which defaults to
+`deterministic`; all automated tests use a fake client and consumed no quota.
+Commits: `77c33c4` and `a6529c3`.
+
+The mobile `DebateStreamClient` now parses fragmented SSE over an authenticated
+XHR transport, maintains non-canonical draft text, replaces it only with a
+complete server message, rejects sequence/delta gaps and late generations, and
+reloads canonical Session/Messages at the recovery sequence advertised on a
+`409`. Five Node tests cover parser, reducer, gap, late-generation filtering,
+and cursor recovery behavior.
+Commits: `b1ba884` and `7057628`.
+
 The selected HTTP preview still returns a complete deterministic Turn before
-splitting it into labelled `buffered_compatibility` chunks. One live provider
-adapter and the mobile stream client are the next Phase 4 work.
+splitting it into labelled `buffered_compatibility` chunks. The client module is
+not mounted in `App.tsx`, because the current POST does not return a Session ID
+until generation has already finished. Cancellation and a durable Queue/Worker
+start path remain the next integration boundaries.
 
 ## Boundaries that remain in force
 
@@ -255,6 +275,7 @@ adapter and the mobile stream client are the next Phase 4 work.
 
 ```shell
 PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
-cd apps/mobile && npm run typecheck
-cd apps/mobile && npm run build:web
+(cd apps/mobile && npm run typecheck)
+(cd apps/mobile && npm run test:stream)
+(cd apps/mobile && npm run build:web)
 ```
