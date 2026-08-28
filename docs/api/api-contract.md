@@ -213,12 +213,14 @@ response body. The durable Worker retries bounded temporary failures, resumes
 after visibility timeout from the next missing complete turn, and records a
 safe terminal failure when attempts are exhausted.
 
-The authenticated Web/React Native stream client and reducer implement these
-states but are not yet mounted in the current screen. Explanation,
-cross-process transient-event replay, and Redis are not implemented. In
-Supabase persistence mode V2 additionally requires the server-only secret and
-checked-in catalog/Debate/Queue migrations; production remains disabled until
-those are applied and verified.
+The authenticated Web/React Native stream client and reducer are mounted behind
+`EXPO_PUBLIC_DEBATE_V2_ENABLED=false`. The screen renders Queue/Worker states,
+temporary drafts, durable messages, cancellation, exact selected-passage
+Challenge input, and queued Round 2. Explanation, cross-process transient-event
+replay, and Redis are not implemented. In Supabase persistence mode V2
+additionally requires the server-only secret and checked-in
+catalog/Debate/Queue migrations; production remains disabled until those are
+applied and verified.
 
 ## Planned portfolio API
 
@@ -228,9 +230,8 @@ The canonical request/response and SSE event shapes live in the
 ### Queue and streaming additions
 
 Queued Round 1 and Round 2 creation, Worker events, live async deltas, retry,
-redelivery, and terminal handling are implemented behind
-`DEBATE_QUEUE_ENABLED=false`. The remaining integration work is the visible V2
-screen and controlled hosted Supabase verification.
+redelivery, terminal handling, and the feature-flagged visible V2 screen are
+implemented. Controlled hosted Supabase verification remains.
 
 ### Human interaction
 
@@ -238,10 +239,10 @@ screen and controlled hosted Supabase verification.
 POST /debates/{session_id}/explanations
 ```
 
-Explanation will not change Debate state. The Challenge endpoint already has a
-Queue-backed Round 2 path from the last complete message. The cancel route is
-generation-scoped; mounting the queued client is what will make this control
-reachable from the active screen.
+Explanation will not change Debate state. The Challenge endpoint and mounted V2
+screen already queue Round 2 from an exact passage in a complete message. The
+cancel route is generation-scoped and is reachable while a queued/running Job
+is active; redirecting an active Debate into a new branch remains Phase 7.
 
 ### Compatibility
 

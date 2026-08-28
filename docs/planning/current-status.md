@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 276 backend tests, 7 mobile stream tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 276 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -39,11 +39,11 @@ These are limitations of the current implementation, not completed features:
   `202`, and executes them in bounded background Workers. Production keeps both
   V2 flags disabled until the hosted migrations and RLS checks are completed.
 - V2 has a process-local SSE replay/heartbeat broker and the queued Worker can
-  publish real async provider deltas. A real Groq Turn provider and resumable
-  mobile stream client exist behind explicit boundaries, but the V2 client is
-  not yet mounted in the current Debate screen and no live Groq smoke test has
-  consumed quota. Complete messages remain durable; transient event replay is
-  not cross-process.
+  publish real async provider deltas. A feature-flagged V2 mobile screen now
+  mounts the resumable client, renders Queue/retry/draft/canonical states,
+  supports cancellation, and queues a selected-message Round 2 Challenge. No
+  live Groq smoke test has consumed quota. Complete messages remain durable;
+  transient event replay is not cross-process.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause. Arbitrary term
   explanation is not implemented, and the mid-generation cancellation protocol
@@ -59,9 +59,10 @@ These are limitations of the current implementation, not completed features:
   persistent cached data is read from Supabase.
 - The durable Queue is connected only to the default-off V2 Debate path. The
   public legacy `/analysis` path remains synchronous by design.
-- Stock detail, charting, Debate, Evidence, and Examination UI still live in a
-  large `App.tsx`; the shared theme/components and three low-coupling screens
-  are now extracted, but the remaining UI needs incremental modularization.
+- Stock detail, charting, legacy Debate, Evidence, and Examination UI still
+  live in a large `App.tsx`; the shared theme/components, three low-coupling
+  screens, and the V2 Debate screen are now extracted, but the remaining UI
+  needs incremental modularization.
 
 ## Accepted product direction
 
@@ -269,8 +270,9 @@ With Queue admission disabled, the selected HTTP preview still returns a
 complete deterministic Turn before splitting it into labelled
 `buffered_compatibility` chunks. With Queue admission enabled, the API returns
 the Session/Job immediately and the bounded Worker selects the async Turn path.
-The mobile reducer understands queued, running, retry, failed, cancelled, and
-terminal states, but the V2 stream client is not yet mounted in `App.tsx`.
+The mounted default-off mobile V2 path understands queued, running, retry,
+failed, cancelled, and terminal states and visually separates temporary drafts
+from canonical complete messages.
 
 ### Phase 5 progress
 
@@ -294,11 +296,14 @@ redelivery does not duplicate completed messages, cancellation survives crash
 recovery, retries resume from the next missing turn, and two Workers enforce
 backpressure while a third submitted session remains queued. Job retry/failure
 events and canonical active-job state are represented in the mobile stream
-reducer. Commits: `c00dc13` through `a5c7688`.
+reducer. `7fddcc1` and `7be800d` mount the feature-flagged client, visible Job
+state, cancellation, exact-passage Challenge form, queued Round 2, and the dark
+financial-technology Debate timeline.
 
-Phase 5 is complete in code except for mounting visible queue/job status in the
-V2 screen and the controlled hosted migration/restart verification. The flags
-remain off in production, so no hosted durability claim is made yet.
+Phase 5 is complete in code and verified through the local in-memory transport.
+The remaining gate is the controlled hosted Supabase migration/RLS/restart
+verification. The flags remain off in production, so no hosted durability
+claim is made yet.
 
 ## Boundaries that remain in force
 

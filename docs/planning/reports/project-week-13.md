@@ -105,3 +105,25 @@ no live model quota was consumed.
 - [`architecture overview`](../../architecture/overview.md)
 - [`database schema plan`](../../database/schema-plan.md)
 - [`live-services.md`](../../setup/live-services.md)
+
+## Follow-up — visible V2 client integration
+
+After the Queue milestone baseline above, `7fddcc1` added canonical Session
+status to stream snapshots and raised the mobile state tests from 7 to 8.
+`7be800d` then mounted a default-off dark financial-technology Debate screen
+with:
+
+- immediate `202` admission and stable client-generated idempotency keys;
+- visible queued/running/retry/failure/settled states and safe reconnect;
+- temporary streaming cards that cannot be mistaken for canonical messages;
+- generation-scoped cancellation while a Job is active;
+- six Round 1 Bull/Bear messages, Interim Judge pause, exact-passage Challenge
+  input, queued Round 2, and the 13-message Final Judge result; and
+- an explicit mobile `demo` Auth mode for credential-free local verification,
+  while Render fixes production Auth to `supabase` and V2 UI to `false`.
+
+The updated gate is 276 backend tests, 11 mobile stream/view-state tests,
+TypeScript, and Expo Web export. A real local browser run observed `202` for
+both rounds, live draft-to-canonical replacement, desktop and 390px layouts,
+and no console warnings/errors. This local evidence does not replace the
+pending hosted Supabase migration/RLS/restart check.

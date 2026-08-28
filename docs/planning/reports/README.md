@@ -43,8 +43,8 @@ When resuming the project:
 - [`project-week-12.md`](project-week-12.md) — generation-scoped cancellation,
   atomic late-write prevention, and mobile stale-output rejection.
 - [`project-week-13.md`](project-week-13.md) — durable Supabase Queue transport,
-  bounded Workers, retry/redelivery recovery, queued Round 2, and mobile Job
-  state contracts.
+  bounded Workers, retry/redelivery recovery, and the mounted default-off V2
+  Debate experience.
 
 ## Template for a new report
 

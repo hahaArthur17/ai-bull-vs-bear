@@ -163,9 +163,12 @@ bounded `Retry-After`, completed-turn resume, terminal failure, cancellation
 recovery, and two-Worker backpressure are covered by automated tests. The
 mobile reducer also understands queued/running/retry/failed Job events.
 
-Mounted live mobile consumption, a recorded external-provider smoke test,
-explanation, Redis, and cross-process transient-event reconnect remain later
-work. The checked-in catalog, Debate, and Queue migrations are still not
+A default-off V2 screen now mounts live mobile/Web consumption, shows transient
+drafts separately from canonical messages, renders Job/retry/failure states,
+exposes generation-scoped cancellation, and queues Round 2 from an exact
+passage selected in a complete message. A recorded external-provider smoke
+test, explanation, Redis, and cross-process transient-event reconnect remain
+later work. The checked-in catalog, Debate, and Queue migrations are still not
 applied to hosted Supabase, so production keeps V2 and Queue flags disabled.
 
 ## Implemented single-response data flow

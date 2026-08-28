@@ -1065,12 +1065,13 @@ message, completion event, or failure state is produced.
 With the Phase 5 Queue flag enabled, HTTP creation now returns before the
 Worker selects the async Turn provider. This still does not satisfy the full
 Phase 4 completion rule: no real Groq quota was consumed for a recorded live
-smoke test and the client module is not mounted in the current Debate screen.
-Production live-stream selection is not claimed.
+smoke test. The client is now mounted behind a default-off flag and was locally
+verified with the deterministic async Worker; production live-provider
+selection is not claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
-Status: In progress
+Status: Done in code; hosted verification pending
 
 - [x] Enable/configure Supabase Queues through a migration.
 - [x] Implement atomic session/job creation and enqueue.
@@ -1079,7 +1080,7 @@ Status: In progress
 - [x] Add retry, visibility timeout, safe failure classification, and terminal
   job handling.
 - [x] Add startup recovery and idempotent completed-turn checks.
-- [ ] Display queue/job status in the client.
+- [x] Display queue/job status in the client.
 - [x] Run crash, redelivery, duplicate, and backpressure tests.
 
 Completion rule: the API returns `202`, several jobs queue, only configured
@@ -1101,8 +1102,12 @@ retry, and failure state through the API/event/mobile contracts.
 
 All Queue behaviour is locally verified with deterministic/in-memory or mocked
 Supabase boundaries. The migration has not been applied to hosted Supabase,
-production flags remain off, and the reducer is not yet mounted in a visible V2
-screen. Those are the two remaining Phase 5 gates.
+production flags remain off. `7fddcc1` and `7be800d` add canonical Session
+state, mount the V2 client, render Queue/Worker/retry/failure/draft states,
+expose cancellation, and queue Round 2 from an exact selected passage. Desktop
+and 390px browser checks completed both deterministic rounds without console
+errors. Hosted migration/RLS/restart verification is the remaining Phase 5
+gate.
 
 ### Phase 6 — Redis cache and coordination
 
@@ -1127,9 +1132,9 @@ Status: Planned
 - [ ] Render model-provided terms as clickable cross-platform elements.
 - [ ] Implement context-bounded Explanation Agent requests.
 - [ ] Keep explanations outside the Debate state transition.
-- [ ] Implement challenge/intervention persistence.
+- [x] Implement challenge/intervention persistence.
 - [ ] Cancel or branch from the last complete message using generation IDs.
-- [ ] Enqueue and stream round two around the user question.
+- [x] Enqueue and stream round two around the user question.
 - [ ] Add final Judge summary and history rendering.
 - [ ] Add arbitrary Web selection only after term explanation is stable.
 
@@ -1245,20 +1250,21 @@ database is below 400 MB, apply coverage, search, and seed migrations in filenam
 order, measure the `stocks` relation against the 15 MiB budget, and rerun
 public-read plus two-user Watchlist RLS checks.
 
-Do not connect Redis or Queue until that deployment gate is recorded. Phase 3
-is complete in code: `DEBATE_WORKFLOW_V2=false` is the safe default, the
+Do not enable hosted Redis or Queue flags until that deployment gate is
+recorded. Default-off code and local fallback work may proceed. Phase 3 is
+complete in code: `DEBATE_WORKFLOW_V2=false` is the safe default, the
 synchronous deterministic Session/Message/Challenge preview is covered by API
 tests, and legacy `/analysis` remains compatible. Production remains disabled
 because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
-The cancellation generation boundary and Phase 5 Queue/Worker code are now
-implemented and verified locally. The next code-only step is to mount the V2
-stream client and visible Job state behind a default-off mobile flag. After that
-local gate, apply the catalog, Debate, and Queue migrations to hosted Supabase
-in filename order and record size/RLS/restart evidence before enabling hosted
-flags. Redis remains Phase 6; do not claim Redis, hosted Queue durability, or
-cross-process transient-event replay before those checks are complete.
+The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
+experience are implemented and verified locally. The next code-only step is
+Phase 6's Redis/local adapter and failure-safe instrumentation. Independently,
+apply the catalog, Debate, and Queue migrations to hosted Supabase in filename
+order and record size/RLS/restart evidence before enabling hosted flags. Do not
+claim Redis, hosted Queue durability, or cross-process transient-event replay
+before those checks are complete.
 
 ## 22. Primary implementation references
 
