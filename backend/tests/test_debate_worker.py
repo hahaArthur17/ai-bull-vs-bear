@@ -10,6 +10,7 @@ from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.streaming_debate import DeterministicStreamingDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_orchestrator import DebateOrchestrator
+from app.services.debate_preview import DebatePreviewService
 from app.services.debate_worker import DebateWorker
 from test_debate_orchestrator import FailingProvider, StepClock, build_queued_round_one
 from test_debate_streaming_orchestrator import RetryOnceAfterTwoTurnsProvider
@@ -38,6 +39,28 @@ class CrashOnceAfterTwoTurnsProvider(DeterministicStreamingDebateProvider):
             await asyncio.Event().wait()
         async for event in super().stream_turn(request):
             yield event
+
+
+class ConcurrencyProbeProvider(DeterministicStreamingDebateProvider):
+    def __init__(self, expected_concurrency: int) -> None:
+        super().__init__(max_chunk_characters=64)
+        self.expected_concurrency = expected_concurrency
+        self.active = 0
+        self.maximum_active = 0
+        self.reached_limit = asyncio.Event()
+        self.release = asyncio.Event()
+
+    async def stream_turn(self, request):
+        self.active += 1
+        self.maximum_active = max(self.maximum_active, self.active)
+        if self.active == self.expected_concurrency:
+            self.reached_limit.set()
+        try:
+            await self.release.wait()
+            async for event in super().stream_turn(request):
+                yield event
+        finally:
+            self.active -= 1
 
 
 def admit_round_one(repository: InMemoryDebateRepository):
@@ -344,6 +367,70 @@ def test_worker_settles_cancellation_after_a_running_process_crash() -> None:
         assert stored_session is not None and stored_session.status == "cancelled"
         assert len(messages) == 2
         assert (await worker.run_once()).outcome == "idle"
+
+    asyncio.run(run_scenario())
+
+
+def test_two_workers_apply_backpressure_to_three_queued_sessions() -> None:
+    async def run_scenario() -> None:
+        clock = MutableClock()
+        repository = InMemoryDebateRepository(clock=clock)
+        probe = ConcurrencyProbeProvider(expected_concurrency=2)
+        judge = DeterministicDebateProvider()
+        service = DebatePreviewService(
+            repository,
+            judge,
+            judge,
+            streaming_turn_provider=probe,
+            clock=clock,
+        )
+        template, _ = build_queued_round_one()
+        admitted = [
+            service.create_queued_round_one(
+                user_id=template.user_id,
+                stock_id=template.stock_id,
+                ticker=template.ticker,
+                opening_side=template.opening_side,
+                question=f"Bounded queue question {index}?",
+                idempotency_key=f"backpressure_{index:03d}",
+                analysis_context=template.analysis_context,
+                factor_snapshot=template.factor_snapshot,
+            )
+            for index in range(3)
+        ]
+        workers = [
+            DebateWorker(
+                repository,
+                repository,
+                service.orchestrator,
+                visibility_timeout_seconds=30,
+            )
+            for _ in range(2)
+        ]
+
+        first_wave = [asyncio.create_task(worker.run_once()) for worker in workers]
+        await asyncio.wait_for(probe.reached_limit.wait(), timeout=1)
+        statuses = [
+            repository.get_session(session.id, session.user_id).status
+            for session, _ in admitted
+        ]
+
+        assert probe.maximum_active == 2
+        assert statuses.count("running_round_1") == 2
+        assert statuses.count("queued_round_1") == 1
+
+        probe.release.set()
+        first_results = await asyncio.gather(*first_wave)
+        third_result = await workers[0].run_once()
+        final_statuses = [
+            repository.get_session(session.id, session.user_id).status
+            for session, _ in admitted
+        ]
+
+        assert [result.outcome for result in first_results] == ["completed", "completed"]
+        assert third_result.outcome == "completed"
+        assert final_statuses == ["awaiting_user", "awaiting_user", "awaiting_user"]
+        assert probe.maximum_active == 2
 
     asyncio.run(run_scenario())
 
