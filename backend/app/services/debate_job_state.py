@@ -74,5 +74,34 @@ def fail_job(
     )
 
 
+def cancel_job(
+    job: DebateJob,
+    *,
+    at: AwareDatetime,
+    provider_request_count: int | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+) -> DebateJob:
+    if job.status not in {"queued", "running"}:
+        raise DebateJobTransitionError("Only an active Debate job can be cancelled")
+    if at < job.updated_at:
+        raise DebateJobTransitionError("Job cancellation time cannot precede its current state")
+
+    requests = max(job.provider_request_count, provider_request_count or 0)
+    prompts = max(job.prompt_tokens, prompt_tokens or 0)
+    completions = max(job.completion_tokens, completion_tokens or 0)
+    return _updated(
+        job,
+        status="cancelled",
+        finished_at=at,
+        safe_error_code=None,
+        provider_request_count=requests,
+        prompt_tokens=prompts,
+        completion_tokens=completions,
+        total_tokens=prompts + completions,
+        updated_at=at,
+    )
+
+
 def _updated(job: DebateJob, **changes: object) -> DebateJob:
     return DebateJob.model_validate({**job.model_dump(mode="python"), **changes})

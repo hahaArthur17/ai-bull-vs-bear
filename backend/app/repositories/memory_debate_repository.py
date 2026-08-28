@@ -114,6 +114,7 @@ class InMemoryDebateRepository:
                 if existing == message and self._citations.get(message.id, ()) == citations:
                     return _clone(existing)
                 raise DebateConcurrencyError("Debate message identifier already exists")
+            self._validate_new_message(session, message)
             unique_key = (message.session_id, message.branch_id, message.sequence_number)
             if unique_key in self._message_keys:
                 raise DebateConcurrencyError("Debate message sequence already exists")
@@ -190,6 +191,7 @@ class InMemoryDebateRepository:
                 if existing_job == job:
                     return _clone(existing_job)
                 raise DebateConcurrencyError("Debate job idempotency key already exists")
+            self._validate_one_active_job(job)
             self._jobs[job.id] = _clone(job)
             self._job_keys[job.idempotency_key] = job.id
             return _clone(job)
@@ -198,6 +200,20 @@ class InMemoryDebateRepository:
         with self._lock:
             job = self._jobs.get(job_id)
             return _clone(job) if job is not None else None
+
+    def get_active_job(self, session_id: UUID, user_id: UUID) -> DebateJob | None:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None or session.user_id != user_id:
+                return None
+            active = [
+                job
+                for job in self._jobs.values()
+                if job.session_id == session_id and job.status in {"queued", "running"}
+            ]
+            if len(active) > 1:
+                raise DebateRepositoryError("Debate session has multiple active jobs")
+            return _clone(active[0]) if active else None
 
     def update_job(
         self,
@@ -234,6 +250,7 @@ class InMemoryDebateRepository:
                 raise DebateConcurrencyError("Initial Debate session or job already exists")
             if job.idempotency_key in self._job_keys:
                 raise DebateConcurrencyError("Debate job idempotency key already exists")
+            self._validate_one_active_job(job)
             self._sessions[session.id] = _clone(session)
             self._jobs[job.id] = _clone(job)
             self._job_keys[job.idempotency_key] = job.id
@@ -255,3 +272,29 @@ class InMemoryDebateRepository:
         session = self._sessions.get(job.session_id)
         if session is None or session.user_id != job.user_id:
             raise DebateRepositoryError("Debate session not found")
+
+    @staticmethod
+    def _validate_new_message(session: DebateSession, message: DebateMessage) -> None:
+        if message.branch_id != session.active_branch_id:
+            raise DebateConcurrencyError("Debate message branch is no longer active")
+        if session.status in {"cancel_requested", "cancelled", "completed", "failed"}:
+            raise DebateConcurrencyError("Debate session no longer accepts messages")
+        if message.role != "user" and message.generation_id != session.active_generation_id:
+            raise DebateConcurrencyError("Debate message generation is no longer active")
+        if message.role in {"bull", "bear", "judge"}:
+            expected_status = (
+                "running_round_1" if message.round_number == 1 else "running_round_2"
+            )
+            if session.status != expected_status:
+                raise DebateConcurrencyError("Debate session is not running this message round")
+
+    def _validate_one_active_job(self, job: DebateJob) -> None:
+        if job.status not in {"queued", "running"}:
+            return
+        if any(
+            existing.session_id == job.session_id
+            and existing.status in {"queued", "running"}
+            and existing.id != job.id
+            for existing in self._jobs.values()
+        ):
+            raise DebateConcurrencyError("Debate session already has an active job")

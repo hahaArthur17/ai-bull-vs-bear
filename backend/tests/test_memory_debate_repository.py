@@ -56,6 +56,14 @@ def build_message(**updates: object) -> DebateMessage:
     )
 
 
+def store_running_round_one(repository: InMemoryDebateRepository) -> DebateSession:
+    session = repository.create_session(build_session())
+    queued = transition_session(session, "queued_round_1", at=NOW + timedelta(seconds=1))
+    repository.update_session(queued, expected_status="created")
+    running = transition_session(queued, "running_round_1", at=NOW + timedelta(seconds=2))
+    return repository.update_session(running, expected_status="queued_round_1")
+
+
 def test_memory_repository_implements_the_unit_of_work_contract() -> None:
     assert isinstance(InMemoryDebateRepository(), DebateUnitOfWork)
 
@@ -117,7 +125,7 @@ def test_session_updates_use_optimistic_status_and_domain_transition_rules() -> 
 
 def test_messages_and_citations_are_atomic_idempotent_and_owner_scoped() -> None:
     repository = InMemoryDebateRepository()
-    repository.create_session(build_session())
+    store_running_round_one(repository)
     message = build_message()
     citation = DebateMessageEvidence(
         message_id=message.id,
@@ -143,7 +151,7 @@ def test_messages_and_citations_are_atomic_idempotent_and_owner_scoped() -> None
 
 def test_interventions_must_target_a_message_owned_by_the_same_session_user() -> None:
     repository = InMemoryDebateRepository()
-    repository.create_session(build_session())
+    store_running_round_one(repository)
     message = build_message()
     repository.append_message(message)
     intervention = DebateIntervention(
@@ -172,6 +180,16 @@ def test_jobs_enforce_idempotency_owner_and_optimistic_state_transitions() -> No
     session = repository.create_session(build_session())
     queued = repository.create_job(build_job(session))
     assert repository.create_job(queued) == queued
+    assert repository.get_active_job(session.id, session.user_id) == queued
+    assert repository.get_active_job(session.id, OTHER_USER_ID) is None
+
+    second_active = build_job(
+        session,
+        id=UUID("00000000-0000-4000-8000-000000000109"),
+        idempotency_key="round-1:second-active-job",
+    )
+    with pytest.raises(DebateConcurrencyError, match="active job"):
+        repository.create_job(second_active)
 
     running = DebateJob.model_validate(
         {
@@ -201,3 +219,24 @@ def test_jobs_enforce_idempotency_owner_and_optimistic_state_transitions() -> No
     )
     with pytest.raises(DebateConcurrencyError, match="idempotency"):
         repository.create_job(duplicate_key)
+
+
+def test_new_agent_messages_require_the_current_running_generation() -> None:
+    repository = InMemoryDebateRepository()
+    running = store_running_round_one(repository)
+
+    with pytest.raises(DebateConcurrencyError, match="generation"):
+        repository.append_message(
+            build_message(
+                generation_id=UUID("00000000-0000-4000-8000-000000000110")
+            )
+        )
+
+    cancel_requested = transition_session(
+        running,
+        "cancel_requested",
+        at=NOW + timedelta(seconds=3),
+    )
+    repository.update_session(cancel_requested, expected_status="running_round_1")
+    with pytest.raises(DebateConcurrencyError, match="no longer accepts"):
+        repository.append_message(build_message())

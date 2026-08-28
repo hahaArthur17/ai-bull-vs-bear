@@ -57,6 +57,12 @@ set search_path = ''
 as $$
 declare
   requested_message_id uuid := (message_payload ->> 'id')::uuid;
+  requested_session_id uuid := (message_payload ->> 'session_id')::uuid;
+  requested_branch_id uuid := (message_payload ->> 'branch_id')::uuid;
+  requested_generation_id uuid := (message_payload ->> 'generation_id')::uuid;
+  requested_role text := message_payload ->> 'role';
+  requested_round integer := (message_payload ->> 'round_number')::integer;
+  current_session public.debate_sessions%rowtype;
   stored_message jsonb;
   stored_citations jsonb;
 begin
@@ -66,6 +72,44 @@ begin
   where message_row.id = requested_message_id;
 
   if stored_message is null then
+    select *
+    into current_session
+    from public.debate_sessions as session_row
+    where session_row.id = requested_session_id
+    for update;
+
+    if not found then
+      raise exception using
+        errcode = '23503',
+        message = 'Debate session not found';
+    end if;
+    if requested_branch_id <> current_session.active_branch_id then
+      raise exception using
+        errcode = '40001',
+        message = 'Debate message branch is no longer active';
+    end if;
+    if current_session.status in ('cancel_requested', 'cancelled', 'completed', 'failed') then
+      raise exception using
+        errcode = '40001',
+        message = 'Debate session no longer accepts messages';
+    end if;
+    if requested_role <> 'user'
+       and requested_generation_id <> current_session.active_generation_id then
+      raise exception using
+        errcode = '40001',
+        message = 'Debate message generation is no longer active';
+    end if;
+    if requested_role in ('bull', 'bear', 'judge')
+       and not (
+         (requested_round = 1 and current_session.status = 'running_round_1')
+         or
+         (requested_round = 2 and current_session.status = 'running_round_2')
+       ) then
+      raise exception using
+        errcode = '40001',
+        message = 'Debate session is not running this message round';
+    end if;
+
     insert into public.debate_messages as inserted_message
     select (jsonb_populate_record(null::public.debate_messages, message_payload)).*
     returning to_jsonb(inserted_message.*) into stored_message;

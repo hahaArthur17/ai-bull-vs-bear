@@ -221,6 +221,26 @@ class SupabaseDebateRepository:
         )
         return self._optional_model(response.json(), DebateJob, "Debate job")
 
+    def get_active_job(self, session_id: UUID, user_id: UUID) -> DebateJob | None:
+        if self.get_session(session_id, user_id) is None:
+            return None
+        response = self._request(
+            "GET",
+            "debate_jobs",
+            params={
+                "select": "*",
+                "session_id": f"eq.{session_id}",
+                "user_id": f"eq.{user_id}",
+                "status": "in.(queued,running)",
+                "order": "created_at.desc",
+                "limit": "2",
+            },
+        )
+        jobs = self._models(response.json(), DebateJob, "Debate job")
+        if len(jobs) > 1:
+            raise DebateRepositoryError("Debate session has multiple active jobs")
+        return jobs[0] if jobs else None
+
     def update_job(
         self,
         job: DebateJob,

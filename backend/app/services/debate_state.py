@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from typing import Literal
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from app.domain.base import AwareDatetime
 from app.domain.debate import DebateSession, DebateSessionStatus
@@ -67,6 +67,36 @@ def transition_session(
     return DebateSession.model_validate(payload)
 
 
+def request_session_cancellation(
+    session: DebateSession,
+    *,
+    at: AwareDatetime,
+) -> tuple[DebateSession, UUID]:
+    """Invalidate the active generation before cancellation is acknowledged.
+
+    Rotating the generation makes provider output already in flight stale. The
+    former generation is returned so event consumers can discard its drafts.
+    """
+
+    if session.status in {"completed", "cancelled", "failed"}:
+        raise DebateTransitionError("A terminal Debate session cannot be cancelled")
+    if session.status == "cancel_requested":
+        raise DebateTransitionError("Debate cancellation is already requested")
+
+    cancelled_generation_id = session.active_generation_id
+    invalidated = DebateSession.model_validate(
+        {
+            **session.model_dump(mode="python"),
+            "active_generation_id": uuid5(
+                session.id,
+                f"cancel:{cancelled_generation_id}",
+            ),
+        }
+    )
+    requested = transition_session(invalidated, "cancel_requested", at=at)
+    return requested, cancelled_generation_id
+
+
 def attach_judge_message(
     session: DebateSession,
     *,
@@ -91,4 +121,3 @@ def attach_judge_message(
     payload[field_name] = message_id
     payload["updated_at"] = at
     return DebateSession.model_validate(payload)
-

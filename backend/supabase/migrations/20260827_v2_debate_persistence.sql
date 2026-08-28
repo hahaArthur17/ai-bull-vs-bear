@@ -249,6 +249,10 @@ create index if not exists debate_jobs_worker_claim_idx
 create index if not exists debate_jobs_session_created_idx
   on public.debate_jobs (session_id, created_at);
 
+create unique index if not exists debate_jobs_one_active_per_session_idx
+  on public.debate_jobs (session_id)
+  where status in ('queued', 'running');
+
 alter table public.debate_sessions enable row level security;
 alter table public.debate_messages enable row level security;
 alter table public.debate_message_evidence enable row level security;

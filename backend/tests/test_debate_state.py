@@ -7,6 +7,7 @@ from app.services.debate_state import (
     DebateTransitionError,
     allowed_session_transitions,
     attach_judge_message,
+    request_session_cancellation,
     transition_session,
 )
 from test_debate_domain import NOW, build_session
@@ -90,6 +91,31 @@ def test_cancel_request_is_explicit_and_terminal() -> None:
     assert allowed_session_transitions("cancelled") == frozenset()
 
 
+def test_cancel_request_rotates_generation_deterministically() -> None:
+    session = transition_session(
+        build_session(),
+        "queued_round_1",
+        at=NOW + timedelta(seconds=1),
+    )
+
+    requested, cancelled_generation_id = request_session_cancellation(
+        session,
+        at=NOW + timedelta(seconds=2),
+    )
+    repeated, repeated_cancelled_generation_id = request_session_cancellation(
+        session,
+        at=NOW + timedelta(seconds=2),
+    )
+
+    assert requested.status == "cancel_requested"
+    assert cancelled_generation_id == session.active_generation_id
+    assert requested.active_generation_id != cancelled_generation_id
+    assert repeated.active_generation_id == requested.active_generation_id
+    assert repeated_cancelled_generation_id == cancelled_generation_id
+    with pytest.raises(DebateTransitionError, match="already requested"):
+        request_session_cancellation(requested, at=NOW + timedelta(seconds=3))
+
+
 def test_failed_transition_exposes_only_a_safe_error_code() -> None:
     with pytest.raises(DebateTransitionError, match="safe error code"):
         transition_session(build_session(), "failed", at=NOW + timedelta(seconds=1))
@@ -112,4 +138,3 @@ def test_transitions_reject_non_monotonic_timestamps() -> None:
             "queued_round_1",
             at=NOW - timedelta(seconds=1),
         )
-

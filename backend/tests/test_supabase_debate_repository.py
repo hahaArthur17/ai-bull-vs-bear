@@ -92,7 +92,14 @@ class FakeDebatePostgrest:
             if request.method == "POST":
                 self.jobs[body["id"]] = body
                 return httpx.Response(201, json=[body])
-            rows = self._filter(list(self.jobs.values()), query, "id", "status")
+            rows = self._filter(
+                list(self.jobs.values()),
+                query,
+                "id",
+                "session_id",
+                "user_id",
+                "status",
+            )
             if request.method == "PATCH":
                 if not rows:
                     return httpx.Response(200, json=[])
@@ -110,8 +117,13 @@ class FakeDebatePostgrest:
     ) -> list[dict[str, object]]:
         for field in fields:
             if field in query:
-                expected = query[field][0].removeprefix("eq.")
-                rows = [row for row in rows if str(row[field]) == expected]
+                expression = query[field][0]
+                if expression.startswith("in.(") and expression.endswith(")"):
+                    expected = set(expression[4:-1].split(","))
+                    rows = [row for row in rows if str(row[field]) in expected]
+                else:
+                    expected_value = expression.removeprefix("eq.")
+                    rows = [row for row in rows if str(row[field]) == expected_value]
         return rows[: int(query.get("limit", [str(len(rows) or 1)])[0])]
 
 
@@ -142,6 +154,7 @@ def test_supabase_repository_uses_service_only_atomic_creation() -> None:
         session.id,
         UUID("00000000-0000-4000-8000-000000000999"),
     ) is None
+    assert repository.get_active_job(session.id, USER_ID) == job
 
 
 def test_supabase_repository_round_trips_messages_citations_and_interventions() -> None:
@@ -200,6 +213,7 @@ def test_supabase_repository_updates_sessions_and_jobs_optimistically() -> None:
         }
     )
     assert repository.update_job(running_job, expected_status="queued") == running_job
+    assert repository.get_active_job(session.id, USER_ID) == running_job
     with pytest.raises(DebateConcurrencyError, match="concurrently"):
         repository.update_job(running_job, expected_status="queued")
 

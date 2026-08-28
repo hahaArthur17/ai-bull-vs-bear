@@ -70,6 +70,9 @@ class ContractOnlyRepository:
     def get_job(self, job_id: UUID) -> DebateJob | None:
         return None
 
+    def get_active_job(self, session_id: UUID, user_id: UUID) -> DebateJob | None:
+        return None
+
     def update_job(
         self,
         job: DebateJob,

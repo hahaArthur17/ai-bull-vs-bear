@@ -83,6 +83,9 @@ class DebateJobRepository(Protocol):
     def get_job(self, job_id: UUID) -> DebateJob | None:
         ...
 
+    def get_active_job(self, session_id: UUID, user_id: UUID) -> DebateJob | None:
+        ...
+
     def update_job(
         self,
         job: DebateJob,

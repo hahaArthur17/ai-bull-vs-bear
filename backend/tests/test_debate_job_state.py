@@ -4,6 +4,7 @@ import pytest
 
 from app.services.debate_job_state import (
     DebateJobTransitionError,
+    cancel_job,
     complete_job,
     fail_job,
     start_job,
@@ -43,3 +44,24 @@ def test_job_state_failure_uses_only_a_safe_error_code() -> None:
             at=NOW + timedelta(seconds=2),
             safe_error_code="provider_unavailable",
         )
+
+
+def test_job_state_cancellation_supports_queued_and_running_jobs() -> None:
+    queued = build_job()
+    cancelled_queued = cancel_job(queued, at=NOW + timedelta(seconds=1))
+    running = start_job(queued, at=NOW + timedelta(seconds=1))
+    cancelled_running = cancel_job(
+        running,
+        at=NOW + timedelta(seconds=2),
+        provider_request_count=2,
+        prompt_tokens=10,
+        completion_tokens=5,
+    )
+
+    assert cancelled_queued.status == "cancelled"
+    assert cancelled_queued.started_at is None
+    assert cancelled_running.status == "cancelled"
+    assert cancelled_running.provider_request_count == 2
+    assert cancelled_running.total_tokens == 15
+    with pytest.raises(DebateJobTransitionError, match="Only an active"):
+        cancel_job(cancelled_running, at=NOW + timedelta(seconds=3))

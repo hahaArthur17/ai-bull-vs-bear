@@ -76,6 +76,8 @@ def test_debate_job_ledger_has_idempotency_worker_indexes_and_lifecycle_checks()
     assert "debate_jobs_safe_error" in MIGRATION_SQL
     assert "debate_jobs_worker_claim_idx" in MIGRATION_SQL
     assert "debate_jobs_session_created_idx" in MIGRATION_SQL
+    assert "debate_jobs_one_active_per_session_idx" in MIGRATION_SQL
+    assert "where status in ('queued', 'running')" in MIGRATION_SQL
 
 
 def test_debate_tables_are_owner_read_only_for_authenticated_clients() -> None:
@@ -109,6 +111,9 @@ def test_debate_migration_has_owner_and_query_path_indexes() -> None:
         "debate_jobs_session_created_idx",
     ):
         assert f"create index if not exists {index}" in MIGRATION_SQL
+    assert "create unique index if not exists debate_jobs_one_active_per_session_idx" in (
+        MIGRATION_SQL
+    )
 
 
 def test_debate_transaction_rpcs_are_service_only_and_queue_independent() -> None:
@@ -119,6 +124,11 @@ def test_debate_transaction_rpcs_are_service_only_and_queue_independent() -> Non
     assert "jsonb_populate_record(null::public.debate_messages" in RPC_MIGRATION_SQL
     assert "jsonb_populate_recordset(" in RPC_MIGRATION_SQL
     assert "errcode = '23505'" in RPC_MIGRATION_SQL
+    assert "for update" in RPC_MIGRATION_SQL.lower()
+    assert "current_session.active_generation_id" in RPC_MIGRATION_SQL
+    assert "current_session.status in ('cancel_requested', 'cancelled', 'completed', 'failed')" in (
+        RPC_MIGRATION_SQL
+    )
     assert "set search_path = ''" in RPC_MIGRATION_SQL
     assert "from public, anon, authenticated" in RPC_MIGRATION_SQL
     assert RPC_MIGRATION_SQL.count("to service_role;") == 2
