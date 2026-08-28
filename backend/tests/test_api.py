@@ -3,8 +3,11 @@ from fastapi.testclient import TestClient
 import pytest
 
 from app.main import app, settings
+from app.schemas import MarketQuote
 from app.services.analysis import AnalysisService
+from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.demo_store import DemoStore
+from app.services.response_cache import JsonResponseCache
 
 
 client = TestClient(app)
@@ -49,6 +52,95 @@ def test_catalog_search_is_limited_and_performs_no_external_request(
     assert [stock["ticker"] for stock in response.json()] == ["MSFT"]
     assert response.json()[0]["coverage_status"] == "catalog_only"
     assert client.get("/stocks", params={"q": "a", "limit": 26}).status_code == 422
+
+
+def test_catalog_search_cache_avoids_repeat_repository_reads(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main
+
+    class CountingStore(DemoStore):
+        calls = 0
+
+        def list_stocks(self, query: str | None = None, limit: int = 20):
+            self.calls += 1
+            return super().list_stocks(query, limit)
+
+    repository = CountingStore()
+    cache = JsonResponseCache(
+        ResilientCacheBackend(LocalCacheBackend()),
+        enabled=True,
+    )
+    monkeypatch.setattr(main, "store", repository)
+    monkeypatch.setattr(main, "response_cache", cache)
+
+    first = client.get("/stocks", params={"q": "apple", "limit": 5})
+    second = client.get("/stocks", params={"q": "apple", "limit": 5})
+
+    assert first.headers["x-cache-status"] == "MISS"
+    assert second.headers["x-cache-status"] == "HIT"
+    assert first.json() == second.json()
+    assert repository.calls == 1
+
+
+def test_stock_bundle_cache_replaces_seven_mobile_reads_with_one_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main
+
+    class CountingStore(DemoStore):
+        price_calls = 0
+
+        def get_prices(self, ticker: str):
+            self.price_calls += 1
+            return super().get_prices(ticker)
+
+    repository = CountingStore()
+    cache = JsonResponseCache(
+        ResilientCacheBackend(LocalCacheBackend()),
+        enabled=True,
+    )
+    quotes = iter(
+        [
+            MarketQuote(
+                ticker="AAPL",
+                close=210.0,
+                open=208.0,
+                high=211.0,
+                low=207.0,
+                previous_close=209.0,
+                as_of="2026-08-28T01:00:00Z",
+                source="finnhub_quote",
+            ),
+            MarketQuote(
+                ticker="AAPL",
+                close=211.0,
+                open=208.0,
+                high=212.0,
+                low=207.0,
+                previous_close=209.0,
+                as_of="2026-08-28T01:01:00Z",
+                source="finnhub_quote",
+            ),
+        ]
+    )
+    monkeypatch.setattr(main, "store", repository)
+    monkeypatch.setattr(main, "response_cache", cache)
+    monkeypatch.setattr(main, "get_quote", lambda _ticker: next(quotes))
+
+    first = client.get("/stocks/AAPL/bundle")
+    second = client.get("/stocks/AAPL/bundle")
+
+    assert first.status_code == 200
+    assert first.headers["x-cache-status"] == "MISS"
+    assert second.headers["x-cache-status"] == "HIT"
+    assert repository.price_calls == 1
+    assert first.json()["stock"]["ticker"] == "AAPL"
+    assert first.json()["quote"]["close"] == 210.0
+    assert second.json()["quote"]["close"] == 211.0
+    assert first.json()["prices"] == second.json()["prices"]
+    assert "indicators" in first.json()
+    assert client.get("/stocks/MSFT/bundle").status_code == 409
 
 
 def test_catalog_only_stock_can_be_saved_to_watchlist() -> None:

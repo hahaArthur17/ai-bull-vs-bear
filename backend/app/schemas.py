@@ -122,6 +122,16 @@ class EvidenceItem(BaseModel):
     freshness: EvidenceFreshness = Field(default_factory=EvidenceFreshness)
 
 
+class StockBundle(BaseModel):
+    stock: Stock
+    prices: list[PricePoint]
+    weekly_history: list[PriceHistoryPoint]
+    quote: MarketQuote | None
+    indicators: TechnicalIndicators
+    evidence: list[EvidenceItem]
+    macro_context: list[MacroSeriesContext]
+
+
 class PriceSnapshot(BaseModel):
     as_of: str
     close: float

@@ -167,9 +167,24 @@ A default-off V2 screen now mounts live mobile/Web consumption, shows transient
 drafts separately from canonical messages, renders Job/retry/failure states,
 exposes generation-scoped cancellation, and queues Round 2 from an exact
 passage selected in a complete message. A recorded external-provider smoke
-test, explanation, Redis, and cross-process transient-event reconnect remain
-later work. The checked-in catalog, Debate, and Queue migrations are still not
+test, explanation, the remaining Redis coordination rules, and cross-process
+transient-event reconnect remain later work. The checked-in catalog, Debate,
+and Queue migrations are still not
 applied to hosted Supabase, so production keeps V2 and Queue flags disabled.
+
+### Phase 6 public response-cache foundation
+
+The optional cache boundary now has Redis and process-local adapters for TTL
+values, owner locks, and expiring counters. Strict Redis timeouts and a
+failure-open local fallback keep canonical repository reads available. Redis is
+disabled by default and is never the source of truth.
+
+`GET /stocks` caches bounded catalog results under hashed normalized-query
+keys for 30 minutes. `GET /stocks/{ticker}/bundle` replaces seven mobile detail
+reads with one response and caches its public core for five minutes. The current
+quote is resolved outside that bundle cache. Both endpoints expose
+`X-Cache-Status`; standard-Debate caching, admission limits, and distributed
+idempotency remain later Phase 6 slices.
 
 ## Implemented single-response data flow
 

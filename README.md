@@ -48,6 +48,9 @@ baseline is maintained in
   storage, selected 10-K/10-Q section extraction, and retry/rate-limit handling.
 - Optional daily OHLCV ingestion (Alpha Vantage or Finnhub) into Supabase with stale-cache
   provenance and deterministic price fallback.
+- Optional Redis-backed public stock-search and stock-bundle response caching
+  with strict timeouts, local outage fallback, hashed search keys, and visible
+  cache status. Redis remains disabled by default.
 - Database-local evidence vectors and ticker-filtered pgvector retrieval with a
   deterministic cached fallback.
 - Immutable completed-close/evidence snapshots with source freshness, dated
@@ -63,8 +66,8 @@ response; the code-only V2 API preview already proves deterministic multi-turn
 state and persistence but does not start background work or select the live
 stream path. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
-defines the next milestone: durable queued Debate stages, Redis
-cache/rate-limit/idempotency, streamed multi-turn rebuttals, user
+defines the next milestone: hosted verification of durable queued Debate stages,
+the remaining Redis rate-limit/idempotency work, streamed multi-turn rebuttals, user
 explanations/interventions, Demo Replay, and a reusable financial-technology UI
 system. Factor-provider and catalog/watchlist foundations are already
 implemented; the catalog's hosted Supabase migration remains a controlled

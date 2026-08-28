@@ -24,7 +24,9 @@ Without a query, returns the active `debate_ready` stocks. Optional parameters:
 
 Search is ranked by exact ticker, ticker prefix, exact alias, company prefix,
 alias prefix, then substring. It reads the local/Supabase identity catalog and
-does not call the SEC, a market-data provider, or a model provider.
+does not call the SEC, a market-data provider, or a model provider. When Redis
+response caching is enabled, `X-Cache-Status` is `MISS`, `HIT`, or `DEGRADED`;
+the disabled default returns `BYPASS`.
 
 GET /stocks/{ticker}
 Returns a stock/security identity with nullable classification and explicit
@@ -71,6 +73,14 @@ GET /stocks/{ticker}/evidence
 Returns technical, news, and filing evidence. Supports an optional q query
 parameter for Supabase vector retrieval with deterministic lexical fallback. A
 catalog-only identity returns an empty list.
+
+GET /stocks/{ticker}/bundle
+Returns the stock identity, daily and weekly history, technical indicators,
+evidence, applicable macro context, and the latest optional quote in one mobile
+request. The public core is cached for five minutes when Redis is enabled; the
+current quote is resolved after the cache read and is not stored in the bundle
+cache. A catalog-only identity returns `409 Conflict`. `X-Cache-Status` uses the
+same values as stock search.
 
 ### AI Analysis
 
@@ -217,7 +227,9 @@ The authenticated Web/React Native stream client and reducer are mounted behind
 `EXPO_PUBLIC_DEBATE_V2_ENABLED=false`. The screen renders Queue/Worker states,
 temporary drafts, durable messages, cancellation, exact selected-passage
 Challenge input, and queued Round 2. Explanation, cross-process transient-event
-replay, and Redis are not implemented. In Supabase persistence mode V2
+replay, and Debate-specific Redis coordination are not implemented. Public stock
+search/bundle caching is implemented but remains disabled by default. In
+Supabase persistence mode V2
 additionally requires the server-only secret and checked-in
 catalog/Debate/Queue migrations; production remains disabled until those are
 applied and verified.

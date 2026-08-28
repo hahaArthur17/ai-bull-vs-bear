@@ -10,7 +10,9 @@ SSE. With `DEBATE_QUEUE_ENABLED=false`, it remains a synchronous deterministic
 preview whose deltas come from an already completed Turn. With the Queue flag
 enabled, Round 1 and Round 2 return `202 Accepted`, publish atomically to a
 durable Supabase Queue, and run through bounded background Workers. Redis
-coordination is not yet implemented. Follow the canonical
+adapters and public stock-search/bundle caching are implemented with a local
+failure fallback; Debate rate limits and idempotency locks are not yet wired.
+Follow the canonical
 [`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
 rather than adding these concerns directly to the current analysis service.
 
@@ -46,6 +48,13 @@ Open http://localhost:8000/docs for the interactive API documentation.
 Copy the repository-level .env.example to .env when you are ready to add
 Supabase or model-provider credentials. The deterministic demo provider remains
 the default until a real provider is selected explicitly.
+
+`REDIS_ENABLED=false` is also the safe default. When enabled with a valid
+`redis://` or `rediss://` URL, stock search and the public stock bundle use the
+remote cache with bounded timeouts and a process-local fallback. Responses
+expose `X-Cache-Status`; Redis failure must not prevent canonical repository
+reads. The current slice does not use Redis as Debate persistence or Queue
+transport.
 
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set

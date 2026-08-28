@@ -54,6 +54,7 @@ from app.schemas import (
     PricePoint,
     PriceHistoryPoint,
     Stock,
+    StockBundle,
     StockCoverage,
     TechnicalIndicators,
     WatchlistRequest,
@@ -62,6 +63,7 @@ from app.schemas import (
 from app.services.analysis import AnalysisService
 from app.services.analysis_context import build_analysis_context
 from app.services.auth import AuthContext, SupabaseAuthVerifier, extract_bearer_token
+from app.services.cache import build_cache_backend
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
     DebateEventCursorExpired,
@@ -75,6 +77,11 @@ from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
 from app.services.market_data import FinnhubQuoteClient, MarketDataError, QuoteCache
 from app.services.rag import retrieve_evidence
+from app.services.response_cache import (
+    JsonResponseCache,
+    stock_bundle_cache_key,
+    stock_search_cache_key,
+)
 from app.services.supabase_store import RepositoryError, SupabaseStore
 
 settings = get_settings()
@@ -128,6 +135,13 @@ quote_cache = (
     if settings.finnhub_api_key and settings.environment != "test"
     else None
 )
+cache_backend = build_cache_backend(
+    enabled=settings.redis_enabled,
+    redis_url=settings.redis_url,
+    connect_timeout_seconds=settings.redis_connect_timeout_seconds,
+    socket_timeout_seconds=settings.redis_socket_timeout_seconds,
+)
+response_cache = JsonResponseCache(cache_backend, enabled=settings.redis_enabled)
 
 
 def build_configured_debate_worker() -> DebateWorker:
@@ -431,10 +445,27 @@ def _debate_sse_frames(
 
 @app.get("/stocks", response_model=list[Stock])
 def list_stocks(
+    response: Response,
     q: str | None = Query(default=None, max_length=40),
     limit: int = Query(default=20, ge=1, le=25),
 ) -> list[Stock]:
-    return [Stock.model_validate(stock) for stock in store.list_stocks(q, limit)]
+    cache_key = stock_search_cache_key(q, limit)
+    cached = response_cache.read(cache_key)
+    if isinstance(cached.value, list):
+        try:
+            stocks = [Stock.model_validate(stock) for stock in cached.value]
+            response.headers["X-Cache-Status"] = cached.status
+            return stocks
+        except ValueError:
+            pass
+    stocks = [Stock.model_validate(stock) for stock in store.list_stocks(q, limit)]
+    response_cache.write(
+        cache_key,
+        [stock.model_dump(mode="json") for stock in stocks],
+        ttl_seconds=1800,
+    )
+    response.headers["X-Cache-Status"] = response_cache.response_status(cached.status)
+    return stocks
 
 
 @app.get("/stocks/{ticker}", response_model=Stock)
@@ -478,6 +509,64 @@ def get_quote(ticker: str) -> MarketQuote | None:
     except MarketDataError:
         logger.warning("Latest quote lookup failed for %s", ticker.upper())
         return None
+
+
+def _stock_bundle_core(ticker: str) -> StockBundle:
+    stock = _require_stock(ticker)
+    if not _coverage(stock).has_price_data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Stock bundle is unavailable for this catalog-only stock",
+        )
+    prices = [PricePoint.model_validate(point) for point in store.get_prices(ticker)]
+    weekly_history = [
+        PriceHistoryPoint.model_validate(point)
+        for point in store.get_price_history(ticker, "weekly")
+    ]
+    indicators = TechnicalIndicators.model_validate(
+        calculate_indicators(ticker.upper(), [point.model_dump() for point in prices])
+    )
+    evidence = [
+        EvidenceItem.model_validate(item)
+        for item in store.get_evidence(ticker)
+    ] if _coverage(stock).has_evidence else []
+    macro_context = get_macro_context(limit=60) if ticker.upper() == "AAPL" else []
+    return StockBundle(
+        stock=stock,
+        prices=prices,
+        weekly_history=weekly_history,
+        quote=None,
+        indicators=indicators,
+        evidence=evidence,
+        macro_context=macro_context,
+    )
+
+
+@app.get("/stocks/{ticker}/bundle", response_model=StockBundle)
+def get_stock_bundle(ticker: str, response: Response) -> StockBundle:
+    stock = _require_stock(ticker)
+    if not _coverage(stock).has_price_data:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Stock bundle is unavailable for this catalog-only stock",
+        )
+    cache_key = stock_bundle_cache_key(stock.ticker)
+    cached = response_cache.read(cache_key)
+    core: StockBundle | None = None
+    if isinstance(cached.value, dict):
+        try:
+            core = StockBundle.model_validate(cached.value)
+        except ValueError:
+            core = None
+    if core is None:
+        core = _stock_bundle_core(stock.ticker)
+        response_cache.write(
+            cache_key,
+            core.model_dump(mode="json"),
+            ttl_seconds=300,
+        )
+    response.headers["X-Cache-Status"] = response_cache.response_status(cached.status)
+    return core.model_copy(update={"quote": get_quote(stock.ticker)})
 
 
 @app.get("/macro/series", response_model=list[MacroSeries])
@@ -919,4 +1008,5 @@ app = CORSMiddleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["X-Cache-Status"],
 )

@@ -1111,16 +1111,24 @@ gate.
 
 ### Phase 6 — Redis cache and coordination
 
-Status: Planned
+Status: In progress
 
-- [ ] Add Redis/local coordination adapters and configuration validation.
-- [ ] Cache stock search and stock bundle reads.
+- [x] Add Redis/local coordination adapters and configuration validation.
+- [x] Cache stock search and stock bundle reads.
 - [ ] Add standard-Debate snapshot cache where privacy rules allow it.
 - [ ] Add per-user rate limits and one-active-Debate rule.
 - [ ] Add distributed idempotency lock with database unique fallback.
-- [ ] Add cache status instrumentation.
+- [x] Add cache status instrumentation.
 - [ ] Prove correct Redis-outage degradation.
 - [ ] Record before/after latency and call-count evidence.
+
+Progress evidence: `7058acd` adds Redis/local TTL, lock, and counter adapters,
+strict timeouts, configuration validation, health state, and failure-open local
+fallback. The first response-cache slice adds hashed 30-minute stock-search
+entries, versioned five-minute public stock bundles, cache-status headers and
+counters, and one mobile bundle request in place of seven detail reads. The
+current quote remains outside the cached bundle core. API and unit tests prove
+repeat reads avoid repository calls without caching raw query text.
 
 Completion rule: cache and locks create measurable effects, while disabling
 Redis does not corrupt or disable canonical workflows.
@@ -1259,8 +1267,9 @@ because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
-experience are implemented and verified locally. The next code-only step is
-Phase 6's Redis/local adapter and failure-safe instrumentation. Independently,
+experience are implemented and verified locally. Phase 6 now has its
+Redis/local adapter plus public stock-search/bundle cache; the next code-only
+slice is privacy-bounded standard-Debate snapshot caching. Independently,
 apply the catalog, Debate, and Queue migrations to hosted Supabase in filename
 order and record size/RLS/restart evidence before enabling hosted flags. Do not
 claim Redis, hosted Queue durability, or cross-process transient-event replay

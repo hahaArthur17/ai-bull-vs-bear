@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 276 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 284 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -55,8 +55,10 @@ These are limitations of the current implementation, not completed features:
 - Technical indicators, evidence types, and legacy model prompt inputs still
   use several fixed API schemas. Common `FactorProvider` contracts now build
   the V2 Session snapshot, so a future provider is additive at that boundary.
-- Redis is not configured. The current quote cache is process-local and other
-  persistent cached data is read from Supabase.
+- Redis remains disabled in safe defaults and is not configured in production.
+  Optional Redis/local adapters and public stock search/bundle caching now
+  exist; Debate snapshot caching, rate limits, and distributed idempotency are
+  not yet wired. The current quote remains outside the bundle response cache.
 - The durable Queue is connected only to the default-off V2 Debate path. The
   public legacy `/analysis` path remains synchronous by design.
 - Stock detail, charting, legacy Debate, Evidence, and Examination UI still
@@ -304,6 +306,25 @@ Phase 5 is complete in code and verified through the local in-memory transport.
 The remaining gate is the controlled hosted Supabase migration/RLS/restart
 verification. The flags remain off in production, so no hosted durability
 claim is made yet.
+
+### Phase 6 progress
+
+The Redis/local backend foundation provides TTL values, owner-scoped locks,
+expiring counters, health state, strict remote timeouts, and a failure-open
+local fallback. Redis URLs are excluded from settings representations and the
+feature remains disabled by default. Commit `7058acd` contains this adapter
+foundation.
+
+The first hot-read slice adds a JSON response-cache boundary, hashed catalog
+search keys, five-minute versioned stock-bundle keys, and `HIT`/`MISS`/
+`BYPASS`/`DEGRADED` instrumentation. `GET /stocks/{ticker}/bundle` replaces the
+mobile detail screen's seven API reads with one request while resolving the
+optional current quote outside the cached public core. Tests prove repeated
+reads avoid repository work and a cached bundle still refreshes the quote.
+
+Phase 6 remains in progress. Standard-Debate snapshot caching, per-user limits,
+the one-active-Debate rule, distributed idempotency wiring, outage-level API
+proof, and recorded latency measurements remain.
 
 ## Boundaries that remain in force
 

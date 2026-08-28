@@ -45,6 +45,8 @@ When resuming the project:
 - [`project-week-13.md`](project-week-13.md) — durable Supabase Queue transport,
   bounded Workers, retry/redelivery recovery, and the mounted default-off V2
   Debate experience.
+- [`project-week-14.md`](project-week-14.md) — resilient Redis/local adapters
+  and the first public stock-search/bundle response-cache slice.
 
 ## Template for a new report
 

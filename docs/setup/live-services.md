@@ -280,8 +280,11 @@ checks:
 The implemented, default-off Queue Worker needs a server-only Supabase secret
 on the backend. Add it only for the controlled Phase 5 hosted verification
 after applying the new migrations and checking grants, RLS, and Worker access.
-Redis configuration belongs to Phase 6 and must remain optional with a tested
-fallback.
+The first Phase 6 Redis slice is implemented but remains optional. Keep
+`REDIS_ENABLED=false` unless a deliberate test supplies a `redis://` or
+`rediss://` `REDIS_URL`. Stock search and the public stock bundle fail open to a
+bounded local fallback; Redis is not canonical persistence or Queue transport.
+Rate limits and Debate idempotency wiring remain future Phase 6 work.
 
 ### Credential hygiene follow-up
 

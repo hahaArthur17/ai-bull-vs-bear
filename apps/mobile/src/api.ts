@@ -145,20 +145,8 @@ export const api = {
   removeFromWatchlist: (ticker: string): Promise<WatchlistResponse> =>
     request<WatchlistResponse>("/watchlist/" + ticker, { method: "DELETE" }),
 
-  getStockBundle: async (ticker: string): Promise<StockBundle> => {
-    const [stock, prices, weekly_history, quote, indicators, evidence, macro_context] = await Promise.all([
-      request<Stock>("/stocks/" + ticker),
-      request<StockBundle["prices"]>("/stocks/" + ticker + "/prices"),
-      request<StockBundle["weekly_history"]>("/stocks/" + ticker + "/price-history").catch(() => []),
-      request<StockBundle["quote"]>("/stocks/" + ticker + "/quote").catch(() => null),
-      request<StockBundle["indicators"]>("/stocks/" + ticker + "/indicators"),
-      request<StockBundle["evidence"]>("/stocks/" + ticker + "/evidence"),
-      ticker.toUpperCase() === "AAPL"
-        ? request<StockBundle["macro_context"]>("/macro/context?limit=60").catch(() => [])
-        : Promise.resolve([]),
-    ]);
-    return { stock, prices, weekly_history, quote, indicators, evidence, macro_context };
-  },
+  getStockBundle: (ticker: string): Promise<StockBundle> =>
+    request<StockBundle>("/stocks/" + encodeURIComponent(ticker) + "/bundle"),
 
   runAnalysis: (ticker: string, question?: string): Promise<AnalysisResponse> =>
     request<AnalysisResponse>("/analysis/" + ticker, {
