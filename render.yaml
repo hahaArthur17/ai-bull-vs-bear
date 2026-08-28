@@ -52,6 +52,10 @@ services:
         value: https://ai-bull-vs-bear-api.onrender.com
       - key: EXPO_PUBLIC_API_TIMEOUT_MS
         value: 75000
+      - key: EXPO_PUBLIC_AUTH_MODE
+        value: supabase
+      - key: EXPO_PUBLIC_DEBATE_V2_ENABLED
+        value: "false"
       - key: EXPO_PUBLIC_SUPABASE_URL
         sync: false
       - key: EXPO_PUBLIC_SUPABASE_ANON_KEY

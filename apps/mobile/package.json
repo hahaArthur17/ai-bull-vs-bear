@@ -10,7 +10,7 @@
     "web": "expo start --web",
     "build:web": "expo export --platform web",
     "typecheck": "tsc --noEmit",
-    "test:stream": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/debateStream.test.ts"
+    "test:stream": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --test src/*.test.ts"
   },
   "dependencies": {
     "@expo/metro-runtime": "~4.0.1",

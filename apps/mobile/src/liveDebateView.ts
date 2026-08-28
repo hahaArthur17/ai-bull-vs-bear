@@ -1,0 +1,88 @@
+import type { DebateStreamSnapshot } from "./debateStream";
+
+export type DebateStatusTone = "neutral" | "active" | "success" | "warning" | "danger";
+
+export type DebateStatusCopy = {
+  label: string;
+  detail: string;
+  tone: DebateStatusTone;
+};
+
+export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCopy {
+  if (snapshot.sessionStatus === "cancel_requested") {
+    return {
+      label: "Cancellation requested",
+      detail: "The active generation is invalidated; late output will be discarded.",
+      tone: "warning",
+    };
+  }
+  if (snapshot.sessionStatus === "cancelled" || snapshot.jobStatus === "cancelled") {
+    return {
+      label: "Debate cancelled",
+      detail: "No further messages will be added to this session.",
+      tone: "neutral",
+    };
+  }
+  if (snapshot.sessionStatus === "failed" || snapshot.jobStatus === "failed") {
+    return {
+      label: "Generation failed safely",
+      detail: "Completed messages were preserved. No partial message became canonical.",
+      tone: "danger",
+    };
+  }
+  if (snapshot.sessionStatus === "completed") {
+    return {
+      label: "Debate complete",
+      detail: "Round 2 and the final neutral Judge summary are durable.",
+      tone: "success",
+    };
+  }
+  if (snapshot.sessionStatus === "awaiting_user") {
+    return {
+      label: "Waiting for your challenge",
+      detail: "Round 1 is complete. Choose a message and ask the next question.",
+      tone: "success",
+    };
+  }
+  if (snapshot.jobStatus === "retry_scheduled") {
+    const delay = snapshot.retryDelaySeconds === null
+      ? "shortly"
+      : `in ${snapshot.retryDelaySeconds}s`;
+    return {
+      label: "Retry scheduled",
+      detail: `Attempt ${snapshot.jobAttemptCount} paused; the Worker will retry ${delay}.`,
+      tone: "warning",
+    };
+  }
+  if (snapshot.jobStatus === "running") {
+    return {
+      label: "Agents are debating",
+      detail: `Worker attempt ${Math.max(1, snapshot.jobAttemptCount)} is streaming the active turn.`,
+      tone: "active",
+    };
+  }
+  if (snapshot.jobStatus === "queued") {
+    return {
+      label: "Queued with backpressure",
+      detail: "The request is durable and will start when a bounded Worker is available.",
+      tone: "active",
+    };
+  }
+  return {
+    label: "Preparing Debate",
+    detail: "Loading canonical Session and Job state.",
+    tone: "neutral",
+  };
+}
+
+export function canCancelDebate(snapshot: DebateStreamSnapshot): boolean {
+  return snapshot.activeGenerationId !== null
+    && snapshot.sessionStatus !== "cancel_requested"
+    && (snapshot.jobStatus === "queued"
+      || snapshot.jobStatus === "running"
+      || snapshot.jobStatus === "retry_scheduled");
+}
+
+export function canChallengeDebate(snapshot: DebateStreamSnapshot): boolean {
+  return snapshot.sessionStatus === "awaiting_user";
+}

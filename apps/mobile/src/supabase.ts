@@ -13,8 +13,9 @@ const supabaseKey =
   process.env.EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY ||
   process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY ||
   projectConfig?.supabaseAnonKey;
+const authMode = (process.env.EXPO_PUBLIC_AUTH_MODE || "auto").trim().toLowerCase();
 
-export const isSupabaseConfigured = Boolean(supabaseUrl && supabaseKey);
+export const isSupabaseConfigured = authMode !== "demo" && Boolean(supabaseUrl && supabaseKey);
 
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl!, supabaseKey!, {

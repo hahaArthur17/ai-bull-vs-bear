@@ -1,5 +1,5 @@
 import { StatusBar } from "expo-status-bar";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ActivityIndicator,
@@ -25,12 +25,14 @@ import {
 import { formatChartDate, formatMarketDate, formatQuoteTime } from "./src/dateFormat";
 import { AboutScreen } from "./src/screens/AboutScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
+import { LiveDebateScreen } from "./src/screens/LiveDebateScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { isSupabaseConfigured, supabase } from "./src/supabase";
 import { appStyles as styles, palette } from "./src/theme";
 import type {
   AnalysisResponse,
   Claim,
+  DebateMutationResponse,
   EvidenceItem,
   ExaminationResponse,
   Stock,
@@ -38,6 +40,13 @@ import type {
 } from "./src/types";
 
 type Screen = "watchlist" | "stock" | "debate" | "evidence" | "examine" | "history" | "about";
+type DebateExperience = "legacy" | "v2";
+
+const DEBATE_V2_UI_ENABLED = process.env.EXPO_PUBLIC_DEBATE_V2_ENABLED === "true";
+
+function newDebateIdempotencyKey(ticker: string): string {
+  return `round1_${ticker}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function mergeStocks(...groups: Stock[][]): Stock[] {
   const byTicker = new Map<string, Stock>();
@@ -55,11 +64,14 @@ export default function App() {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [selectedBundle, setSelectedBundle] = useState<StockBundle | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
+  const [liveDebate, setLiveDebate] = useState<DebateMutationResponse | null>(null);
+  const [debateExperience, setDebateExperience] = useState<DebateExperience>("legacy");
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [examination, setExamination] = useState<ExaminationResponse | null>(null);
   const [history, setHistory] = useState<AnalysisResponse[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const debateAdmissionKey = useRef<string | null>(null);
 
   const loadHome = async () => {
     try {
@@ -115,6 +127,7 @@ export default function App() {
   }, []);
 
   const openStock = async (ticker: string) => {
+    debateAdmissionKey.current = null;
     setSelectedTicker(ticker);
     setScreen("stock");
     setSelectedStock(null);
@@ -155,8 +168,20 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
+      if (DEBATE_V2_UI_ENABLED) {
+        debateAdmissionKey.current ||= newDebateIdempotencyKey(selectedTicker);
+        const nextDebate = await api.createDebate(selectedTicker, {
+          idempotencyKey: debateAdmissionKey.current,
+        });
+        debateAdmissionKey.current = null;
+        setLiveDebate(nextDebate);
+        setDebateExperience("v2");
+        setScreen("debate");
+        return;
+      }
       const nextAnalysis = await api.runAnalysis(selectedTicker);
       setAnalysis(nextAnalysis);
+      setDebateExperience("legacy");
       setHistory((current) => [nextAnalysis, ...current.filter((item) => item.analysis_id !== nextAnalysis.analysis_id)]);
       setScreen("debate");
     } catch (requestError) {
@@ -202,6 +227,15 @@ export default function App() {
       );
     }
     if (screen === "debate") {
+      if (debateExperience === "v2" && liveDebate) {
+        return (
+          <LiveDebateScreen
+            ticker={selectedTicker}
+            initialDetail={liveDebate}
+            onBack={() => setScreen("stock")}
+          />
+        );
+      }
       return (
         <DebateScreen
           ticker={selectedTicker}
@@ -234,7 +268,7 @@ export default function App() {
       );
     }
     if (screen === "history") {
-      return <HistoryScreen history={history} onOpen={(item) => { setSelectedTicker(item.ticker); setAnalysis(item); setScreen("debate"); }} />;
+      return <HistoryScreen history={history} onOpen={(item) => { setSelectedTicker(item.ticker); setAnalysis(item); setDebateExperience("legacy"); setScreen("debate"); }} />;
     }
     if (screen === "about") {
       return <AboutScreen onSignOut={supabase ? () => void supabase?.auth.signOut() : undefined} />;
@@ -271,7 +305,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style="dark" />
+      <StatusBar style={screen === "debate" && debateExperience === "v2" ? "light" : "dark"} />
       <View style={styles.appShell}>
         {error && screen !== "watchlist" && !(screen === "stock" && !selectedBundle) ? (
           <Pressable style={styles.errorBanner} onPress={() => setError("")}>
