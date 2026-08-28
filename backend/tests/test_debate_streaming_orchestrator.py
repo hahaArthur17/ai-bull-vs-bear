@@ -17,6 +17,7 @@ from app.providers.streaming_debate import DeterministicStreamingDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
+from app.services.debate_orchestrator import DebateRetryableOrchestrationError
 from test_debate_orchestrator import StepClock, build_queued_round_one
 
 
@@ -54,6 +55,42 @@ class InterruptingStreamProvider:
             source="live_provider",
         )
         raise RuntimeError("private upstream disconnect payload")
+
+
+class RetryableStreamProvider:
+    name = "retryable-stream"
+    version = "test-v1"
+
+    async def stream_turn(
+        self,
+        request: DebateTurnRequest,
+    ) -> AsyncIterator[DebateTurnStreamEvent]:
+        error = RuntimeError("private rate-limit response")
+        error.retryable = True  # type: ignore[attr-defined]
+        error.retry_after_seconds = 4  # type: ignore[attr-defined]
+        raise error
+        yield  # pragma: no cover
+
+
+class RetryOnceAfterTwoTurnsProvider(DeterministicStreamingDebateProvider):
+    def __init__(self) -> None:
+        super().__init__(max_chunk_characters=32)
+        self.request_count = 0
+        self.failed_once = False
+
+    async def stream_turn(
+        self,
+        request: DebateTurnRequest,
+    ) -> AsyncIterator[DebateTurnStreamEvent]:
+        self.request_count += 1
+        if self.request_count == 3 and not self.failed_once:
+            self.failed_once = True
+            error = RuntimeError("private temporary disconnect")
+            error.retryable = True  # type: ignore[attr-defined]
+            error.retry_after_seconds = 1  # type: ignore[attr-defined]
+            raise error
+        async for event in super().stream_turn(request):
+            yield event
 
 
 class CancellationBoundaryStreamProvider(DeterministicStreamingDebateProvider):
@@ -164,6 +201,85 @@ def test_interrupted_stream_never_persists_an_incomplete_canonical_message() -> 
     assert failed_session is not None and failed_session.status == "failed"
     assert failed_job is not None and failed_job.status == "failed"
     assert failed_job.provider_request_count == 1
+
+
+def test_retryable_stream_failure_leaves_canonical_work_active() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    judge_provider = DeterministicDebateProvider()
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        judge_provider,
+        judge_provider,
+        streaming_turn_provider=RetryableStreamProvider(),
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    with pytest.raises(DebateRetryableOrchestrationError) as error:
+        asyncio.run(orchestrator.execute_job_streaming(job.id))
+
+    stored_session = repository.get_session(queued.id, queued.user_id)
+    stored_job = repository.get_job(job.id)
+    assert str(error.value) == "Debate provider is temporarily unavailable"
+    assert "private" not in str(error.value)
+    assert error.value.retry_after_seconds == 4
+    assert error.value.provider_request_count == 1
+    assert stored_session is not None and stored_session.status == "running_round_1"
+    assert stored_job is not None and stored_job.status == "running"
+    assert not any(event.type == "session.failed" for event in broker.replay(queued.id))
+
+
+def test_retry_resumes_after_complete_turn_prefix_without_duplicates() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    provider = RetryOnceAfterTwoTurnsProvider()
+    judge_provider = DeterministicDebateProvider()
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        judge_provider,
+        judge_provider,
+        streaming_turn_provider=provider,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    with pytest.raises(DebateRetryableOrchestrationError) as error:
+        asyncio.run(orchestrator.execute_job_streaming(job.id))
+    first_messages = repository.list_messages(
+        queued.id,
+        queued.user_id,
+        branch_id=queued.active_branch_id,
+    )
+    repository.requeue_running_job(
+        job.id,
+        expected_attempt_count=1,
+        provider_request_count=error.value.provider_request_count,
+        prompt_tokens=error.value.prompt_tokens,
+        completion_tokens=error.value.completion_tokens,
+    )
+
+    completed = asyncio.run(orchestrator.execute_job_streaming(job.id))
+    messages = repository.list_messages(
+        queued.id,
+        queued.user_id,
+        branch_id=queued.active_branch_id,
+    )
+    completed_job = repository.get_job(job.id)
+    started_events = [
+        event for event in broker.replay(queued.id) if event.type == "job.started"
+    ]
+
+    assert len(first_messages) == 2
+    assert completed.status == "awaiting_user"
+    assert len(messages) == len({message.id for message in messages}) == 7
+    assert completed_job is not None and completed_job.attempt_count == 2
+    assert completed_job.provider_request_count == 8
+    assert [event.payload["resumed_turn_count"] for event in started_events] == [0, 2]
 
 
 def test_cancellation_drops_late_stream_output_and_never_marks_failure() -> None:

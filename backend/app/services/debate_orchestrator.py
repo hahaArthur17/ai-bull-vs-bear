@@ -19,6 +19,7 @@ from app.domain.debate import (
     DebateIntervention,
     DebateMessage,
     DebateMessageEvidence,
+    DebateRoundPlan,
     DebateSession,
     DebateSessionStatus,
     build_round_plan,
@@ -42,7 +43,7 @@ from app.services.debate_state import (
     request_session_cancellation,
     transition_session,
 )
-from app.services.debate_streaming import collect_debate_turn_stream
+from app.services.debate_streaming import DebateTurnStreamError, collect_debate_turn_stream
 
 
 logger = logging.getLogger(__name__)
@@ -54,6 +55,24 @@ class DebateOrchestrationError(RuntimeError):
 
 class DebateGenerationCancelled(RuntimeError):
     """Internal control flow for a generation invalidated during execution."""
+
+
+class DebateRetryableOrchestrationError(DebateOrchestrationError):
+    """Safe temporary failure carrying only bounded retry accounting metadata."""
+
+    def __init__(
+        self,
+        *,
+        retry_after_seconds: int | None,
+        provider_request_count: int,
+        prompt_tokens: int,
+        completion_tokens: int,
+    ) -> None:
+        super().__init__("Debate provider is temporarily unavailable")
+        self.retry_after_seconds = retry_after_seconds
+        self.provider_request_count = provider_request_count
+        self.prompt_tokens = prompt_tokens
+        self.completion_tokens = completion_tokens
 
 
 class DebateOrchestrator:
@@ -220,22 +239,12 @@ class DebateOrchestrator:
         if session.status != queued_status:
             raise DebateOrchestrationError("Debate session is not ready for this job")
 
-        provider_request_count = 0
-        prompt_tokens = 0
-        completion_tokens = 0
+        provider_request_count = job.provider_request_count
+        prompt_tokens = job.prompt_tokens
+        completion_tokens = job.completion_tokens
         try:
             running_job = start_job(job, at=self._at_or_after(job.updated_at))
             running_job = self.repository.update_job(running_job, expected_status="queued")
-            self._emit(
-                session.id,
-                "job.started",
-                {
-                    "job_id": str(running_job.id),
-                    "job_type": running_job.job_type,
-                    "attempt_count": running_job.attempt_count,
-                    "execution_mode": "async_stream",
-                },
-            )
             running_session = transition_session(
                 session,
                 running_status,
@@ -251,6 +260,22 @@ class DebateOrchestrator:
                 running_session.user_id,
                 branch_id=running_session.active_branch_id,
             )
+            running_session, completed_turn_count = self._resume_plan_prefix(
+                running_session,
+                transcript,
+                plan,
+            )
+            self._emit(
+                session.id,
+                "job.started",
+                {
+                    "job_id": str(running_job.id),
+                    "job_type": running_job.job_type,
+                    "attempt_count": running_job.attempt_count,
+                    "execution_mode": "async_stream",
+                    "resumed_turn_count": completed_turn_count,
+                },
+            )
             user_intervention = next(
                 (
                     message.content
@@ -260,7 +285,7 @@ class DebateOrchestrator:
                 None,
             )
 
-            for turn in plan.turns:
+            for turn in plan.turns[completed_turn_count:]:
                 self._assert_generation_active(running_session, running_status)
                 provider_request_count += 1
                 if turn.role == "judge":
@@ -336,8 +361,67 @@ class DebateOrchestrator:
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                 )
+            if isinstance(exc, DebateTurnStreamError) and exc.retryable:
+                raise DebateRetryableOrchestrationError(
+                    retry_after_seconds=exc.retry_after_seconds,
+                    provider_request_count=provider_request_count,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                ) from exc
             self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
             raise DebateOrchestrationError("Debate streaming job execution failed") from exc
+
+    def _resume_plan_prefix(
+        self,
+        session: DebateSession,
+        transcript: list[DebateMessage],
+        plan: DebateRoundPlan,
+    ) -> tuple[DebateSession, int]:
+        completed = [
+            message
+            for message in transcript
+            if message.generation_id == session.active_generation_id
+            and message.round_number == plan.round_number
+            and message.role in {"bull", "bear", "judge"}
+        ]
+        if len(completed) > len(plan.turns):
+            raise DebateOrchestrationError("Debate transcript exceeds its round plan")
+        for message, turn in zip(completed, plan.turns, strict=False):
+            if (
+                not message.is_complete
+                or message.role != turn.role
+                or message.message_kind != turn.message_kind
+                or message.exchange_number != turn.exchange_number
+            ):
+                raise DebateOrchestrationError(
+                    "Debate transcript is not a completed round-plan prefix"
+                )
+
+        if completed and completed[-1].role == "judge":
+            judge = completed[-1]
+            phase = "interim" if plan.round_number == 1 else "final"
+            field_name = (
+                "interim_judge_message_id"
+                if phase == "interim"
+                else "final_judge_message_id"
+            )
+            attached_id = getattr(session, field_name)
+            if attached_id is None:
+                attached = attach_judge_message(
+                    session,
+                    phase=phase,
+                    message_id=judge.id,
+                    at=self._at_or_after(session.updated_at),
+                )
+                session = self.repository.update_session(
+                    attached,
+                    expected_status=session.status,
+                )
+            elif attached_id != judge.id:
+                raise DebateOrchestrationError(
+                    "Debate Judge pointer conflicts with the completed round plan"
+                )
+        return session, len(completed)
 
     def request_cancellation(
         self,
