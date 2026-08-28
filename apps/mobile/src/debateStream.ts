@@ -23,12 +23,25 @@ export type DebateStreamStatus =
   | "closed"
   | "failed";
 
+export type DebateJobViewStatus =
+  | "none"
+  | "queued"
+  | "running"
+  | "retry_scheduled"
+  | "stage_completed"
+  | "failed"
+  | "cancelled";
+
 export type DebateStreamSnapshot = {
   status: DebateStreamStatus;
   canonicalMessages: DebateMessageRecord[];
   drafts: Record<string, DebateDraft>;
   lastSequence: number;
   activeGenerationId: string | null;
+  jobId: string | null;
+  jobStatus: DebateJobViewStatus;
+  jobAttemptCount: number;
+  retryDelaySeconds: number | null;
   safeError: string | null;
 };
 
@@ -204,6 +217,20 @@ const TERMINAL_SESSION_STATUSES = new Set<DebateSessionDetail["session"]["status
   "failed",
 ]);
 
+function canonicalJobStatus(detail: DebateSessionDetail): DebateJobViewStatus {
+  if (detail.job?.status === "completed") return "stage_completed";
+  if (detail.job) return detail.job.status;
+  if (detail.session.status === "failed") return "failed";
+  if (detail.session.status === "cancelled") return "cancelled";
+  if (
+    detail.session.status === "completed"
+    || detail.session.status === "awaiting_user"
+  ) return "stage_completed";
+  if (detail.session.status.startsWith("queued_")) return "queued";
+  if (detail.session.status.startsWith("running_")) return "running";
+  return "none";
+}
+
 function stringPayload(event: DebateEvent, key: string): string | null {
   const value = event.payload[key];
   return typeof value === "string" ? value : null;
@@ -259,6 +286,10 @@ export function reduceDebateEvent(
   let activeGenerationId = current.activeGenerationId;
   let drafts = { ...current.drafts };
   let canonicalMessages = current.canonicalMessages;
+  let jobId = current.jobId;
+  let jobStatus = current.jobStatus;
+  let jobAttemptCount = current.jobAttemptCount;
+  let retryDelaySeconds = current.retryDelaySeconds;
   if ((event.type === "session.created" || event.type === "job.queued") && generationId) {
     activeGenerationId = generationId;
     drafts = {};
@@ -278,6 +309,38 @@ export function reduceDebateEvent(
       snapshot: { ...current, lastSequence: event.sequence },
       terminal: false,
     };
+  }
+
+  if (event.type.startsWith("job.")) {
+    jobId = stringPayload(event, "job_id") || jobId;
+  }
+  if (event.type === "job.queued") {
+    jobStatus = "queued";
+    jobAttemptCount = 0;
+    retryDelaySeconds = null;
+  }
+  if (event.type === "job.started") {
+    jobStatus = "running";
+    jobAttemptCount = numberPayload(event, "attempt_count") || jobAttemptCount;
+    retryDelaySeconds = null;
+  }
+  if (event.type === "job.retry_scheduled") {
+    jobStatus = "retry_scheduled";
+    jobAttemptCount = numberPayload(event, "attempt_count") || jobAttemptCount;
+    retryDelaySeconds = numberPayload(event, "retry_delay_seconds");
+  }
+  if (event.type === "job.failed" || event.type === "session.failed") {
+    jobStatus = "failed";
+    jobAttemptCount = numberPayload(event, "attempt_count") || jobAttemptCount;
+    retryDelaySeconds = null;
+  }
+  if (event.type === "session.cancelled") {
+    jobStatus = "cancelled";
+    retryDelaySeconds = null;
+  }
+  if (event.type === "session.awaiting_user" || event.type === "session.completed") {
+    jobStatus = "stage_completed";
+    retryDelaySeconds = null;
   }
 
   if (
@@ -377,6 +440,10 @@ export function reduceDebateEvent(
       drafts,
       lastSequence: event.sequence,
       activeGenerationId,
+      jobId,
+      jobStatus,
+      jobAttemptCount,
+      retryDelaySeconds,
       safeError: event.type === "session.failed"
         ? stringPayload(event, "safe_error_code") || "Debate generation failed"
         : current.safeError,
@@ -406,6 +473,10 @@ export class DebateStreamClient {
     drafts: {},
     lastSequence: 0,
     activeGenerationId: null,
+    jobId: null,
+    jobStatus: "none",
+    jobAttemptCount: 0,
+    retryDelaySeconds: null,
     safeError: null,
   };
 
@@ -492,6 +563,10 @@ export class DebateStreamClient {
       drafts: {},
       lastSequence,
       activeGenerationId: detail.session.active_generation_id,
+      jobId: detail.job?.id || null,
+      jobStatus: canonicalJobStatus(detail),
+      jobAttemptCount: detail.job?.attempt_count || 0,
+      retryDelaySeconds: null,
       safeError: detail.session.safe_error_code || null,
     };
     this.emit();

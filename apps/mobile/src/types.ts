@@ -249,13 +249,31 @@ export type DebateSessionSummary = {
 export type DebateSessionDetail = {
   session: DebateSessionSummary;
   messages: DebateMessageRecord[];
+  job?: DebateJobSummary | null;
   execution_mode: "synchronous_preview" | "queued";
+};
+
+export type DebateJobSummary = {
+  id: string;
+  session_id: string;
+  job_type: "round_1" | "round_2" | "explanation" | "replay";
+  status: "queued" | "running" | "completed" | "failed" | "cancelled";
+  queue_message_id?: number | null;
+  attempt_count: number;
+  max_attempts: number;
+  safe_error_code?: string | null;
+};
+
+export type DebateMutationResponse = DebateSessionDetail & {
+  job_id: string;
 };
 
 export type DebateEventType =
   | "session.created"
   | "job.queued"
   | "job.started"
+  | "job.retry_scheduled"
+  | "job.failed"
   | "turn.started"
   | "turn.delta"
   | "turn.citation"

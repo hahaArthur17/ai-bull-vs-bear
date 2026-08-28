@@ -1,6 +1,7 @@
 import type {
   AnalysisResponse,
   DebateMessageRecord,
+  DebateMutationResponse,
   DebateSessionDetail,
   ExaminationResponse,
   Stock,
@@ -84,6 +85,46 @@ export const api = {
   getDebateMessages: (sessionId: string): Promise<DebateMessageRecord[]> =>
     request<DebateMessageRecord[]>(
       "/debates/" + encodeURIComponent(sessionId) + "/messages",
+    ),
+
+  createDebate: (
+    ticker: string,
+    options: {
+      question?: string;
+      openingSide?: "bull" | "bear";
+      idempotencyKey?: string;
+    } = {},
+  ): Promise<DebateMutationResponse> =>
+    request<DebateMutationResponse>("/debates", {
+      method: "POST",
+      body: JSON.stringify({
+        ticker,
+        question: options.question,
+        opening_side: options.openingSide || "bull",
+        idempotency_key: options.idempotencyKey,
+      }),
+    }),
+
+  challengeDebate: (
+    sessionId: string,
+    challenge: {
+      selectedMessageId: string;
+      selectedText: string;
+      question: string;
+      idempotencyKey?: string;
+    },
+  ): Promise<DebateMutationResponse> =>
+    request<DebateMutationResponse>(
+      "/debates/" + encodeURIComponent(sessionId) + "/interventions",
+      {
+        method: "POST",
+        body: JSON.stringify({
+          selected_message_id: challenge.selectedMessageId,
+          selected_text: challenge.selectedText,
+          question: challenge.question,
+          idempotency_key: challenge.idempotencyKey,
+        }),
+      },
     ),
 
   cancelDebate: (sessionId: string, generationId: string): Promise<DebateSessionDetail> =>

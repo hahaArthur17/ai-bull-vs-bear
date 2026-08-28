@@ -92,6 +92,10 @@ test("reducer keeps deltas temporary and replaces them with canonical completion
     drafts: {},
     lastSequence: 0,
     activeGenerationId: "generation-1",
+    jobId: null,
+    jobStatus: "none",
+    jobAttemptCount: 0,
+    retryDelaySeconds: null,
     safeError: null,
   };
   snapshot = reduceDebateEvent(snapshot, event(1, "turn.started", {
@@ -139,6 +143,10 @@ test("reducer rejects a missing event or provider delta", () => {
     drafts: {},
     lastSequence: 4,
     activeGenerationId: "generation-1",
+    jobId: null,
+    jobStatus: "none",
+    jobAttemptCount: 0,
+    retryDelaySeconds: null,
     safeError: null,
   };
 
@@ -167,6 +175,10 @@ test("reducer advances past a late event without mutating the active generation"
     },
     lastSequence: 3,
     activeGenerationId: "generation-1",
+    jobId: null,
+    jobStatus: "none",
+    jobAttemptCount: 0,
+    retryDelaySeconds: null,
     safeError: null,
   };
 
@@ -180,6 +192,56 @@ test("reducer advances past a late event without mutating the active generation"
   assert.equal(reduced.snapshot.lastSequence, 4);
   assert.equal(reduced.snapshot.drafts["message-1"].content, "current");
   assert.equal(reduced.snapshot.drafts["old-message"], undefined);
+});
+
+
+test("reducer exposes queued running retry and failure job states", () => {
+  let snapshot: DebateStreamSnapshot = {
+    status: "live",
+    canonicalMessages: [],
+    drafts: {},
+    lastSequence: 0,
+    activeGenerationId: "generation-1",
+    jobId: null,
+    jobStatus: "none",
+    jobAttemptCount: 0,
+    retryDelaySeconds: null,
+    safeError: null,
+  };
+
+  snapshot = reduceDebateEvent(snapshot, event(1, "job.queued", {
+    job_id: "job-1",
+    generation_id: "generation-1",
+  })).snapshot;
+  assert.equal(snapshot.jobStatus, "queued");
+  assert.equal(snapshot.jobId, "job-1");
+
+  snapshot = reduceDebateEvent(snapshot, event(2, "job.started", {
+    job_id: "job-1",
+    generation_id: "generation-1",
+    attempt_count: 1,
+  })).snapshot;
+  assert.equal(snapshot.jobStatus, "running");
+  assert.equal(snapshot.jobAttemptCount, 1);
+
+  snapshot = reduceDebateEvent(snapshot, event(3, "job.retry_scheduled", {
+    job_id: "job-1",
+    generation_id: "generation-1",
+    attempt_count: 1,
+    retry_delay_seconds: 4,
+  })).snapshot;
+  assert.equal(snapshot.jobStatus, "retry_scheduled");
+  assert.equal(snapshot.retryDelaySeconds, 4);
+
+  snapshot = reduceDebateEvent(snapshot, event(4, "job.failed", {
+    job_id: "job-1",
+    generation_id: "generation-1",
+    attempt_count: 3,
+    safe_error_code: "debate_retry_exhausted",
+  })).snapshot;
+  assert.equal(snapshot.jobStatus, "failed");
+  assert.equal(snapshot.jobAttemptCount, 3);
+  assert.equal(snapshot.retryDelaySeconds, null);
 });
 
 
@@ -199,6 +261,10 @@ test("cancellation rotates generation, clears drafts, and ignores late output", 
     },
     lastSequence: 3,
     activeGenerationId: "generation-1",
+    jobId: "job-1",
+    jobStatus: "running",
+    jobAttemptCount: 1,
+    retryDelaySeconds: null,
     safeError: null,
   };
 
