@@ -56,6 +56,25 @@ class InterruptingStreamProvider:
         raise RuntimeError("private upstream disconnect payload")
 
 
+class CancellationBoundaryStreamProvider(DeterministicStreamingDebateProvider):
+    def __init__(self) -> None:
+        super().__init__(max_chunk_characters=32)
+        self.first_delta_sent = asyncio.Event()
+        self.release_late_output = asyncio.Event()
+
+    async def stream_turn(
+        self,
+        request: DebateTurnRequest,
+    ) -> AsyncIterator[DebateTurnStreamEvent]:
+        first_delta = True
+        async for event in super().stream_turn(request):
+            yield event
+            if first_delta and event.kind == "delta":
+                first_delta = False
+                self.first_delta_sent.set()
+                await self.release_late_output.wait()
+
+
 def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() -> None:
     repository = InMemoryDebateRepository()
     queued, job = build_queued_round_one()
@@ -145,3 +164,52 @@ def test_interrupted_stream_never_persists_an_incomplete_canonical_message() -> 
     assert failed_session is not None and failed_session.status == "failed"
     assert failed_job is not None and failed_job.status == "failed"
     assert failed_job.provider_request_count == 1
+
+
+def test_cancellation_drops_late_stream_output_and_never_marks_failure() -> None:
+    async def run_scenario() -> None:
+        repository = InMemoryDebateRepository()
+        queued, job = build_queued_round_one()
+        repository.create_session_with_job(queued, job)
+        provider = CancellationBoundaryStreamProvider()
+        judge_provider = DeterministicDebateProvider()
+        broker = InMemoryDebateEventBroker()
+        orchestrator = DebateOrchestrator(
+            repository,
+            judge_provider,
+            judge_provider,
+            streaming_turn_provider=provider,
+            event_publisher=broker,
+            clock=StepClock(),
+        )
+
+        execution = asyncio.create_task(orchestrator.execute_job_streaming(job.id))
+        await asyncio.wait_for(provider.first_delta_sent.wait(), timeout=1)
+        requested = orchestrator.request_cancellation(
+            queued.id,
+            queued.user_id,
+            queued.active_generation_id,
+        )
+        assert requested.status == "cancel_requested"
+
+        provider.release_late_output.set()
+        cancelled = await asyncio.wait_for(execution, timeout=1)
+        messages = repository.list_messages(
+            queued.id,
+            queued.user_id,
+            branch_id=queued.active_branch_id,
+        )
+        stored_job = repository.get_job(job.id)
+        events = broker.replay(queued.id)
+
+        assert cancelled.status == "cancelled"
+        assert messages == []
+        assert stored_job is not None and stored_job.status == "cancelled"
+        assert stored_job.provider_request_count == 1
+        assert any(event.type == "turn.delta" for event in events)
+        assert any(event.type == "session.cancel_requested" for event in events)
+        assert events[-1].type == "session.cancelled"
+        assert not any(event.type == "turn.completed" for event in events)
+        assert not any(event.type == "session.failed" for event in events)
+
+    asyncio.run(run_scenario())

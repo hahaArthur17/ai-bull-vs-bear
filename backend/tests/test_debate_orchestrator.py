@@ -350,3 +350,44 @@ def test_transient_event_failure_does_not_block_canonical_workflow() -> None:
             branch_id=session.active_branch_id,
         )
     ) == 7
+
+
+def test_queued_cancellation_is_immediate_idempotent_and_generation_scoped() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    broker = InMemoryDebateEventBroker()
+    provider = RecordingProvider()
+    orchestrator = DebateOrchestrator(
+        repository,
+        provider,
+        provider,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    wrong_generation = UUID("00000000-0000-4000-8000-000000000299")
+    with pytest.raises(DebateOrchestrationError, match="generation changed"):
+        orchestrator.request_cancellation(queued.id, queued.user_id, wrong_generation)
+    assert repository.get_session(queued.id, queued.user_id) == queued
+    assert repository.get_job(job.id) == job
+
+    cancelled = orchestrator.request_cancellation(
+        queued.id,
+        queued.user_id,
+        queued.active_generation_id,
+    )
+    repeated = orchestrator.request_cancellation(
+        queued.id,
+        queued.user_id,
+        queued.active_generation_id,
+    )
+
+    assert cancelled.status == "cancelled"
+    assert repeated == cancelled
+    assert cancelled.active_generation_id != queued.active_generation_id
+    assert repository.get_job(job.id).status == "cancelled"
+    assert [event.type for event in broker.replay(queued.id)] == [
+        "session.cancel_requested",
+        "session.cancelled",
+    ]

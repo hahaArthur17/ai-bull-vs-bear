@@ -20,6 +20,7 @@ from app.domain.debate import (
     DebateMessage,
     DebateMessageEvidence,
     DebateSession,
+    DebateSessionStatus,
     build_round_plan,
 )
 from app.domain.events import DebateEventType
@@ -33,10 +34,14 @@ from app.providers.streaming_debate import (
     WholeDraftTurnStreamAdapter,
     preview_text_chunks,
 )
-from app.repositories.debate_repository import DebateUnitOfWork
-from app.services.debate_job_state import complete_job, fail_job, start_job
+from app.repositories.debate_repository import DebateConcurrencyError, DebateUnitOfWork
+from app.services.debate_job_state import cancel_job, complete_job, fail_job, start_job
 from app.services.debate_event_broker import DebateEventPublisher
-from app.services.debate_state import attach_judge_message, transition_session
+from app.services.debate_state import (
+    attach_judge_message,
+    request_session_cancellation,
+    transition_session,
+)
 from app.services.debate_streaming import collect_debate_turn_stream
 
 
@@ -45,6 +50,10 @@ logger = logging.getLogger(__name__)
 
 class DebateOrchestrationError(RuntimeError):
     """Safe workflow failure that does not expose provider or persistence data."""
+
+
+class DebateGenerationCancelled(RuntimeError):
+    """Internal control flow for a generation invalidated during execution."""
 
 
 class DebateOrchestrator:
@@ -123,6 +132,7 @@ class DebateOrchestrator:
             )
 
             for turn in plan.turns:
+                self._assert_generation_active(running_session, running_status)
                 provider_request_count += 1
                 if turn.role == "judge":
                     running_session = self._append_judge(
@@ -148,6 +158,7 @@ class DebateOrchestrator:
                 )
 
             target_status = "awaiting_user" if round_number == 1 else "completed"
+            self._assert_generation_active(running_session, running_status)
             finished_session = transition_session(
                 running_session,
                 target_status,
@@ -173,7 +184,19 @@ class DebateOrchestrator:
                 },
             )
             return finished_session
+        except DebateGenerationCancelled:
+            return self._finish_cancelled_execution(
+                job.id,
+                session,
+                provider_request_count=provider_request_count,
+            )
         except Exception as exc:
+            if self._generation_was_invalidated(session):
+                return self._finish_cancelled_execution(
+                    job.id,
+                    session,
+                    provider_request_count=provider_request_count,
+                )
             self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
             raise DebateOrchestrationError("Debate job execution failed") from exc
 
@@ -238,6 +261,7 @@ class DebateOrchestrator:
             )
 
             for turn in plan.turns:
+                self._assert_generation_active(running_session, running_status)
                 provider_request_count += 1
                 if turn.role == "judge":
                     running_session = await asyncio.to_thread(
@@ -266,6 +290,7 @@ class DebateOrchestrator:
                 )
 
             target_status = "awaiting_user" if round_number == 1 else "completed"
+            self._assert_generation_active(running_session, running_status)
             finished_session = transition_session(
                 running_session,
                 target_status,
@@ -294,9 +319,71 @@ class DebateOrchestrator:
                 },
             )
             return finished_session
+        except DebateGenerationCancelled:
+            return self._finish_cancelled_execution(
+                job.id,
+                session,
+                provider_request_count=provider_request_count,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
         except Exception as exc:
+            if self._generation_was_invalidated(session):
+                return self._finish_cancelled_execution(
+                    job.id,
+                    session,
+                    provider_request_count=provider_request_count,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                )
             self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
             raise DebateOrchestrationError("Debate streaming job execution failed") from exc
+
+    def request_cancellation(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        generation_id: UUID,
+    ) -> DebateSession:
+        """Invalidate one expected generation and settle what can stop immediately."""
+
+        session = self.repository.get_session(session_id, user_id)
+        if session is None:
+            raise DebateOrchestrationError("Debate session not found")
+        if session.status in {"cancel_requested", "cancelled"}:
+            return self._settle_requested_cancellation(session)
+        if session.status in {"completed", "failed"}:
+            raise DebateOrchestrationError("A terminal Debate session cannot be cancelled")
+        if session.active_generation_id != generation_id:
+            raise DebateOrchestrationError("Debate generation changed before cancellation")
+
+        requested, cancelled_generation_id = request_session_cancellation(
+            session,
+            at=self._at_or_after(session.updated_at),
+        )
+        try:
+            requested = self.repository.update_session(
+                requested,
+                expected_status=session.status,
+            )
+        except DebateConcurrencyError as exc:
+            current = self.repository.get_session(session_id, user_id)
+            if current is not None and current.status in {"cancel_requested", "cancelled"}:
+                return self._settle_requested_cancellation(current)
+            raise DebateOrchestrationError(
+                "Debate state changed before cancellation"
+            ) from exc
+
+        self._emit(
+            requested.id,
+            "session.cancel_requested",
+            {
+                "status": requested.status,
+                "cancelled_generation_id": str(cancelled_generation_id),
+                "generation_id": str(requested.active_generation_id),
+            },
+        )
+        return self._settle_requested_cancellation(requested)
 
     def submit_challenge(
         self,
@@ -380,6 +467,7 @@ class DebateOrchestrator:
         exchange_number: int,
         user_intervention: str | None,
     ) -> DebateMessage:
+        self._assert_generation_active(session, self._running_status(round_number))
         target_id, sequence_number, message_id, request = self._prepare_turn(
             session,
             transcript,
@@ -391,6 +479,7 @@ class DebateOrchestrator:
         )
         draft = self.turn_provider.generate_turn(request)
         for delta_index, delta in enumerate(preview_text_chunks(draft.content), start=1):
+            self._assert_generation_active(session, self._running_status(round_number))
             self._emit_turn_delta(
                 session,
                 message_id=message_id,
@@ -425,6 +514,7 @@ class DebateOrchestrator:
         exchange_number: int,
         user_intervention: str | None,
     ) -> tuple[DebateMessage, DebateTurnStreamUsage]:
+        self._assert_generation_active(session, self._running_status(round_number))
         target_id, sequence_number, message_id, request = self._prepare_turn(
             session,
             transcript,
@@ -436,6 +526,7 @@ class DebateOrchestrator:
         )
 
         async def publish_delta(event: DebateTurnStreamDelta) -> None:
+            self._assert_generation_active(session, self._running_status(round_number))
             self._emit_turn_delta(
                 session,
                 message_id=message_id,
@@ -450,6 +541,7 @@ class DebateOrchestrator:
             request,
             on_delta=publish_delta,
         )
+        self._assert_generation_active(session, self._running_status(round_number))
         message = self._persist_turn_draft(
             session,
             target_id=target_id,
@@ -537,6 +629,7 @@ class DebateOrchestrator:
         provider_version: str,
         stream_mode: str,
     ) -> DebateMessage:
+        self._assert_generation_active(session, self._running_status(round_number))
         if draft.responds_to_message_id != target_id:
             raise DebateOrchestrationError("Turn provider returned the wrong rebuttal target")
         evidence_ids = self._validated_evidence_ids(
@@ -628,6 +721,7 @@ class DebateOrchestrator:
         phase: str,
         round_number: int,
     ) -> DebateSession:
+        self._assert_generation_active(session, self._running_status(round_number))
         request = DebateJudgeRequest(
             session_id=session.id,
             branch_id=session.active_branch_id,
@@ -650,6 +744,7 @@ class DebateOrchestrator:
             },
         )
         draft = self.judge_provider.generate_judgement(request)
+        self._assert_generation_active(session, self._running_status(round_number))
         evidence_ids = self._validated_evidence_ids(
             draft.evidence_ids,
             session.analysis_context.allowed_evidence_ids,
@@ -726,6 +821,7 @@ class DebateOrchestrator:
             current_session = self.repository.get_session(session_id, user_id)
             if current_session is not None and current_session.status not in {
                 "completed",
+                "cancel_requested",
                 "cancelled",
                 "failed",
             }:
@@ -762,6 +858,123 @@ class DebateOrchestrator:
                 self.repository.update_job(failed_job, expected_status=current_job.status)
         except Exception:
             pass
+
+    def _settle_requested_cancellation(self, session: DebateSession) -> DebateSession:
+        if session.status == "cancelled":
+            return session
+        if session.status != "cancel_requested":
+            raise DebateOrchestrationError("Debate cancellation is not pending")
+
+        active_job = self.repository.get_active_job(session.id, session.user_id)
+        if active_job is not None and active_job.status == "running":
+            return session
+        if active_job is not None:
+            cancelled = cancel_job(
+                active_job,
+                at=self._at_or_after(active_job.updated_at),
+            )
+            try:
+                self.repository.update_job(cancelled, expected_status=active_job.status)
+            except DebateConcurrencyError:
+                current_job = self.repository.get_active_job(session.id, session.user_id)
+                if current_job is not None and current_job.status == "running":
+                    return session
+                if current_job is not None:
+                    raise DebateOrchestrationError("Debate job cancellation conflicted")
+        return self._finalize_cancelled_session(session)
+
+    def _finish_cancelled_execution(
+        self,
+        job_id: UUID,
+        original_session: DebateSession,
+        *,
+        provider_request_count: int,
+        prompt_tokens: int = 0,
+        completion_tokens: int = 0,
+    ) -> DebateSession:
+        current_job = self.repository.get_job(job_id)
+        if current_job is not None and current_job.status in {"queued", "running"}:
+            cancelled_job = cancel_job(
+                current_job,
+                at=self._at_or_after(current_job.updated_at),
+                provider_request_count=provider_request_count,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+            )
+            try:
+                self.repository.update_job(
+                    cancelled_job,
+                    expected_status=current_job.status,
+                )
+            except DebateConcurrencyError:
+                pass
+
+        current_session = self.repository.get_session(
+            original_session.id,
+            original_session.user_id,
+        )
+        if current_session is None:
+            raise DebateOrchestrationError("Debate session not found")
+        if current_session.status == "cancel_requested":
+            return self._finalize_cancelled_session(current_session)
+        return current_session
+
+    def _finalize_cancelled_session(self, session: DebateSession) -> DebateSession:
+        if session.status == "cancelled":
+            return session
+        cancelled = transition_session(
+            session,
+            "cancelled",
+            at=self._at_or_after(session.updated_at),
+        )
+        try:
+            cancelled = self.repository.update_session(
+                cancelled,
+                expected_status="cancel_requested",
+            )
+        except DebateConcurrencyError as exc:
+            current = self.repository.get_session(session.id, session.user_id)
+            if current is not None and current.status == "cancelled":
+                return current
+            raise DebateOrchestrationError("Debate cancellation conflicted") from exc
+        self._emit(
+            cancelled.id,
+            "session.cancelled",
+            {
+                "status": cancelled.status,
+                "generation_id": str(cancelled.active_generation_id),
+            },
+        )
+        return cancelled
+
+    def _assert_generation_active(
+        self,
+        expected: DebateSession,
+        expected_status: DebateSessionStatus,
+    ) -> None:
+        current = self.repository.get_session(expected.id, expected.user_id)
+        if current is None:
+            raise DebateOrchestrationError("Debate session not found")
+        if (
+            current.status != expected_status
+            or current.active_branch_id != expected.active_branch_id
+            or current.active_generation_id != expected.active_generation_id
+        ):
+            raise DebateGenerationCancelled("Debate generation is no longer active")
+
+    def _generation_was_invalidated(self, original: DebateSession) -> bool:
+        try:
+            current = self.repository.get_session(original.id, original.user_id)
+            return current is not None and (
+                current.status in {"cancel_requested", "cancelled"}
+                or current.active_generation_id != original.active_generation_id
+            )
+        except Exception:
+            return False
+
+    @staticmethod
+    def _running_status(round_number: int) -> DebateSessionStatus:
+        return "running_round_1" if round_number == 1 else "running_round_2"
 
     @staticmethod
     def _validated_evidence_ids(
