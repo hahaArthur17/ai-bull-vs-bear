@@ -40,6 +40,8 @@ When resuming the project:
   persistence.
 - [`project-week-11.md`](project-week-11.md) — default-off live Groq Turn
   streaming, current model migration, and the resumable mobile SSE client.
+- [`project-week-12.md`](project-week-12.md) — generation-scoped cancellation,
+  atomic late-write prevention, and mobile stale-output rejection.
 
 ## Template for a new report
 

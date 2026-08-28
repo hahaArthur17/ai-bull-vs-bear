@@ -173,12 +173,34 @@ creation mode, so this section does not present it as an available live API.
 
 The code-only path now has one real Groq async Turn adapter and an authenticated
 Web/React Native stream client. Both are default-off and mock-tested; no live
-provider request was made. The preview still does not select live generation or
-mount the client in the current screen, and does not implement Queue
-publication, explanation, cancellation, cross-process replay, or Redis. In
-Supabase persistence mode it additionally requires the server-only secret and
-checked-in Debate migrations; production remains disabled until those are
-applied and verified.
+provider request was made. A generation-scoped cancel route is now implemented:
+
+```text
+POST /debates/{session_id}/cancel
+```
+
+Request:
+
+```json
+{"generation_id": "expected-active-generation-uuid"}
+```
+
+The owner-scoped route returns `202` with canonical `DebateSessionDetail`. It
+rotates the active generation before acknowledging cancellation, is idempotent
+after acceptance, returns `409` for a stale generation or non-cancellable
+completed/failed Session, and returns `404` across the ownership boundary.
+Queued work
+settles immediately. Running work may first return `cancel_requested`; the
+executor polls the canonical generation before deltas and persistence, cancels
+the Job, and moves the Session to `cancelled`. Provider transport cancellation
+is best effort, but late output cannot pass the repository's atomic
+status/generation check or become a new canonical message.
+
+The preview still does not select live generation or mount the client in the
+current screen, and does not implement Queue publication, explanation,
+cross-process replay, or Redis. In Supabase persistence mode it additionally
+requires the server-only secret and checked-in Debate migrations; production
+remains disabled until those are applied and verified.
 
 ## Planned portfolio API
 
@@ -186,10 +208,6 @@ The canonical request/response and SSE event shapes live in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
 
 ### Queue and streaming additions
-
-```text
-POST /debates/{session_id}/cancel
-```
 
 The later Queue phase will change `POST /debates` from the explicit synchronous
 preview contract to `202 Accepted` with session/job IDs and a stream path. It
@@ -205,8 +223,9 @@ POST /debates/{session_id}/explanations
 ```
 
 Explanation will not change Debate state. The implemented Challenge endpoint
-will later gain active-generation cancellation and Queue-backed Round 2 from
-the last complete message.
+will later gain Queue-backed Round 2 from the last complete message. The cancel
+route is already generation-scoped; the queued start contract is what will make
+mid-generation cancellation reachable from the active screen.
 
 ### Compatibility
 

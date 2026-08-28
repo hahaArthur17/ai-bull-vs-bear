@@ -262,6 +262,10 @@ Persistent application job ledger paired with the Supabase Queue:
 Implemented as an application ledger in the Phase 3 migration. It is not a
 replacement for the Phase 5 Queue transport.
 
+A partial unique index now permits at most one `queued` or `running` Job per
+Session. Completed, failed, and cancelled historical Jobs remain available for
+the ledger.
+
 The Queue payload contains only job/session IDs and safe trace metadata. It does
 not contain credentials, raw authorization headers, or protected prompt text.
 
@@ -284,6 +288,10 @@ Many-to-many citations between complete messages and the immutable allowed
 evidence set, with citation order and optional support-span metadata.
 
 Message and citations are written in one service-only transaction RPC.
+That RPC locks the owning Session row and rejects new writes for an inactive
+branch, invalidated generation, terminal/cancelling Session, or wrong running
+round. An already stored identical message remains idempotently readable after
+cancellation.
 
 ### `debate_interventions`
 

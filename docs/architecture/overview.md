@@ -150,10 +150,14 @@ The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the
 canonical message, gaps trigger a canonical reload, and expired cursors resume
 from the server-advertised latest sequence. It is an integration boundary, not
-yet the active screen path.
+yet the active screen path. Cancellation rotates the Session generation,
+clears matching mobile drafts, ignores late old-generation events, and checks
+status/generation again inside the atomic complete-message write. Queued Jobs
+cancel immediately; an executing Job settles when it observes the invalidated
+generation.
 
 Queue-backed asynchronous start, mounted live mobile consumption,
-cancellation, a recorded external-provider smoke test, and cross-process
+a recorded external-provider smoke test, explanation, and cross-process
 reconnect remain later work. The checked-in persistence migrations are still
 not applied to hosted Supabase, so production keeps V2 disabled.
 

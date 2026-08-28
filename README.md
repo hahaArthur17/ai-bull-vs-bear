@@ -30,7 +30,9 @@ baseline is maintained in
   unchanged. Preview deltas are buffered deterministic chunks, not live model
   tokens. A code-only async per-Turn contract and real default-off Groq adapter
   now validate true provider streams before persistence. A resumable mobile SSE
-  client exists but is not mounted in the current synchronous screen.
+  client and generation-scoped cancellation protocol exist but are not mounted
+  in the current synchronous screen. Cancellation rotates the active generation
+  and prevents late provider completion from becoming a canonical message.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.

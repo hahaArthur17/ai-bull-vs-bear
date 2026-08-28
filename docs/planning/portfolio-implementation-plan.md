@@ -1022,7 +1022,7 @@ Status: In progress
 - [x] Add authenticated Web/React Native stream client abstraction.
 - [x] Validate/correct citations at turn completion.
 - [x] Implement reconnect from canonical completed messages.
-- [ ] Add cancellation generation IDs and late-event rejection.
+- [x] Add cancellation generation IDs and late-event rejection.
 
 Completion rule: one local Live AI round streams in order, persists validated
 messages, reconnects safely, and never exposes partial output as a completed
@@ -1050,13 +1050,21 @@ It deliberately avoids Structured Outputs because Groq does not support that
 mode together with streaming. `b1ba884` exposes the latest event sequence on
 cursor expiry. `7057628` adds the authenticated XHR Web/React Native client,
 fragment-safe SSE parsing, temporary draft state, canonical completion
-replacement, generation filtering, cursor recovery, and five Node tests.
+replacement, generation filtering, cursor recovery, and the initial five Node
+tests.
+
+`4caa46c`, `ca9cf45`, and `9f772cf` add deterministic generation invalidation,
+one-active-Job persistence constraints, an atomic Supabase late-write guard,
+idempotent owner-scoped cancellation API, running-executor polling, safe Job and
+Session settlement, and mobile cancellation reduction. A controlled async test
+releases provider output only after cancellation and proves that no late
+message, completion event, or failure state is produced.
 
 This still does not satisfy the full Phase completion rule: the HTTP creation
 route remains synchronous and deterministic, no real Groq quota was consumed
 for a recorded live smoke test, the client module is not mounted in the current
-Debate screen, and cancellation is pending. No Queue durability, background
-execution, or production live-stream selection is claimed.
+Debate screen. No Queue durability, background execution, or production
+live-stream selection is claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
@@ -1223,14 +1231,14 @@ tests, and legacy `/analysis` remains compatible. Production remains disabled
 because the checked-in Debate migrations have not been applied or verified on
 hosted Supabase.
 
-The next code-only step is the cancellation generation boundary: accept a
-cancel request, prevent the active generation from persisting late completion,
-and make the stream client discard late-generation events. After that, Phase 5
-can make Session creation return before work begins through a durable Queue and
-Worker, which is the point where the current stream client can replace the
-synchronous Debate screen. Do not claim durable `202`, retry, Redis, or
-cross-process resume until their later phases and deployment checks are
-complete.
+The cancellation generation boundary is now implemented and verified. The next
+code-only step is Phase 5: make Session creation return before work begins
+through a durable Queue and Worker, which is the point where the current stream
+client and cancellation action can replace the synchronous Debate screen. Do
+not claim queued creation, retry, Redis, or cross-process resume until their
+later phases and deployment checks are complete. The existing cancellation
+endpoint returns `202` only for acceptance of a cancel request; it is not a
+claim that Debate creation is already asynchronous.
 
 ## 22. Primary implementation references
 

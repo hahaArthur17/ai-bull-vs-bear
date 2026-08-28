@@ -21,7 +21,9 @@ frame passes text, output-bound, rebuttal-target, evidence-ID, and financial
 language validation. `DEBATE_STREAMING_PROVIDER=deterministic` is the safe
 default; `groq` is an explicit, quota-consuming selection. The path is
 currently exercised with mocks, not selected by the HTTP preview or production
-configuration.
+configuration. The default-off API also exposes generation-scoped cancellation:
+queued work stops immediately, running work stops at its next generation check,
+and the repository rejects any late completion after cancellation.
 
 ## Run locally
 

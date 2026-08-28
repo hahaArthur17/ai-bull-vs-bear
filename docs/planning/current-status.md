@@ -13,13 +13,13 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Area | Status | Current state |
 | --- | --- | --- |
 | Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
-| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 preview adds Session, Message, Challenge, and resumable SSE event routes. |
+| Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 preview adds Session, Message, Challenge, generation-scoped Cancellation, and resumable SSE event routes. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 233 backend tests, 5 mobile stream tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 239 backend tests, 6 mobile stream tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -41,11 +41,15 @@ These are limitations of the current implementation, not completed features:
   deterministic draft rather than streamed live from a model. A real async
   Groq Turn provider and a resumable mobile stream-client module now exist
   behind explicit boundaries, but neither is selected by the API or current
-  Debate screen. There is no durable job queue, Worker lifecycle, cancellation
-  protocol, or cross-process cursor.
+  Debate screen. Generation-scoped cancellation is implemented across the API,
+  orchestrator, persistence adapters, events, and mobile reducer, but the
+  synchronous create route cannot expose an active generation to the screen in
+  time to interrupt it. There is no durable job queue, Worker lifecycle, or
+  cross-process cursor.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
-  free-form Challenge only at the Interim Judge pause; arbitrary term
-  explanation and mid-generation interruption are not implemented.
+  free-form Challenge only at the Interim Judge pause. Arbitrary term
+  explanation is not implemented, and the mid-generation cancellation protocol
+  is not yet reachable from the deployed screen.
 - The 7,695-row catalog, ranked search function, and coverage columns are
   implemented in repository migrations but have not yet been applied to the
   hosted Supabase project. Hosted production therefore still exposes its
@@ -248,15 +252,25 @@ The mobile `DebateStreamClient` now parses fragmented SSE over an authenticated
 XHR transport, maintains non-canonical draft text, replaces it only with a
 complete server message, rejects sequence/delta gaps and late generations, and
 reloads canonical Session/Messages at the recovery sequence advertised on a
-`409`. Five Node tests cover parser, reducer, gap, late-generation filtering,
+`409`. Six Node tests cover parser, reducer, gap, late-generation filtering,
 and cursor recovery behavior.
 Commits: `b1ba884` and `7057628`.
+
+Cancellation now rotates `active_generation_id` before acknowledgement,
+publishes `session.cancel_requested`/`session.cancelled`, cancels queued Jobs
+immediately, and makes running executors poll the canonical generation before
+emitting or persisting. Both repositories reject new late-generation messages;
+the Supabase transaction RPC takes a Session row lock for the same decision.
+The mobile reducer clears cancelled drafts and ignores later old-generation
+events. Controlled concurrency testing proves a provider completion released
+after cancellation persists no message and never marks the Session failed.
+Commits: `4caa46c`, `ca9cf45`, and `9f772cf`.
 
 The selected HTTP preview still returns a complete deterministic Turn before
 splitting it into labelled `buffered_compatibility` chunks. The client module is
 not mounted in `App.tsx`, because the current POST does not return a Session ID
-until generation has already finished. Cancellation and a durable Queue/Worker
-start path remain the next integration boundaries.
+until generation has already finished. A durable Queue/Worker start path is the
+next integration boundary.
 
 ## Boundaries that remain in force
 

@@ -97,7 +97,9 @@ heartbeats, and terminal state with resume cursors. A default-off Groq async
 Turn adapter and a resumable Web/React Native client now implement the two ends
 of the live stream boundary, but the current HTTP creation route and screen do
 not select them. Worker/Queue transport, term explanation, mounted live UI, and
-cancellation remain target behaviour.
+cross-process replay remain target behaviour. Generation-scoped cancellation
+now exists at the orchestrator, repository, API, event, and mobile reducer
+boundaries.
 
 ### Step 1: Build one immutable analysis context
 
@@ -184,8 +186,9 @@ The final Judge summarizes the complete active branch and the session moves to
 `completed`.
 
 The deterministic Phase 3 path implements this sequence on the current branch;
-live provider token streaming and cancellation generation handling remain
-Phase 4.
+the default-off Phase 4 path now implements live provider token streaming and
+cancellation generation handling in code, but the synchronous creation route
+does not yet make mid-generation intervention reachable from the screen.
 
 ### Step 7: Recover and audit
 
