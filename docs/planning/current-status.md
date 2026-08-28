@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 296 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 299 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -341,7 +341,13 @@ active conflicts return `409`, and limit exhaustion returns `429` with
 `Retry-After`. Sequential queued idempotency retries reuse their deterministic
 Session/Job without another count.
 
-Phase 6 remains in progress. The distributed idempotency lock, outage-level API
+A fourth small slice adds an owner-scoped, TTL-bound idempotency lock primitive.
+Its cache key hashes both the user and the client idempotency key, and tests
+cover competing owners, owner-safe release, and expiry recovery. It is not yet
+wired into `POST /debates`; the database uniqueness constraint remains the
+canonical fallback until that integration is completed.
+
+Phase 6 remains in progress. Idempotency-lock API integration, outage-level API
 proof, and recorded latency measurements remain.
 
 ## Boundaries that remain in force

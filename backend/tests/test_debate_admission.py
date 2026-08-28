@@ -8,6 +8,8 @@ from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.debate_admission import (
     ActiveDebateExists,
+    DebateIdempotencyGuard,
+    DebateIdempotencyLockBusy,
     DebateAdmissionPolicy,
     DebateRateLimitExceeded,
 )
@@ -28,6 +30,50 @@ def build_policy(
         active_ttl_seconds=1200,
         clock=lambda: 3700.0,
     )
+
+
+def test_idempotency_lock_key_is_scoped_hashed_and_validated() -> None:
+    guard = DebateIdempotencyGuard(LocalCacheBackend(), ttl_seconds=30)
+    raw_key = "client-request-42"
+
+    lock_key = guard.lock_key(USER_ID, raw_key)
+
+    assert str(USER_ID) not in lock_key
+    assert raw_key not in lock_key
+    assert lock_key == guard.lock_key(USER_ID, raw_key)
+    assert lock_key != guard.lock_key(USER_ID, "client-request-43")
+    with pytest.raises(ValueError, match="cannot be blank"):
+        guard.lock_key(USER_ID, "  ")
+    with pytest.raises(ValueError, match="TTL must be at least 1"):
+        DebateIdempotencyGuard(LocalCacheBackend(), ttl_seconds=0)
+
+
+def test_idempotency_lock_is_atomic_and_owner_safe() -> None:
+    backend = LocalCacheBackend()
+    first_guard = DebateIdempotencyGuard(backend, ttl_seconds=30)
+    second_guard = DebateIdempotencyGuard(backend, ttl_seconds=30)
+
+    reservation = first_guard.acquire(USER_ID, "client-request-42")
+
+    assert backend.release_lock(reservation.lock_key, "wrong-owner") is False
+    with pytest.raises(DebateIdempotencyLockBusy):
+        second_guard.acquire(USER_ID, "client-request-42")
+
+    assert first_guard.release(reservation) is True
+    assert second_guard.acquire(USER_ID, "client-request-42")
+
+
+def test_idempotency_lock_recovers_after_ttl_expiry() -> None:
+    now = [100.0]
+    backend = LocalCacheBackend(clock=lambda: now[0])
+    guard = DebateIdempotencyGuard(backend, ttl_seconds=10)
+
+    first = guard.acquire(USER_ID, "client-request-42")
+    now[0] += 10
+    second = guard.acquire(USER_ID, "client-request-42")
+
+    assert first.lock_key == second.lock_key
+    assert first.owner != second.owner
 
 
 def test_active_reservation_is_atomic_and_user_keys_are_hashed() -> None:

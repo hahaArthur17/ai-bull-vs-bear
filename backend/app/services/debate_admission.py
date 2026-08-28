@@ -28,6 +28,10 @@ class DebateRateLimitExceeded(DebateAdmissionError):
         self.retry_after_seconds = retry_after_seconds
 
 
+class DebateIdempotencyLockBusy(DebateAdmissionError):
+    """Another request currently owns the same idempotency key."""
+
+
 @dataclass(frozen=True)
 class DebateAdmissionReservation:
     user_id: UUID
@@ -39,6 +43,49 @@ class DebateAdmissionReservation:
     @property
     def remaining(self) -> int:
         return max(0, self.rate_limit - self.rate_count)
+
+
+@dataclass(frozen=True)
+class DebateIdempotencyReservation:
+    lock_key: str
+    owner: str
+
+
+class DebateIdempotencyGuard:
+    """Coordinate duplicate Debate requests without storing raw identifiers."""
+
+    def __init__(self, backend: CacheBackend, *, ttl_seconds: int) -> None:
+        if ttl_seconds < 1:
+            raise ValueError("idempotency lock TTL must be at least 1")
+        self.backend = backend
+        self.ttl_seconds = ttl_seconds
+
+    def acquire(
+        self,
+        user_id: UUID,
+        idempotency_key: str,
+    ) -> DebateIdempotencyReservation:
+        lock_key = self.lock_key(user_id, idempotency_key)
+        owner = f"reservation:{uuid4()}"
+        if not self.backend.acquire_lock(
+            lock_key,
+            owner,
+            ttl_seconds=self.ttl_seconds,
+        ):
+            raise DebateIdempotencyLockBusy(
+                "An equivalent Debate request is already being admitted"
+            )
+        return DebateIdempotencyReservation(lock_key=lock_key, owner=owner)
+
+    def release(self, reservation: DebateIdempotencyReservation) -> bool:
+        return self.backend.release_lock(reservation.lock_key, reservation.owner)
+
+    @staticmethod
+    def lock_key(user_id: UUID, idempotency_key: str) -> str:
+        if not idempotency_key.strip():
+            raise ValueError("idempotency key cannot be blank")
+        scope = f"{user_id}\0{idempotency_key}".encode("utf-8")
+        return f"lock:debate-idempotency:v1:{sha256(scope).hexdigest()}"
 
 
 class DebateAdmissionPolicy:
