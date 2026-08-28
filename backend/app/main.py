@@ -355,6 +355,9 @@ def _debate_detail(session: DebateSession) -> DebateSessionDetail:
     return DebateSessionDetail(
         session=session,
         messages=_debate_message_records(session),
+        execution_mode=(
+            "queued" if settings.debate_queue_enabled else "synchronous_preview"
+        ),
     )
 
 
@@ -751,12 +754,15 @@ def cancel_debate(
 def challenge_debate(
     session_id: UUID,
     request: DebateChallengeRequest,
+    response: Response,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> DebateMutationResponse:
     assert debate_preview_service is not None
     session = _debate_session_or_404(session_id, _debate_user_id(auth))
-    if session.status != "awaiting_user":
+    if session.status != "awaiting_user" and not (
+        settings.debate_queue_enabled and request.idempotency_key
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Debate session is not awaiting a user challenge",
@@ -780,12 +786,22 @@ def challenge_debate(
             detail="Selected text is not present in the target message",
         )
     try:
-        completed, job = debate_preview_service.submit_challenge_and_execute_round_two(
-            session=session,
-            selected_message_id=request.selected_message_id,
-            selected_text=request.selected_text,
-            question=request.question,
-        )
+        if settings.debate_queue_enabled:
+            completed, job = debate_preview_service.create_queued_round_two(
+                session=session,
+                selected_message_id=request.selected_message_id,
+                selected_text=request.selected_text,
+                question=request.question,
+                idempotency_key=request.idempotency_key,
+            )
+            response.status_code = status.HTTP_202_ACCEPTED
+        else:
+            completed, job = debate_preview_service.submit_challenge_and_execute_round_two(
+                session=session,
+                selected_message_id=request.selected_message_id,
+                selected_text=request.selected_text,
+                question=request.question,
+            )
     except DebateOrchestrationError as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -796,6 +812,7 @@ def challenge_debate(
         session=detail.session,
         messages=detail.messages,
         job_id=job.id,
+        execution_mode=detail.execution_mode,
     )
 
 

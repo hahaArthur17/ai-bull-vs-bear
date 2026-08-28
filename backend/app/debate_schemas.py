@@ -45,6 +45,12 @@ class DebateChallengeRequest(BaseModel):
     selected_message_id: UUID
     selected_text: str = Field(min_length=1, max_length=500)
     question: str = Field(min_length=1, max_length=500)
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
 
     @field_validator("selected_text", "question")
     @classmethod

@@ -202,6 +202,118 @@ def test_queued_create_rejects_reusing_key_for_different_request(
     assert conflict.status_code == 409
 
 
+def test_queued_round_two_returns_before_worker_and_is_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    headers = {"X-User-Id": "queue-round-two-owner"}
+    first = client.post(
+        "/debates",
+        headers=headers,
+        json={
+            "ticker": "AAPL",
+            "question": "Which evidence supports each side?",
+            "idempotency_key": "round_two_setup_001",
+        },
+    )
+    assert first.status_code == 202
+    assert main.debate_preview_service is not None
+    repository = main.debate_preview_service.repository
+    worker = DebateWorker(
+        repository,
+        repository,  # type: ignore[arg-type]
+        main.debate_preview_service.orchestrator,
+    )
+    assert asyncio.run(worker.run_once()).outcome == "completed"
+    awaiting = client.get(
+        f"/debates/{first.json()['session']['id']}",
+        headers=headers,
+    ).json()
+    target = awaiting["messages"][1]["message"]
+    request = {
+        "selected_message_id": target["id"],
+        "selected_text": target["content"][:40],
+        "question": "Does this rebuttal underweight the filing evidence?",
+        "idempotency_key": "round_two_challenge_001",
+    }
+
+    queued = client.post(
+        f"/debates/{first.json()['session']['id']}/interventions",
+        headers=headers,
+        json=request,
+    )
+    repeated = client.post(
+        f"/debates/{first.json()['session']['id']}/interventions",
+        headers=headers,
+        json=request,
+    )
+
+    assert queued.status_code == repeated.status_code == 202
+    assert repeated.json() == queued.json()
+    assert queued.json()["execution_mode"] == "queued"
+    assert queued.json()["session"]["status"] == "queued_round_2"
+    assert len(queued.json()["messages"]) == 8
+    assert queued.json()["messages"][-1]["message"]["role"] == "user"
+    round_two_job = repository.get_job(UUID(queued.json()["job_id"]))
+    assert round_two_job is not None and round_two_job.queue_message_id == 2
+
+    assert asyncio.run(worker.run_once()).outcome == "completed"
+    completed = client.get(
+        f"/debates/{first.json()['session']['id']}",
+        headers=headers,
+    )
+    assert completed.status_code == 200
+    assert completed.json()["execution_mode"] == "queued"
+    assert completed.json()["session"]["status"] == "completed"
+    assert len(completed.json()["messages"]) == 13
+
+
+def test_queued_round_two_rejects_conflicting_idempotency_reuse(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    headers = {"X-User-Id": "queue-round-two-conflict"}
+    first = client.post(
+        "/debates",
+        headers=headers,
+        json={
+            "ticker": "AAPL",
+            "idempotency_key": "round_two_setup_002",
+        },
+    )
+    assert main.debate_preview_service is not None
+    repository = main.debate_preview_service.repository
+    worker = DebateWorker(
+        repository,
+        repository,  # type: ignore[arg-type]
+        main.debate_preview_service.orchestrator,
+    )
+    assert asyncio.run(worker.run_once()).outcome == "completed"
+    awaiting = client.get(
+        f"/debates/{first.json()['session']['id']}",
+        headers=headers,
+    ).json()
+    target = awaiting["messages"][0]["message"]
+    request = {
+        "selected_message_id": target["id"],
+        "selected_text": target["content"][:40],
+        "question": "First bounded challenge?",
+        "idempotency_key": "round_two_challenge_002",
+    }
+    path = f"/debates/{first.json()['session']['id']}/interventions"
+    assert client.post(path, headers=headers, json=request).status_code == 202
+
+    conflict = client.post(
+        path,
+        headers=headers,
+        json={**request, "question": "A different bounded challenge?"},
+    )
+
+    assert conflict.status_code == 409
+
+
 def test_queue_enabled_app_lifespan_starts_and_stops_configured_workers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

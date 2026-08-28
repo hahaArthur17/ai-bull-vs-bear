@@ -257,6 +257,109 @@ class DebatePreviewService:
         )
         return self.orchestrator.execute_job(job.id), job
 
+    def create_queued_round_two(
+        self,
+        *,
+        session: DebateSession,
+        selected_message_id: UUID,
+        selected_text: str,
+        question: str,
+        idempotency_key: str | None,
+    ) -> tuple[DebateSession, DebateJob]:
+        if not isinstance(self.repository, DebateQueueRepository):
+            raise DebateRepositoryError("Debate Queue persistence is not configured")
+
+        if idempotency_key:
+            intervention_id = uuid5(session.id, f"intervention:{idempotency_key}")
+            job_id = uuid5(session.id, f"job:round-2:{idempotency_key}")
+            question_id = uuid5(
+                session.id,
+                f"intervention-message:{intervention_id}",
+            )
+            existing_job = self.repository.get_job(job_id)
+            if existing_job is not None:
+                current = self.repository.get_session(session.id, session.user_id)
+                transcript = self.repository.list_messages(
+                    session.id,
+                    session.user_id,
+                    branch_id=session.active_branch_id,
+                )
+                stored_question = next(
+                    (message for message in transcript if message.id == question_id),
+                    None,
+                )
+                if (
+                    current is None
+                    or stored_question is None
+                    or existing_job.session_id != session.id
+                    or existing_job.user_id != session.user_id
+                    or existing_job.job_type != "round_2"
+                    or existing_job.queue_message_id is None
+                    or stored_question.content != question
+                    or stored_question.metadata.get("selected_message_id")
+                    != str(selected_message_id)
+                    or stored_question.metadata.get("selected_text") != selected_text
+                    or stored_question.metadata.get("intervention_id")
+                    != str(intervention_id)
+                ):
+                    raise DebateConcurrencyError(
+                        "Debate challenge idempotency key conflicts with another request"
+                    )
+                return current, existing_job
+            job_idempotency_key = f"round-2:{session.id}:{idempotency_key}"
+        else:
+            intervention_id = self.id_factory()
+            job_id = self.id_factory()
+            job_idempotency_key = f"round-2:{session.id}:{intervention_id}"
+
+        created_at = max(self.clock(), session.updated_at)
+        intervention = DebateIntervention(
+            id=intervention_id,
+            session_id=session.id,
+            user_id=session.user_id,
+            selected_message_id=selected_message_id,
+            selected_text=selected_text,
+            question=question,
+            mode="challenge",
+            created_at=created_at,
+        )
+        job = DebateJob(
+            id=job_id,
+            session_id=session.id,
+            user_id=session.user_id,
+            job_type="round_2",
+            idempotency_key=job_idempotency_key,
+            available_at=created_at,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        queued, user_question = self.orchestrator.prepare_challenge(intervention, job)
+        message = DebateQueueMessage(
+            job_id=job.id,
+            session_id=queued.id,
+            job_type=job.job_type,
+            trace_id=f"trace_{job.id.hex}",
+            enqueued_at=created_at,
+        )
+        queued, job = self.repository.create_round_two_with_job_and_enqueue(
+            intervention,
+            user_question,
+            queued,
+            job,
+            message,
+        )
+        self._emit(
+            queued.id,
+            "job.queued",
+            {
+                "job_id": str(job.id),
+                "job_type": job.job_type,
+                "queue_message_id": job.queue_message_id,
+                "generation_id": str(queued.active_generation_id),
+            },
+        )
+        return queued, job
+
     def _emit(
         self,
         session_id: UUID,
