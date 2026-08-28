@@ -1121,7 +1121,7 @@ Status: In progress
 - [x] Add per-user rate limits and one-active-Debate rule.
 - [x] Add distributed idempotency lock with database unique fallback.
 - [x] Add cache status instrumentation.
-- [ ] Prove correct Redis-outage degradation.
+- [x] Prove correct Redis-outage degradation.
 - [ ] Record before/after latency and call-count evidence.
 
 Progress evidence: `7058acd` adds Redis/local TTL, lock, and counter adapters,
@@ -1152,6 +1152,13 @@ success, failure, or TTL expiry safely releases or recovers ownership.
 Deterministic Session/Job IDs, the PostgreSQL transaction advisory lock, and
 the unique Job idempotency key remain the canonical fallback when Redis is
 disabled or degraded.
+
+The fifth slice forces every Redis read, write, lock, counter, release, and
+health probe to time out at the API boundary. Public stock search still returns
+and reuses correct process-local data, while two queued submissions still
+produce one canonical Session/Job and one admission count. `GET /health/cache`
+exposes safe degraded mode, reachability, and operation counts without Redis
+URLs, cache keys, or exception details.
 
 Completion rule: cache and locks create measurable effects, while disabling
 Redis does not corrupt or disable canonical workflows.

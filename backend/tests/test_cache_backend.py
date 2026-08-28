@@ -17,6 +17,21 @@ class BrokenBackend(LocalCacheBackend):
     def set(self, key: str, value: str, *, ttl_seconds: int) -> None:
         raise TimeoutError("private endpoint detail")
 
+    def delete(self, key: str) -> None:
+        raise TimeoutError("private endpoint detail")
+
+    def acquire_lock(self, key: str, owner: str, *, ttl_seconds: int) -> bool:
+        raise TimeoutError("private endpoint detail")
+
+    def release_lock(self, key: str, owner: str) -> bool:
+        raise TimeoutError("private endpoint detail")
+
+    def increment_with_expiry(self, key: str, *, ttl_seconds: int) -> int:
+        raise TimeoutError("private endpoint detail")
+
+    def ping(self) -> bool:
+        raise TimeoutError("private endpoint detail")
+
 
 class FakeRedisClient:
     def __init__(self) -> None:
@@ -89,11 +104,12 @@ def test_redis_failure_degrades_without_leaking_key_or_exception_message(
 
     backend.set("private:user@example.com", "safe-value", ttl_seconds=30)
     assert backend.get("private:user@example.com") == "safe-value"
-    health = backend.health()
+    health = backend.health(probe=True)
 
     assert health.mode == "degraded"
     assert health.redis_configured is True
-    assert health.degraded_operations == 2
+    assert health.redis_reachable is False
+    assert health.degraded_operations == 3
     assert "private:user@example.com" not in caplog.text
     assert "private endpoint detail" not in caplog.text
     assert "TimeoutError" in caplog.text

@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 301 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 303 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -354,8 +354,16 @@ transaction advisory lock, and the unique `debate_jobs.idempotency_key`
 constraint remain the final duplicate-admission fallback. The SQL contract
 tests verify both database protections.
 
-Phase 6 remains in progress. Outage-level API proof and recorded latency
-measurements remain.
+A fifth slice proves outage behaviour at the API boundary with every simulated
+Redis operation timing out. Stock search still returns correct data and reuses
+the process-local cache; queued duplicate submissions still resolve to one
+canonical Session/Job and consume one admission. Both paths expose degraded
+state without returning Redis errors. `GET /health/cache` reports only safe
+mode, reachability, and degraded-operation counts, with an optional bounded
+probe; it never returns the Redis URL, cache keys, or exception messages.
+
+Phase 6 remains in progress. Recorded latency and call-count measurements
+remain.
 
 ## Boundaries that remain in force
 

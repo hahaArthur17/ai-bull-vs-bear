@@ -19,6 +19,7 @@ from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
 from app.services.response_cache import JsonResponseCache
+from test_cache_backend import BrokenBackend
 from test_debate_orchestrator import build_queued_round_one
 
 
@@ -460,6 +461,48 @@ def test_queued_create_releases_idempotency_lock_after_context_failure(
     main.debate_idempotency_guard.release(recovered)
 
     assert response.status_code == 404
+
+
+def test_queued_create_remains_idempotent_during_redis_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    fallback = LocalCacheBackend()
+    backend = ResilientCacheBackend(BrokenBackend(), fallback=fallback)
+    admission_policy = DebateAdmissionPolicy(
+        backend,
+        rate_limit=3,
+        rate_window_seconds=3600,
+        active_ttl_seconds=1200,
+        clock=lambda: 3700.0,
+    )
+    monkeypatch.setattr(main, "cache_backend", backend)
+    monkeypatch.setattr(main, "debate_admission_policy", admission_policy)
+    monkeypatch.setattr(
+        main,
+        "debate_idempotency_guard",
+        DebateIdempotencyGuard(backend, ttl_seconds=120),
+    )
+    request = {
+        "ticker": "AAPL",
+        "question": "Which bounded factors remain during an outage?",
+        "idempotency_key": "classroom_redis_outage",
+    }
+    headers = {"X-User-Id": "queue-outage-owner"}
+
+    first = client.post("/debates", headers=headers, json=request)
+    repeated = client.post("/debates", headers=headers, json=request)
+    health = client.get("/health/cache", params={"probe": "true"})
+
+    assert first.status_code == repeated.status_code == 202
+    assert repeated.json() == first.json()
+    user_id = UUID(first.json()["session"]["user_id"])
+    assert fallback.get(admission_policy.rate_key(user_id, 1)) == "1"
+    assert health.status_code == 200
+    assert health.json()["status"] == "degraded"
+    assert health.json()["redis_reachable"] is False
+    assert health.json()["degraded_operations"] >= 9
 
 
 def test_queued_create_rejects_reusing_key_for_different_request(

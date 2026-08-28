@@ -1,6 +1,5 @@
 import pytest
 from fastapi.testclient import TestClient
-import pytest
 
 from app.main import app, settings
 from app.schemas import MarketQuote
@@ -8,6 +7,7 @@ from app.services.analysis import AnalysisService
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.demo_store import DemoStore
 from app.services.response_cache import JsonResponseCache
+from test_cache_backend import BrokenBackend
 
 
 client = TestClient(app)
@@ -23,6 +23,13 @@ def demo_repository(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_health_and_stock_endpoints() -> None:
     assert client.get("/health").json()["status"] == "ok"
+    assert client.get("/health/cache").json() == {
+        "status": "ok",
+        "mode": "local",
+        "redis_configured": False,
+        "redis_reachable": None,
+        "degraded_operations": 0,
+    }
     stocks = client.get("/stocks").json()
     assert {stock["ticker"] for stock in stocks} == {"AAPL", "GOOG", "NVDA", "TSLA"}
     assert client.get("/stocks/AAPL/indicators").status_code == 200
@@ -31,6 +38,49 @@ def test_health_and_stock_endpoints() -> None:
     assert client.get("/stocks/AAPL/price-history").json() == []
     assert client.get("/macro/series").json() == []
     assert client.get("/macro/series/vix").json() == []
+
+
+def test_stock_search_survives_redis_outage_and_exposes_degraded_health(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app import main
+
+    class CountingStore(DemoStore):
+        calls = 0
+
+        def list_stocks(self, query: str | None = None, limit: int = 20):
+            self.calls += 1
+            return super().list_stocks(query, limit)
+
+    repository = CountingStore()
+    backend = ResilientCacheBackend(
+        BrokenBackend(),
+        fallback=LocalCacheBackend(),
+    )
+    cache = JsonResponseCache(backend, enabled=True)
+    monkeypatch.setattr(main, "store", repository)
+    monkeypatch.setattr(main, "cache_backend", backend)
+    monkeypatch.setattr(main, "response_cache", cache)
+
+    first = client.get("/stocks", params={"q": "aapl"})
+    repeated = client.get("/stocks", params={"q": "aapl"})
+    health = client.get("/health/cache", params={"probe": "true"})
+
+    assert first.status_code == repeated.status_code == 200
+    assert first.json() == repeated.json()
+    assert [stock["ticker"] for stock in repeated.json()] == ["AAPL"]
+    assert first.headers["x-cache-status"] == "DEGRADED"
+    assert repeated.headers["x-cache-status"] == "DEGRADED"
+    assert repository.calls == 1
+    assert cache.metrics.snapshot()["DEGRADED"] == 2
+    assert health.status_code == 200
+    assert health.json() == {
+        "status": "degraded",
+        "mode": "degraded",
+        "redis_configured": True,
+        "redis_reachable": False,
+        "degraded_operations": 4,
+    }
 
 
 def test_catalog_search_is_limited_and_performs_no_external_request(

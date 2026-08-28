@@ -270,6 +270,20 @@ def health() -> dict[str, str]:
     return {"status": "ok", "environment": settings.environment, "provider": settings.analysis_provider}
 
 
+@app.get("/health/cache")
+def cache_health(
+    probe: bool = Query(default=False),
+) -> dict[str, object]:
+    health = cache_backend.health(probe=probe)
+    return {
+        "status": "degraded" if health.mode == "degraded" else "ok",
+        "mode": health.mode,
+        "redis_configured": health.redis_configured,
+        "redis_reachable": health.redis_reachable,
+        "degraded_operations": health.degraded_operations,
+    }
+
+
 def _require_stock(ticker: str) -> Stock:
     stock = store.get_stock(ticker)
     if stock is None:

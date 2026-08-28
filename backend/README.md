@@ -54,8 +54,9 @@ the default until a real provider is selected explicitly.
 `redis://` or `rediss://` URL, stock search and the public stock bundle use the
 remote cache with bounded timeouts and a process-local fallback. Responses
 expose `X-Cache-Status`; Redis failure must not prevent canonical repository
-reads. The current slice does not use Redis as Debate persistence or Queue
-transport.
+reads. `GET /health/cache` exposes only safe mode, reachability, and degraded
+operation counts; add `?probe=true` for a bounded connectivity check. The
+current slice does not use Redis as Debate persistence or Queue transport.
 
 The default V2 request (`question=null`) may also reuse its public normalized
 `FactorSnapshot` for six hours when Redis caching is enabled. Any custom
