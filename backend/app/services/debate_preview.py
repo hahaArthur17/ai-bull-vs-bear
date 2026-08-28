@@ -2,28 +2,32 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from datetime import datetime, timezone
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import JsonValue
 
 from app.domain.debate import DebateIntervention, DebateSession, DebateSide
 from app.domain.events import DebateEventType
 from app.domain.factors import AnalysisContext, FactorSnapshot
-from app.domain.jobs import DebateJob
-from app.providers.debate_agents import DebateJudgeProvider, DebateTurnProvider
-from app.repositories.debate_repository import DebateUnitOfWork
+from app.domain.jobs import DebateJob, DebateQueueMessage
+from app.providers.debate_agents import (
+    DebateJudgeProvider,
+    DebateStreamingTurnProvider,
+    DebateTurnProvider,
+)
+from app.repositories.debate_repository import (
+    DebateConcurrencyError,
+    DebateQueueRepository,
+    DebateRepositoryError,
+    DebateUnitOfWork,
+)
 from app.services.debate_event_broker import DebateEventPublisher
 from app.services.debate_orchestrator import DebateOrchestrator
 from app.services.debate_state import transition_session
 
 
 class DebatePreviewService:
-    """Synchronous Phase 3 adapter around the durable Debate domain.
-
-    This service deliberately has no Queue or streaming behavior. It exists so
-    the default-off API can exercise the canonical Session/Message workflow
-    before later phases replace synchronous execution with a Worker.
-    """
+    """Default-off admission facade for synchronous and queued Debate paths."""
 
     def __init__(
         self,
@@ -31,6 +35,7 @@ class DebatePreviewService:
         turn_provider: DebateTurnProvider,
         judge_provider: DebateJudgeProvider,
         *,
+        streaming_turn_provider: DebateStreamingTurnProvider | None = None,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
@@ -42,6 +47,7 @@ class DebatePreviewService:
             repository,
             turn_provider,
             judge_provider,
+            streaming_turn_provider=streaming_turn_provider,
             event_publisher=event_publisher,
             clock=self.clock,
         )
@@ -102,6 +108,112 @@ class DebatePreviewService:
             {"job_id": str(job.id), "job_type": job.job_type},
         )
         return self.orchestrator.execute_job(job.id), job
+
+    def create_queued_round_one(
+        self,
+        *,
+        user_id: UUID,
+        stock_id: int,
+        ticker: str,
+        opening_side: DebateSide,
+        question: str | None,
+        idempotency_key: str | None,
+        analysis_context: AnalysisContext,
+        factor_snapshot: FactorSnapshot,
+    ) -> tuple[DebateSession, DebateJob]:
+        if not isinstance(self.repository, DebateQueueRepository):
+            raise DebateRepositoryError("Debate Queue persistence is not configured")
+
+        created_at = self.clock()
+        if idempotency_key:
+            session_id = uuid5(user_id, f"debate:{idempotency_key}")
+            branch_id = uuid5(session_id, "branch:initial")
+            generation_id = uuid5(session_id, "generation:round-1")
+            job_id = uuid5(session_id, "job:round-1")
+            existing_session = self.repository.get_session(session_id, user_id)
+            existing_job = self.repository.get_job(job_id)
+            if existing_session is not None or existing_job is not None:
+                if (
+                    existing_session is None
+                    or existing_job is None
+                    or existing_session.stock_id != stock_id
+                    or existing_session.ticker != ticker.upper()
+                    or existing_session.opening_side != opening_side
+                    or existing_session.initial_question != question
+                    or existing_job.session_id != session_id
+                    or existing_job.job_type != "round_1"
+                ):
+                    raise DebateConcurrencyError(
+                        "Debate idempotency key conflicts with another request"
+                    )
+                return existing_session, existing_job
+            job_idempotency_key = f"round-1:{user_id}:{idempotency_key}"
+        else:
+            session_id = self.id_factory()
+            branch_id = self.id_factory()
+            generation_id = self.id_factory()
+            job_id = self.id_factory()
+            job_idempotency_key = f"round-1:{session_id}:{branch_id}"
+
+        session = DebateSession(
+            id=session_id,
+            user_id=user_id,
+            stock_id=stock_id,
+            ticker=ticker,
+            mode="demo",
+            opening_side=opening_side,
+            initial_question=question,
+            active_branch_id=branch_id,
+            active_generation_id=generation_id,
+            analysis_context=analysis_context,
+            factor_snapshot=factor_snapshot,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        queued = transition_session(session, "queued_round_1", at=created_at)
+        job = DebateJob(
+            id=job_id,
+            session_id=queued.id,
+            user_id=user_id,
+            job_type="round_1",
+            idempotency_key=job_idempotency_key,
+            available_at=created_at,
+            created_at=created_at,
+            updated_at=created_at,
+        )
+        message = DebateQueueMessage(
+            job_id=job.id,
+            session_id=queued.id,
+            job_type=job.job_type,
+            trace_id=f"trace_{job.id.hex}",
+            enqueued_at=created_at,
+        )
+        queued, job = self.repository.create_session_with_job_and_enqueue(
+            queued,
+            job,
+            message,
+        )
+        self._emit(
+            queued.id,
+            "session.created",
+            {
+                "status": queued.status,
+                "ticker": queued.ticker,
+                "generation_id": str(queued.active_generation_id),
+                "execution_mode": "queued",
+            },
+        )
+        self._emit(
+            queued.id,
+            "job.queued",
+            {
+                "job_id": str(job.id),
+                "job_type": job.job_type,
+                "queue_message_id": job.queue_message_id,
+                "generation_id": str(queued.active_generation_id),
+            },
+        )
+        return queued, job
 
     def submit_challenge_and_execute_round_two(
         self,

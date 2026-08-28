@@ -5,7 +5,16 @@ from collections.abc import Iterator
 from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid5
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request, status
+from fastapi import (
+    Depends,
+    FastAPI,
+    Header,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    status,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 
@@ -21,6 +30,7 @@ from app.debate_schemas import (
 from app.domain.debate import DebateSession
 from app.domain.events import DebateEvent
 from app.providers.current_factors import build_current_factor_registry
+from app.providers.debate_factory import build_debate_streaming_turn_provider
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
@@ -77,6 +87,11 @@ else:
     store = DemoStore()
 analysis_service = AnalysisService(store)
 debate_event_broker = InMemoryDebateEventBroker()
+debate_streaming_turn_provider = (
+    build_debate_streaming_turn_provider(settings)
+    if settings.debate_queue_enabled
+    else None
+)
 debate_preview_service: DebatePreviewService | None
 if settings.persistence_mode.lower().strip() == "supabase":
     if settings.supabase_url and settings.supabase_secret_key:
@@ -89,6 +104,7 @@ if settings.persistence_mode.lower().strip() == "supabase":
             debate_repository,
             debate_provider,
             debate_provider,
+            streaming_turn_provider=debate_streaming_turn_provider,
             event_publisher=debate_event_broker,
         )
     else:
@@ -100,6 +116,7 @@ else:
         debate_repository,
         debate_provider,
         debate_provider,
+        streaming_turn_provider=debate_streaming_turn_provider,
         event_publisher=debate_event_broker,
     )
 quote_cache = (
@@ -506,6 +523,7 @@ def remove_watchlist(
 )
 def create_debate(
     request: DebateCreateRequest,
+    response: Response,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> DebateMutationResponse:
@@ -517,17 +535,33 @@ def create_debate(
         )
     assert debate_preview_service is not None
     context, factor_snapshot = _debate_context(stock.ticker, request.question)
+    execution_mode = "synchronous_preview"
     try:
         stock_id = store.get_stock_record_id(stock.ticker, auth.access_token)
-        session, job = debate_preview_service.create_and_execute_round_one(
-            user_id=_debate_user_id(auth),
-            stock_id=stock_id,
-            ticker=stock.ticker,
-            opening_side=request.opening_side,
-            question=request.question,
-            analysis_context=context,
-            factor_snapshot=factor_snapshot,
-        )
+        user_id = _debate_user_id(auth)
+        if settings.debate_queue_enabled:
+            session, job = debate_preview_service.create_queued_round_one(
+                user_id=user_id,
+                stock_id=stock_id,
+                ticker=stock.ticker,
+                opening_side=request.opening_side,
+                question=request.question,
+                idempotency_key=request.idempotency_key,
+                analysis_context=context,
+                factor_snapshot=factor_snapshot,
+            )
+            response.status_code = status.HTTP_202_ACCEPTED
+            execution_mode = "queued"
+        else:
+            session, job = debate_preview_service.create_and_execute_round_one(
+                user_id=user_id,
+                stock_id=stock_id,
+                ticker=stock.ticker,
+                opening_side=request.opening_side,
+                question=request.question,
+                analysis_context=context,
+                factor_snapshot=factor_snapshot,
+            )
     except ValueError as exc:
         raise HTTPException(status_code=404, detail="Stock not found") from exc
     except DebateOrchestrationError as exc:
@@ -540,6 +574,7 @@ def create_debate(
         session=detail.session,
         messages=detail.messages,
         job_id=job.id,
+        execution_mode=execution_mode,
     )
 
 

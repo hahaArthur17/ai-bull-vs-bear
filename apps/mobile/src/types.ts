@@ -249,7 +249,7 @@ export type DebateSessionSummary = {
 export type DebateSessionDetail = {
   session: DebateSessionSummary;
   messages: DebateMessageRecord[];
-  execution_mode: "synchronous_preview";
+  execution_mode: "synchronous_preview" | "queued";
 };
 
 export type DebateEventType =

@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     # Phase 3 preview only. The legacy /analysis API remains the public default
     # until streaming and durable Queue transport are implemented and verified.
     debate_workflow_v2: bool = False
+    # Queue admission remains separately default-off until the migration and
+    # same-process Worker are verified in the target Supabase project.
+    debate_queue_enabled: bool = False
+    debate_worker_visibility_timeout_seconds: int = Field(default=900, ge=30, le=3600)
+    debate_worker_concurrency: int = Field(default=1, ge=1, le=2)
     # The async Debate provider is an independent, explicit opt-in. Keeping it
     # deterministic prevents a feature-flag change from spending model quota.
     debate_streaming_provider: str = "deterministic"

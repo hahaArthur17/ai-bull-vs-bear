@@ -17,6 +17,12 @@ class DebateCreateRequest(BaseModel):
     ticker: str = Field(min_length=1, max_length=16)
     question: str | None = Field(default=None, max_length=500)
     opening_side: DebateSide = "bull"
+    idempotency_key: str | None = Field(
+        default=None,
+        min_length=8,
+        max_length=80,
+        pattern=r"^[A-Za-z0-9_-]+$",
+    )
 
     @field_validator("ticker")
     @classmethod
@@ -61,7 +67,7 @@ class DebateMessageRecord(BaseModel):
 class DebateSessionDetail(BaseModel):
     session: DebateSession
     messages: tuple[DebateMessageRecord, ...] = ()
-    execution_mode: Literal["synchronous_preview"] = "synchronous_preview"
+    execution_mode: Literal["synchronous_preview", "queued"] = "synchronous_preview"
 
 
 class DebateMutationResponse(DebateSessionDetail):

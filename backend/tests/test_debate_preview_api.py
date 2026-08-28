@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from uuid import uuid4
+import asyncio
+from uuid import UUID, uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,6 +12,7 @@ from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.analysis import AnalysisService
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
+from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
 from test_debate_orchestrator import build_queued_round_one
 
@@ -36,6 +38,7 @@ def isolated_preview(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(main, "debate_preview_service", service)
     monkeypatch.setattr(main.settings, "auth_mode", "demo")
     monkeypatch.setattr(main.settings, "debate_workflow_v2", False)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", False)
 
 
 def enable_preview(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -125,6 +128,78 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
         "execution_mode": "synchronous_preview",
     }
     assert len(client.get(f"/debates/{session_id}/messages", headers=headers).json()) == 7
+
+
+def test_queued_create_returns_before_worker_and_is_http_idempotent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    request = {
+        "ticker": "AAPL",
+        "question": "Which dated factors support each side?",
+        "opening_side": "bull",
+        "idempotency_key": "classroom_demo_001",
+    }
+    headers = {"X-User-Id": "queue-owner"}
+
+    first = client.post("/debates", headers=headers, json=request)
+    repeated = client.post("/debates", headers=headers, json=request)
+
+    assert first.status_code == 202
+    assert repeated.status_code == 202
+    assert repeated.json() == first.json()
+    assert first.json()["execution_mode"] == "queued"
+    assert first.json()["session"]["status"] == "queued_round_1"
+    assert first.json()["messages"] == []
+    assert main.debate_preview_service is not None
+    repository = main.debate_preview_service.repository
+    admitted_job = repository.get_job(UUID(first.json()["job_id"]))
+    assert admitted_job is not None and admitted_job.queue_message_id == 1
+    assert [
+        event.type
+        for event in main.debate_event_broker.replay(
+            UUID(first.json()["session"]["id"])
+        )
+    ] == ["session.created", "job.queued"]
+
+    worker = DebateWorker(
+        repository,
+        repository,  # type: ignore[arg-type]
+        main.debate_preview_service.orchestrator,
+    )
+    result = asyncio.run(worker.run_once())
+    completed = client.get(
+        f"/debates/{first.json()['session']['id']}",
+        headers=headers,
+    )
+
+    assert result.outcome == "completed"
+    assert completed.status_code == 200
+    assert completed.json()["session"]["status"] == "awaiting_user"
+    assert len(completed.json()["messages"]) == 7
+
+
+def test_queued_create_rejects_reusing_key_for_different_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    headers = {"X-User-Id": "queue-owner"}
+    base = {
+        "ticker": "AAPL",
+        "question": "First bounded question?",
+        "idempotency_key": "classroom_demo_002",
+    }
+    assert client.post("/debates", headers=headers, json=base).status_code == 202
+
+    conflict = client.post(
+        "/debates",
+        headers=headers,
+        json={**base, "question": "A different request with the same key?"},
+    )
+
+    assert conflict.status_code == 409
 
 
 def test_catalog_only_stock_is_rejected_before_session_creation(
