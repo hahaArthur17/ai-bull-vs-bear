@@ -139,3 +139,33 @@ def test_worker_archives_a_safely_terminalized_permanent_failure() -> None:
     assert idle.outcome == "idle"
     assert repository.get_job(job.id).status == "failed"
     assert repository.get_session(session.id, session.user_id).status == "failed"
+
+
+def test_worker_loop_stops_cleanly_while_queue_is_idle() -> None:
+    async def run_scenario() -> None:
+        repository = InMemoryDebateRepository()
+        worker = build_worker(repository)
+        stop_event = asyncio.Event()
+        task = asyncio.create_task(
+            worker.run_forever(stop_event, poll_seconds=0.1)
+        )
+        await asyncio.sleep(0)
+        stop_event.set()
+        await asyncio.wait_for(task, timeout=1)
+
+    asyncio.run(run_scenario())
+
+
+def test_worker_loop_rejects_an_unsafe_poll_interval() -> None:
+    repository = InMemoryDebateRepository()
+    worker = build_worker(repository)
+
+    async def run_scenario() -> None:
+        try:
+            await worker.run_forever(asyncio.Event(), poll_seconds=0)
+        except ValueError as exc:
+            assert str(exc) == "Worker poll interval is outside safe bounds"
+        else:
+            raise AssertionError("Expected an unsafe poll interval to be rejected")
+
+    asyncio.run(run_scenario())

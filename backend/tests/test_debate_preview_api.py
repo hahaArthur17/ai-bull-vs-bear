@@ -202,6 +202,36 @@ def test_queued_create_rejects_reusing_key_for_different_request(
     assert conflict.status_code == 409
 
 
+def test_queue_enabled_app_lifespan_starts_and_stops_configured_workers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    monkeypatch.setattr(main.settings, "debate_worker_concurrency", 2)
+    lifecycle_events: list[str] = []
+
+    class FakeWorker:
+        async def run_forever(
+            self,
+            stop_event: asyncio.Event,
+            *,
+            poll_seconds: float,
+        ) -> None:
+            lifecycle_events.append(f"started:{poll_seconds}")
+            try:
+                await stop_event.wait()
+            finally:
+                lifecycle_events.append("stopped")
+
+    monkeypatch.setattr(main, "build_configured_debate_worker", FakeWorker)
+
+    with TestClient(main.app) as lifecycle_client:
+        assert lifecycle_client.get("/health").status_code == 200
+        assert len([event for event in lifecycle_events if event.startswith("started:")]) == 2
+
+    assert lifecycle_events.count("stopped") == 2
+
+
 def test_catalog_only_stock_is_rejected_before_session_creation(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

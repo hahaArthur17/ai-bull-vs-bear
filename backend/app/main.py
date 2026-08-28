@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+from contextlib import asynccontextmanager
 import logging
 from collections.abc import Iterator
 from typing import Annotated
@@ -34,6 +36,7 @@ from app.providers.debate_factory import build_debate_streaming_turn_provider
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
+    DebateQueueRepository,
     DebateRepositoryError,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
@@ -66,6 +69,7 @@ from app.services.debate_event_broker import (
     format_debate_sse,
 )
 from app.services.debate_preview import DebatePreviewService
+from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
@@ -125,10 +129,52 @@ quote_cache = (
     else None
 )
 
+
+def build_configured_debate_worker() -> DebateWorker:
+    if debate_preview_service is None:
+        raise RuntimeError("Debate Queue Worker persistence is not configured")
+    repository = debate_preview_service.repository
+    if not isinstance(repository, DebateQueueRepository):
+        raise RuntimeError("Debate Queue transport is not configured")
+    return DebateWorker(
+        repository,
+        repository,
+        debate_preview_service.orchestrator,
+        visibility_timeout_seconds=settings.debate_worker_visibility_timeout_seconds,
+    )
+
+
+@asynccontextmanager
+async def app_lifespan(_app: FastAPI):
+    if not settings.debate_queue_enabled:
+        yield
+        return
+
+    stop_event = asyncio.Event()
+    worker = build_configured_debate_worker()
+    tasks = [
+        asyncio.create_task(
+            worker.run_forever(
+                stop_event,
+                poll_seconds=settings.debate_worker_poll_seconds,
+            ),
+            name=f"debate-worker-{index + 1}",
+        )
+        for index in range(settings.debate_worker_concurrency)
+    ]
+    try:
+        yield
+    finally:
+        stop_event.set()
+        for task in tasks:
+            task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="Educational stock-signal explanations using deterministic demo data.",
+    lifespan=app_lifespan,
 )
 
 

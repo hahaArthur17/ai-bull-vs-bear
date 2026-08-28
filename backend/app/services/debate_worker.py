@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+import logging
 from typing import Literal
 from uuid import UUID
 
@@ -11,6 +12,9 @@ from app.repositories.debate_repository import (
     DebateUnitOfWork,
 )
 from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
+
+
+logger = logging.getLogger(__name__)
 
 
 DebateWorkerOutcome = Literal[
@@ -148,6 +152,36 @@ class DebateWorker:
             if result.outcome == "idle":
                 break
         return results
+
+    async def run_forever(
+        self,
+        stop_event: asyncio.Event,
+        *,
+        poll_seconds: float = 1.0,
+    ) -> None:
+        if not 0.1 <= poll_seconds <= 10:
+            raise ValueError("Worker poll interval is outside safe bounds")
+        while not stop_event.is_set():
+            try:
+                result = await self.run_once()
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                # The Queue message stays unarchived. Its visibility timeout is
+                # the durable recovery path if this process or dependency fails.
+                # Log only the exception type: provider/database error text can
+                # contain upstream payloads that do not belong in application logs.
+                logger.warning(
+                    "Debate Worker tick failed safely (%s)",
+                    type(exc).__name__,
+                )
+                result = DebateWorkerResult(outcome="idle")
+            if result.outcome not in {"idle", "deferred_running"}:
+                continue
+            try:
+                await asyncio.wait_for(stop_event.wait(), timeout=poll_seconds)
+            except TimeoutError:
+                pass
 
     async def _archive(self, queue_message_id: int) -> None:
         archived = await asyncio.to_thread(
