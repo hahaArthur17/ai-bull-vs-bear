@@ -1111,6 +1111,14 @@ and 390px browser checks completed both deterministic rounds without console
 errors. Hosted migration/RLS/restart verification is the remaining Phase 5
 gate.
 
+The 2026-08-29 hosted read-only preflight matched the Dashboard and API project,
+re-ran the existing two-user Watchlist RLS/reconnect checks successfully, and
+confirmed through PostgREST metadata that the catalog, Debate, and Queue
+migrations are still absent. No SQL was executed. The reusable preflight script
+now reports the exact six-file migration order without exposing project or key
+data; the next action remains the SQL Editor capacity query before applying the
+catalog files.
+
 ### Phase 6 — Redis cache and coordination
 
 Status: Done in code and local verification

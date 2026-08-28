@@ -68,7 +68,7 @@ serialization cost, while subsequent requests avoid 99 repository calls.
 
 ```text
 PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
-303 passed, 1 existing Starlette/httpx deprecation warning
+305 passed, 1 existing Starlette/httpx deprecation warning
 ```
 
 The full suite also proves cache status accounting, privacy-safe keys, factor
@@ -101,3 +101,23 @@ correct local fallback when Redis operations time out.
 - [`portfolio-implementation-plan.md`](../portfolio-implementation-plan.md)
 - [`backend/README.md`](../../../backend/README.md)
 - [`api-contract.md`](../../api/api-contract.md)
+
+## Follow-up — hosted migration preflight
+
+A 2026-08-29 read-only check matched the signed-in `AI Bull vs Bear` Dashboard
+project to the configured API project and found it healthy. The existing
+two-user Watchlist verifier again passed owner access, hidden cross-user reads,
+rejected cross-user writes, and persistence through a new connection.
+
+PostgREST metadata confirmed that the five catalog coverage columns, ranked
+search RPC, five Debate tables, two persistence RPCs, and seven Queue RPCs are
+not deployed. The local machine has no Supabase CLI, `psql`, database URL, or
+Management API token, so the already authenticated Dashboard SQL Editor is the
+available controlled migration surface. No SQL was run in this preflight.
+
+`scripts/verify_supabase_migration_preflight.py` now reproduces this inspection
+without printing the project URL, server key, remote response body, or table
+content. Its output lists the three catalog, two Debate persistence, and one
+Queue migration in order. The next action is the documented read-only database
+size query; migration execution must not begin if the database exceeds the
+400 MB capacity gate.

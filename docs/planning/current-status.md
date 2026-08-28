@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 303 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 305 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -308,6 +308,16 @@ Phase 5 is complete in code and verified through the local in-memory transport.
 The remaining gate is the controlled hosted Supabase migration/RLS/restart
 verification. The flags remain off in production, so no hosted durability
 claim is made yet.
+
+A read-only hosted preflight on 2026-08-29 confirmed that the configured
+Dashboard project matches the API project and is healthy. The existing
+two-user Watchlist verifier passed owner access, hidden cross-user reads,
+rejected cross-user writes, and persistence across a new connection. PostgREST
+metadata shows that the catalog extensions, five Debate tables, two persistence
+RPCs, and seven Queue RPCs are not yet deployed. No remote SQL was executed.
+The next gate is the SQL Editor database-size query, followed by the six
+checked-in migrations in the order reported by
+`scripts/verify_supabase_migration_preflight.py`.
 
 ### Phase 6 progress
 

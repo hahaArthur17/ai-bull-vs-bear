@@ -104,6 +104,18 @@ Dashboard: <https://supabase.com/dashboard>
 
 Before applying the Phase 2 catalog migrations, run this in SQL Editor:
 
+```shell
+PYTHONPATH=backend backend/.venv/bin/python \
+  scripts/verify_supabase_migration_preflight.py
+```
+
+This read-only preflight inspects PostgREST metadata using the server-only key,
+reports which catalog, Debate, and Queue surfaces are already deployed, and
+prints the required migration filenames in canonical order. It never executes
+SQL or prints the project URL, key, remote error body, or table contents. A
+missing catalog still requires the following database-size query before any
+catalog migration is run.
+
 ```sql
 select
   pg_size_pretty(pg_database_size(current_database())) as database_size,
