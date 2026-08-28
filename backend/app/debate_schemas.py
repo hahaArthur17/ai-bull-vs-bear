@@ -11,6 +11,7 @@ from app.domain.debate import (
     DebateSession,
     DebateSide,
 )
+from app.domain.jobs import DebateJob
 
 
 class DebateCreateRequest(BaseModel):
@@ -73,6 +74,7 @@ class DebateMessageRecord(BaseModel):
 class DebateSessionDetail(BaseModel):
     session: DebateSession
     messages: tuple[DebateMessageRecord, ...] = ()
+    job: DebateJob | None = None
     execution_mode: Literal["synchronous_preview", "queued"] = "synchronous_preview"
 
 

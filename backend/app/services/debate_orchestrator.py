@@ -469,6 +469,64 @@ class DebateOrchestrator:
         )
         return self._settle_requested_cancellation(requested)
 
+    def publish_retry_scheduled(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+        *,
+        retry_delay_seconds: int,
+    ) -> None:
+        if (
+            session.status not in {"queued_round_1", "queued_round_2"}
+            or job.status != "queued"
+            or job.session_id != session.id
+            or not 0 <= retry_delay_seconds <= 3600
+        ):
+            raise DebateOrchestrationError("Debate retry event state is invalid")
+        self._emit(
+            session.id,
+            "job.retry_scheduled",
+            {
+                "job_id": str(job.id),
+                "job_type": job.job_type,
+                "attempt_count": job.attempt_count,
+                "retry_delay_seconds": retry_delay_seconds,
+                "generation_id": str(session.active_generation_id),
+            },
+        )
+
+    def publish_retry_exhausted(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+    ) -> None:
+        if (
+            session.status != "failed"
+            or job.status != "failed"
+            or session.safe_error_code != "debate_retry_exhausted"
+            or job.safe_error_code != "debate_retry_exhausted"
+            or job.session_id != session.id
+        ):
+            raise DebateOrchestrationError("Exhausted Debate event state is invalid")
+        payload = {
+            "job_id": str(job.id),
+            "job_type": job.job_type,
+            "attempt_count": job.attempt_count,
+            "safe_error_code": job.safe_error_code,
+            "generation_id": str(session.active_generation_id),
+        }
+        self._emit(session.id, "job.failed", payload)
+        self._emit(
+            session.id,
+            "session.failed",
+            {
+                "status": session.status,
+                "safe_error_code": session.safe_error_code,
+                "generation_id": str(session.active_generation_id),
+                "job_id": str(job.id),
+            },
+        )
+
     def submit_challenge(
         self,
         intervention: DebateIntervention,

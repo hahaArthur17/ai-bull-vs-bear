@@ -196,7 +196,7 @@ class DebateWorker:
                     job_id=current_job.id,
                     read_count=claimed.read_count,
                 )
-            await asyncio.to_thread(
+            retried_session, retried_job = await asyncio.to_thread(
                 self.queue.requeue_running_job,
                 current_job.id,
                 expected_attempt_count=current_job.attempt_count,
@@ -217,6 +217,11 @@ class DebateWorker:
                 raise DebateRepositoryError(
                     "Worker could not reschedule its Queue message"
                 )
+            self.orchestrator.publish_retry_scheduled(
+                retried_session,
+                retried_job,
+                retry_delay_seconds=retry_delay_seconds,
+            )
             return DebateWorkerResult(
                 outcome="retry_scheduled",
                 queue_message_id=queue_message_id,
@@ -304,11 +309,12 @@ class DebateWorker:
             raise DebateRepositoryError("Worker could not archive its Queue message")
 
     async def _fail_exhausted(self, job_id: UUID, attempt_count: int) -> None:
-        await asyncio.to_thread(
+        session, job = await asyncio.to_thread(
             self.queue.fail_exhausted_job,
             job_id,
             expected_attempt_count=attempt_count,
         )
+        self.orchestrator.publish_retry_exhausted(session, job)
 
     @staticmethod
     def _retry_delay_seconds(

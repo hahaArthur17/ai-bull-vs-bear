@@ -13,6 +13,8 @@ DebateEventType = Literal[
     "session.created",
     "job.queued",
     "job.started",
+    "job.retry_scheduled",
+    "job.failed",
     "turn.started",
     "turn.delta",
     "turn.citation",

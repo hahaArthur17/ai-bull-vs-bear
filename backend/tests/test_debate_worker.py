@@ -10,6 +10,7 @@ from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.streaming_debate import DeterministicStreamingDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_orchestrator import DebateOrchestrator
+from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_worker import DebateWorker
 from test_debate_orchestrator import FailingProvider, StepClock, build_queued_round_one
@@ -89,6 +90,7 @@ def build_worker(repository: InMemoryDebateRepository) -> DebateWorker:
 def build_streaming_worker(
     repository: InMemoryDebateRepository,
     provider: DeterministicStreamingDebateProvider,
+    event_broker: InMemoryDebateEventBroker | None = None,
 ) -> DebateWorker:
     judge = DeterministicDebateProvider()
     orchestrator = DebateOrchestrator(
@@ -96,6 +98,7 @@ def build_streaming_worker(
         judge,
         judge,
         streaming_turn_provider=provider,
+        event_publisher=event_broker,
         clock=StepClock(),
     )
     return DebateWorker(
@@ -218,7 +221,8 @@ def test_worker_retries_temporary_failure_then_resumes_without_duplicates() -> N
     repository = InMemoryDebateRepository(clock=clock)
     session, job = admit_round_one(repository)
     provider = RetryOnceAfterTwoTurnsProvider()
-    worker = build_streaming_worker(repository, provider)
+    broker = InMemoryDebateEventBroker()
+    worker = build_streaming_worker(repository, provider, broker)
 
     retry = asyncio.run(worker.run_once())
     first_messages = repository.list_messages(
@@ -233,6 +237,11 @@ def test_worker_retries_temporary_failure_then_resumes_without_duplicates() -> N
     assert len(first_messages) == 2
     assert queued_job is not None and queued_job.status == "queued"
     assert queued_job.attempt_count == 1
+    retry_events = [
+        event for event in broker.replay(session.id) if event.type == "job.retry_scheduled"
+    ]
+    assert len(retry_events) == 1
+    assert retry_events[0].payload["retry_delay_seconds"] == 4
     assert asyncio.run(worker.run_once()).outcome == "idle"
 
     clock.now += timedelta(seconds=4)
@@ -257,7 +266,8 @@ def test_worker_recovers_a_crashed_running_job_after_visibility_timeout() -> Non
         repository = InMemoryDebateRepository(clock=clock)
         session, job = admit_round_one(repository)
         provider = CrashOnceAfterTwoTurnsProvider()
-        worker = build_streaming_worker(repository, provider)
+        broker = InMemoryDebateEventBroker()
+        worker = build_streaming_worker(repository, provider, broker)
 
         interrupted = asyncio.create_task(worker.run_once())
         await asyncio.wait_for(provider.crash_boundary.wait(), timeout=1)
@@ -307,7 +317,8 @@ def test_worker_terminalizes_an_exhausted_crashed_job() -> None:
         )
         _, job = repository.create_session_with_job_and_enqueue(session, job, message)
         provider = CrashOnceAfterTwoTurnsProvider()
-        worker = build_streaming_worker(repository, provider)
+        broker = InMemoryDebateEventBroker()
+        worker = build_streaming_worker(repository, provider, broker)
 
         interrupted = asyncio.create_task(worker.run_once())
         await asyncio.wait_for(provider.crash_boundary.wait(), timeout=1)
@@ -326,6 +337,10 @@ def test_worker_terminalizes_an_exhausted_crashed_job() -> None:
         assert failed_job.safe_error_code == "debate_retry_exhausted"
         assert failed_session is not None
         assert failed_session.safe_error_code == "debate_retry_exhausted"
+        assert [event.type for event in broker.replay(session.id)][-2:] == [
+            "job.failed",
+            "session.failed",
+        ]
         assert (await worker.run_once()).outcome == "idle"
 
     asyncio.run(run_scenario())

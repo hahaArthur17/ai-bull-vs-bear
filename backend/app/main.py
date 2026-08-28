@@ -352,9 +352,14 @@ def _debate_message_records(
 
 
 def _debate_detail(session: DebateSession) -> DebateSessionDetail:
+    assert debate_preview_service is not None
     return DebateSessionDetail(
         session=session,
         messages=_debate_message_records(session),
+        job=debate_preview_service.repository.get_active_job(
+            session.id,
+            session.user_id,
+        ),
         execution_mode=(
             "queued" if settings.debate_queue_enabled else "synchronous_preview"
         ),
@@ -622,6 +627,7 @@ def create_debate(
     return DebateMutationResponse(
         session=detail.session,
         messages=detail.messages,
+        job=detail.job,
         job_id=job.id,
         execution_mode=execution_mode,
     )
@@ -811,6 +817,7 @@ def challenge_debate(
     return DebateMutationResponse(
         session=detail.session,
         messages=detail.messages,
+        job=detail.job,
         job_id=job.id,
         execution_mode=detail.execution_mode,
     )

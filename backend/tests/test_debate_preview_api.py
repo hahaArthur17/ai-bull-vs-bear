@@ -125,6 +125,7 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
     assert client.get(f"/debates/{session_id}", headers=headers).json() == {
         "session": session,
         "messages": messages,
+        "job": None,
         "execution_mode": "synchronous_preview",
     }
     assert len(client.get(f"/debates/{session_id}/messages", headers=headers).json()) == 7
@@ -150,6 +151,7 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     assert repeated.status_code == 202
     assert repeated.json() == first.json()
     assert first.json()["execution_mode"] == "queued"
+    assert first.json()["job"]["status"] == "queued"
     assert first.json()["session"]["status"] == "queued_round_1"
     assert first.json()["messages"] == []
     assert main.debate_preview_service is not None
@@ -252,6 +254,7 @@ def test_queued_round_two_returns_before_worker_and_is_idempotent(
     assert queued.status_code == repeated.status_code == 202
     assert repeated.json() == queued.json()
     assert queued.json()["execution_mode"] == "queued"
+    assert queued.json()["job"]["status"] == "queued"
     assert queued.json()["session"]["status"] == "queued_round_2"
     assert len(queued.json()["messages"]) == 8
     assert queued.json()["messages"][-1]["message"]["role"] == "user"
