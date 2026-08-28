@@ -4,6 +4,7 @@ import type {
   DebateMessageEvidence,
   DebateMessageRecord,
   DebateSessionDetail,
+  DebateSessionStatus,
 } from "./types";
 
 export type DebateDraft = {
@@ -34,6 +35,7 @@ export type DebateJobViewStatus =
 
 export type DebateStreamSnapshot = {
   status: DebateStreamStatus;
+  sessionStatus: DebateSessionStatus | null;
   canonicalMessages: DebateMessageRecord[];
   drafts: Record<string, DebateDraft>;
   lastSequence: number;
@@ -217,6 +219,19 @@ const TERMINAL_SESSION_STATUSES = new Set<DebateSessionDetail["session"]["status
   "failed",
 ]);
 
+const SESSION_STATUSES = new Set<DebateSessionStatus>([
+  "created",
+  "queued_round_1",
+  "running_round_1",
+  "awaiting_user",
+  "queued_round_2",
+  "running_round_2",
+  "completed",
+  "cancel_requested",
+  "cancelled",
+  "failed",
+]);
+
 function canonicalJobStatus(detail: DebateSessionDetail): DebateJobViewStatus {
   if (detail.job?.status === "completed") return "stage_completed";
   if (detail.job) return detail.job.status;
@@ -239,6 +254,13 @@ function stringPayload(event: DebateEvent, key: string): string | null {
 function numberPayload(event: DebateEvent, key: string): number | null {
   const value = event.payload[key];
   return typeof value === "number" && Number.isInteger(value) ? value : null;
+}
+
+function sessionStatusPayload(event: DebateEvent): DebateSessionStatus | null {
+  const status = stringPayload(event, "status");
+  return status && SESSION_STATUSES.has(status as DebateSessionStatus)
+    ? status as DebateSessionStatus
+    : null;
 }
 
 function isDebateMessage(value: unknown): value is DebateMessage {
@@ -286,6 +308,7 @@ export function reduceDebateEvent(
   let activeGenerationId = current.activeGenerationId;
   let drafts = { ...current.drafts };
   let canonicalMessages = current.canonicalMessages;
+  let sessionStatus = sessionStatusPayload(event) || current.sessionStatus;
   let jobId = current.jobId;
   let jobStatus = current.jobStatus;
   let jobAttemptCount = current.jobAttemptCount;
@@ -336,10 +359,12 @@ export function reduceDebateEvent(
   }
   if (event.type === "session.cancelled") {
     jobStatus = "cancelled";
+    sessionStatus = "cancelled";
     retryDelaySeconds = null;
   }
   if (event.type === "session.awaiting_user" || event.type === "session.completed") {
     jobStatus = "stage_completed";
+    sessionStatus = event.type === "session.awaiting_user" ? "awaiting_user" : "completed";
     retryDelaySeconds = null;
   }
 
@@ -436,6 +461,7 @@ export function reduceDebateEvent(
     snapshot: {
       ...current,
       status: terminal ? "closed" : "live",
+      sessionStatus,
       canonicalMessages,
       drafts,
       lastSequence: event.sequence,
@@ -469,6 +495,7 @@ export class DebateStreamClient {
   private stopped = true;
   private snapshot: DebateStreamSnapshot = {
     status: "idle",
+    sessionStatus: null,
     canonicalMessages: [],
     drafts: {},
     lastSequence: 0,
@@ -557,18 +584,7 @@ export class DebateStreamClient {
     status: DebateStreamStatus,
   ): Promise<void> {
     const detail = await this.options.loadCanonical();
-    this.snapshot = {
-      status: TERMINAL_SESSION_STATUSES.has(detail.session.status) ? "closed" : status,
-      canonicalMessages: orderedMessages(detail.messages),
-      drafts: {},
-      lastSequence,
-      activeGenerationId: detail.session.active_generation_id,
-      jobId: detail.job?.id || null,
-      jobStatus: canonicalJobStatus(detail),
-      jobAttemptCount: detail.job?.attempt_count || 0,
-      retryDelaySeconds: null,
-      safeError: detail.session.safe_error_code || null,
-    };
+    this.snapshot = createCanonicalDebateSnapshot(detail, lastSequence, status);
     this.emit();
   }
 
@@ -579,4 +595,24 @@ export class DebateStreamClient {
   private emit(): void {
     this.options.onSnapshot(this.snapshot);
   }
+}
+
+export function createCanonicalDebateSnapshot(
+  detail: DebateSessionDetail,
+  lastSequence = 0,
+  status: DebateStreamStatus = "connecting",
+): DebateStreamSnapshot {
+  return {
+    status: TERMINAL_SESSION_STATUSES.has(detail.session.status) ? "closed" : status,
+    sessionStatus: detail.session.status,
+    canonicalMessages: orderedMessages(detail.messages),
+    drafts: {},
+    lastSequence,
+    activeGenerationId: detail.session.active_generation_id,
+    jobId: detail.job?.id || null,
+    jobStatus: canonicalJobStatus(detail),
+    jobAttemptCount: detail.job?.attempt_count || 0,
+    retryDelaySeconds: null,
+    safeError: detail.session.safe_error_code || null,
+  };
 }

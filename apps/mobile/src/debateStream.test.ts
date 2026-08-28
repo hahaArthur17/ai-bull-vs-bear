@@ -5,6 +5,7 @@ import {
   DebateCursorExpiredError,
   DebateStreamClient,
   SseFrameParser,
+  createCanonicalDebateSnapshot,
   reduceDebateEvent,
 } from "./debateStream.ts";
 import type { DebateStreamSnapshot } from "./debateStream.ts";
@@ -88,6 +89,7 @@ test("SSE parser preserves fragmented multi-line data", () => {
 test("reducer keeps deltas temporary and replaces them with canonical completion", () => {
   let snapshot: DebateStreamSnapshot = {
     status: "live",
+    sessionStatus: "running_round_1",
     canonicalMessages: [],
     drafts: {},
     lastSequence: 0,
@@ -139,6 +141,7 @@ test("reducer keeps deltas temporary and replaces them with canonical completion
 test("reducer rejects a missing event or provider delta", () => {
   const snapshot: DebateStreamSnapshot = {
     status: "live",
+    sessionStatus: "running_round_1",
     canonicalMessages: [],
     drafts: {},
     lastSequence: 4,
@@ -162,6 +165,7 @@ test("reducer rejects a missing event or provider delta", () => {
 test("reducer advances past a late event without mutating the active generation", () => {
   const snapshot: DebateStreamSnapshot = {
     status: "live",
+    sessionStatus: "running_round_1",
     canonicalMessages: [],
     drafts: {
       "message-1": {
@@ -198,6 +202,7 @@ test("reducer advances past a late event without mutating the active generation"
 test("reducer exposes queued running retry and failure job states", () => {
   let snapshot: DebateStreamSnapshot = {
     status: "live",
+    sessionStatus: "running_round_1",
     canonicalMessages: [],
     drafts: {},
     lastSequence: 0,
@@ -248,6 +253,7 @@ test("reducer exposes queued running retry and failure job states", () => {
 test("cancellation rotates generation, clears drafts, and ignores late output", () => {
   const snapshot: DebateStreamSnapshot = {
     status: "live",
+    sessionStatus: "running_round_1",
     canonicalMessages: [],
     drafts: {
       "message-1": {
@@ -292,6 +298,29 @@ test("cancellation rotates generation, clears drafts, and ignores late output", 
   }));
   assert.equal(cancelled.terminal, true);
   assert.equal(cancelled.snapshot.status, "closed");
+  assert.equal(cancelled.snapshot.sessionStatus, "cancelled");
+});
+
+
+test("canonical snapshot exposes durable session and queued job state", () => {
+  const queued = detail("queued_round_1");
+  queued.execution_mode = "queued";
+  queued.job = {
+    id: "job-1",
+    session_id: "session-1",
+    job_type: "round_1",
+    status: "queued",
+    queue_message_id: 7,
+    attempt_count: 0,
+    max_attempts: 3,
+  };
+
+  const snapshot = createCanonicalDebateSnapshot(queued);
+
+  assert.equal(snapshot.status, "connecting");
+  assert.equal(snapshot.sessionStatus, "queued_round_1");
+  assert.equal(snapshot.jobStatus, "queued");
+  assert.equal(snapshot.jobId, "job-1");
 });
 
 
