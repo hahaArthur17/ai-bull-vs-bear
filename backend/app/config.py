@@ -1,7 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -30,23 +30,29 @@ class Settings(BaseSettings):
     debate_worker_visibility_timeout_seconds: int = Field(default=900, ge=30, le=3600)
     debate_worker_concurrency: int = Field(default=1, ge=1, le=2)
     debate_worker_poll_seconds: float = Field(default=1.0, ge=0.1, le=10)
+    # Redis is an optional optimization/coordination layer. Canonical state
+    # remains in Supabase and every operation has a bounded local fallback.
+    redis_enabled: bool = False
+    redis_url: str | None = Field(default=None, repr=False)
+    redis_connect_timeout_seconds: float = Field(default=0.75, ge=0.1, le=5)
+    redis_socket_timeout_seconds: float = Field(default=0.75, ge=0.1, le=5)
     # The async Debate provider is an independent, explicit opt-in. Keeping it
     # deterministic prevents a feature-flag change from spending model quota.
     debate_streaming_provider: str = "deterministic"
-    supabase_url: str | None = None
-    supabase_anon_key: str | None = None
-    supabase_secret_key: str | None = None
-    supabase_rls_user_a_email: str | None = None
-    supabase_rls_user_a_password: str | None = None
-    supabase_rls_user_b_email: str | None = None
-    supabase_rls_user_b_password: str | None = None
-    sec_user_agent: str | None = None
-    alpha_vantage_api_key: str | None = None
-    fred_api_key: str | None = None
-    eia_api_key: str | None = None
-    apify_user_id: str | None = None
-    apify_api_token: str | None = None
-    finnhub_api_key: str | None = None
+    supabase_url: str | None = Field(default=None, repr=False)
+    supabase_anon_key: str | None = Field(default=None, repr=False)
+    supabase_secret_key: str | None = Field(default=None, repr=False)
+    supabase_rls_user_a_email: str | None = Field(default=None, repr=False)
+    supabase_rls_user_a_password: str | None = Field(default=None, repr=False)
+    supabase_rls_user_b_email: str | None = Field(default=None, repr=False)
+    supabase_rls_user_b_password: str | None = Field(default=None, repr=False)
+    sec_user_agent: str | None = Field(default=None, repr=False)
+    alpha_vantage_api_key: str | None = Field(default=None, repr=False)
+    fred_api_key: str | None = Field(default=None, repr=False)
+    eia_api_key: str | None = Field(default=None, repr=False)
+    apify_user_id: str | None = Field(default=None, repr=False)
+    apify_api_token: str | None = Field(default=None, repr=False)
+    finnhub_api_key: str | None = Field(default=None, repr=False)
     # This app currently presents a single, verified Apple price series. Keeping
     # the default batch to one symbol makes each scheduled refresh one API call.
     price_tickers: str = "AAPL"
@@ -55,8 +61,8 @@ class Settings(BaseSettings):
     live_evidence_tickers: str = "AAPL"
     macro_history_points: int = Field(default=400, ge=30, le=1000)
     weekly_price_history_points: int = Field(default=60, ge=52, le=260)
-    groq_api_key: str | None = None
-    gemini_api_key: str | None = None
+    groq_api_key: str | None = Field(default=None, repr=False)
+    gemini_api_key: str | None = Field(default=None, repr=False)
     groq_model: str = "openai/gpt-oss-20b"
     debate_groq_model: str = "openai/gpt-oss-20b"
     debate_provider_timeout_seconds: float = Field(default=45, ge=5, le=120)
@@ -69,6 +75,14 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @model_validator(mode="after")
+    def validate_redis_configuration(self) -> "Settings":
+        if self.redis_enabled and not self.redis_url:
+            raise ValueError("REDIS_URL is required when REDIS_ENABLED=true")
+        if self.redis_url and not self.redis_url.startswith(("redis://", "rediss://")):
+            raise ValueError("REDIS_URL must use redis:// or rediss://")
+        return self
 
     @property
     def cors_origin_list(self) -> list[str]:

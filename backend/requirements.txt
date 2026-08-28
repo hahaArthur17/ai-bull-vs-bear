@@ -4,6 +4,7 @@ pydantic-settings>=2.7,<3
 python-dotenv>=1.0,<2
 httpx>=0.28,<1
 pytest>=8.3,<9
+redis>=6.2,<9
 
 # Optional providers. The demo mode works without these packages or API keys.
 supabase>=2.11,<3
