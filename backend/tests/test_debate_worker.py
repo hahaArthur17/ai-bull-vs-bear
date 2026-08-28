@@ -1,14 +1,43 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
+
+import pytest
 
 from app.domain.jobs import ClaimedDebateQueueMessage, DebateQueueMessage
 from app.providers.deterministic_debate import DeterministicDebateProvider
+from app.providers.streaming_debate import DeterministicStreamingDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_orchestrator import DebateOrchestrator
 from app.services.debate_worker import DebateWorker
 from test_debate_orchestrator import FailingProvider, StepClock, build_queued_round_one
+from test_debate_streaming_orchestrator import RetryOnceAfterTwoTurnsProvider
+
+
+class MutableClock:
+    def __init__(self) -> None:
+        self.now = datetime(2026, 8, 28, 12, 0, tzinfo=timezone.utc)
+
+    def __call__(self) -> datetime:
+        return self.now
+
+
+class CrashOnceAfterTwoTurnsProvider(DeterministicStreamingDebateProvider):
+    def __init__(self) -> None:
+        super().__init__(max_chunk_characters=32)
+        self.request_count = 0
+        self.crash_boundary = asyncio.Event()
+        self.crashed_once = False
+
+    async def stream_turn(self, request):
+        self.request_count += 1
+        if self.request_count == 3 and not self.crashed_once:
+            self.crashed_once = True
+            self.crash_boundary.set()
+            await asyncio.Event().wait()
+        async for event in super().stream_turn(request):
+            yield event
 
 
 def admit_round_one(repository: InMemoryDebateRepository):
@@ -32,6 +61,26 @@ def build_worker(repository: InMemoryDebateRepository) -> DebateWorker:
         clock=StepClock(),
     )
     return DebateWorker(repository, repository, orchestrator)
+
+
+def build_streaming_worker(
+    repository: InMemoryDebateRepository,
+    provider: DeterministicStreamingDebateProvider,
+) -> DebateWorker:
+    judge = DeterministicDebateProvider()
+    orchestrator = DebateOrchestrator(
+        repository,
+        judge,
+        judge,
+        streaming_turn_provider=provider,
+        clock=StepClock(),
+    )
+    return DebateWorker(
+        repository,
+        repository,
+        orchestrator,
+        visibility_timeout_seconds=30,
+    )
 
 
 def test_worker_executes_and_archives_only_after_durable_completion() -> None:
@@ -139,6 +188,164 @@ def test_worker_archives_a_safely_terminalized_permanent_failure() -> None:
     assert idle.outcome == "idle"
     assert repository.get_job(job.id).status == "failed"
     assert repository.get_session(session.id, session.user_id).status == "failed"
+
+
+def test_worker_retries_temporary_failure_then_resumes_without_duplicates() -> None:
+    clock = MutableClock()
+    repository = InMemoryDebateRepository(clock=clock)
+    session, job = admit_round_one(repository)
+    provider = RetryOnceAfterTwoTurnsProvider()
+    worker = build_streaming_worker(repository, provider)
+
+    retry = asyncio.run(worker.run_once())
+    first_messages = repository.list_messages(
+        session.id,
+        session.user_id,
+        branch_id=session.active_branch_id,
+    )
+    queued_job = repository.get_job(job.id)
+
+    assert retry.outcome == "retry_scheduled"
+    assert retry.retry_delay_seconds == 4
+    assert len(first_messages) == 2
+    assert queued_job is not None and queued_job.status == "queued"
+    assert queued_job.attempt_count == 1
+    assert asyncio.run(worker.run_once()).outcome == "idle"
+
+    clock.now += timedelta(seconds=4)
+    completed = asyncio.run(worker.run_once())
+    messages = repository.list_messages(
+        session.id,
+        session.user_id,
+        branch_id=session.active_branch_id,
+    )
+    completed_job = repository.get_job(job.id)
+
+    assert completed.outcome == "completed"
+    assert completed.read_count == 2
+    assert len(messages) == len({message.id for message in messages}) == 7
+    assert completed_job is not None and completed_job.attempt_count == 2
+    assert completed_job.provider_request_count == 8
+
+
+def test_worker_recovers_a_crashed_running_job_after_visibility_timeout() -> None:
+    async def run_scenario() -> None:
+        clock = MutableClock()
+        repository = InMemoryDebateRepository(clock=clock)
+        session, job = admit_round_one(repository)
+        provider = CrashOnceAfterTwoTurnsProvider()
+        worker = build_streaming_worker(repository, provider)
+
+        interrupted = asyncio.create_task(worker.run_once())
+        await asyncio.wait_for(provider.crash_boundary.wait(), timeout=1)
+        interrupted.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await interrupted
+
+        running_job = repository.get_job(job.id)
+        partial = repository.list_messages(
+            session.id,
+            session.user_id,
+            branch_id=session.active_branch_id,
+        )
+        assert running_job is not None and running_job.status == "running"
+        assert len(partial) == 2
+
+        clock.now += timedelta(seconds=30)
+        recovered = await worker.run_once()
+        messages = repository.list_messages(
+            session.id,
+            session.user_id,
+            branch_id=session.active_branch_id,
+        )
+        completed_job = repository.get_job(job.id)
+
+        assert recovered.outcome == "completed"
+        assert recovered.read_count == 2
+        assert len(messages) == len({message.id for message in messages}) == 7
+        assert completed_job is not None and completed_job.attempt_count == 2
+
+    asyncio.run(run_scenario())
+
+
+def test_worker_terminalizes_an_exhausted_crashed_job() -> None:
+    async def run_scenario() -> None:
+        clock = MutableClock()
+        repository = InMemoryDebateRepository(clock=clock)
+        session, job = build_queued_round_one()
+        job = job.model_copy(update={"max_attempts": 1})
+
+        message = DebateQueueMessage(
+            job_id=job.id,
+            session_id=session.id,
+            job_type=job.job_type,
+            trace_id="trace_exhausted_001",
+            enqueued_at=job.created_at,
+        )
+        _, job = repository.create_session_with_job_and_enqueue(session, job, message)
+        provider = CrashOnceAfterTwoTurnsProvider()
+        worker = build_streaming_worker(repository, provider)
+
+        interrupted = asyncio.create_task(worker.run_once())
+        await asyncio.wait_for(provider.crash_boundary.wait(), timeout=1)
+        interrupted.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await interrupted
+        clock.now += timedelta(seconds=30)
+
+        failed = await worker.run_once()
+        failed_job = repository.get_job(job.id)
+        failed_session = repository.get_session(session.id, session.user_id)
+
+        assert failed.outcome == "failed"
+        assert failed.read_count == 2
+        assert failed_job is not None
+        assert failed_job.safe_error_code == "debate_retry_exhausted"
+        assert failed_session is not None
+        assert failed_session.safe_error_code == "debate_retry_exhausted"
+        assert (await worker.run_once()).outcome == "idle"
+
+    asyncio.run(run_scenario())
+
+
+def test_worker_settles_cancellation_after_a_running_process_crash() -> None:
+    async def run_scenario() -> None:
+        clock = MutableClock()
+        repository = InMemoryDebateRepository(clock=clock)
+        session, job = admit_round_one(repository)
+        provider = CrashOnceAfterTwoTurnsProvider()
+        worker = build_streaming_worker(repository, provider)
+
+        interrupted = asyncio.create_task(worker.run_once())
+        await asyncio.wait_for(provider.crash_boundary.wait(), timeout=1)
+        requested = worker.orchestrator.request_cancellation(
+            session.id,
+            session.user_id,
+            session.active_generation_id,
+        )
+        assert requested.status == "cancel_requested"
+        interrupted.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await interrupted
+
+        clock.now += timedelta(seconds=30)
+        cancelled = await worker.run_once()
+        stored_job = repository.get_job(job.id)
+        stored_session = repository.get_session(session.id, session.user_id)
+        messages = repository.list_messages(
+            session.id,
+            session.user_id,
+            branch_id=session.active_branch_id,
+        )
+
+        assert cancelled.outcome == "cancelled"
+        assert cancelled.read_count == 2
+        assert stored_job is not None and stored_job.status == "cancelled"
+        assert stored_session is not None and stored_session.status == "cancelled"
+        assert len(messages) == 2
+        assert (await worker.run_once()).outcome == "idle"
+
+    asyncio.run(run_scenario())
 
 
 def test_worker_loop_stops_cleanly_while_queue_is_idle() -> None:

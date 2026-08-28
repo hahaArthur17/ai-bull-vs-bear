@@ -87,7 +87,7 @@ class RetryOnceAfterTwoTurnsProvider(DeterministicStreamingDebateProvider):
             self.failed_once = True
             error = RuntimeError("private temporary disconnect")
             error.retryable = True  # type: ignore[attr-defined]
-            error.retry_after_seconds = 1  # type: ignore[attr-defined]
+            error.retry_after_seconds = 4  # type: ignore[attr-defined]
             raise error
         async for event in super().stream_turn(request):
             yield event
