@@ -72,6 +72,34 @@ class FakeDebatePostgrest:
                     "queue_message_id": queue_message_id,
                 },
             )
+        if path == "rpc/enqueue_debate_round_two":
+            self.rpc_calls.append(path)
+            intervention = body["intervention_payload"]
+            question = body["question_payload"]
+            session = body["session_payload"]
+            requested_job = body["job_payload"]
+            stored_job = self.jobs.get(requested_job["id"])
+            if stored_job is None:
+                queue_message_id = self.next_queue_message_id
+                self.next_queue_message_id += 1
+                stored_job = {**requested_job, "queue_message_id": queue_message_id}
+                self.interventions[intervention["id"]] = intervention
+                self.messages[question["id"]] = question
+                self.citations[question["id"]] = []
+                self.sessions[session["id"]] = session
+                self.jobs[requested_job["id"]] = stored_job
+                self.queue_messages[queue_message_id] = body["queue_payload"]
+            queue_message_id = int(stored_job["queue_message_id"])
+            return httpx.Response(
+                200,
+                json={
+                    "session": self.sessions[session["id"]],
+                    "job": stored_job,
+                    "intervention": self.interventions[intervention["id"]],
+                    "question": self.messages[question["id"]],
+                    "queue_message_id": queue_message_id,
+                },
+            )
         if path == "rpc/claim_debate_job":
             self.rpc_calls.append(path)
             if not self.queue_messages:
@@ -442,3 +470,64 @@ def test_supabase_repository_round_trips_atomic_retry_settlement() -> None:
     assert failed_job.safe_error_code == "debate_retry_exhausted"
     assert "rpc/requeue_debate_job" in fake.rpc_calls
     assert "rpc/fail_exhausted_debate_job" in fake.rpc_calls
+
+
+def test_supabase_repository_round_trips_atomic_round_two_admission() -> None:
+    from test_debate_orchestrator import (
+        INTERVENTION_ID,
+        build_round_two_job,
+        start_round_one,
+    )
+
+    source_repository, _, orchestrator, awaiting = start_round_one()
+    transcript = source_repository.list_messages(
+        awaiting.id,
+        awaiting.user_id,
+        branch_id=awaiting.active_branch_id,
+    )
+    target = transcript[-1]
+    fake = FakeDebatePostgrest()
+    fake.sessions[str(awaiting.id)] = awaiting.model_dump(mode="json")
+    fake.messages = {
+        str(message.id): message.model_dump(mode="json") for message in transcript
+    }
+    repository = build_repository(fake)
+    intervention = DebateIntervention(
+        id=INTERVENTION_ID,
+        session_id=awaiting.id,
+        user_id=awaiting.user_id,
+        selected_message_id=target.id,
+        selected_text=target.content[:40],
+        question="Which missing evidence could change this assessment?",
+        mode="challenge",
+        created_at=awaiting.updated_at + timedelta(seconds=1),
+    )
+    job = build_round_two_job(awaiting)
+    queued, question = orchestrator.prepare_challenge(intervention, job)
+    message = DebateQueueMessage(
+        job_id=job.id,
+        session_id=queued.id,
+        job_type=job.job_type,
+        trace_id="trace_round_two_002",
+        enqueued_at=job.created_at,
+    )
+
+    admitted = repository.create_round_two_with_job_and_enqueue(
+        intervention,
+        question,
+        queued,
+        job,
+        message,
+    )
+    repeated = repository.create_round_two_with_job_and_enqueue(
+        intervention,
+        question,
+        queued,
+        job,
+        message,
+    )
+
+    assert admitted == repeated
+    assert admitted[0] == queued
+    assert admitted[1].queue_message_id == 1
+    assert "rpc/enqueue_debate_round_two" in fake.rpc_calls

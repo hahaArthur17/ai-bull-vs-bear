@@ -351,6 +351,68 @@ class SupabaseDebateRepository:
             raise DebateConcurrencyError("Queued Debate message identifier conflict")
         return stored_session, stored_job
 
+    def create_round_two_with_job_and_enqueue(
+        self,
+        intervention: DebateIntervention,
+        question: DebateMessage,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> tuple[DebateSession, DebateJob]:
+        if (
+            intervention.session_id != session.id
+            or intervention.user_id != session.user_id
+            or question.session_id != session.id
+            or question.generation_id != session.active_generation_id
+            or job.session_id != session.id
+            or job.user_id != session.user_id
+            or job.job_type != "round_2"
+            or message.job_id != job.id
+            or message.session_id != session.id
+            or message.job_type != "round_2"
+        ):
+            raise DebateRepositoryError("Queued Round 2 admission records do not match")
+        response = self._request(
+            "POST",
+            "rpc/enqueue_debate_round_two",
+            json={
+                "intervention_payload": intervention.model_dump(mode="json"),
+                "question_payload": question.model_dump(mode="json"),
+                "session_payload": session.model_dump(mode="json"),
+                "job_payload": job.model_dump(mode="json"),
+                "queue_payload": message.model_dump(mode="json"),
+            },
+        )
+        payload = self._object(response.json(), "Queued Round 2 admission")
+        stored_session = self._model(payload.get("session"), DebateSession, "Debate session")
+        stored_job = self._model(payload.get("job"), DebateJob, "Debate job")
+        stored_intervention = self._model(
+            payload.get("intervention"),
+            DebateIntervention,
+            "Debate intervention",
+        )
+        stored_question = self._model(
+            payload.get("question"),
+            DebateMessage,
+            "Debate question",
+        )
+        expected_job = DebateJob.model_validate(
+            {
+                **job.model_dump(mode="python"),
+                "queue_message_id": stored_job.queue_message_id,
+            }
+        )
+        if (
+            stored_session != session
+            or stored_job != expected_job
+            or stored_intervention != intervention
+            or stored_question != question
+            or stored_job.queue_message_id is None
+            or payload.get("queue_message_id") != stored_job.queue_message_id
+        ):
+            raise DebateConcurrencyError("Queued Round 2 admission idempotency conflict")
+        return stored_session, stored_job
+
     def claim_job(
         self,
         *,

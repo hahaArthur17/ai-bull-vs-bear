@@ -124,6 +124,18 @@ class DebateQueueRepository(Protocol):
 
         ...
 
+    def create_round_two_with_job_and_enqueue(
+        self,
+        intervention: DebateIntervention,
+        question: DebateMessage,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> tuple[DebateSession, DebateJob]:
+        """Atomically persist a challenge and enqueue its Round 2 stage."""
+
+        ...
+
     def claim_job(
         self,
         *,

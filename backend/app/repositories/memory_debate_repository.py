@@ -334,6 +334,82 @@ class InMemoryDebateRepository:
             self._next_queue_message_id += 1
             return _clone(session), _clone(queued_job)
 
+    def create_round_two_with_job_and_enqueue(
+        self,
+        intervention: DebateIntervention,
+        question: DebateMessage,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> tuple[DebateSession, DebateJob]:
+        with self._lock:
+            existing_job = self._jobs.get(job.id)
+            if existing_job is not None:
+                queue_message_id = existing_job.queue_message_id
+                envelope = (
+                    self._queue_messages.get(queue_message_id or 0)
+                    or self._archived_queue_messages.get(queue_message_id or 0)
+                )
+                expected_job = DebateJob.model_validate(
+                    {
+                        **job.model_dump(mode="python"),
+                        "queue_message_id": queue_message_id,
+                    }
+                )
+                if (
+                    self._sessions.get(session.id) == session
+                    and self._interventions.get(intervention.id) == intervention
+                    and self._messages.get(question.id) == question
+                    and existing_job == expected_job
+                    and envelope is not None
+                    and envelope.message == message
+                ):
+                    return _clone(session), _clone(existing_job)
+                raise DebateConcurrencyError("Queued Round 2 admission already exists")
+
+            current = self._sessions.get(session.id)
+            if current is None or current.user_id != intervention.user_id:
+                raise DebateRepositoryError("Debate session not found")
+            self._validate_round_two_admission(
+                current,
+                intervention,
+                question,
+                session,
+                job,
+                message,
+            )
+            if intervention.id in self._interventions or question.id in self._messages:
+                raise DebateConcurrencyError("Round 2 challenge identifiers already exist")
+            if job.idempotency_key in self._job_keys:
+                raise DebateConcurrencyError("Debate job idempotency key already exists")
+            self._validate_one_active_job(job)
+            unique_key = (question.session_id, question.branch_id, question.sequence_number)
+            if unique_key in self._message_keys:
+                raise DebateConcurrencyError("Debate message sequence already exists")
+
+            queue_message_id = self._next_queue_message_id
+            queued_job = DebateJob.model_validate(
+                {
+                    **job.model_dump(mode="python"),
+                    "queue_message_id": queue_message_id,
+                }
+            )
+            enqueued_at = self._queue_now()
+            self._interventions[intervention.id] = _clone(intervention)
+            self._messages[question.id] = _clone(question)
+            self._message_keys[unique_key] = question.id
+            self._citations[question.id] = ()
+            self._sessions[session.id] = _clone(session)
+            self._jobs[job.id] = _clone(queued_job)
+            self._job_keys[job.idempotency_key] = job.id
+            self._queue_messages[queue_message_id] = _QueueEnvelope(
+                message=_clone(message),
+                enqueued_at=enqueued_at,
+                visible_at=enqueued_at,
+            )
+            self._next_queue_message_id += 1
+            return _clone(session), _clone(queued_job)
+
     def claim_job(
         self,
         *,
@@ -522,6 +598,61 @@ class InMemoryDebateRepository:
             or message.job_type != job.job_type
         ):
             raise DebateRepositoryError("Debate Queue message does not match its job")
+
+    def _validate_round_two_admission(
+        self,
+        current: DebateSession,
+        intervention: DebateIntervention,
+        question: DebateMessage,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+    ) -> None:
+        if current.status != "awaiting_user" or session.status != "queued_round_2":
+            raise DebateConcurrencyError("Debate session is not awaiting Round 2 admission")
+        try:
+            validate_session_update(current, session)
+        except DebatePersistenceValidationError as exc:
+            raise DebateRepositoryError(str(exc)) from exc
+        target = self._messages.get(intervention.selected_message_id)
+        if (
+            intervention.session_id != current.id
+            or intervention.user_id != current.user_id
+            or intervention.mode != "challenge"
+            or target is None
+            or target.session_id != current.id
+            or target.branch_id != current.active_branch_id
+            or intervention.selected_text not in target.content
+        ):
+            raise DebateRepositoryError("Round 2 intervention does not match its target")
+        self._validate_new_message(current, question)
+        expected_sequence = 1 + max(
+            (
+                existing.sequence_number
+                for existing in self._messages.values()
+                if existing.session_id == current.id
+                and existing.branch_id == current.active_branch_id
+            ),
+            default=0,
+        )
+        if (
+            question.role != "user"
+            or question.message_kind != "question"
+            or question.round_number != 2
+            or question.exchange_number != 0
+            or question.sequence_number != expected_sequence
+            or question.generation_id != session.active_generation_id
+            or question.content != intervention.question
+            or question.metadata.get("intervention_id") != str(intervention.id)
+            or question.metadata.get("selected_message_id")
+            != str(intervention.selected_message_id)
+            or question.metadata.get("selected_text") != intervention.selected_text
+            or question.metadata.get("mode") != "challenge"
+        ):
+            raise DebateRepositoryError("Round 2 question does not match its intervention")
+        self._validate_queue_admission(session, job, message)
+        if job.job_type != "round_2":
+            raise DebateRepositoryError("Round 2 admission requires a Round 2 Job")
 
     def _queue_now(self) -> datetime:
         now = self._clock()

@@ -417,3 +417,64 @@ def test_memory_queue_atomically_requeues_then_terminalizes_exhausted_work() -> 
     assert failed_session.status == failed_job.status == "failed"
     assert failed_session.safe_error_code == "debate_retry_exhausted"
     assert failed_job.safe_error_code == "debate_retry_exhausted"
+
+
+def test_memory_queue_atomically_admits_round_two() -> None:
+    from test_debate_orchestrator import (
+        INTERVENTION_ID,
+        build_round_two_job,
+        start_round_one,
+    )
+
+    repository, _, orchestrator, awaiting = start_round_one()
+    transcript = repository.list_messages(
+        awaiting.id,
+        awaiting.user_id,
+        branch_id=awaiting.active_branch_id,
+    )
+    target = transcript[-1]
+    intervention = DebateIntervention(
+        id=INTERVENTION_ID,
+        session_id=awaiting.id,
+        user_id=awaiting.user_id,
+        selected_message_id=target.id,
+        selected_text=target.content[:40],
+        question="Which missing evidence could change this assessment?",
+        mode="challenge",
+        created_at=awaiting.updated_at + timedelta(seconds=1),
+    )
+    job = build_round_two_job(awaiting)
+    queued, question = orchestrator.prepare_challenge(intervention, job)
+    message = DebateQueueMessage(
+        job_id=job.id,
+        session_id=queued.id,
+        job_type=job.job_type,
+        trace_id="trace_round_two_001",
+        enqueued_at=job.created_at,
+    )
+
+    admitted = repository.create_round_two_with_job_and_enqueue(
+        intervention,
+        question,
+        queued,
+        job,
+        message,
+    )
+    repeated = repository.create_round_two_with_job_and_enqueue(
+        intervention,
+        question,
+        queued,
+        job,
+        message,
+    )
+    claimed = repository.claim_job(visibility_timeout_seconds=30)
+
+    assert admitted == repeated
+    assert admitted[0].status == "queued_round_2"
+    assert admitted[1].queue_message_id == 1
+    assert claimed is not None and claimed.payload.job_type == "round_2"
+    assert repository.list_messages(
+        awaiting.id,
+        awaiting.user_id,
+        branch_id=awaiting.active_branch_id,
+    )[-1] == question
