@@ -21,6 +21,44 @@ duplicating implementation detail.
 
 ---
 
+## 2026-08-28 — Local Settings representation exposed configured credentials
+
+**Status:** Code mitigation complete; owner credential rotation required.
+
+**Scope and evidence**
+
+- A newly added Redis configuration assertion failed while evaluating
+  `repr(Settings(...))`.
+- Pytest's assertion introspection printed the Settings representation into the
+  local task output. Because existing credential fields still used Pydantic's
+  default `repr=True`, the representation included values loaded from the
+  ignored local `.env` file.
+- No credential was written to a tracked repository file or committed to Git.
+  The affected task/test output must nevertheless be treated as an exposure.
+
+**Immediate mitigation**
+
+- Commit `7058acd` marks Redis URLs, Supabase keys/test accounts, provider keys,
+  tokens, and the SEC contact identity `repr=False`.
+- The regression test now inspects representation field metadata rather than
+  rendering a populated Settings object.
+- The focused test and the complete 280-test backend suite pass without
+  printing configuration values.
+
+**Required owner action**
+
+- Rotate every currently configured server-side secret/provider credential in
+  the local `.env`, including the Supabase server secret, disposable RLS-user
+  passwords, and configured market/model/data-provider keys or tokens.
+- Replace the SEC contact address if its disclosure is not acceptable.
+- Update the local `.env` and the corresponding GitHub/Render secret-manager
+  values. Do not paste replacement values into chat, documentation, terminal
+  output, or Git.
+- After rotation, record only the completion date here and mark the issue
+  resolved.
+
+---
+
 ## 2026-08-27 — Direct-database password rotation lacks recorded verification
 
 **Status:** Open owner verification; no current API-path impact.
