@@ -45,11 +45,14 @@ durable Final Judge summary before reopening its transcript. The production flag
 remains off; cross-process transient replay, physical-device checks, and the remaining financial-technology redesign stay in the canonical
 [`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
 
-Shared colours, spacing, radii, and app styles live in `src/theme.ts`; reusable
-base UI components live under `src/components/`. Watchlist, History, and About
-are standalone screen modules under `src/screens/`. Stock detail, charts,
-Debate, Evidence, and Examination remain in `App.tsx` and will be extracted
-incrementally with their owning feature phases.
+Semantic colours, typography, spacing, radii, elevation, breakpoints,
+interaction targets, and motion rules live in `src/theme/tokens.ts` and are
+re-exported through `src/theme.ts`. The existing app styles continue to use the
+compatibility palette while screens migrate in their own redesign slices.
+Reusable base UI components live under `src/components/`. Watchlist, History,
+and About are standalone screen modules under `src/screens/`. Stock detail,
+charts, Debate, Evidence, and Examination remain in `App.tsx` and will be
+extracted incrementally with their owning feature phases.
 
 The mobile app intentionally presents analysis as educational context and
 always shows the financial-advice disclaimer.

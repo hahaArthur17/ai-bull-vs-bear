@@ -1250,8 +1250,8 @@ Status: In progress
   and Expo Web export.
 - [x] Define the visual, responsive, accessibility, and device-review acceptance
   matrix in [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md).
-- [ ] Finalize design tokens, typography, semantic colours, spacing, elevation,
-  and motion rules.
+- [x] Finalize design tokens, typography, semantic colours, spacing, elevation,
+  breakpoints, interaction targets, and motion rules without changing behavior.
 - [ ] Redesign authentication and home/search/watchlist.
 - [ ] Redesign stock detail and charts without losing provenance/accessibility.
 - [ ] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
