@@ -1201,6 +1201,7 @@ Status: In progress
 - [ ] Render model-provided terms as clickable cross-platform elements.
 - [x] Implement context-bounded Explanation Agent service requests.
 - [x] Keep explanations outside the Debate state transition.
+- [x] Expose Explanation through an authenticated default-off HTTP endpoint.
 - [x] Implement challenge/intervention persistence.
 - [ ] Cancel or branch from the last complete message using generation IDs.
 - [x] Enqueue and stream round two around the user question.
@@ -1216,8 +1217,9 @@ and a read-only service. Exact selected text must occur in a complete message
 on the owned active branch; provider citations are restricted to evidence
 already linked to that message. Guardrails and safe provider errors are tested,
 and Session, Job, generation, branch, and canonical messages remain unchanged.
-The HTTP route, event stream, rate limit, optional persistence, and mobile panel
-are not part of this commit.
+The HTTP route is now authenticated, default-off, and covered for ownership,
+safe validation/provider errors, and immutability. The event stream, rate
+limit, optional persistence, and mobile panel remain later slices.
 
 ### Phase 8 — Financial-technology UI redesign
 
@@ -1326,7 +1328,7 @@ passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
 checks. The Explanation service core is now present; the next bounded slice is
-its authenticated HTTP boundary.
+its admission limit.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the

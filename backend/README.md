@@ -89,7 +89,8 @@ The first Explanation Agent slice is a read-only backend service boundary. It
 requires an exact selection from a complete message on the owned active branch,
 passes only that message's linked evidence to an injected provider, applies the
 financial-language guardrail, and leaves Session/Job/transcript state
-unchanged. The HTTP route and mobile explanation panel are not mounted yet.
+unchanged. Its authenticated HTTP route is available only with Debate V2
+enabled; the mobile explanation panel is not mounted yet.
 
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set

@@ -125,6 +125,7 @@ GET  /debates?limit=
 GET  /debates/{session_id}
 GET  /debates/{session_id}/messages
 GET  /debates/{session_id}/events
+POST /debates/{session_id}/explanations
 POST /debates/{session_id}/interventions
 ```
 
@@ -278,7 +279,10 @@ cancel route is generation-scoped and is reachable while a queued/running Job
 is active; redirecting an active Debate into a new branch remains Phase 7. The
 read-only Explanation service core now validates owned active-branch messages,
 exact selections, message-linked evidence, guardrails, and safe provider
-failure. This HTTP route is not mounted yet.
+failure. Its authenticated, default-off route accepts `message_id`,
+`selected_text`, and `question`, then returns the bounded result without
+creating a Job or changing the Session. Missing owned sources return `404`, an
+invalid selection returns `409`, and provider failures return a safe `503`.
 
 ### Compatibility
 

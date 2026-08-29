@@ -50,9 +50,9 @@ These are limitations of the current implementation, not completed features:
   cross-process.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause. The context-bounded
-  Explanation service core now exists, but its HTTP endpoint and mobile panel
-  are not connected. The mid-generation cancellation protocol is not yet
-  reachable from the deployed screen.
+  Explanation service is now available through an authenticated default-off
+  HTTP endpoint, but its mobile panel is not connected. The mid-generation
+  cancellation protocol is not yet reachable from the deployed screen.
 - The hosted catalog now contains 7,695 searchable identities, but only the
   four curated `debate_ready` stocks have verified price, evidence, indicator,
   and Debate coverage. The other 7,691 rows remain Watchlist-only by design.
@@ -100,8 +100,8 @@ and current coding entry point are canonical in
 Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
-streaming completion gate. The next bounded implementation slice is the
-Explanation HTTP boundary.
+streaming completion gate. The next bounded implementation slice is Explanation
+admission limiting.
 
 ### Phase 1 completion evidence
 
@@ -412,8 +412,11 @@ service boundary. It accepts only an exact selection from a complete message
 on the owned active branch, exposes only evidence already linked to that
 message, applies financial-language guardrails, and hides provider failures.
 Tests prove it leaves Session status/generation, the active Job, branch, and
-canonical transcript unchanged. HTTP, streaming events, rate limits,
-persistence, and the mobile explanation panel remain later slices.
+canonical transcript unchanged. The authenticated, default-off HTTP boundary
+now maps missing sources, invalid selections, and provider failures to safe
+404, 409, and 503 responses without changing that state. Streaming events,
+rate limits, persistence, and the mobile explanation panel remain later
+slices.
 
 ## Boundaries that remain in force
 

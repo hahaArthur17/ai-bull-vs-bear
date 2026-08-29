@@ -62,6 +62,20 @@ class DebateChallengeRequest(BaseModel):
         return normalized
 
 
+class DebateExplanationRequest(BaseModel):
+    message_id: UUID
+    selected_text: str = Field(min_length=1, max_length=500)
+    question: str = Field(min_length=1, max_length=500)
+
+    @field_validator("selected_text", "question")
+    @classmethod
+    def reject_blank_text(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("Text cannot be blank")
+        return normalized
+
+
 class DebateCancelRequest(BaseModel):
     generation_id: UUID
 

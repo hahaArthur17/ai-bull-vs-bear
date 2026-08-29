@@ -90,7 +90,19 @@ def create_round_one(
 def test_preview_is_hidden_by_default_while_legacy_analysis_still_works() -> None:
     assert client.get("/debates").status_code == 404
     assert client.post("/debates", json={"ticker": "AAPL"}).status_code == 404
+    assert client.post(
+        f"/debates/{uuid4()}/explanations",
+        json={
+            "message_id": str(uuid4()),
+            "selected_text": "frozen snapshot",
+            "question": "What does this mean here?",
+        },
+    ).status_code == 404
     assert "/debates" not in client.get("/openapi.json").json()["paths"]
+    assert (
+        "/debates/{session_id}/explanations"
+        not in client.get("/openapi.json").json()["paths"]
+    )
 
     legacy = client.post("/analysis/AAPL", json={})
 
@@ -108,6 +120,16 @@ def test_disabled_preview_returns_not_found_before_supabase_auth(
 
     assert response.status_code == 404
     assert response.json() == {"detail": "Debate V2 is not enabled"}
+    explanation = client.post(
+        f"/debates/{uuid4()}/explanations",
+        json={
+            "message_id": str(uuid4()),
+            "selected_text": "frozen snapshot",
+            "question": "What does this mean here?",
+        },
+    )
+    assert explanation.status_code == 404
+    assert explanation.json() == {"detail": "Debate V2 is not enabled"}
 
 
 def test_create_round_one_exposes_three_exchanges_and_interim_judge(
@@ -151,6 +173,119 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
         "execution_mode": "synchronous_preview",
     }
     assert len(client.get(f"/debates/{session_id}/messages", headers=headers).json()) == 7
+
+
+def test_explanation_endpoint_returns_a_bounded_read_only_result(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = create_round_one(monkeypatch)
+    session = payload["session"]
+    target = payload["messages"][0]
+    message = target["message"]
+    session_id = UUID(session["id"])
+    job_id = UUID(payload["job_id"])
+    user_id = uuid5(NAMESPACE_URL, "ai-bull-vs-bear:user:preview-user")
+    assert main.debate_preview_service is not None
+    repository = main.debate_preview_service.repository
+    session_before = repository.get_session(session_id, user_id)
+    job_before = repository.get_job(job_id)
+    messages_before = repository.list_messages(
+        session_id,
+        user_id,
+        branch_id=session_before.active_branch_id,
+    )
+
+    response = client.post(
+        f"/debates/{session_id}/explanations",
+        headers={"X-User-Id": "preview-user"},
+        json={
+            "message_id": message["id"],
+            "selected_text": "frozen snapshot",
+            "question": "What does this mean here?",
+        },
+    )
+
+    assert response.status_code == 200
+    result = response.json()
+    assert result["session_id"] == session["id"]
+    assert result["source_message_id"] == message["id"]
+    assert result["selected_text"] == "frozen snapshot"
+    assert result["question"] == "What does this mean here?"
+    assert result["provider_name"] == "deterministic-explainer"
+    assert result["provider_version"] == "v1"
+    assert result["guardrail_status"] == "passed"
+    assert set(result["evidence_ids"]) <= {
+        citation["evidence_id"] for citation in target["citations"]
+    }
+    assert repository.get_session(session_id, user_id) == session_before
+    assert repository.get_job(job_id) == job_before
+    assert repository.list_messages(
+        session_id,
+        user_id,
+        branch_id=session_before.active_branch_id,
+    ) == messages_before
+
+
+def test_explanation_endpoint_hides_ownership_and_selection_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = create_round_one(monkeypatch)
+    session_id = payload["session"]["id"]
+    message_id = payload["messages"][0]["message"]["id"]
+    request = {
+        "message_id": message_id,
+        "selected_text": "frozen snapshot",
+        "question": "What does this mean here?",
+    }
+
+    missing = client.post(
+        f"/debates/{session_id}/explanations",
+        headers={"X-User-Id": "another-user"},
+        json=request,
+    )
+    assert missing.status_code == 404
+    assert missing.json() == {"detail": "Debate explanation source was not found"}
+
+    invalid = client.post(
+        f"/debates/{session_id}/explanations",
+        headers={"X-User-Id": "preview-user"},
+        json={**request, "selected_text": "not in the source message"},
+    )
+    assert invalid.status_code == 409
+    assert invalid.json() == {
+        "detail": "Explanation request is not valid for this Debate message"
+    }
+
+
+def test_explanation_endpoint_hides_provider_failure_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FailingExplanationProvider:
+        name = "failing-explainer"
+        version = "test"
+
+        def generate_explanation(self, _request):
+            raise RuntimeError("private provider response and request identifier")
+
+    payload = create_round_one(monkeypatch)
+    monkeypatch.setattr(
+        main,
+        "DeterministicExplanationProvider",
+        FailingExplanationProvider,
+    )
+    response = client.post(
+        f"/debates/{payload['session']['id']}/explanations",
+        headers={"X-User-Id": "preview-user"},
+        json={
+            "message_id": payload["messages"][0]["message"]["id"],
+            "selected_text": "frozen snapshot",
+            "question": "What does this mean here?",
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Explanation service is temporarily unavailable"}
+    assert "private provider" not in response.text
 
 
 def test_one_active_debate_is_enforced_before_new_factor_work(

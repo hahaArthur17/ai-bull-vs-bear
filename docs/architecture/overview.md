@@ -163,7 +163,8 @@ active-branch message, requires an exact source selection, limits evidence to
 that message's canonical citation links, applies financial-language
 guardrails, and returns a panel result through an injected provider. It does
 not create a Job, append a message, rotate a generation, or transition Session
-state. HTTP/event/mobile integration remains pending.
+state. Its authenticated default-off HTTP boundary is now wired; event and
+mobile integration remain pending.
 
 The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the

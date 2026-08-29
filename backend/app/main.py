@@ -25,15 +25,18 @@ from app.debate_schemas import (
     DebateCancelRequest,
     DebateChallengeRequest,
     DebateCreateRequest,
+    DebateExplanationRequest,
     DebateMessageRecord,
     DebateMutationResponse,
     DebateSessionDetail,
 )
 from app.domain.debate import DebateSession
+from app.domain.explanations import ExplanationResult
 from app.domain.events import DebateEvent
 from app.providers.current_factors import build_current_factor_registry
 from app.providers.debate_factory import build_debate_streaming_turn_provider
 from app.providers.deterministic_debate import DeterministicDebateProvider
+from app.providers.explanation import DeterministicExplanationProvider
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateQueueRepository,
@@ -83,6 +86,12 @@ from app.services.debate_event_broker import (
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
+from app.services.explanation import (
+    ExplanationNotFound,
+    ExplanationProviderError,
+    ExplanationService,
+    ExplanationValidationError,
+)
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
 from app.services.market_data import FinnhubQuoteClient, MarketDataError, QuoteCache
@@ -862,6 +871,47 @@ def get_debate_messages(
 ) -> list[DebateMessageRecord]:
     session = _debate_session_or_404(session_id, _debate_user_id(auth))
     return list(_debate_message_records(session))
+
+
+@app.post(
+    "/debates/{session_id}/explanations",
+    response_model=ExplanationResult,
+    include_in_schema=settings.debate_workflow_v2,
+)
+def explain_debate(
+    session_id: UUID,
+    request: DebateExplanationRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> ExplanationResult:
+    assert debate_preview_service is not None
+    service = ExplanationService(
+        debate_preview_service.repository,
+        DeterministicExplanationProvider(),
+    )
+    try:
+        return service.explain(
+            session_id=session_id,
+            user_id=_debate_user_id(auth),
+            source_message_id=request.message_id,
+            selected_text=request.selected_text,
+            question=request.question,
+        )
+    except ExplanationNotFound as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Debate explanation source was not found",
+        ) from exc
+    except ExplanationValidationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Explanation request is not valid for this Debate message",
+        ) from exc
+    except ExplanationProviderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Explanation service is temporarily unavailable",
+        ) from exc
 
 
 @app.get(
