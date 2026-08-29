@@ -92,6 +92,10 @@ from app.services.explanation import (
     ExplanationService,
     ExplanationValidationError,
 )
+from app.services.explanation_admission import (
+    ExplanationAdmissionPolicy,
+    ExplanationRateLimitExceeded,
+)
 from app.services.indicators import calculate_indicators
 from app.services.model_provider import ProviderError
 from app.services.market_data import FinnhubQuoteClient, MarketDataError, QuoteCache
@@ -171,6 +175,11 @@ debate_admission_policy = DebateAdmissionPolicy(
 debate_idempotency_guard = DebateIdempotencyGuard(
     cache_backend,
     ttl_seconds=settings.debate_idempotency_lock_ttl_seconds,
+)
+explanation_admission_policy = ExplanationAdmissionPolicy(
+    cache_backend,
+    rate_limit=settings.explanation_rate_limit_per_window,
+    rate_window_seconds=settings.explanation_rate_limit_window_seconds,
 )
 
 
@@ -881,10 +890,22 @@ def get_debate_messages(
 def explain_debate(
     session_id: UUID,
     request: DebateExplanationRequest,
+    response: Response,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> ExplanationResult:
     assert debate_preview_service is not None
+    user_id = _debate_user_id(auth)
+    try:
+        admission = explanation_admission_policy.admit(user_id)
+    except ExplanationRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Explanation request limit reached; retry later",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+    response.headers["X-RateLimit-Limit"] = str(admission.rate_limit)
+    response.headers["X-RateLimit-Remaining"] = str(admission.remaining)
     service = ExplanationService(
         debate_preview_service.repository,
         DeterministicExplanationProvider(),
@@ -892,7 +913,7 @@ def explain_debate(
     try:
         return service.explain(
             session_id=session_id,
-            user_id=_debate_user_id(auth),
+            user_id=user_id,
             source_message_id=request.message_id,
             selected_text=request.selected_text,
             question=request.question,

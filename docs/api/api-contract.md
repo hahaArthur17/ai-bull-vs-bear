@@ -157,6 +157,13 @@ sequential retry of the same queued idempotency key returns the existing
 Session/Job without consuming another admission. The distributed concurrency
 lock for simultaneous duplicate requests remains a separate Phase 6 slice.
 
+Explanation has an independent per-user fixed-window admission limit (12 per
+hour by default). Accepted requests expose `X-RateLimit-Limit` and
+`X-RateLimit-Remaining`; an exhausted window returns `429` with a bounded
+`Retry-After`. Its cache key contains only a hash of the normalized user ID and
+window number, never the selected passage or question. Redis remains an
+optimization: an outage falls back safely to the bounded local adapter.
+
 Only `debate_ready` stocks are accepted. The transport is controlled by the
 separate `DEBATE_QUEUE_ENABLED` flag:
 

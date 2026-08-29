@@ -1219,7 +1219,8 @@ already linked to that message. Guardrails and safe provider errors are tested,
 and Session, Job, generation, branch, and canonical messages remain unchanged.
 The HTTP route is now authenticated, default-off, and covered for ownership,
 safe validation/provider errors, and immutability. The event stream, rate
-limit, optional persistence, and mobile panel remain later slices.
+limit is now independently enforced with a hashed user key and local fallback;
+optional persistence and the mobile panel remain later slices.
 
 ### Phase 8 — Financial-technology UI redesign
 
@@ -1328,7 +1329,7 @@ passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
 checks. The Explanation service core is now present; the next bounded slice is
-its admission limit.
+mobile API integration.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the

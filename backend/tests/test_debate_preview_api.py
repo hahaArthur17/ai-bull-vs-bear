@@ -18,6 +18,7 @@ from app.services.debate_preview import DebatePreviewService
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
+from app.services.explanation_admission import ExplanationAdmissionPolicy
 from app.services.response_cache import JsonResponseCache
 from test_cache_backend import BrokenBackend
 from test_debate_orchestrator import build_queued_round_one
@@ -57,6 +58,15 @@ def isolated_preview(monkeypatch: pytest.MonkeyPatch) -> None:
         main,
         "debate_idempotency_guard",
         DebateIdempotencyGuard(coordination_backend, ttl_seconds=120),
+    )
+    monkeypatch.setattr(
+        main,
+        "explanation_admission_policy",
+        ExplanationAdmissionPolicy(
+            coordination_backend,
+            rate_limit=12,
+            rate_window_seconds=3600,
+        ),
     )
     monkeypatch.setattr(main.settings, "auth_mode", "demo")
     monkeypatch.setattr(main.settings, "debate_workflow_v2", False)
@@ -286,6 +296,78 @@ def test_explanation_endpoint_hides_provider_failure_details(
     assert response.status_code == 503
     assert response.json() == {"detail": "Explanation service is temporarily unavailable"}
     assert "private provider" not in response.text
+
+
+def test_explanation_endpoint_returns_admission_headers_and_a_bounded_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = create_round_one(monkeypatch)
+    policy = ExplanationAdmissionPolicy(
+        ResilientCacheBackend(LocalCacheBackend()),
+        rate_limit=2,
+        rate_window_seconds=3600,
+        clock=lambda: 3700.0,
+    )
+    monkeypatch.setattr(main, "explanation_admission_policy", policy)
+    request = {
+        "message_id": payload["messages"][0]["message"]["id"],
+        "selected_text": "frozen snapshot",
+        "question": "What does this mean here?",
+    }
+    headers = {"X-User-Id": "preview-user"}
+
+    first = client.post(
+        f"/debates/{payload['session']['id']}/explanations",
+        headers=headers,
+        json=request,
+    )
+    second = client.post(
+        f"/debates/{payload['session']['id']}/explanations",
+        headers=headers,
+        json=request,
+    )
+    limited = client.post(
+        f"/debates/{payload['session']['id']}/explanations",
+        headers=headers,
+        json=request,
+    )
+
+    assert first.status_code == second.status_code == 200
+    assert first.headers["x-ratelimit-limit"] == "2"
+    assert first.headers["x-ratelimit-remaining"] == "1"
+    assert second.headers["x-ratelimit-remaining"] == "0"
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "3500"
+    assert limited.json() == {"detail": "Explanation request limit reached; retry later"}
+
+
+def test_explanation_admission_degrades_to_local_cache_during_redis_outage(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    payload = create_round_one(monkeypatch)
+    fallback = LocalCacheBackend()
+    backend = ResilientCacheBackend(BrokenBackend(), fallback=fallback)
+    policy = ExplanationAdmissionPolicy(
+        backend,
+        rate_limit=2,
+        rate_window_seconds=3600,
+        clock=lambda: 3700.0,
+    )
+    monkeypatch.setattr(main, "cache_backend", backend)
+    monkeypatch.setattr(main, "explanation_admission_policy", policy)
+    response = client.post(
+        f"/debates/{payload['session']['id']}/explanations",
+        headers={"X-User-Id": "preview-user"},
+        json={
+            "message_id": payload["messages"][0]["message"]["id"],
+            "selected_text": "frozen snapshot",
+            "question": "What does this mean here?",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["x-ratelimit-remaining"] == "1"
+    assert backend.health().mode == "degraded"
 
 
 def test_one_active_debate_is_enforced_before_new_factor_work(

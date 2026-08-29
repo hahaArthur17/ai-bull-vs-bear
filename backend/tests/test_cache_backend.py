@@ -122,6 +122,8 @@ def test_redis_configuration_is_explicit_and_url_scheme_is_validated() -> None:
     assert defaults.debate_rate_limit_window_seconds == 3600
     assert defaults.debate_active_ttl_seconds == 1200
     assert defaults.debate_idempotency_lock_ttl_seconds == 120
+    assert defaults.explanation_rate_limit_per_window == 12
+    assert defaults.explanation_rate_limit_window_seconds == 3600
     with pytest.raises(ValueError, match="REDIS_URL"):
         Settings(redis_enabled=True)
     with pytest.raises(ValueError, match="redis:// or rediss://"):

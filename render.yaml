@@ -35,6 +35,10 @@ services:
         value: "3600"
       - key: DEBATE_ACTIVE_TTL_SECONDS
         value: "1200"
+      - key: EXPLANATION_RATE_LIMIT_PER_WINDOW
+        value: "12"
+      - key: EXPLANATION_RATE_LIMIT_WINDOW_SECONDS
+        value: "3600"
       - key: CORS_ORIGINS
         sync: false
       - key: SUPABASE_URL
