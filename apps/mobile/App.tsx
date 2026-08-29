@@ -27,6 +27,7 @@ import { AboutScreen } from "./src/screens/AboutScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
 import { LiveDebateScreen } from "./src/screens/LiveDebateScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
+import { loadStockDetail } from "./src/stockDetail";
 import { isSupabaseConfigured, supabase } from "./src/supabase";
 import { appStyles as styles, palette } from "./src/theme";
 import type {
@@ -74,6 +75,7 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const debateAdmissionKey = useRef<string | null>(null);
+  const stockLoadEpoch = useRef(0);
 
   const loadHome = async () => {
     try {
@@ -132,27 +134,35 @@ export default function App() {
     return results;
   }, []);
 
-  const openStock = async (ticker: string) => {
+  const loadSelectedStock = async (ticker: string) => {
+    const requestEpoch = stockLoadEpoch.current + 1;
+    stockLoadEpoch.current = requestEpoch;
     debateAdmissionKey.current = null;
     setSelectedTicker(ticker);
-    setScreen("stock");
     setSelectedStock(null);
     setSelectedBundle(null);
     setLoading(true);
     setError("");
     try {
-      const stock = await api.getStock(ticker);
-      setSelectedStock(stock);
-      if (stock.coverage_status !== "catalog_only") {
-        const bundle = await api.getStockBundle(ticker);
-        setSelectedBundle(bundle);
-        setSelectedStock(bundle.stock);
+      const detail = await loadStockDetail(api, ticker);
+      if (stockLoadEpoch.current === requestEpoch) {
+        setSelectedStock(detail.stock);
+        setSelectedBundle(detail.bundle);
       }
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not load stock details.");
+      if (stockLoadEpoch.current === requestEpoch) {
+        setError(requestError instanceof Error ? requestError.message : "Could not load stock details.");
+      }
     } finally {
-      setLoading(false);
+      if (stockLoadEpoch.current === requestEpoch) {
+        setLoading(false);
+      }
     }
+  };
+
+  const openStock = async (ticker: string) => {
+    setScreen("stock");
+    await loadSelectedStock(ticker);
   };
 
   const toggleWatchlist = async (ticker: string) => {
@@ -232,18 +242,20 @@ export default function App() {
   };
 
   const openSavedDebate = async (sessionSummary: DebateSessionSummary) => {
+    let stockLoadStarted = false;
     setLoading(true);
     setError("");
     try {
       const detail = await api.getDebate(sessionSummary.id);
-      setSelectedTicker(detail.session.ticker);
       setLiveDebate(detail);
       setDebateExperience("v2");
       setScreen("debate");
+      stockLoadStarted = true;
+      await loadSelectedStock(detail.session.ticker);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load this Debate.");
     } finally {
-      setLoading(false);
+      if (!stockLoadStarted) setLoading(false);
     }
   };
 
