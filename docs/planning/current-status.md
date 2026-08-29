@@ -105,9 +105,10 @@ Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
 streaming completion gate. Explanation now has a stable read-only mobile/API
-path plus a bounded optional Groq provider. The next product choices are
-arbitrary Web selection, UI polish, Replay, or a deliberately scoped live
-provider rollout; message branching remains deferred.
+path plus a bounded optional Groq provider. Phase 7 is complete in its linear
+interaction scope. The next implementation phase is the financial-technology UI
+redesign, followed by Replay, observability, resilience, and release proof;
+message branching and arbitrary Web selection remain deferred backlog items.
 
 ### Phase 1 completion evidence
 
@@ -410,7 +411,7 @@ Phase 6 is complete in code and local verification. These in-process results
 demonstrate the cache boundary and are not hosted Supabase/Redis measurements
 or a production latency SLA.
 
-### Phase 7 progress
+### Phase 7 completion
 
 The first Explanation slice adds immutable request/draft/result contracts, a
 provider protocol, a credential-free deterministic provider, and a synchronous
@@ -447,6 +448,11 @@ General message branching is deferred. If a future product requirement permits
 Challenges during generation, the intended minimum design is to copy the last
 complete-message prefix into a new branch with explicit provenance, rather
 than introduce a general-purpose DAG.
+
+The Phase 7 completion rule is met: the user can explain an exact term without
+changing Debate state and can direct a grounded second round from the durable
+Interim Judge pause. Arbitrary Web selection and generation-time branching are
+deferred product enhancements, not gaps in this delivered interaction scope.
 
 ## Boundaries that remain in force
 

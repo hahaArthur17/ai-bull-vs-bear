@@ -31,9 +31,11 @@ baseline is maintained in
   deterministic chunks, not live model tokens. A default-off async per-Turn
   contract and Groq adapter validate true provider streams before persistence.
   The V2 mobile screen mounts the resumable SSE client, Queue state, Round 2,
-  and generation-scoped cancellation behind its own disabled flag. Cancellation
-  rotates the active generation and prevents late provider completion from
-  becoming a canonical message.
+  generation-scoped cancellation, and a read-only exact-term Explanation panel
+  behind its own disabled flag. Explanation defaults to deterministic and has a
+  separately configured, bounded Groq option. Cancellation rotates the active
+  generation and prevents late provider completion from becoming a canonical
+  message.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
@@ -70,23 +72,28 @@ baseline is maintained in
   RSI, MACD, volume, volatility, and dated macro-market context.
 - Financial-advice rewrites and a required educational disclaimer.
 
-## Planned portfolio milestone
+## Current roadmap
 
 The deployed mobile Debate is currently a single synchronous Bull/Bear/Judge
 response. A default-off V2 API and screen prove deterministic multi-turn state,
 durable background Queue work, and live-stream selection without changing that
-production baseline. The active
+production baseline. Phase 7 is complete: the default-off V2 experience now
+includes bounded Explanation, Challenge, Round 2, Final Judge, History, and an
+opt-in local Groq Explanation verification. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
-defines the next milestone: user explanations/interventions, Demo Replay, and
-a reusable financial-technology UI system. The quota-controlled local live
-Groq Round 1 now passes its streaming/persistence/reconnect gate. Redis cache and
-coordination work is complete in code and local verification; its measurements
-remain explicitly separate from hosted performance claims. Factor-provider and
-catalog/watchlist foundations are implemented, and the hosted Catalog plus
-Debate persistence/RLS gates passed on 2026-08-29. The hosted Queue migration
-and deterministic admission/Worker/retry/restart gate also passed; production
-V2 flags remain default-off until a deliberate production deployment smoke test
-with a rollback plan.
+defines Phase 8 as a reusable financial-technology UI system and Phase 9 as
+Demo Replay, observability, resilience, and release proof. General message
+branching and arbitrary Web text selection are deferred enhancements; V2
+intentionally remains linear after the durable Round 1 pause. The
+quota-controlled local live Groq Round 1 now passes its
+streaming/persistence/reconnect gate. Redis cache and coordination work is
+complete in code and local verification; its measurements remain explicitly
+separate from hosted performance claims. Factor-provider and catalog/watchlist
+foundations are implemented, and the hosted Catalog plus Debate persistence/RLS
+gates passed on 2026-08-29. The hosted Queue migration and deterministic
+admission/Worker/retry/restart gate also passed; production V2 flags remain
+default-off until a deliberate production deployment smoke test with a rollback
+plan.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.

@@ -1196,7 +1196,7 @@ Redis does not corrupt or disable canonical workflows.
 
 ### Phase 7 — Explanation, interruption, and round two
 
-Status: In progress
+Status: Done
 
 - [x] Render model-provided terms as clickable cross-platform elements.
 - [x] Implement context-bounded Explanation Agent service requests.
@@ -1204,10 +1204,9 @@ Status: In progress
 - [x] Expose Explanation through an authenticated default-off HTTP endpoint.
 - [x] Implement challenge/intervention persistence.
 - [x] Cancel an active generation using generation IDs.
-- [ ] Branch from the last complete message (deferred; retain the linear flow).
 - [x] Enqueue and stream round two around the user question.
 - [x] Add final Judge summary and history rendering.
-- [ ] Add arbitrary Web selection only after term explanation is stable.
+- [x] Retain a linear Challenge flow after the durable Round 1 pause.
 
 Completion rule: the user can explain a term without stopping Debate or can
 challenge the debate and receive a grounded second round.
@@ -1218,6 +1217,14 @@ is the Challenge reference, not a truncation point. General branching is out
 of scope until a generation-time intervention is required; then copy the last
 complete-message prefix into a new branch with source provenance instead of
 introducing a full transcript DAG.
+
+#### Deferred Backlog — post-Phase 7
+
+- [ ] Add an explicit clone-prefix branch from the last complete message only
+  if generation-time Challenge becomes a product requirement; retain the source
+  branch/message provenance and do not introduce a general transcript DAG.
+- [ ] Add arbitrary Web text selection after the existing exact-term panel has
+  a dedicated Web interaction and accessibility design.
 
 Progress evidence: the first backend slice adds immutable Explanation
 request/draft/result contracts, a provider boundary, a deterministic provider,
@@ -1341,10 +1348,11 @@ Phases 2, 3, 4, 5, and 6 are complete in their recorded scopes. The Catalog
 passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
-checks. Explanation now has a read-only mobile/API path, deterministic default,
-and a bounded explicit Groq provider with a one-request opt-in verifier. The
-next bounded product choices are arbitrary Web selection, Replay, or UI work;
-message branching is explicitly deferred while V2 remains linear.
+checks. Phase 7 is complete: Explanation has a read-only mobile/API path,
+deterministic default, and a bounded explicit Groq provider with a one-request
+opt-in verifier; Challenge/Round 2/Final Judge remain linear. The current coding
+entry point is Phase 8 UI work, followed by Phase 9 Replay and release proof.
+Message branching and arbitrary Web selection are deferred backlog items.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the
