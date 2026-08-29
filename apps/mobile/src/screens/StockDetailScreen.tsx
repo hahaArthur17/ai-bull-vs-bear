@@ -54,7 +54,12 @@ export function StockDetailScreen({
               {stock.ticker} · {stock.sector || "Classification unavailable"}
             </Text>
           </View>
-          <Pressable onPress={onToggleWatchlist}>
+          <Pressable
+            accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
+            accessibilityRole="button"
+            accessibilityState={{ selected: isWatched }}
+            onPress={onToggleWatchlist}
+          >
             <Text style={[styles.star, isWatched && styles.starActive]}>
               {isWatched ? "★" : "☆"}
             </Text>
@@ -74,7 +79,13 @@ export function StockDetailScreen({
           </Text>
           {stock.sec_cik ? <Text style={styles.mutedText}>SEC CIK {stock.sec_cik}</Text> : null}
         </View>
-        <Pressable style={styles.secondaryButton} onPress={onToggleWatchlist}>
+        <Pressable
+          accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isWatched }}
+          style={styles.secondaryButton}
+          onPress={onToggleWatchlist}
+        >
           <Text style={styles.secondaryButtonText}>
             {isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
           </Text>
@@ -108,7 +119,12 @@ export function StockDetailScreen({
             {bundle.stock.ticker} · {bundle.stock.sector || "Classification unavailable"}
           </Text>
         </View>
-        <Pressable onPress={onToggleWatchlist}><Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text></Pressable>
+        <Pressable
+          accessibilityLabel={isWatched ? `Remove ${bundle.stock.ticker} from watchlist` : `Add ${bundle.stock.ticker} to watchlist`}
+          accessibilityRole="button"
+          accessibilityState={{ selected: isWatched }}
+          onPress={onToggleWatchlist}
+        ><Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text></Pressable>
       </View>
       <View style={styles.priceCard}>
         <Text style={styles.cardLabel}>{quote ? "LATEST QUOTE" : hasVerifiedMarketData ? "LATEST DAILY CLOSE" : "VERIFIED PRICE UNAVAILABLE"}</Text>
@@ -117,7 +133,7 @@ export function StockDetailScreen({
         ) : (
           <Text style={styles.unavailablePrice}>—</Text>
         )}
-        <Text style={styles.priceMeta}>
+        <Text accessibilityLiveRegion="polite" style={styles.priceMeta}>
           {quote
             ? `Quote timestamp ${formatQuoteTime(quote.as_of)}`
             : hasVerifiedMarketData
@@ -159,8 +175,8 @@ export function StockDetailScreen({
         </View>
       )}
       <View style={styles.actionRow}>
-        <Pressable style={styles.secondaryButton} onPress={onEvidence}><Text style={styles.secondaryButtonText}>Evidence board</Text></Pressable>
-        <Pressable style={styles.primaryButton} onPress={onDebate}><Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text></Pressable>
+        <Pressable accessibilityHint="Opens the dated evidence used by the research workflow." accessibilityRole="button" style={styles.secondaryButton} onPress={onEvidence}><Text style={styles.secondaryButtonText}>Evidence board</Text></Pressable>
+        <Pressable accessibilityHint="Starts Bull vs Bear for this research-ready security." accessibilityRole="button" style={styles.primaryButton} onPress={onDebate}><Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text></Pressable>
       </View>
     </ScrollView>
   );
