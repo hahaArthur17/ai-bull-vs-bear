@@ -351,7 +351,7 @@ export function LiveDebateScreen({
       <View style={screenStyles.sectionHeader}>
         <Text style={screenStyles.sectionTitle}>Debate transcript</Text>
         <Text style={screenStyles.sectionMeta}>
-          {snapshot.canonicalMessages.length} durable · {drafts.length} streaming
+          {snapshot.canonicalMessages.length} canonical · {drafts.length} draft
         </Text>
       </View>
 
@@ -561,7 +561,7 @@ function MessageCard({
       selected && screenStyles.selectedMessage,
     ]}>
       <View style={screenStyles.rowBetween}>
-        <Text style={[screenStyles.roleLabel, { color: role.color }]}>{role.label}</Text>
+        <Text style={[screenStyles.roleLabel, { color: role.color }]}>{role.label} · {isFinalJudge ? "FINAL" : "CANONICAL"}</Text>
         <Text style={screenStyles.messageMeta}>
           R{record.message.round_number} · E{record.message.exchange_number} · #{record.message.sequence_number}
         </Text>
@@ -605,7 +605,7 @@ function DraftCard({ draft }: { draft: DebateDraft }) {
   return (
     <View style={[screenStyles.draftCard, { borderLeftColor: role.color }]}>
       <View style={screenStyles.rowBetween}>
-        <Text style={[screenStyles.roleLabel, { color: role.color }]}>{role.label}</Text>
+        <Text style={[screenStyles.roleLabel, { color: role.color }]}>{role.label} · DRAFT</Text>
         <View style={screenStyles.streamingRow}>
           <ActivityIndicator color={colors.cyan} size="small" />
           <Text style={screenStyles.streamingText}>STREAMING</Text>
@@ -614,7 +614,7 @@ function DraftCard({ draft }: { draft: DebateDraft }) {
       <Text style={screenStyles.messageText}>
         {draft.content || "The agent has started this turn…"}
       </Text>
-      <Text style={screenStyles.draftNote}>Temporary draft · not yet canonical</Text>
+      <Text style={screenStyles.draftNote}>Draft · temporary and not yet canonical</Text>
     </View>
   );
 }

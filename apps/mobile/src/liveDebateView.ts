@@ -11,28 +11,28 @@ export type DebateStatusCopy = {
 export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCopy {
   if (snapshot.sessionStatus === "cancel_requested") {
     return {
-      label: "Cancellation requested",
+      label: "Cancelling",
       detail: "The active generation is invalidated; late output will be discarded.",
       tone: "warning",
     };
   }
   if (snapshot.sessionStatus === "cancelled" || snapshot.jobStatus === "cancelled") {
     return {
-      label: "Debate cancelled",
+      label: "Cancelled",
       detail: "No further messages will be added to this session.",
       tone: "neutral",
     };
   }
   if (snapshot.sessionStatus === "failed" || snapshot.jobStatus === "failed") {
     return {
-      label: "Generation failed safely",
+      label: "Failed safely",
       detail: "Completed messages were preserved. No partial message became canonical.",
       tone: "danger",
     };
   }
   if (snapshot.sessionStatus === "completed") {
     return {
-      label: "Debate complete",
+      label: "Final",
       detail: "Round 2 and the final neutral Judge summary are durable.",
       tone: "success",
     };
@@ -49,21 +49,21 @@ export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCo
       ? "shortly"
       : `in ${snapshot.retryDelaySeconds}s`;
     return {
-      label: "Retry scheduled",
+      label: "Retry",
       detail: `Attempt ${snapshot.jobAttemptCount} paused; the Worker will retry ${delay}.`,
       tone: "warning",
     };
   }
   if (snapshot.jobStatus === "running") {
     return {
-      label: "Agents are debating",
+      label: "Running",
       detail: `Worker attempt ${Math.max(1, snapshot.jobAttemptCount)} is streaming the active turn.`,
       tone: "active",
     };
   }
   if (snapshot.jobStatus === "queued") {
     return {
-      label: "Queued with backpressure",
+      label: "Queued",
       detail: "The request is durable and will start when a bounded Worker is available.",
       tone: "active",
     };

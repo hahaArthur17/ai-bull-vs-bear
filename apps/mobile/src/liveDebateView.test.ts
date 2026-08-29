@@ -28,7 +28,7 @@ function snapshot(
 }
 
 test("queued and running jobs expose visible cancellable status", () => {
-  assert.equal(debateStatusCopy(snapshot()).label, "Queued with backpressure");
+  assert.equal(debateStatusCopy(snapshot()).label, "Queued");
   assert.equal(canCancelDebate(snapshot()), true);
 
   const running = snapshot({
@@ -49,8 +49,14 @@ test("retry delay and failure are presented without provider details", () => {
   assert.match(debateStatusCopy(retry).detail, /4s/);
 
   const failed = snapshot({ sessionStatus: "failed", jobStatus: "failed" });
+  assert.equal(debateStatusCopy(failed).label, "Failed safely");
   assert.equal(debateStatusCopy(failed).tone, "danger");
   assert.equal(canCancelDebate(failed), false);
+});
+
+test("terminal states use explicit cancelled and final labels", () => {
+  assert.equal(debateStatusCopy(snapshot({ sessionStatus: "cancelled", jobStatus: "cancelled" })).label, "Cancelled");
+  assert.equal(debateStatusCopy(snapshot({ sessionStatus: "completed", jobStatus: "stage_completed" })).label, "Final");
 });
 
 test("only the durable interim pause enables a round two challenge", () => {
