@@ -10,6 +10,7 @@ import {
 } from "react-native";
 
 import { api, createDebateStreamClient } from "../api";
+import { debateActionStatus } from "../debateActionState";
 import {
   createCanonicalDebateSnapshot,
 } from "../debateStream";
@@ -178,6 +179,7 @@ export function LiveDebateScreen({
   const canSubmitExplanation = selectedExplanationTerm !== null
     && explanationQuestion.trim().length > 0
     && !explaining;
+  const activeAction = debateActionStatus({ cancelling, challenging, explaining });
 
   const selectChallengeTarget = (record: DebateMessageRecord) => {
     setChallengeTarget(record);
@@ -348,6 +350,13 @@ export function LiveDebateScreen({
         </View>
       ) : null}
 
+      {activeAction ? (
+        <View accessibilityLiveRegion="polite" style={screenStyles.actionStatusCard}>
+          <Text style={screenStyles.actionStatusLabel}>{activeAction.label}</Text>
+          <Text style={screenStyles.actionStatusDetail}>{activeAction.detail}</Text>
+        </View>
+      ) : null}
+
       <View style={screenStyles.sectionHeader}>
         <Text style={screenStyles.sectionTitle}>Debate transcript</Text>
         <Text style={screenStyles.sectionMeta}>
@@ -424,7 +433,7 @@ export function LiveDebateScreen({
             ]}
             onPress={() => void submitExplanation()}
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmitExplanation }}
+            accessibilityState={{ busy: explaining, disabled: !canSubmitExplanation }}
           >
             {explaining ? <ActivityIndicator color={colors.background} size="small" /> : null}
             <Text style={screenStyles.explanationButtonText}>
@@ -495,7 +504,7 @@ export function LiveDebateScreen({
                 ]}
                 onPress={() => void submitChallenge()}
                 accessibilityRole="button"
-                accessibilityState={{ disabled: !canSubmitChallenge }}
+                accessibilityState={{ busy: challenging, disabled: !canSubmitChallenge }}
               >
                 {challenging ? <ActivityIndicator color={colors.background} size="small" /> : null}
                 <Text style={screenStyles.challengeButtonText}>
@@ -517,7 +526,7 @@ export function LiveDebateScreen({
           style={[screenStyles.cancelButton, !canCancel && screenStyles.disabledButton]}
           onPress={() => void cancelDebate()}
           accessibilityRole="button"
-          accessibilityState={{ disabled: !canCancel }}
+          accessibilityState={{ busy: cancelling, disabled: !canCancel }}
         >
           {cancelling ? <ActivityIndicator color={colors.bear} size="small" /> : null}
           <Text style={screenStyles.cancelText}>
@@ -644,6 +653,9 @@ const screenStyles = StyleSheet.create({
   inlineButtonText: { color: colors.warning, fontSize: 12, fontWeight: "800" },
   errorCard: { backgroundColor: "#351923", borderColor: "#6d2d3e", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   errorText: { color: colors.danger, fontSize: 12, lineHeight: 18 },
+  actionStatusCard: { backgroundColor: colors.elevated, borderColor: colors.line, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
+  actionStatusLabel: { color: colors.cyan, fontSize: 12, fontWeight: "900" },
+  actionStatusDetail: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 4 },
   sectionHeader: { flexDirection: "row", justifyContent: "space-between", alignItems: "flex-end", gap: 10, marginTop: 8, marginBottom: 12 },
   sectionTitle: { color: colors.text, fontSize: 18, fontWeight: "900" },
   sectionMeta: { color: colors.muted, fontSize: 10 },
