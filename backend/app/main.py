@@ -36,7 +36,10 @@ from app.domain.events import DebateEvent
 from app.providers.current_factors import build_current_factor_registry
 from app.providers.debate_factory import build_debate_streaming_turn_provider
 from app.providers.deterministic_debate import DeterministicDebateProvider
-from app.providers.explanation import DeterministicExplanationProvider
+from app.providers.explanation_factory import (
+    ExplanationProviderConfigurationError,
+    build_explanation_provider,
+)
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateQueueRepository,
@@ -906,10 +909,14 @@ def explain_debate(
         ) from exc
     response.headers["X-RateLimit-Limit"] = str(admission.rate_limit)
     response.headers["X-RateLimit-Remaining"] = str(admission.remaining)
-    service = ExplanationService(
-        debate_preview_service.repository,
-        DeterministicExplanationProvider(),
-    )
+    try:
+        provider = build_explanation_provider(settings)
+    except ExplanationProviderConfigurationError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Explanation service is temporarily unavailable",
+        ) from exc
+    service = ExplanationService(debate_preview_service.repository, provider)
     try:
         return service.explain(
             session_id=session_id,

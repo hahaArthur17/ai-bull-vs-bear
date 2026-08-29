@@ -280,8 +280,8 @@ def test_explanation_endpoint_hides_provider_failure_details(
     payload = create_round_one(monkeypatch)
     monkeypatch.setattr(
         main,
-        "DeterministicExplanationProvider",
-        FailingExplanationProvider,
+        "build_explanation_provider",
+        lambda _settings: FailingExplanationProvider(),
     )
     response = client.post(
         f"/debates/{payload['session']['id']}/explanations",
