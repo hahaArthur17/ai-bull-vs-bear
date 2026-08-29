@@ -15,6 +15,7 @@ import {
   technicalPath,
 } from "../research/chartMath";
 import type { MacroChart, SeriesPoint } from "../research/chartMath";
+import { getQuoteProvenance } from "../stockResearchSummary";
 import { appStyles as styles, palette } from "../theme";
 import type { Stock, StockBundle } from "../types";
 
@@ -46,38 +47,23 @@ export function StockDetailScreen({
     return (
       <ScrollView contentContainerStyle={styles.page}>
         <BackButton onPress={onBack} />
-        <View style={styles.detailHeader}>
-          <View>
-            <Text style={styles.eyebrow}>{stock.exchange} · CATALOG ONLY</Text>
-            <Text style={styles.detailTitle}>{stock.company_name}</Text>
-            <Text style={styles.detailTicker}>
-              {stock.ticker} · {stock.sector || "Classification unavailable"}
-            </Text>
-          </View>
-          <Pressable
-            accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
-            accessibilityRole="button"
-            accessibilityState={{ selected: isWatched }}
-            onPress={onToggleWatchlist}
-          >
-            <Text style={[styles.star, isWatched && styles.starActive]}>
-              {isWatched ? "★" : "☆"}
-            </Text>
-          </Pressable>
-        </View>
-        <View style={styles.aboutCard}>
-          <Text style={styles.cardTitle}>Identity available, analysis not configured</Text>
+        <StockResearchHeader stock={stock} isWatched={isWatched} onToggleWatchlist={onToggleWatchlist} />
+        <View style={styles.catalogIdentityCard}>
+          <Text style={styles.cardLabel}>CATALOG IDENTITY</Text>
+          <Text style={styles.catalogAvailability}>Watchlist available · research unavailable</Text>
           <Text style={styles.mutedText}>
-            This symbol comes from the versioned SEC catalog and can be saved to your Watchlist.
-            Cached prices, evidence, technical signals, and Bull vs Bear are not available for it.
+            This identity comes from the versioned SEC catalog. It can be saved to your Watchlist,
+            but cached prices, evidence, technical signals, and Bull vs Bear are not configured.
           </Text>
+          <Text style={styles.catalogMetadata}>Source · Versioned SEC security catalog</Text>
+          <Text style={styles.catalogMetadata}>Coverage checked · {formatQuoteTime(stock.coverage_updated_at)}</Text>
+          {stock.sec_cik ? <Text style={styles.catalogMetadata}>SEC CIK · {stock.sec_cik}</Text> : null}
         </View>
-        <View style={styles.aboutCard}>
-          <Text style={styles.cardTitle}>Zero provider calls</Text>
+        <View style={styles.catalogBoundaryCard}>
+          <Text style={styles.cardTitle}>Identity-only boundary</Text>
           <Text style={styles.mutedText}>
-            Opening this profile did not request market data, news, or an AI model.
+            Opening this profile did not request market data, news, evidence retrieval, or an AI model.
           </Text>
-          {stock.sec_cik ? <Text style={styles.mutedText}>SEC CIK {stock.sec_cik}</Text> : null}
         </View>
         <Pressable
           accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
@@ -102,51 +88,36 @@ export function StockDetailScreen({
       />
     );
   }
-  const latest = bundle.prices[bundle.prices.length - 1];
-  const hasVerifiedMarketData = latest.source === "daily_market_cache";
-  const quote = bundle.quote;
-  const hasLatestQuote = quote !== null;
-  const priceSource = quote ? "LATEST MARKET QUOTE" : latest.source === "daily_market_cache" ? "DAILY MARKET CACHE" : "DEMO FALLBACK";
-  const priceStatus = latest.is_stale ? " · STALE" : "";
+  const quoteProvenance = getQuoteProvenance(bundle);
+  const { hasVerifiedMarketData } = quoteProvenance;
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <BackButton onPress={onBack} />
-      <View style={styles.detailHeader}>
-        <View>
-          <Text style={styles.eyebrow}>{bundle.stock.exchange} · {priceSource}{priceStatus}</Text>
-          <Text style={styles.detailTitle}>{bundle.stock.company_name}</Text>
-          <Text style={styles.detailTicker}>
-            {bundle.stock.ticker} · {bundle.stock.sector || "Classification unavailable"}
-          </Text>
-        </View>
-        <Pressable
-          accessibilityLabel={isWatched ? `Remove ${bundle.stock.ticker} from watchlist` : `Add ${bundle.stock.ticker} to watchlist`}
-          accessibilityRole="button"
-          accessibilityState={{ selected: isWatched }}
-          onPress={onToggleWatchlist}
-        ><Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text></Pressable>
-      </View>
+      <StockResearchHeader stock={bundle.stock} isWatched={isWatched} onToggleWatchlist={onToggleWatchlist} />
       <View style={styles.priceCard}>
-        <Text style={styles.cardLabel}>{quote ? "LATEST QUOTE" : hasVerifiedMarketData ? "LATEST DAILY CLOSE" : "VERIFIED PRICE UNAVAILABLE"}</Text>
-        {hasLatestQuote || hasVerifiedMarketData ? (
-          <Text style={styles.priceValue}>{"$"}{(bundle.quote?.close ?? latest.close).toFixed(2)}</Text>
+        <View style={styles.priceSummaryHeader}>
+          <Text style={styles.cardLabel}>{quoteProvenance.label.toUpperCase()}</Text>
+          <Text style={styles.priceFreshness}>{quoteProvenance.freshness}</Text>
+        </View>
+        {quoteProvenance.value !== null ? (
+          <Text accessibilityLiveRegion="polite" style={styles.priceValue}>{"$"}{quoteProvenance.value.toFixed(2)}</Text>
         ) : (
           <Text style={styles.unavailablePrice}>—</Text>
         )}
-        <Text accessibilityLiveRegion="polite" style={styles.priceMeta}>
-          {quote
-            ? `Quote timestamp ${formatQuoteTime(quote.as_of)}`
-            : hasVerifiedMarketData
-              ? `Market close on ${formatMarketDate(latest.date)}`
-              : "The earlier $207.40 was generated demo data, not an Apple market close."}
-        </Text>
-        <Text style={styles.priceMeta}>
-          {quote
-            ? `Latest quote is cached on the server for one minute${hasVerifiedMarketData ? "; the curve below uses daily closes." : "."}`
-            : hasVerifiedMarketData
-              ? `Verified daily OHLCV cache${latest.is_stale ? "; refresh needed." : "."}`
-              : "A verified daily price will appear after the AAPL cache refresh completes."}
-        </Text>
+        <View style={styles.priceProvenance}>
+          <Text style={styles.priceProvenanceText}>Source · {quoteProvenance.source}</Text>
+          <Text style={styles.priceProvenanceText}>{quoteProvenance.timestamp}</Text>
+          <Text style={styles.priceProvenanceText}>Freshness · {quoteProvenance.freshness}</Text>
+          <Text style={styles.priceProvenanceText}>
+            Curve source · {hasVerifiedMarketData ? "Verified daily market cache" : "Unavailable until daily data is verified"}
+          </Text>
+        </View>
+        {quoteProvenance.warning ? (
+          <View accessibilityLiveRegion="assertive" style={styles.priceWarning}>
+            <Text style={styles.priceWarningTitle}>Research warning</Text>
+            <Text style={styles.priceWarningText}>{quoteProvenance.warning}</Text>
+          </View>
+        ) : null}
         {hasVerifiedMarketData ? (
           <InteractivePriceChart dailyPrices={bundle.prices} weeklyPrices={bundle.weekly_history} />
         ) : (
@@ -179,6 +150,39 @@ export function StockDetailScreen({
         <Pressable accessibilityHint="Starts Bull vs Bear for this research-ready security." accessibilityRole="button" style={styles.primaryButton} onPress={onDebate}><Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text></Pressable>
       </View>
     </ScrollView>
+  );
+}
+
+function StockResearchHeader({
+  stock,
+  isWatched,
+  onToggleWatchlist,
+}: {
+  stock: Stock;
+  isWatched: boolean;
+  onToggleWatchlist: () => void;
+}) {
+  const isCatalogOnly = stock.coverage_status === "catalog_only";
+  const coverageLabel = isCatalogOnly ? "Watchlist only" : "Research coverage available";
+  return (
+    <View style={styles.researchHeader}>
+      <View style={styles.tickerTile}><Text style={styles.tickerTileText}>{stock.ticker.slice(0, 1)}</Text></View>
+      <View style={styles.researchHeaderCopy}>
+        <Text style={styles.eyebrow}>{stock.exchange} · {isCatalogOnly ? "CATALOG IDENTITY" : "STOCK RESEARCH"}</Text>
+        <Text style={styles.detailTitle}>{stock.company_name}</Text>
+        <Text style={styles.detailTicker}>{stock.ticker} · {stock.sector || "Classification unavailable"}</Text>
+        <Text style={[styles.coverageStatus, isCatalogOnly && styles.coverageStatusCatalog]}>{coverageLabel}</Text>
+      </View>
+      <Pressable
+        accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
+        accessibilityRole="button"
+        accessibilityState={{ selected: isWatched }}
+        onPress={onToggleWatchlist}
+        style={styles.researchWatchButton}
+      >
+        <Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text>
+      </Pressable>
+    </View>
   );
 }
 
