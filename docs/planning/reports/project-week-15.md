@@ -88,9 +88,8 @@ correct local fallback when Redis operations time out.
 
 ## Recommended next tasks
 
-1. Apply and verify the remaining Debate persistence and Queue migrations
-   against the controlled Supabase project, including RLS, service-role, and
-   restart recovery.
+1. Apply and verify the remaining Queue migration against the controlled
+   Supabase project, including admission, Worker, retry, and restart recovery.
 2. Run one quota-controlled live Groq streaming smoke test.
 3. Begin the bounded Explanation Agent slice without coupling it to Debate
    state transitions.
@@ -143,3 +142,29 @@ Queue migration remaining. The two-user Watchlist verifier again passed owner
 read, hidden cross-user reads, rejected cross-user writes, and persistence
 through a new connection. Phase 2 is therefore complete; the next controlled
 slice is the Debate persistence/RLS/service-role gate.
+
+## Follow-up — hosted Debate persistence deployment
+
+On 2026-08-29 the two Debate persistence migrations completed in filename
+order; the Queue migration was deliberately not run. PostgREST metadata then
+reported all five canonical tables plus `create_debate_session_with_job` and
+`append_debate_message`, with only the Queue migration remaining.
+
+The preflight verifier was corrected to use the same `append_debate_message`
+path as the migration, runtime repository, and SQL contract tests. The new
+`scripts/verify_supabase_debate_persistence.py` performs a disposable hosted
+smoke test with both configured RLS users and the server-only key. It passed:
+
+- both users saw their own Session, Message, citation, Intervention, and Job;
+- both users saw no rows belonging to the other user;
+- authenticated writes to all five tables and calls to both transaction RPCs
+  were rejected;
+- the server-only repository atomically and idempotently created Session+Job,
+  applied expected-status updates, inserted Message+citations, and wrote an
+  Intervention; and
+- deleting both temporary Sessions removed the verification data.
+
+The complete backend suite now passes with 308 tests and the same existing
+Starlette/httpx deprecation warning. Phase 3 is complete on hosted Supabase;
+production V2 flags remain off because Queue/Worker/restart verification is the
+next controlled slice.

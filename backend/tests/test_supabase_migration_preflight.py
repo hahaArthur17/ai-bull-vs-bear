@@ -55,6 +55,40 @@ def test_preflight_reports_only_missing_migration_groups() -> None:
     assert report["capacity_gate_required"] is False
 
 
+def test_preflight_matches_runtime_debate_rpc_paths() -> None:
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "definitions": {
+                    "stocks": {"properties": {}},
+                    "debate_sessions": {},
+                    "debate_messages": {},
+                    "debate_message_evidence": {},
+                    "debate_interventions": {},
+                    "debate_jobs": {},
+                },
+                "paths": {
+                    "/debate_sessions": {},
+                    "/debate_messages": {},
+                    "/debate_message_evidence": {},
+                    "/debate_interventions": {},
+                    "/debate_jobs": {},
+                    "/rpc/create_debate_session_with_job": {},
+                    "/rpc/append_debate_message": {},
+                },
+            },
+        )
+
+    report = build_preflight(httpx.MockTransport(respond)).inspect()
+
+    assert report["debate_persistence"]["deployed"] is True  # type: ignore[index]
+    assert report["debate_persistence"]["rpcs"] == {  # type: ignore[index]
+        "/rpc/create_debate_session_with_job": True,
+        "/rpc/append_debate_message": True,
+    }
+
+
 def test_preflight_is_read_only_and_does_not_leak_remote_error_body() -> None:
     def fail(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"

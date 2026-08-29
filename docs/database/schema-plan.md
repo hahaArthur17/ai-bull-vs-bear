@@ -303,6 +303,12 @@ All five relations now have owner-read RLS. Authenticated clients have no direct
 write grants; the API/Worker must use the server-only service role so domain
 state validation cannot be bypassed through the Data API.
 
+Hosted verification on 2026-08-29 confirmed those exact boundaries with both
+configured test users: each saw all five of its own fixture rows and none of the
+other user's, authenticated table and transaction-RPC writes were rejected,
+and the server-only repository completed atomic/idempotent writes plus expected-
+status updates. Both disposable Sessions and cascading children were removed.
+
 ### Factor storage decision
 
 Define `FactorObservation` as a versioned domain contract first. Store its

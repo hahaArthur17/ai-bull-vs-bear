@@ -990,7 +990,7 @@ RLS/reconnect verifier passed all four checks.
 
 ### Phase 3 — Debate persistence and deterministic state machine
 
-Status: Done in code; hosted migrations pending deployment verification
+Status: Done
 
 - [x] Add Supabase migrations and RLS for sessions, jobs, messages, citations,
   and interventions.
@@ -1000,6 +1000,8 @@ Status: Done in code; hosted migrations pending deployment verification
 - [x] Implement interim and final Judge states using the demo provider first.
 - [x] Add legacy-analysis compatibility and feature flag.
 - [x] Prove Bull/Bear inputs contain the prior opponent message.
+- [x] Apply both persistence migrations and verify hosted owner RLS,
+  authenticated write rejection, and service-only transaction RPCs.
 
 Completion rule: deterministic tests complete the entire two-round workflow,
 including awaiting-user, without streaming or a live provider.
@@ -1016,8 +1018,12 @@ target and safe failure state. The default-off V2 preview exposes owner-scoped
 Session, Message, and Challenge routes, freezes the current factor snapshot,
 and completes both rounds through the same repositories. It is explicitly
 synchronous and deterministic; the legacy `/analysis` contract is unchanged.
-The migrations are prepared but not applied to hosted Supabase, so production
-keeps `DEBATE_WORKFLOW_V2=false`.
+On 2026-08-29 both persistence migrations were applied to hosted Supabase. A
+disposable two-user verifier passed owner and cross-user checks on all five
+tables, rejected authenticated table/RPC writes, exercised both service-only
+transaction boundaries plus expected-status updates, and cleaned up its rows.
+Production still keeps `DEBATE_WORKFLOW_V2=false` until Queue/Worker deployment
+verification is complete.
 
 ### Phase 4 — Provider turn generation and SSE
 
@@ -1115,11 +1121,11 @@ and 390px browser checks completed both deterministic rounds without console
 errors. Hosted migration/RLS/restart verification is the remaining Phase 5
 gate.
 
-The 2026-08-29 hosted preflight matched the Dashboard and API project and the
-controlled Catalog deployment then passed its capacity, size, public-search,
-and Watchlist RLS gates. PostgREST metadata now reports the Catalog as deployed
-and reduces the remaining ordered migration list to the two Debate persistence
-files and the Queue file, without exposing project or key data.
+The 2026-08-29 hosted preflight matched the Dashboard and API project. The
+controlled Catalog and Debate deployments then passed their size, public-read,
+owner-RLS, authenticated-write-rejection, and service-role gates. PostgREST
+metadata now reports both groups as deployed and reduces the remaining ordered
+migration list to the Queue file only, without exposing project or key data.
 
 ### Phase 6 — Redis cache and coordination
 
@@ -1299,32 +1305,31 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phase 2 is complete locally and on hosted Supabase. The controlled deployment
-applied coverage, search, and seed migrations after the database passed the
-400 MB capacity gate; the 5,849,088-byte `stocks` relation passed the 15 MiB
-budget, anonymous search succeeded, and the two-user Watchlist verifier passed.
-The next hosted slice is the Phase 3 procedure in
-[`live-services.md`](../setup/live-services.md): apply the two Debate
-persistence migrations and verify owner RLS, rejected client writes, and
-server-only transaction RPCs.
+Phases 2 and 3 are complete locally and on hosted Supabase. The Catalog passed
+its capacity/size/public-search/RLS gates; the Debate persistence deployment
+passed five-table owner isolation, authenticated write rejection, service-only
+transaction, expected-status update, idempotency, and cleanup checks. The next
+hosted slice is the Phase 5 Queue procedure in
+[`live-services.md`](../setup/live-services.md): apply the single Queue
+migration and verify admission, claim/archive/retry, bounded Workers, and
+restart recovery.
 
 Do not enable hosted Redis or Queue flags until that deployment gate is
 recorded. Default-off code and local fallback work may proceed. Phase 3 is
 complete in code: `DEBATE_WORKFLOW_V2=false` is the safe default, the
 synchronous deterministic Session/Message/Challenge preview is covered by API
 tests, and legacy `/analysis` remains compatible. Production remains disabled
-because the checked-in Debate migrations have not been applied or verified on
-hosted Supabase.
+because hosted Queue/Worker and restart recovery have not yet been verified.
 
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
 experience are implemented and verified locally. Phase 6 now has its
 Redis/local adapter, public stock-search/bundle cache, privacy-bounded standard-
 Debate factor snapshot cache, per-user admission limits, one-active-Debate rule,
 and distributed duplicate-request lock with database uniqueness as the final
-fallback. Apply the remaining Debate and Queue migrations to hosted Supabase in
-filename order and record RLS/service-role/restart evidence before enabling
-hosted flags. Do not claim Redis, hosted Queue durability, or cross-process
-transient-event replay before those checks are complete.
+fallback. Apply the remaining Queue migration and record admission/Worker/
+restart evidence before enabling hosted flags. Do not claim Redis, hosted Queue
+durability, or cross-process transient-event replay before those checks are
+complete.
 
 ## 22. Primary implementation references
 

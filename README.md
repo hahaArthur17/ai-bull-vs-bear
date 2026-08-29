@@ -81,8 +81,9 @@ a quota-controlled live streamed Debate check, user explanations/interventions,
 Demo Replay, and a reusable financial-technology UI system. Redis cache and
 coordination work is complete in code and local verification; its measurements
 remain explicitly separate from hosted performance claims. Factor-provider and
-catalog/watchlist foundations are already implemented; the catalog's hosted
-Supabase migration remains a controlled deployment gate.
+catalog/watchlist foundations are implemented, and the hosted Catalog plus
+Debate persistence/RLS gates passed on 2026-08-29. The single Queue migration,
+Worker lifecycle, and restart recovery remain the controlled deployment gate.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.

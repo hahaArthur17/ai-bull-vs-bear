@@ -38,7 +38,7 @@ DEBATE_TABLE_PATHS = (
 )
 DEBATE_RPC_PATHS = (
     "/rpc/create_debate_session_with_job",
-    "/rpc/append_debate_message_with_evidence",
+    "/rpc/append_debate_message",
 )
 QUEUE_RPC_PATHS = (
     "/rpc/enqueue_debate_session_job",

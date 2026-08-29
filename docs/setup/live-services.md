@@ -151,8 +151,8 @@ preserved four `debate_ready` rows. `stocks` measured 1,294,336 table bytes plus
 4,513,792 index bytes, 5,849,088 bytes total; the full database then measured
 30,157,971 bytes. Anonymous ranked search returned MSFT for `microsoft`, and the
 two-user Watchlist RLS/reconnect verifier passed all four checks. The Catalog
-gate is complete; the remaining preflight order is the two Debate persistence
-migrations followed by the Queue migration.
+gate is complete. Debate persistence subsequently passed its own gate, so the
+current preflight reports only the Queue migration.
 
 Only after that gate, apply `20260827_v2_debate_persistence.sql` followed by
 `20260827_v2_debate_persistence_rpc.sql`. Verify with two users that each can
@@ -161,6 +161,21 @@ that direct authenticated writes are rejected. Then use the server-only secret
 through backend tests/smoke tooling to verify atomic Session+Job creation,
 Message+citations insertion, and expected-status updates. These migrations do
 not enable the durable Queue.
+
+Recorded 2026-08-29 deployment result: both migrations completed in order and
+PostgREST exposed all five tables plus both runtime RPCs. Run the reusable
+hosted verifier with the backend virtual environment:
+
+```shell
+PYTHONPATH=backend backend/.venv/bin/python \
+  scripts/verify_supabase_debate_persistence.py
+```
+
+It creates one disposable fixture for each configured RLS user, proves own-row
+visibility and cross-user isolation on all five tables, rejects authenticated
+table/RPC writes, exercises atomic/idempotent service-only writes and status
+updates, and deletes both Sessions with their cascading child rows. The
+recorded run passed every check. Only the Queue migration remains pending.
 
 `SUPABASE_SECRET_KEY` is currently used by backend ingestion; the V2 Debate
 repository will also use it after its runtime is enabled. It remains
@@ -268,6 +283,8 @@ be selected before an ingestion adapter can be implemented.
 - [x] Supabase contains public stocks, evidence documents, chunks, and vectors.
 - [x] Hosted Catalog has 7,695 active rows, fits the 15 MiB relation budget, and
   passes anonymous ranked search.
+- [x] Hosted Debate persistence exposes five owner-read tables and two
+  service-only RPCs; the disposable two-user verifier passes and cleans up.
 - [x] Embedding profiles and the structured `financial_facts` table are applied.
 - [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
 - [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
@@ -302,10 +319,13 @@ checks:
 - Hosted Catalog deployment was verified on 2026-08-29: 7,695 active identities,
   5,849,088 bytes including indexes, anonymous search success, and unchanged
   two-user Watchlist RLS isolation.
+- Hosted Debate persistence was verified on 2026-08-29: five-table owner
+  isolation, rejected authenticated writes/RPCs, service-only atomic and
+  idempotent writes, expected-status updates, and complete fixture cleanup.
 
-The implemented, default-off Queue Worker needs a server-only Supabase secret
-on the backend. Add it only for the controlled Phase 5 hosted verification
-after applying the new migrations and checking grants, RLS, and Worker access.
+The implemented, default-off Queue Worker needs the existing server-only
+Supabase secret on the backend. Keep the Queue flag disabled until the remaining
+Queue migration and admission/claim/archive/retry/restart checks are complete.
 The first Phase 6 Redis slice is implemented but remains optional. Keep
 `REDIS_ENABLED=false` unless a deliberate test supplies a `redis://` or
 `rediss://` `REDIS_URL`. Stock search and the public stock bundle fail open to a

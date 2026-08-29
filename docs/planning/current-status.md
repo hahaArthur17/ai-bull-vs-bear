@@ -14,12 +14,12 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | --- | --- | --- |
 | Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
 | Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 path adds Session, Message, Challenge, generation-scoped Cancellation, resumable SSE, and optional durable Queue admission. |
-| Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price caches, and macro caches are implemented. |
+| Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price/macro caches, and the default-off V2 Debate schema/RPCs are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 305 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 308 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -37,7 +37,8 @@ These are limitations of the current implementation, not completed features:
   `DEBATE_QUEUE_ENABLED=false` it retains the synchronous deterministic preview;
   with the Queue flag enabled it atomically admits Round 1 and Round 2, returns
   `202`, and executes them in bounded background Workers. Production keeps both
-  V2 flags disabled until the hosted migrations and RLS checks are completed.
+  V2 flags disabled until the hosted Queue migration and Worker/restart checks
+  are completed.
 - V2 has a process-local SSE replay/heartbeat broker and the queued Worker can
   publish real async provider deltas. A feature-flagged V2 mobile screen now
   mounts the resumable client, renders Queue/retry/draft/canonical states,
@@ -213,9 +214,13 @@ OpenAPI. Coverage gates, owner isolation, invalid selections, and unchanged
 legacy `/analysis` behavior are covered at API level.
 
 Phase 3 is complete in code with commits `3c921b6`, `e0635e0`, and `6f6d0d7`.
-The Debate migrations are checked in but not applied to hosted Supabase. They
-must not be described as live persistence until the Phase 2 catalog preflight
-and the new Debate RLS/service-role verification are completed.
+On 2026-08-29 both Debate persistence migrations were applied to hosted
+Supabase. PostgREST exposes all five tables and both runtime RPCs. A disposable
+two-user verifier proved owner reads across every table, hidden cross-user
+reads, rejected authenticated writes and RPC calls, service-only atomic/
+idempotent Session+Job and Message+citation writes, expected-status updates,
+Intervention writes, and cleanup. This does not enable Queue transport or the
+production V2 flags.
 
 ### Phase 4 progress
 
@@ -312,12 +317,11 @@ verification. The flags remain off in production, so no hosted durability
 claim is made yet.
 
 The 2026-08-29 hosted preflight matched the configured Dashboard and API
-project, and the subsequent controlled Catalog deployment passed its capacity,
-relation-size, anonymous-search, and Watchlist RLS gates. PostgREST metadata now
-reports all Catalog columns and the ranked search RPC as deployed. The five
-Debate tables, two persistence RPCs, and seven Queue RPCs remain absent; the
-preflight now reports only the two Debate persistence migrations followed by
-the Queue migration.
+project. The controlled Catalog and Debate persistence deployments have now
+passed their size, public-search, owner-RLS, client-write-rejection, and
+service-role gates. PostgREST reports all Catalog and Debate surfaces as
+deployed; only the seven Queue RPCs remain absent, so the preflight now reports
+only `20260828_v2_debate_queue.sql`.
 
 ### Phase 6 progress
 

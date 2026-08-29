@@ -92,8 +92,9 @@ returning no prices, quote, evidence, technical analysis, or Debate for
 `catalog_only` rows. The mobile client performs debounced API search, displays
 coverage, and opens a catalog identity page without loading a stock-data bundle.
 
-The migrations are not yet applied to the hosted project. Phase 2 therefore
-remains in progress until hosted size and RLS verification are recorded.
+The migrations were applied to the hosted project on 2026-08-29. The 7,695-row
+Catalog passed its 15 MiB relation budget, anonymous ranked search, and the
+existing two-user Watchlist RLS/reconnect verifier; Phase 2 is complete.
 
 ### Phase 3 Debate persistence foundation
 
@@ -105,8 +106,10 @@ read policies only; the API/Worker will write through a server-only secret.
 Both the credential-free in-memory adapter and the Supabase adapter implement
 `DebateUnitOfWork`. Session/Job creation and Message/citation insertion are
 atomic and idempotent, while updates use expected-status filters plus shared
-domain validation. This persistence foundation is implemented locally but not
-applied to hosted Supabase.
+domain validation. The five tables and two transaction RPCs were deployed on
+2026-08-29. A disposable two-user hosted verifier passed owner isolation,
+authenticated write rejection, service-only writes, idempotency, state updates,
+and cleanup. Queue transport remains a separate, default-off deployment gate.
 
 The deterministic orchestration runtime now executes the existing plans through
 the repository and credential-free Turn/Judge provider. Stable message IDs,
