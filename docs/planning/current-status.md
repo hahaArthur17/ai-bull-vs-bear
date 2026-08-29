@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 321 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 328 backend tests, 17 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -50,9 +50,11 @@ These are limitations of the current implementation, not completed features:
   cross-process.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause. The context-bounded
-  Explanation service is now available through an authenticated default-off
-  HTTP endpoint, but its mobile panel is not connected. The mid-generation
-  cancellation protocol is not yet reachable from the deployed screen.
+  Explanation service is available through an authenticated default-off HTTP
+  endpoint and its mobile panel is connected for exact terms in complete
+  messages. It currently uses the credential-free deterministic provider. The
+  mid-generation cancellation protocol is not yet reachable from the deployed
+  screen.
 - The hosted catalog now contains 7,695 searchable identities, but only the
   four curated `debate_ready` stocks have verified price, evidence, indicator,
   and Debate coverage. The other 7,691 rows remain Watchlist-only by design.
@@ -423,6 +425,14 @@ selection locally, and opens an independent read-only Explanation panel; it
 does not mutate the stream, Session, Job, generation, branch, or transcript.
 V2 History now refreshes owner-scoped canonical Sessions, labels durable Final
 Judge summaries, and reopens the corresponding transcript.
+
+The V2 interaction deliberately remains linear: Round 1 must reach
+`awaiting_user` before a Challenge queues Round 2 on the active branch. The
+selected message is a Challenge reference, not a transcript truncation point.
+General message branching is deferred. If a future product requirement permits
+Challenges during generation, the intended minimum design is to copy the last
+complete-message prefix into a new branch with explicit provenance, rather
+than introduce a general-purpose DAG.
 
 ## Boundaries that remain in force
 

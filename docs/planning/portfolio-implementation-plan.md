@@ -1203,13 +1203,21 @@ Status: In progress
 - [x] Keep explanations outside the Debate state transition.
 - [x] Expose Explanation through an authenticated default-off HTTP endpoint.
 - [x] Implement challenge/intervention persistence.
-- [ ] Cancel or branch from the last complete message using generation IDs.
+- [x] Cancel an active generation using generation IDs.
+- [ ] Branch from the last complete message (deferred; retain the linear flow).
 - [x] Enqueue and stream round two around the user question.
 - [x] Add final Judge summary and history rendering.
 - [ ] Add arbitrary Web selection only after term explanation is stable.
 
 Completion rule: the user can explain a term without stopping Debate or can
 challenge the debate and receive a grounded second round.
+
+Scope decision: V2 deliberately permits a Challenge only after the durable
+Round 1 pause and continues Round 2 on the active branch. The selected message
+is the Challenge reference, not a truncation point. General branching is out
+of scope until a generation-time intervention is required; then copy the last
+complete-message prefix into a new branch with source provenance instead of
+introducing a full transcript DAG.
 
 Progress evidence: the first backend slice adds immutable Explanation
 request/draft/result contracts, a provider boundary, a deterministic provider,
