@@ -1254,7 +1254,8 @@ Status: In progress
   breakpoints, interaction targets, and motion rules without changing behavior.
 - [x] Redesign authentication for input, disabled, loading, error, and sign-up
   confirmation states.
-- [ ] Redesign home/search/watchlist.
+- [x] Redesign home/search/watchlist, including empty, failure, and
+  `catalog_only`/`debate_ready` coverage states.
 - [ ] Redesign stock detail and charts without losing provenance/accessibility.
 - [ ] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
   explanation, and failure states.
