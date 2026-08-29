@@ -12,8 +12,8 @@ import {
 
 import { supabase } from "./supabase";
 import { colors, interaction, palette, radii, spacing, typography } from "./theme";
-
-type AuthenticationMode = "sign-in" | "sign-up";
+import { isAuthenticationButtonSubmitting } from "./authState";
+import type { AuthenticationMode } from "./authState";
 
 function validEmail(value: string): boolean {
   return /^\S+@\S+\.\S+$/.test(value);
@@ -22,17 +22,18 @@ function validEmail(value: string): boolean {
 export function AuthScreen() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [submittingMode, setSubmittingMode] = useState<AuthenticationMode | null>(null);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
   const normalizedEmail = email.trim();
   const isEmailValid = validEmail(normalizedEmail);
   const isPasswordValid = password.length >= 6;
-  const canSubmit = !loading && isEmailValid && isPasswordValid;
+  const isSubmitting = submittingMode !== null;
+  const canSubmit = !isSubmitting && isEmailValid && isPasswordValid;
 
   const authenticate = async (mode: AuthenticationMode) => {
     if (!supabase || !canSubmit) return;
-    setLoading(true);
+    setSubmittingMode(mode);
     setError("");
     setMessage("");
     try {
@@ -47,7 +48,7 @@ export function AuthScreen() {
     } catch {
       setError("We could not complete that request. Check your connection and try again.");
     } finally {
-      setLoading(false);
+      setSubmittingMode(null);
     }
   };
 
@@ -109,22 +110,22 @@ export function AuthScreen() {
           <Pressable
             accessibilityHint="Signs in with the email address and password above."
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmit, busy: loading }}
+            accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-in") }}
             disabled={!canSubmit}
             onPress={() => void authenticate("sign-in")}
             style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
           >
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
+            {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
           </Pressable>
           <Pressable
             accessibilityHint="Creates an account with the email address and password above."
             accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmit, busy: loading }}
+            accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-up") }}
             disabled={!canSubmit}
             onPress={() => void authenticate("sign-up")}
             style={[styles.secondaryButton, !canSubmit && styles.secondaryButtonDisabled]}
           >
-            <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>Create an account</Text>
+            {isAuthenticationButtonSubmitting(submittingMode, "sign-up") ? <ActivityIndicator color={palette.accent} /> : <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>Create an account</Text>}
           </Pressable>
           <Text style={styles.note}>
             Authentication is handled by Supabase. Never paste passwords, API keys, or tokens into a research prompt.
