@@ -150,7 +150,10 @@ export const appStyles = StyleSheet.create({
   answerText: { color: palette.ink, fontSize: 15, lineHeight: 23, marginBottom: 10 },
   loader: { margin: 14 },
   emptyCard: { backgroundColor: palette.card, borderRadius: 16, padding: 20, borderColor: palette.line, borderWidth: 1 },
+  historySectionTitle: { color: palette.ink, fontSize: 12, fontWeight: "900", letterSpacing: 1.1, marginTop: 18, marginBottom: 8 },
   historyRow: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 14, padding: 16, flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 10 },
+  historyCopy: { flex: 1, paddingRight: 12 },
+  historyStatus: { color: palette.accent, fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 4, marginBottom: 3 },
   aboutCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
   loading: { flex: 1, padding: 22, alignItems: "center", justifyContent: "center", gap: 14 },
   bottomNav: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: palette.card, borderTopWidth: 1, borderTopColor: palette.line, flexDirection: "row", justifyContent: "space-around", paddingVertical: 13, paddingBottom: 18 },
@@ -158,4 +161,3 @@ export const appStyles = StyleSheet.create({
   navLabel: { color: palette.muted, fontSize: 12, fontWeight: "700" },
   navLabelActive: { color: palette.signal },
 });
-

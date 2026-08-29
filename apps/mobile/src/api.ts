@@ -3,6 +3,7 @@ import type {
   DebateMessageRecord,
   DebateMutationResponse,
   DebateSessionDetail,
+  DebateSessionSummary,
   ExaminationResponse,
   ExplanationRequest,
   ExplanationResult,
@@ -89,6 +90,9 @@ export const api = {
     request<DebateMessageRecord[]>(
       "/debates/" + encodeURIComponent(sessionId) + "/messages",
     ),
+
+  listDebates: (limit = 50): Promise<DebateSessionSummary[]> =>
+    request<DebateSessionSummary[]>("/debates?limit=" + encodeURIComponent(String(limit))),
 
   explainDebate: (
     sessionId: string,

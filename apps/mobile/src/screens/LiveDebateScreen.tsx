@@ -29,13 +29,13 @@ import {
 } from "../explanationView";
 import type {
   DebateMessageRecord,
-  DebateMutationResponse,
+  DebateSessionDetail,
   ExplanationResult,
 } from "../types";
 
 type LiveDebateScreenProps = {
   ticker: string;
-  initialDetail: DebateMutationResponse;
+  initialDetail: DebateSessionDetail;
   onBack: () => void;
 };
 
@@ -62,10 +62,18 @@ function shortId(value: string | null): string {
   return value ? `${value.slice(0, 8)}…` : "pending";
 }
 
-function rolePresentation(role: DebateMessageRecord["message"]["role"] | DebateDraft["role"]) {
+function rolePresentation(
+  role: DebateMessageRecord["message"]["role"] | DebateDraft["role"],
+  isFinalJudge = false,
+) {
   if (role === "bull") return { label: "BULL", color: colors.bull };
   if (role === "bear") return { label: "BEAR", color: colors.bear };
-  if (role === "judge") return { label: "NEUTRAL JUDGE", color: colors.judge };
+  if (role === "judge") {
+    return {
+      label: isFinalJudge ? "FINAL NEUTRAL JUDGE" : "NEUTRAL JUDGE",
+      color: colors.judge,
+    };
+  }
   if (role === "user") return { label: "YOUR QUESTION", color: colors.cyan };
   if (role === "explainer") return { label: "EXPLAINER", color: colors.warning };
   return { label: "SYSTEM", color: colors.muted };
@@ -341,6 +349,7 @@ export function LiveDebateScreen({
         <MessageCard
           key={record.message.id}
           record={record}
+          isFinalJudge={record.message.role === "judge" && record.message.round_number === 2}
           challengeEnabled={canChallenge}
           selected={challengeTarget?.message.id === record.message.id}
           onChallenge={() => selectChallengeTarget(record)}
@@ -506,18 +515,20 @@ export function LiveDebateScreen({
 
 function MessageCard({
   record,
+  isFinalJudge,
   challengeEnabled,
   selected,
   onChallenge,
   onExplainTerm,
 }: {
   record: DebateMessageRecord;
+  isFinalJudge: boolean;
   challengeEnabled: boolean;
   selected: boolean;
   onChallenge: () => void;
   onExplainTerm: (term: string) => void;
 }) {
-  const role = rolePresentation(record.message.role);
+  const role = rolePresentation(record.message.role, isFinalJudge);
   const canTarget = challengeEnabled
     && record.message.role !== "user"
     && record.message.role !== "system"

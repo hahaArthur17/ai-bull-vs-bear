@@ -32,7 +32,8 @@ import { appStyles as styles, palette } from "./src/theme";
 import type {
   AnalysisResponse,
   Claim,
-  DebateMutationResponse,
+  DebateSessionDetail,
+  DebateSessionSummary,
   EvidenceItem,
   ExaminationResponse,
   Stock,
@@ -64,11 +65,12 @@ export default function App() {
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
   const [selectedBundle, setSelectedBundle] = useState<StockBundle | null>(null);
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
-  const [liveDebate, setLiveDebate] = useState<DebateMutationResponse | null>(null);
+  const [liveDebate, setLiveDebate] = useState<DebateSessionDetail | null>(null);
   const [debateExperience, setDebateExperience] = useState<DebateExperience>("legacy");
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [examination, setExamination] = useState<ExaminationResponse | null>(null);
   const [history, setHistory] = useState<AnalysisResponse[]>([]);
+  const [debateHistory, setDebateHistory] = useState<DebateSessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const debateAdmissionKey = useRef<string | null>(null);
@@ -76,10 +78,13 @@ export default function App() {
   const loadHome = async () => {
     try {
       setError("");
-      const [stockResult, watchlistResult, analysisResult] = await Promise.all([
+      const [stockResult, watchlistResult, analysisResult, debateResult] = await Promise.all([
         api.listStocks(),
         api.getWatchlist(),
         api.listAnalyses(),
+        DEBATE_V2_UI_ENABLED
+          ? api.listDebates().catch(() => [])
+          : Promise.resolve<DebateSessionSummary[]>([]),
       ]);
       const watchedStocks = await Promise.all(
         watchlistResult.tickers.map((ticker) => api.getStock(ticker).catch(() => null)),
@@ -87,6 +92,7 @@ export default function App() {
       setStocks(mergeStocks(stockResult, watchedStocks.filter((stock): stock is Stock => stock !== null)));
       setWatchlist(watchlistResult.tickers);
       setHistory(analysisResult);
+      setDebateHistory(debateResult);
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not load the demo API.");
     }
@@ -175,6 +181,10 @@ export default function App() {
         });
         debateAdmissionKey.current = null;
         setLiveDebate(nextDebate);
+        setDebateHistory((current) => [
+          nextDebate.session,
+          ...current.filter((item) => item.id !== nextDebate.session.id),
+        ]);
         setDebateExperience("v2");
         setScreen("debate");
         return;
@@ -204,6 +214,34 @@ export default function App() {
       setExamination(await api.examineClaim(selectedClaim.id, questionType));
     } catch (requestError) {
       setError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const refreshDebateHistory = async () => {
+    if (!DEBATE_V2_UI_ENABLED) {
+      setDebateHistory([]);
+      return;
+    }
+    try {
+      setDebateHistory(await api.listDebates());
+    } catch {
+      // Preserve already loaded canonical history if the optional V2 route is unavailable.
+    }
+  };
+
+  const openSavedDebate = async (sessionSummary: DebateSessionSummary) => {
+    setLoading(true);
+    setError("");
+    try {
+      const detail = await api.getDebate(sessionSummary.id);
+      setSelectedTicker(detail.session.ticker);
+      setLiveDebate(detail);
+      setDebateExperience("v2");
+      setScreen("debate");
+    } catch (requestError) {
+      setError(requestError instanceof Error ? requestError.message : "Could not load this Debate.");
     } finally {
       setLoading(false);
     }
@@ -268,7 +306,19 @@ export default function App() {
       );
     }
     if (screen === "history") {
-      return <HistoryScreen history={history} onOpen={(item) => { setSelectedTicker(item.ticker); setAnalysis(item); setDebateExperience("legacy"); setScreen("debate"); }} />;
+      return (
+        <HistoryScreen
+          history={history}
+          debates={debateHistory}
+          onOpen={(item) => {
+            setSelectedTicker(item.ticker);
+            setAnalysis(item);
+            setDebateExperience("legacy");
+            setScreen("debate");
+          }}
+          onOpenDebate={(sessionSummary) => void openSavedDebate(sessionSummary)}
+        />
+      );
     }
     if (screen === "about") {
       return <AboutScreen onSignOut={supabase ? () => void supabase?.auth.signOut() : undefined} />;
@@ -288,7 +338,10 @@ export default function App() {
 
   const nav = (next: Screen) => {
     if (next === "watchlist") setScreen("watchlist");
-    if (next === "history") setScreen("history");
+    if (next === "history") {
+      setScreen("history");
+      void refreshDebateHistory();
+    }
     if (next === "about") setScreen("about");
   };
 

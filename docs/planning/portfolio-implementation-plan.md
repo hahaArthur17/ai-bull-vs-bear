@@ -1205,7 +1205,7 @@ Status: In progress
 - [x] Implement challenge/intervention persistence.
 - [ ] Cancel or branch from the last complete message using generation IDs.
 - [x] Enqueue and stream round two around the user question.
-- [ ] Add final Judge summary and history rendering.
+- [x] Add final Judge summary and history rendering.
 - [ ] Add arbitrary Web selection only after term explanation is stable.
 
 Completion rule: the user can explain a term without stopping Debate or can
@@ -1223,7 +1223,9 @@ limit is now independently enforced with a hashed user key and local fallback;
 the mobile client now has the typed request/result boundary and a contract test.
 Complete-message terms now open a cross-platform read-only panel that validates
 the exact selection before calling the API and never writes a result into the
-Debate. Optional persistence remains later work.
+Debate. V2 History refreshes owner-scoped Sessions and clearly distinguishes a
+durable Final Judge before reopening its transcript. Optional persistence
+remains later work.
 
 ### Phase 8 — Financial-technology UI redesign
 
@@ -1332,7 +1334,7 @@ passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
 checks. The Explanation service core is now present; the next bounded slice is
-final Judge and History presentation.
+branch-from-message intervention.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the

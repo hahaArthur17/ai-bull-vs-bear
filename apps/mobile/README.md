@@ -40,8 +40,9 @@ default-off V2 screen mounts that client and renders Queue/Worker/retry state,
 canonical messages, generation-scoped cancellation, and an exact-passage Round
 2 Challenge. Its complete-message term chips now open a separate, read-only
 Explanation panel that uses the authenticated HTTP boundary without changing
-the Debate. The production flag remains off; cross-process transient replay,
-physical-device checks, and the remaining financial-technology redesign stay in the canonical
+the Debate. V2 History refreshes owner-scoped canonical sessions and labels a
+durable Final Judge summary before reopening its transcript. The production flag
+remains off; cross-process transient replay, physical-device checks, and the remaining financial-technology redesign stay in the canonical
 [`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
 
 Shared colours, spacing, radii, and app styles live in `src/theme.ts`; reusable

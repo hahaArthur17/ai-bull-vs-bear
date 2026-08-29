@@ -168,7 +168,8 @@ independently admission-limited with the hashed `rate:explain` cache key and a
 safe local fallback. The mobile client now has the typed authenticated request
 boundary. Complete-message term chips now open a separate, read-only panel;
 Explanation deliberately does not enter the event stream or canonical
-transcript.
+transcript. V2 History reloads owner-scoped canonical Sessions, labels completed
+Round 2 entries with their durable Final Judge, and reopens their transcript.
 
 The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the

@@ -101,7 +101,7 @@ Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
 streaming completion gate. The next bounded implementation slice is Explanation
-history presentation.
+branch-from-message intervention.
 
 ### Phase 1 completion evidence
 
@@ -421,6 +421,8 @@ persistence, and arbitrary Web selection remain later slices. The mobile V2
 screen now makes complete-message model terms accessible, validates the exact
 selection locally, and opens an independent read-only Explanation panel; it
 does not mutate the stream, Session, Job, generation, branch, or transcript.
+V2 History now refreshes owner-scoped canonical Sessions, labels durable Final
+Judge summaries, and reopens the corresponding transcript.
 
 ## Boundaries that remain in force
 
