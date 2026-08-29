@@ -109,7 +109,8 @@ atomic and idempotent, while updates use expected-status filters plus shared
 domain validation. The five tables and two transaction RPCs were deployed on
 2026-08-29. A disposable two-user hosted verifier passed owner isolation,
 authenticated write rejection, service-only writes, idempotency, state updates,
-and cleanup. Queue transport remains a separate, default-off deployment gate.
+and cleanup. The separate Queue transport was subsequently deployed and
+verified while runtime feature flags remained default-off.
 
 The deterministic orchestration runtime now executes the existing plans through
 the repository and credential-free Turn/Judge provider. Stable message IDs,
@@ -170,10 +171,12 @@ A default-off V2 screen now mounts live mobile/Web consumption, shows transient
 drafts separately from canonical messages, renders Job/retry/failure states,
 exposes generation-scoped cancellation, and queues Round 2 from an exact
 passage selected in a complete message. A recorded external-provider smoke
-test, explanation, the remaining Redis coordination rules, and cross-process
-transient-event reconnect remain later work. The checked-in catalog, Debate,
-and Queue migrations are still not
-applied to hosted Supabase, so production keeps V2 and Queue flags disabled.
+test, explanation, and cross-process transient-event reconnect remain later
+work. Redis cache/coordination is complete in code and local verification. The
+catalog, Debate, and Queue migrations were applied to hosted Supabase on
+2026-08-29; a disposable two-round Queue run passed idempotency, retry,
+restart, exhaustion, authorization, and cleanup gates. Production still keeps
+V2 and Queue flags disabled pending a deliberate rollout.
 
 ### Phase 6 public response-cache foundation
 
@@ -203,7 +206,8 @@ or model work. The default is three new V2 generations per hour and one active
 Debate. A cache TTL cannot bypass the canonical Session check. Sequential
 queued idempotency replays are recognized from their deterministic
 Session/Job records and do not consume another slot. A simultaneous
-duplicate-request lock remains the next Phase 6 slice.
+duplicate-request lock uses Redis when available and deterministic database
+uniqueness as the outage fallback.
 
 ## Implemented single-response data flow
 
@@ -245,7 +249,7 @@ Target responsibilities:
   citations, interventions, history, and immutable snapshots.
 - Supabase Queues now provides the implemented, default-off transport for
   durable admission, retry, visibility timeout, and backpressure for Debate
-  stages; hosted verification remains.
+  stages; its hosted migration and deterministic lifecycle verification pass.
 - Redis accelerates hot reads, rate limits expensive work, and coordinates
   duplicate-request locks. It is not the canonical Queue or history store.
 - Authenticated SSE-formatted events stream the active turn. Complete validated

@@ -90,8 +90,15 @@ migrations have been applied to Supabase and the service-role/RLS checks pass.
 This makes create/challenge return `202` and starts
 `DEBATE_WORKER_CONCURRENCY` lifespan consumers (1 by default, maximum 2) using
 `DEBATE_WORKER_VISIBILITY_TIMEOUT_SECONDS` and
-`DEBATE_WORKER_POLL_SECONDS`. Production keeps both flags false until those
-deployment checks pass.
+`DEBATE_WORKER_POLL_SECONDS`. The hosted deterministic Queue lifecycle checks
+passed on 2026-08-29. Production still keeps both flags false pending an
+explicit live-provider rollout. Reproduce the checks with:
+
+    PYTHONPATH=backend backend/.venv/bin/python \
+      scripts/verify_supabase_debate_queue.py
+
+The script prints the exact active/archive Queue message IDs that must be
+removed after the disposable run; never blanket-purge the Queue.
 
 The same Worker can be run separately from the `backend` directory:
 

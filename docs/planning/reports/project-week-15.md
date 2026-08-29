@@ -88,11 +88,10 @@ correct local fallback when Redis operations time out.
 
 ## Recommended next tasks
 
-1. Apply and verify the remaining Queue migration against the controlled
-   Supabase project, including admission, Worker, retry, and restart recovery.
-2. Run one quota-controlled live Groq streaming smoke test.
-3. Begin the bounded Explanation Agent slice without coupling it to Debate
+1. Run one quota-controlled live Groq streaming smoke test.
+2. Begin the bounded Explanation Agent slice without coupling it to Debate
    state transitions.
+3. Continue device/accessibility checks for the default-off V2 experience.
 
 ## Related documents
 
@@ -168,3 +167,29 @@ The complete backend suite now passes with 308 tests and the same existing
 Starlette/httpx deprecation warning. Phase 3 is complete on hosted Supabase;
 production V2 flags remain off because Queue/Worker/restart verification is the
 next controlled slice.
+
+## Follow-up — hosted Queue deployment
+
+On 2026-08-29 `20260828_v2_debate_queue.sql` completed in the controlled SQL
+Editor. PostgREST metadata exposed all seven service-only Queue RPCs and the
+migration preflight returned no required files.
+
+The new `scripts/verify_supabase_debate_queue.py` ran a disposable,
+deterministic hosted lifecycle through fresh service clients. It proved:
+
+- idempotent atomic admission for Round 1 and Round 2;
+- bounded Workers completed the canonical 13-message two-round transcript;
+- a forced visibility retry recovered a running Job with `read_count=2` and
+  `attempt_count=2` through a new client;
+- an exhausted Job reached its safe terminal state;
+- authenticated users were rejected by all seven Queue RPCs; and
+- cascading Session cleanup removed canonical data, after which only the exact
+  Queue message IDs printed by the verifier were removed from active/archive
+  transport tables.
+
+Final SQL checks reported zero active Queue messages, archived Queue messages,
+Sessions, Messages, Interventions, and Jobs. The full backend suite passes with
+310 tests and the same existing Starlette/httpx deprecation warning. Phase 5 is
+complete in its controlled hosted scope. Production V2 and Queue flags remain
+default-off pending a deliberate rollout and quota-controlled live Groq smoke
+test.

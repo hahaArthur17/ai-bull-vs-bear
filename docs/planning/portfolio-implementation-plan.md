@@ -1083,7 +1083,7 @@ selection is not claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
-Status: Done in code; hosted verification pending
+Status: Done
 
 - [x] Enable/configure Supabase Queues through a migration.
 - [x] Implement atomic session/job creation and enqueue.
@@ -1112,20 +1112,21 @@ sessions while the third remains queued. `f240ce7` through `2c26702` add atomic,
 idempotent queued Round 2 admission. `d340d40` and `a5c7688` expose active Job,
 retry, and failure state through the API/event/mobile contracts.
 
-All Queue behaviour is locally verified with deterministic/in-memory or mocked
-Supabase boundaries. The migration has not been applied to hosted Supabase,
-production flags remain off. `7fddcc1` and `7be800d` add canonical Session
+Queue behaviour is locally verified with deterministic/in-memory or mocked
+Supabase boundaries. `7fddcc1` and `7be800d` add canonical Session
 state, mount the V2 client, render Queue/Worker/retry/failure/draft states,
 expose cancellation, and queue Round 2 from an exact selected passage. Desktop
 and 390px browser checks completed both deterministic rounds without console
-errors. Hosted migration/RLS/restart verification is the remaining Phase 5
-gate.
+errors.
 
 The 2026-08-29 hosted preflight matched the Dashboard and API project. The
-controlled Catalog and Debate deployments then passed their size, public-read,
-owner-RLS, authenticated-write-rejection, and service-role gates. PostgREST
-metadata now reports both groups as deployed and reduces the remaining ordered
-migration list to the Queue file only, without exposing project or key data.
+controlled Queue deployment exposed all seven service-only RPCs. A disposable
+fresh-client run proved idempotent Round 1/2 admission, the complete 13-message
+transcript, archive and delayed redelivery, recovery of a running Job with
+`read_count=2` and `attempt_count=2`, exhausted-attempt failure, authenticated
+RPC rejection, and complete canonical/Queue cleanup. The migration preflight
+now reports no required files. Production flags remain default-off pending a
+deliberate rollout and quota-controlled live-provider smoke test.
 
 ### Phase 6 — Redis cache and coordination
 
@@ -1305,31 +1306,31 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phases 2 and 3 are complete locally and on hosted Supabase. The Catalog passed
+Phases 2, 3, 5, and 6 are complete in their recorded scopes. The Catalog passed
 its capacity/size/public-search/RLS gates; the Debate persistence deployment
 passed five-table owner isolation, authenticated write rejection, service-only
 transaction, expected-status update, idempotency, and cleanup checks. The next
-hosted slice is the Phase 5 Queue procedure in
-[`live-services.md`](../setup/live-services.md): apply the single Queue
-migration and verify admission, claim/archive/retry, bounded Workers, and
-restart recovery.
+live-service slice is one quota-controlled Groq streaming smoke test, followed
+by the bounded Explanation Agent slice.
 
-Do not enable hosted Redis or Queue flags until that deployment gate is
-recorded. Default-off code and local fallback work may proceed. Phase 3 is
-complete in code: `DEBATE_WORKFLOW_V2=false` is the safe default, the
-synchronous deterministic Session/Message/Challenge preview is covered by API
-tests, and legacy `/analysis` remains compatible. Production remains disabled
-because hosted Queue/Worker and restart recovery have not yet been verified.
+Do not enable hosted Redis or Queue flags without a deliberate rollout and
+rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the
+safe default, the synchronous deterministic Session/Message/Challenge preview
+is covered by API tests, and legacy `/analysis` remains compatible. Hosted
+Queue/Worker/restart verification is complete, but production V2 remains
+disabled until the live-provider and deployment smoke gates are explicitly
+run.
 
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
 experience are implemented and verified locally. Phase 6 now has its
 Redis/local adapter, public stock-search/bundle cache, privacy-bounded standard-
 Debate factor snapshot cache, per-user admission limits, one-active-Debate rule,
 and distributed duplicate-request lock with database uniqueness as the final
-fallback. Apply the remaining Queue migration and record admission/Worker/
-restart evidence before enabling hosted flags. Do not claim Redis, hosted Queue
-durability, or cross-process transient-event replay before those checks are
-complete.
+fallback. Hosted Queue admission, Worker, retry, exhaustion, authorization,
+restart, and cleanup evidence is recorded in
+[`live-services.md`](../setup/live-services.md). Do not claim hosted Redis,
+production Queue enablement, or cross-process transient-event replay without
+their separate checks.
 
 ## 22. Primary implementation references
 

@@ -35,11 +35,12 @@ the market-data bundle.
 The current analysis screen still waits for one complete API response. A
 `DebateStreamClient` module now provides authenticated XHR SSE consumption for
 Web/React Native, fragmented-frame parsing, ordered resume, temporary draft
-text, canonical completion replacement, and expired-cursor reload. It is not
-mounted in the screen yet because the current synchronous POST returns the
-Session only after generation ends. Queue status, live screen integration,
-user interventions, and the financial-technology redesign remain planned in
-the canonical
+text, canonical completion replacement, and expired-cursor reload. The
+default-off V2 screen mounts that client and renders Queue/Worker/retry state,
+canonical messages, generation-scoped cancellation, and an exact-passage Round
+2 Challenge. The production flag remains off; Explanation, cross-process
+transient replay, physical-device checks, and the remaining
+financial-technology redesign stay in the canonical
 [`portfolio implementation plan`](../../docs/planning/portfolio-implementation-plan.md).
 
 Shared colours, spacing, radii, and app styles live in `src/theme.ts`; reusable

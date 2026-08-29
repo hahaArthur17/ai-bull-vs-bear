@@ -330,8 +330,10 @@ on its active transport table, and exposes service-role-only functions for:
 - atomic retry/exhaustion settlement against the application Job ledger.
 
 User-facing RLS and the server-only Worker role remain separate. The migration
-is locally inspected and adapter-tested but is not yet applied to hosted
-Supabase.
+was applied to hosted Supabase on 2026-08-29 after local inspection and adapter
+tests. A disposable service-role verifier covered both rounds, retry,
+redelivery, exhaustion, and cleanup while an authenticated user was rejected
+by all seven Queue RPCs.
 
 Do not manually reproduce `pgmq` transport columns in `public`. The
 `public.debate_jobs` relation is an application job ledger; the extension-owned

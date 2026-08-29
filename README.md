@@ -26,13 +26,14 @@ baseline is maintained in
   repositories for sessions, complete messages/citations, interventions, and
   the application job ledger. A deterministic runtime completes both rounds and
   the user-Challenge pause. A default-off V2 preview exposes the Session,
-  Message, Challenge, and resumable SSE event API while production remains
-  unchanged. Preview deltas are buffered deterministic chunks, not live model
-  tokens. A code-only async per-Turn contract and real default-off Groq adapter
-  now validate true provider streams before persistence. A resumable mobile SSE
-  client and generation-scoped cancellation protocol exist but are not mounted
-  in the current synchronous screen. Cancellation rotates the active generation
-  and prevents late provider completion from becoming a canonical message.
+  Message, Challenge, Queue, and resumable SSE event API while production
+  remains unchanged. With Queue admission disabled, preview deltas are buffered
+  deterministic chunks, not live model tokens. A default-off async per-Turn
+  contract and Groq adapter validate true provider streams before persistence.
+  The V2 mobile screen mounts the resumable SSE client, Queue state, Round 2,
+  and generation-scoped cancellation behind its own disabled flag. Cancellation
+  rotates the active generation and prevents late provider completion from
+  becoming a canonical message.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
@@ -72,18 +73,20 @@ baseline is maintained in
 ## Planned portfolio milestone
 
 The deployed mobile Debate is currently a single synchronous Bull/Bear/Judge
-response; the code-only V2 API preview already proves deterministic multi-turn
-state and persistence but does not start background work or select the live
-stream path. The active
+response. A default-off V2 API and screen prove deterministic multi-turn state,
+durable background Queue work, and live-stream selection without changing that
+production baseline. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
-defines the next milestone: hosted verification of durable queued Debate stages,
-a quota-controlled live streamed Debate check, user explanations/interventions,
-Demo Replay, and a reusable financial-technology UI system. Redis cache and
+defines the next milestone: a quota-controlled live streamed Debate check,
+user explanations/interventions, Demo Replay, and a reusable
+financial-technology UI system. Redis cache and
 coordination work is complete in code and local verification; its measurements
 remain explicitly separate from hosted performance claims. Factor-provider and
 catalog/watchlist foundations are implemented, and the hosted Catalog plus
-Debate persistence/RLS gates passed on 2026-08-29. The single Queue migration,
-Worker lifecycle, and restart recovery remain the controlled deployment gate.
+Debate persistence/RLS gates passed on 2026-08-29. The hosted Queue migration
+and deterministic admission/Worker/retry/restart gate also passed; production
+V2 flags remain default-off until a deliberate live-provider deployment smoke
+test.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.

@@ -5,9 +5,11 @@ Last detailed deployment audit: 2026-08-16
 Public frontend/API health rechecked: 2026-08-27
 
 This document describes the currently deployed single-response baseline. The
-Queue, Redis, streaming, and Replay target is planned in the
+default-off Queue, Redis, and streaming implementation plus the planned Replay
+target are tracked in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md)
-and must not be treated as deployed before its phase checks pass.
+and must not be treated as production-enabled before their separate deployment
+checks pass.
 
 ## Non-negotiable rule
 
@@ -26,7 +28,8 @@ or temporary suspension until the quota resets.
   deterministic and consume no Groq or Gemini tokens.
 - Production sets `DEBATE_WORKFLOW_V2=false`. The code-only synchronous preview
   is not a deployed Queue/streaming feature and remains inaccessible until its
-  Supabase migrations and service-role checks are applied deliberately.
+  production configuration and server secret are applied deliberately. Hosted
+  schema and deterministic Queue lifecycle checks passed on 2026-08-29.
 - Pytest forces demo auth, persistence, and analysis settings before importing
   the application, so a developer's local `.env` cannot make tests call live
   Supabase or model providers.
@@ -35,16 +38,17 @@ or temporary suspension until the quota resets.
   analysis confidence. Production does not silently insert deterministic
   external narrative into a current-close Debate.
 
-## Planned zero-cost portfolio additions
+## Default-off zero-cost portfolio additions
 
 The accepted target keeps the same static site, FastAPI web service, and
 Supabase project:
 
-- Supabase Queues will hold durable Debate stage jobs.
-- A bounded Queue consumer will initially run inside the FastAPI lifespan
+- Supabase Queues can hold durable Debate stage jobs; its migration and
+  deterministic lifecycle verifier pass, while production admission stays off.
+- A bounded Queue consumer can run inside the FastAPI lifespan
   because Render does not provide a separate free Background Worker.
-- A Redis-compatible free service will provide optional cache, rate limits, and
-  idempotency locks; Supabase remains canonical if Redis is unavailable.
+- Redis-compatible adapters provide optional cache, rate limits, and
+  idempotency locks with a bounded local fallback; no hosted Redis is claimed.
 - Live AI will exercise the real Queue/Worker/stream path when provider quota is
   available. A clearly labelled Demo Replay will use the same event contract
   for reliable classroom presentation.
@@ -139,12 +143,13 @@ model verification.
    Finnhub key can be used instead only when that account has daily-candle
    access. To enable the separate current-quote display, set
    `FINNHUB_API_KEY` on the backend web service only.
-7. The Queue/Worker code is implemented but not hosted. To verify it later, add
-   `SUPABASE_SECRET_KEY` only to the backend after applying the catalog, Debate,
-   and Queue migrations and passing grants, two-user RLS, and Worker tests.
-   Then enable the V2 and Queue flags in a controlled smoke test. Never expose
-   the secret through an `EXPO_PUBLIC_` variable or a Queue payload.
-8. When Redis Phase 6 is implemented, keep its endpoint/token on the backend and
+7. The Queue transport migration and deterministic hosted lifecycle verifier
+   passed on 2026-08-29, but the production Worker remains disabled. To run a
+   controlled deployment smoke test later, add `SUPABASE_SECRET_KEY` only to
+   the backend, then enable the V2 and Queue flags with an explicit rollback.
+   Never expose the secret through an `EXPO_PUBLIC_` variable or a Queue
+   payload.
+8. If optional Redis is deployed, keep its endpoint/token on the backend and
    verify that removing it produces the documented local/database fallback.
 9. After both deploys complete, open `/health`, sign in with a disposable test
    user, run one analysis, reload, and confirm that history persists.

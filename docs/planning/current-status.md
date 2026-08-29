@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 308 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 310 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -37,8 +37,9 @@ These are limitations of the current implementation, not completed features:
   `DEBATE_QUEUE_ENABLED=false` it retains the synchronous deterministic preview;
   with the Queue flag enabled it atomically admits Round 1 and Round 2, returns
   `202`, and executes them in bounded background Workers. Production keeps both
-  V2 flags disabled until the hosted Queue migration and Worker/restart checks
-  are completed.
+  V2 flags disabled pending a deliberate production rollout and a
+  quota-controlled live-provider smoke test; the hosted Queue migration and
+  deterministic Worker/restart checks are complete.
 - V2 has a process-local SSE replay/heartbeat broker and the queued Worker can
   publish real async provider deltas. A feature-flagged V2 mobile screen now
   mounts the resumable client, renders Queue/retry/draft/canonical states,
@@ -93,9 +94,10 @@ The complete target architecture, product rules, phase order, acceptance tests,
 and current coding entry point are canonical in
 [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md).
 
-Documentation Phase 0, modular-boundary Phase 1, and hosted Catalog Phase 2 are
-complete. The next controlled deployment slice is the Phase 3 Debate
-persistence migration and its two-user RLS/service-role verification.
+Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
+persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
+in their recorded scopes. The next controlled live-service slice is a
+quota-controlled Groq streaming smoke test.
 
 ### Phase 1 completion evidence
 
@@ -290,9 +292,10 @@ from canonical complete messages.
 The focused Queue migration enables a logged `pgmq` queue and provides
 service-role-only functions for atomic Round 1/2 admission, claim, archive,
 visibility-delay retry, and terminal settlement. Queue payloads contain only
-versioned identifiers; protected snapshot and question content stays in the
-canonical Debate tables. The migration is checked in but has not been applied
-to the hosted Supabase project.
+versioned identifiers; protected snapshot and question content stay in the
+canonical Debate tables. The migration is applied to the hosted Supabase
+project and all seven functions are exposed only through the intended
+server-side boundary.
 
 The default-off API now returns `202 Accepted` for idempotent queued Round 1 and
 Round 2 creation. A bounded Worker can run in the FastAPI lifespan or through
@@ -311,17 +314,20 @@ reducer. `7fddcc1` and `7be800d` mount the feature-flagged client, visible Job
 state, cancellation, exact-passage Challenge form, queued Round 2, and the dark
 financial-technology Debate timeline.
 
-Phase 5 is complete in code and verified through the local in-memory transport.
-The remaining gate is the controlled hosted Supabase migration/RLS/restart
-verification. The flags remain off in production, so no hosted durability
-claim is made yet.
+Phase 5 is complete in code and through the controlled hosted Supabase gate. A
+fresh-client deterministic run admitted both rounds idempotently, produced the
+13-message canonical transcript, recovered a running Job after visibility
+retry with `read_count=2` and `attempt_count=2`, terminalized an exhausted Job,
+and rejected all seven Queue RPCs for an authenticated user. Exact verifier
+artifacts and their cascading Session data were removed; active and archived
+Queue counts returned to zero. Production flags remain off until a deliberate
+rollout and live-provider smoke test.
 
 The 2026-08-29 hosted preflight matched the configured Dashboard and API
-project. The controlled Catalog and Debate persistence deployments have now
-passed their size, public-search, owner-RLS, client-write-rejection, and
-service-role gates. PostgREST reports all Catalog and Debate surfaces as
-deployed; only the seven Queue RPCs remain absent, so the preflight now reports
-only `20260828_v2_debate_queue.sql`.
+project. The controlled Catalog, Debate persistence, and Queue deployments have
+now passed their size, public-search, owner-RLS, client-write-rejection,
+service-role, retry, and restart gates. PostgREST reports every required
+surface as deployed and the preflight returns an empty migration list.
 
 ### Phase 6 progress
 

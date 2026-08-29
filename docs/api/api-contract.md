@@ -243,13 +243,15 @@ safe terminal failure when attempts are exhausted.
 The authenticated Web/React Native stream client and reducer are mounted behind
 `EXPO_PUBLIC_DEBATE_V2_ENABLED=false`. The screen renders Queue/Worker states,
 temporary drafts, durable messages, cancellation, exact selected-passage
-Challenge input, and queued Round 2. Explanation, cross-process transient-event
-replay, and Debate-specific Redis coordination are not implemented. Public stock
-search/bundle caching is implemented but remains disabled by default. In
-Supabase persistence mode V2
-additionally requires the server-only secret and checked-in
-catalog/Debate/Queue migrations; production remains disabled until those are
-applied and verified.
+Challenge input, and queued Round 2. Explanation and cross-process
+transient-event replay are not implemented. Redis-backed admission limits and
+owner-scoped idempotency coordination are implemented with safe local/database
+fallbacks. Public stock search/bundle caching is implemented but remains
+disabled by default. In Supabase persistence mode V2 additionally requires the
+server-only secret and deployed catalog/Debate/Queue migrations. Those hosted
+schema and deterministic Queue lifecycle gates passed on 2026-08-29;
+production remains disabled pending deliberate rollout and a live-provider
+smoke test.
 
 ## Planned portfolio API
 
@@ -260,7 +262,8 @@ The canonical request/response and SSE event shapes live in the
 
 Queued Round 1 and Round 2 creation, Worker events, live async deltas, retry,
 redelivery, terminal handling, and the feature-flagged visible V2 screen are
-implemented. Controlled hosted Supabase verification remains.
+implemented. Controlled hosted Supabase admission, retry, restart, exhaustion,
+authorization, and cleanup verification passed on 2026-08-29.
 
 ### Human interaction
 

@@ -151,8 +151,8 @@ preserved four `debate_ready` rows. `stocks` measured 1,294,336 table bytes plus
 4,513,792 index bytes, 5,849,088 bytes total; the full database then measured
 30,157,971 bytes. Anonymous ranked search returned MSFT for `microsoft`, and the
 two-user Watchlist RLS/reconnect verifier passed all four checks. The Catalog
-gate is complete. Debate persistence subsequently passed its own gate, so the
-current preflight reports only the Queue migration.
+gate is complete. Debate persistence and Queue subsequently passed their own
+gates, so the current preflight reports no required migrations.
 
 Only after that gate, apply `20260827_v2_debate_persistence.sql` followed by
 `20260827_v2_debate_persistence_rpc.sql`. Verify with two users that each can
@@ -175,7 +175,36 @@ It creates one disposable fixture for each configured RLS user, proves own-row
 visibility and cross-user isolation on all five tables, rejects authenticated
 table/RPC writes, exercises atomic/idempotent service-only writes and status
 updates, and deletes both Sessions with their cascading child rows. The
-recorded run passed every check. Only the Queue migration remains pending.
+recorded run passed every check.
+
+Apply `20260828_v2_debate_queue.sql` only after Debate persistence is present.
+Then run the hosted Queue verifier with the backend virtual environment:
+
+```shell
+PYTHONPATH=backend backend/.venv/bin/python \
+  scripts/verify_supabase_debate_queue.py
+```
+
+The verifier uses disposable canonical data and fresh service clients to prove
+idempotent Round 1/2 admission, the complete 13-message transcript,
+claim/archive, delayed redelivery, recovery after a running Job restart,
+attempt exhaustion, authenticated-user RPC rejection, and cascading Session
+cleanup. It prints the exact Queue message IDs created by that run. Remove only
+those IDs from the extension-owned transport tables in SQL Editor, never the
+whole Queue:
+
+```sql
+delete from pgmq.q_debate_jobs where msg_id in (<verifier_message_ids>);
+delete from pgmq.a_debate_jobs where msg_id in (<verifier_message_ids>);
+```
+
+Recorded 2026-08-29 deployment result: all seven Queue RPCs were exposed to the
+service boundary. Both rounds completed idempotently, the fresh-client restart
+case recovered a running Job with `read_count=2` and `attempt_count=2`, the
+exhaustion case reached its safe terminal state, and authenticated calls to
+all seven RPCs were rejected. Exact verifier artifacts were deleted; final
+active Queue, archive Queue, Session, Message, Intervention, and Job counts
+were all zero. The migration preflight then returned an empty required list.
 
 `SUPABASE_SECRET_KEY` is currently used by backend ingestion; the V2 Debate
 repository will also use it after its runtime is enabled. It remains
@@ -285,6 +314,8 @@ be selected before an ingestion adapter can be implemented.
   passes anonymous ranked search.
 - [x] Hosted Debate persistence exposes five owner-read tables and two
   service-only RPCs; the disposable two-user verifier passes and cleans up.
+- [x] Hosted Queue exposes seven service-only RPCs; disposable two-round,
+  retry, restart, exhaustion, authorization, and cleanup checks pass.
 - [x] Embedding profiles and the structured `financial_facts` table are applied.
 - [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
 - [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
@@ -322,10 +353,15 @@ checks:
 - Hosted Debate persistence was verified on 2026-08-29: five-table owner
   isolation, rejected authenticated writes/RPCs, service-only atomic and
   idempotent writes, expected-status updates, and complete fixture cleanup.
+- Hosted Queue was verified on 2026-08-29: both rounds produced 13 canonical
+  messages, idempotent admission and fresh-client retry/restart passed,
+  exhausted work failed safely, authenticated RPC access was rejected, and
+  exact canonical/transport artifacts were removed.
 
 The implemented, default-off Queue Worker needs the existing server-only
-Supabase secret on the backend. Keep the Queue flag disabled until the remaining
-Queue migration and admission/claim/archive/retry/restart checks are complete.
+Supabase secret on the backend. Its migration and deterministic hosted
+lifecycle checks are complete; keep the Queue flag disabled until a deliberate
+production rollout has an explicit live-provider smoke-test and rollback plan.
 The first Phase 6 Redis slice is implemented but remains optional. Keep
 `REDIS_ENABLED=false` unless a deliberate test supplies a `redis://` or
 `rediss://` `REDIS_URL`. Stock search and the public stock bundle fail open to a
