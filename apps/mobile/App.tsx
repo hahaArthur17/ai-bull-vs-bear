@@ -19,6 +19,7 @@ import {
   NavButton,
 } from "./src/components/common";
 import { getResponsiveAppShellLayout } from "./src/appShell";
+import { canSubmitExamination } from "./src/examinationState";
 import { formatMarketDate } from "./src/dateFormat";
 import { AboutScreen } from "./src/screens/AboutScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
@@ -73,6 +74,8 @@ export default function App() {
   const [debateExperience, setDebateExperience] = useState<DebateExperience>("legacy");
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [examination, setExamination] = useState<ExaminationResponse | null>(null);
+  const [examinationError, setExaminationError] = useState("");
+  const [pendingExaminationQuestion, setPendingExaminationQuestion] = useState<ExaminationResponse["question_type"] | null>(null);
   const [history, setHistory] = useState<AnalysisResponse[]>([]);
   const [debateHistory, setDebateHistory] = useState<DebateSessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
@@ -217,18 +220,21 @@ export default function App() {
   const openExamination = (claim: Claim) => {
     setSelectedClaim(claim);
     setExamination(null);
+    setExaminationError("");
+    setPendingExaminationQuestion(null);
     setScreen("examine");
   };
 
   const askQuestion = async (questionType: ExaminationResponse["question_type"]) => {
-    if (!selectedClaim) return;
-    setLoading(true);
+    if (!selectedClaim || !canSubmitExamination(pendingExaminationQuestion)) return;
+    setPendingExaminationQuestion(questionType);
+    setExaminationError("");
     try {
       setExamination(await api.examineClaim(selectedClaim.id, questionType));
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
+      setExaminationError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
     } finally {
-      setLoading(false);
+      setPendingExaminationQuestion(null);
     }
   };
 
@@ -305,7 +311,10 @@ export default function App() {
         <EvidenceScreen
           ticker={selectedTicker}
           evidence={analysis?.evidence || selectedBundle?.evidence || []}
+          error={error}
+          loading={loading}
           onBack={() => setScreen(analysis ? "debate" : "stock")}
+          onRetry={() => void openStock(selectedTicker)}
         />
       );
     }
@@ -313,8 +322,9 @@ export default function App() {
       return (
         <ExaminationScreen
           claim={selectedClaim}
+          error={examinationError}
+          pendingQuestion={pendingExaminationQuestion}
           result={examination}
-          loading={loading}
           onBack={() => setScreen("debate")}
           onAsk={askQuestion}
         />
