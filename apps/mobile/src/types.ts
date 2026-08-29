@@ -268,6 +268,25 @@ export type DebateMutationResponse = DebateSessionDetail & {
   job_id: string;
 };
 
+export type ExplanationRequest = {
+  messageId: string;
+  selectedText: string;
+  question: string;
+};
+
+export type ExplanationResult = {
+  session_id: string;
+  source_message_id: string;
+  selected_text: string;
+  question: string;
+  content: string;
+  evidence_ids: string[];
+  terms: string[];
+  provider_name: string;
+  provider_version: string;
+  guardrail_status: "passed" | "rewritten";
+};
+
 export type DebateEventType =
   | "session.created"
   | "job.queued"

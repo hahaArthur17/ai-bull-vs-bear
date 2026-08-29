@@ -165,7 +165,8 @@ guardrails, and returns a panel result through an injected provider. It does
 not create a Job, append a message, rotate a generation, or transition Session
 state. Its authenticated default-off HTTP boundary is now wired and is
 independently admission-limited with the hashed `rate:explain` cache key and a
-safe local fallback. Event and mobile integration remain pending.
+safe local fallback. The mobile client now has the typed authenticated request
+boundary; event integration and the explanation panel remain pending.
 
 The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the

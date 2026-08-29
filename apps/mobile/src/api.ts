@@ -4,12 +4,15 @@ import type {
   DebateMutationResponse,
   DebateSessionDetail,
   ExaminationResponse,
+  ExplanationRequest,
+  ExplanationResult,
   Stock,
   StockBundle,
   WatchlistResponse,
 } from "./types";
 import { DebateStreamClient } from "./debateStream";
 import type { DebateStreamSnapshot } from "./debateStream";
+import { serializeExplanationRequest } from "./explanationRequest";
 import { supabase } from "./supabase";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
@@ -85,6 +88,18 @@ export const api = {
   getDebateMessages: (sessionId: string): Promise<DebateMessageRecord[]> =>
     request<DebateMessageRecord[]>(
       "/debates/" + encodeURIComponent(sessionId) + "/messages",
+    ),
+
+  explainDebate: (
+    sessionId: string,
+    explanation: ExplanationRequest,
+  ): Promise<ExplanationResult> =>
+    request<ExplanationResult>(
+      "/debates/" + encodeURIComponent(sessionId) + "/explanations",
+      {
+        method: "POST",
+        body: JSON.stringify(serializeExplanationRequest(explanation)),
+      },
     ),
 
   createDebate: (
