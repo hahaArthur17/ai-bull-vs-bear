@@ -2,6 +2,16 @@ import type { StockBundle } from "../types";
 
 export type SeriesPoint = { date: string; value: number | null };
 
+export type SeriesTrend = {
+  absoluteChange: number;
+  direction: "down" | "flat" | "up";
+  endDate: string;
+  endValue: number;
+  percentChange: number | null;
+  startDate: string;
+  startValue: number;
+};
+
 export type MacroChart = {
   code: string;
   label: string;
@@ -92,6 +102,24 @@ export function chartScale(
   const max = fixedDomain?.[1] ?? Math.max(...values, ...references);
   const padding = Math.max((max - min) * 0.12, 0.01);
   return { min: fixedDomain ? min : min - padding, max: fixedDomain ? max : max + padding };
+}
+
+export function seriesTrend(points: SeriesPoint[]): SeriesTrend | null {
+  const values = points.filter((point): point is { date: string; value: number } => point.value !== null);
+  if (values.length < 2) return null;
+  const start = values[0];
+  const end = values[values.length - 1];
+  const absoluteChange = end.value - start.value;
+  const percentChange = start.value === 0 ? null : (absoluteChange / Math.abs(start.value)) * 100;
+  return {
+    startDate: start.date,
+    endDate: end.date,
+    startValue: start.value,
+    endValue: end.value,
+    absoluteChange,
+    percentChange,
+    direction: absoluteChange > 0 ? "up" : absoluteChange < 0 ? "down" : "flat",
+  };
 }
 
 export function technicalPath(

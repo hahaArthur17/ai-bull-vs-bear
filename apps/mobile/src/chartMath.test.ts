@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { chartScale, simpleMovingAverage, technicalPath } from "./research/chartMath.ts";
+import { chartScale, seriesTrend, simpleMovingAverage, technicalPath } from "./research/chartMath.ts";
 
 test("chart calculations retain gaps and use complete trailing windows", () => {
   assert.deepEqual(simpleMovingAverage([1, 2, 3, 4], 3), [null, null, 2, 3]);
@@ -21,4 +21,21 @@ test("chart calculations retain gaps and use complete trailing windows", () => {
 test("chart scale pads data domains but preserves fixed reference domains", () => {
   assert.deepEqual(chartScale([[{ date: "2026-01-01", value: 10 }, { date: "2026-01-02", value: 20 }]]), { min: 8.8, max: 21.2 });
   assert.deepEqual(chartScale([[{ date: "2026-01-01", value: 10 }]], [30, 70], [0, 100]), { min: 0, max: 100 });
+});
+
+test("chart trend retains the selected date range and does not invent a percentage from zero", () => {
+  assert.deepEqual(seriesTrend([
+    { date: "2026-08-01", value: 100 },
+    { date: "2026-08-02", value: 112 },
+  ]), {
+    startDate: "2026-08-01",
+    endDate: "2026-08-02",
+    startValue: 100,
+    endValue: 112,
+    absoluteChange: 12,
+    percentChange: 12,
+    direction: "up",
+  });
+  assert.equal(seriesTrend([{ date: "2026-08-01", value: 0 }, { date: "2026-08-02", value: 3 }])?.percentChange, null);
+  assert.equal(seriesTrend([{ date: "2026-08-01", value: null }]), null);
 });

@@ -11,6 +11,7 @@ import {
   exponentialMovingAverage,
   formatMacroValue,
   macroChart,
+  seriesTrend,
   simpleMovingAverage,
   technicalPath,
 } from "../research/chartMath";
@@ -119,7 +120,7 @@ export function StockDetailScreen({
           </View>
         ) : null}
         {hasVerifiedMarketData ? (
-          <InteractivePriceChart dailyPrices={bundle.prices} weeklyPrices={bundle.weekly_history} />
+          <InteractivePriceChart ticker={bundle.stock.ticker} dailyPrices={bundle.prices} weeklyPrices={bundle.weekly_history} />
         ) : (
           <View style={styles.chartUnavailable}>
             <Text style={styles.chartUnavailableText}>No curve is shown until market data is verified.</Text>
@@ -142,7 +143,7 @@ export function StockDetailScreen({
       ) : (
         <View style={styles.signalUnavailable}>
           <Text style={styles.signalUnavailableTitle}>Technical signals are paused</Text>
-          <Text style={styles.signalUnavailableText}>RSI, MACD, and the curve will appear once the AAPL daily-price cache has verified history.</Text>
+          <Text style={styles.signalUnavailableText}>RSI, MACD, and the curve will appear once the daily-price cache has verified history.</Text>
         </View>
       )}
       <View style={styles.actionRow}>
@@ -200,9 +201,11 @@ type InteractivePricePoint = {
 };
 
 function InteractivePriceChart({
+  ticker,
   dailyPrices,
   weeklyPrices,
 }: {
+  ticker: string;
   dailyPrices: StockBundle["prices"];
   weeklyPrices: StockBundle["weekly_history"];
 }) {
@@ -222,6 +225,7 @@ function InteractivePriceChart({
       return { ...point, ma20: ma20[sourceIndex], ma50: ma50[sourceIndex] };
     });
   }, [dailyPrices, range, weeklyPrices]);
+  const priceTrend = seriesTrend(points.map((point) => ({ date: point.date, value: point.close })));
   const width = 320;
   const height = 154;
   const padding = { top: 14, right: 12, bottom: 26, left: 12 };
@@ -232,10 +236,13 @@ function InteractivePriceChart({
           <Text style={styles.chartLabel}>PRICE HISTORY</Text>
           <Text style={styles.chartRange}>{range}</Text>
         </View>
-        <View style={styles.rangeSelector}>
+        <View accessibilityRole="tablist" style={styles.rangeSelector}>
           {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
             <Pressable
               key={option}
+              accessibilityLabel={`Show ${option} price history`}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: option === range }}
               style={[styles.rangeButton, option === range && styles.rangeButtonActive]}
               onPress={() => { setRange(option); setSelectedIndex(-1); }}
             >
@@ -243,7 +250,7 @@ function InteractivePriceChart({
             </Pressable>
           ))}
         </View>
-        <Text style={styles.chartUnavailableText}>No labelled {range === "1M" || range === "3M" ? "daily" : "weekly"} history is available yet.</Text>
+        <Text accessibilityLiveRegion="polite" style={styles.chartUnavailableText}>No labelled {range === "1M" || range === "3M" ? "daily" : "weekly"} history is available yet. Choose another range when data is available.</Text>
       </View>
     );
   }
@@ -296,6 +303,12 @@ function InteractivePriceChart({
     onPanResponderGrant: (event) => setPointFromLocation(event.nativeEvent.locationX),
     onPanResponderMove: (event) => setPointFromLocation(event.nativeEvent.locationX),
   });
+  const moveSelection = (direction: -1 | 1) => {
+    setSelectedIndex((current) => {
+      const resolved = current < 0 ? points.length - 1 : current;
+      return Math.min(points.length - 1, Math.max(0, resolved + direction));
+    });
+  };
   const frequencyLabel = activePoint.frequency === "daily"
     ? activePoint.is_stale
       ? "Daily market cache · stale"
@@ -303,26 +316,26 @@ function InteractivePriceChart({
     : activePoint.retrieved_at
       ? `Weekly Alpha Vantage history · refreshed ${formatQuoteTime(activePoint.retrieved_at)}`
       : "Weekly Alpha Vantage history";
+  const trendSummary = describeTrend(`${ticker} ${range} price`, priceTrend, "$", "");
 
   return (
-    <View
-      style={styles.lineChart}
-      accessibilityLabel={`AAPL ${range} price chart. Selected ${activePoint.frequency} close: ${formatMarketDate(activePoint.date)}, $${activePoint.close.toFixed(2)}. Drag across the chart or use Earlier and Later buttons to inspect points.`}
-    >
+    <View style={styles.lineChart}>
       <View style={styles.chartHeader}>
         <Text style={styles.chartLabel}>{activePoint.frequency.toUpperCase()} PRICE · {range}</Text>
         <Text style={styles.chartRange}>{formatChartDate(points[0].date)} – {formatChartDate(points[points.length - 1].date)}</Text>
       </View>
       <View style={styles.priceChartLegend}>
-        <Text style={styles.priceLegendClose}>● Close</Text>
-        <Text style={styles.priceLegendMa20}>● MA20{movingAverageUnit}</Text>
-        <Text style={styles.priceLegendMa50}>● MA50{movingAverageUnit}</Text>
+        <Text style={styles.priceLegendClose}>Solid line · Close</Text>
+        <Text style={styles.priceLegendMa20}>Solid line · MA20{movingAverageUnit}</Text>
+        <Text style={styles.priceLegendMa50}>Dashed line · MA50{movingAverageUnit}</Text>
       </View>
-      <View style={styles.rangeSelector}>
+      <Text style={styles.chartTextSummary}>{trendSummary}</Text>
+      <View accessibilityRole="tablist" style={styles.rangeSelector}>
         {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
           <Pressable
             key={option}
-            accessibilityRole="button"
+            accessibilityLabel={`Show ${option} price history`}
+            accessibilityRole="tab"
             accessibilityState={{ selected: option === range }}
             style={[styles.rangeButton, option === range && styles.rangeButtonActive]}
             onPress={() => { setRange(option); setSelectedIndex(-1); }}
@@ -331,7 +344,20 @@ function InteractivePriceChart({
           </Pressable>
         ))}
       </View>
-      <View
+      <Pressable
+        accessibilityActions={[
+          { name: "decrement", label: "Inspect earlier price point" },
+          { name: "increment", label: "Inspect later price point" },
+        ]}
+        accessibilityHint="Use the Earlier and Later buttons, or an assistive technology increment and decrement action, to inspect a selected price point."
+        accessibilityLabel={`${ticker} ${range} price chart. ${trendSummary}`}
+        accessibilityRole="adjustable"
+        accessibilityValue={{ max: points.length, min: 1, now: activeIndex + 1, text: `${formatMarketDate(activePoint.date)}, $${activePoint.close.toFixed(2)}` }}
+        onAccessibilityAction={(event) => {
+          if (event.nativeEvent.actionName === "decrement") moveSelection(-1);
+          if (event.nativeEvent.actionName === "increment") moveSelection(1);
+        }}
+        onPress={() => setSelectedIndex(activeIndex)}
         style={styles.chartTouchArea}
         onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
         {...panResponder.panHandlers}
@@ -363,14 +389,14 @@ function InteractivePriceChart({
           <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="5" fill="#fffdf8" />
           <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="2.5" fill="#d95c3b" />
         </Svg>
-      </View>
+      </Pressable>
       <View style={styles.chartAxis}>
         <Text style={styles.chartAxisText}>${minClose.toFixed(2)}</Text>
         <Text style={styles.chartAxisText}>${maxClose.toFixed(2)}</Text>
       </View>
-      <View style={styles.chartTooltip}>
+      <View accessibilityLiveRegion="polite" style={styles.chartTooltip}>
         <Text style={styles.chartTooltipPrice}>${activePoint.close.toFixed(2)}</Text>
-        <Text style={styles.chartTooltipMeta}>{formatMarketDate(activePoint.date)} · {frequencyLabel}</Text>
+        <Text style={styles.chartTooltipMeta}>Selected point {activeIndex + 1} of {points.length} · {formatMarketDate(activePoint.date)} · {frequencyLabel}</Text>
         <Text style={styles.chartTooltipMeta}>
           MA20{movingAverageUnit} {activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}
           {" · "}
@@ -383,7 +409,7 @@ function InteractivePriceChart({
           accessibilityLabel="Inspect earlier price point"
           disabled={activeIndex === 0}
           style={[styles.chartStepButton, activeIndex === 0 && styles.chartStepDisabled]}
-          onPress={() => setSelectedIndex(activeIndex - 1)}
+          onPress={() => moveSelection(-1)}
         >
           <Text style={styles.chartStepText}>← Earlier</Text>
         </Pressable>
@@ -392,7 +418,7 @@ function InteractivePriceChart({
           accessibilityLabel="Inspect later price point"
           disabled={activeIndex === points.length - 1}
           style={[styles.chartStepButton, activeIndex === points.length - 1 && styles.chartStepDisabled]}
-          onPress={() => setSelectedIndex(activeIndex + 1)}
+          onPress={() => moveSelection(1)}
         >
           <Text style={styles.chartStepText}>Later →</Text>
         </Pressable>
@@ -476,7 +502,7 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
       <SectionHeader title="Market backdrop" meta="cached daily context" />
       <View style={styles.macroDisclosure}>
         <Text style={styles.macroDisclosureTitle}>Background, not a price-move explanation</Text>
-        <Text style={styles.macroDisclosureText}>These dated market series can frame broad conditions. They do not prove why AAPL moved on a particular day and are not personal investment advice.</Text>
+        <Text style={styles.macroDisclosureText}>These dated market series can frame broad conditions. They do not prove why a security moved on a particular day and are not personal investment advice.</Text>
       </View>
       {charts.sp500 ? (
         <TechnicalLineChart
@@ -538,7 +564,9 @@ function TechnicalLineChart({
   const padding = 16;
   const allPoints = series.map((item) => item.points);
   const hasData = allPoints.some((points) => points.some((point) => point.value !== null));
-  if (!hasData) return null;
+  if (!hasData) {
+    return <ChartEmptyState title={title} message={`No labelled values are available for ${title.toLowerCase()} yet.`} />;
+  }
   const { min, max } = chartScale(allPoints, references, fixedDomain);
   const plotHeight = height - padding * 2;
   const yForValue = (value: number) => padding + (1 - (value - min) / Math.max(max - min, 0.0001)) * plotHeight;
@@ -548,6 +576,11 @@ function TechnicalLineChart({
         <View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{subtitle}</Text></View>
         <Text style={styles.chartLegend}>{series.map((item) => item.label).join(" · ")}</Text>
       </View>
+      {series.map((item) => (
+        <Text key={`${item.label}-summary`} style={[styles.chartTextSummary, styles.technicalChartSummary]}>
+          {describeTrend(item.label, seriesTrend(item.points), prefix, suffix)}
+        </Text>
+      ))}
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
         {[0.25, 0.5, 0.75].map((position) => <Line key={position} x1={padding} x2={width - padding} y1={padding + plotHeight * position} y2={padding + plotHeight * position} stroke="#d8d5ca" strokeDasharray="3 4" />)}
         {references.map((value) => <Line key={value} x1={padding} x2={width - padding} y1={yForValue(value)} y2={yForValue(value)} stroke="#b4a67d" strokeDasharray="5 4" />)}
@@ -562,6 +595,8 @@ function MacdChart({ macd, signal, histogram }: { macd: SeriesPoint[]; signal: S
   const width = 320;
   const height = 128;
   const padding = 16;
+  const hasData = [macd, signal, histogram].some((series) => series.some((point) => point.value !== null));
+  if (!hasData) return <ChartEmptyState title="MACD" message="No labelled MACD values are available yet." />;
   const { min, max } = chartScale([macd, signal, histogram], [0]);
   const range = Math.max(max - min, 0.0001);
   const plotWidth = width - padding * 2;
@@ -571,6 +606,8 @@ function MacdChart({ macd, signal, histogram }: { macd: SeriesPoint[]; signal: S
   return (
     <View style={styles.technicalChartCard}>
       <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>MACD</Text><Text style={styles.mutedText}>MACD / signal lines · histogram</Text></View><Text style={styles.chartLegend}>MACD · Signal</Text></View>
+      <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend("MACD", seriesTrend(macd))}</Text>
+      <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend("Signal", seriesTrend(signal))}</Text>
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel="MACD and signal line chart with a positive or negative histogram.">
         <Line x1={padding} x2={width - padding} y1={baseline} y2={baseline} stroke="#b4a67d" strokeDasharray="5 4" />
         {histogram.map((point, index) => {
@@ -592,13 +629,14 @@ function TechnicalBarChart({ title, subtitle, points, color }: { title: string; 
   const height = 104;
   const padding = 16;
   const values = points.flatMap((point) => point.value === null ? [] : [point.value]);
-  if (!values.length) return null;
+  if (!values.length) return <ChartEmptyState title={title} message={`No labelled values are available for ${title.toLowerCase()} yet.`} />;
   const max = Math.max(...values);
   const plotWidth = width - padding * 2;
   const plotHeight = height - padding * 2;
   return (
     <View style={styles.technicalChartCard}>
       <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{subtitle}</Text></View><Text style={styles.chartLegend}>max {(max / 1_000_000).toFixed(1)}M</Text></View>
+      <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend(title, seriesTrend(points))}</Text>
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
         {points.map((point, index) => {
           if (point.value === null) return null;
@@ -610,4 +648,21 @@ function TechnicalBarChart({ title, subtitle, points, color }: { title: string; 
       </Svg>
     </View>
   );
+}
+
+function ChartEmptyState({ title, message }: { title: string; message: string }) {
+  return (
+    <View accessibilityLiveRegion="polite" style={[styles.technicalChartCard, styles.chartNoData]}>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.mutedText}>{message}</Text>
+    </View>
+  );
+}
+
+function describeTrend(label: string, trend: ReturnType<typeof seriesTrend>, prefix = "", suffix = ""): string {
+  if (!trend) return `${label} trend is unavailable because fewer than two labelled values are available.`;
+  const direction = trend.direction === "up" ? "rose" : trend.direction === "down" ? "fell" : "was unchanged";
+  const absoluteChange = `${prefix}${Math.abs(trend.absoluteChange).toFixed(2)}${suffix}`;
+  const percentage = trend.percentChange === null ? "percentage change unavailable" : `${Math.abs(trend.percentChange).toFixed(1)}%`;
+  return `${label} ${direction} by ${absoluteChange} (${percentage}) from ${formatMarketDate(trend.startDate)} to ${formatMarketDate(trend.endDate)}.`;
 }
