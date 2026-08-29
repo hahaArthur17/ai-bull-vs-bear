@@ -1233,8 +1233,8 @@ on the owned active branch; provider citations are restricted to evidence
 already linked to that message. Guardrails and safe provider errors are tested,
 and Session, Job, generation, branch, and canonical messages remain unchanged.
 The HTTP route is now authenticated, default-off, and covered for ownership,
-safe validation/provider errors, and immutability. The event stream, rate
-limit is now independently enforced with a hashed user key and local fallback;
+safe validation/provider errors, and immutability. Event-stream rate limiting
+is independently enforced with a hashed user key and local fallback;
 the mobile client now has the typed request/result boundary and a contract test.
 Complete-message terms now open a cross-platform read-only panel that validates
 the exact selection before calling the API and never writes a result into the
