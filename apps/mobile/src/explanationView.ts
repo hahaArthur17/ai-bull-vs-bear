@@ -1,5 +1,24 @@
 import type { DebateMessageRecord } from "./types";
 
+export type ExplanationRequestGate = {
+  start: () => number;
+  invalidate: () => void;
+  isCurrent: (requestId: number) => boolean;
+};
+
+export function createExplanationRequestGate(): ExplanationRequestGate {
+  let currentRequestId = 0;
+  return {
+    start: () => {
+      currentRequestId += 1;
+      return currentRequestId;
+    },
+    invalidate: () => {
+      currentRequestId += 1;
+    },
+    isCurrent: (requestId) => requestId === currentRequestId,
+  };
+}
 
 export function exactExplanationTerm(
   record: DebateMessageRecord,

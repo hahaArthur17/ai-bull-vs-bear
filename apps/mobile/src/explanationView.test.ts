@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  createExplanationRequestGate,
   defaultExplanationQuestion,
   exactExplanationTerm,
 } from "./explanationView.ts";
@@ -43,4 +44,16 @@ test("Explanation terms must be exact selections from complete messages", () => 
     defaultExplanationQuestion("moving average"),
     "What does \"moving average\" mean in this message?",
   );
+});
+
+test("Explanation requests become stale when the panel context changes", () => {
+  const gate = createExplanationRequestGate();
+  const firstRequest = gate.start();
+
+  gate.invalidate(); // The user selected another term, edited the question, or closed the panel.
+  assert.equal(gate.isCurrent(firstRequest), false);
+
+  const secondRequest = gate.start();
+  assert.equal(gate.isCurrent(firstRequest), false);
+  assert.equal(gate.isCurrent(secondRequest), true);
 });

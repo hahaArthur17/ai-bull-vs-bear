@@ -24,6 +24,7 @@ import {
   debateStatusCopy,
 } from "../liveDebateView";
 import {
+  createExplanationRequestGate,
   defaultExplanationQuestion,
   exactExplanationTerm,
 } from "../explanationView";
@@ -110,8 +111,14 @@ export function LiveDebateScreen({
   const [explanationError, setExplanationError] = useState("");
   const [explaining, setExplaining] = useState(false);
   const challengeKey = useRef<string | null>(null);
+  const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
   const sessionId = initialDetail.session.id;
+
+  const invalidateExplanationRequest = () => {
+    explanationRequests.current.invalidate();
+    setExplaining(false);
+  };
 
   useEffect(() => {
     setSnapshot(createCanonicalDebateSnapshot(initialDetail));
@@ -125,9 +132,13 @@ export function LiveDebateScreen({
     setExplanationQuestion("");
     setExplanationResult(null);
     setExplanationError("");
-    setExplaining(false);
+    invalidateExplanationRequest();
     challengeKey.current = null;
   }, [sessionId]);
+
+  useEffect(() => () => {
+    explanationRequests.current.invalidate();
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -181,6 +192,7 @@ export function LiveDebateScreen({
       setActionError("This term is not an exact selection from a complete message.");
       return;
     }
+    invalidateExplanationRequest();
     setExplanationTarget(record);
     setExplanationTerm(selectedTerm);
     setExplanationQuestion(defaultExplanationQuestion(selectedTerm));
@@ -189,6 +201,7 @@ export function LiveDebateScreen({
   };
 
   const closeExplanation = () => {
+    invalidateExplanationRequest();
     setExplanationTarget(null);
     setExplanationTerm("");
     setExplanationQuestion("");
@@ -243,6 +256,7 @@ export function LiveDebateScreen({
 
   const submitExplanation = async () => {
     if (!explanationTarget || !selectedExplanationTerm || !canSubmitExplanation) return;
+    const requestId = explanationRequests.current.start();
     setExplaining(true);
     setExplanationError("");
     try {
@@ -251,13 +265,19 @@ export function LiveDebateScreen({
         selectedText: selectedExplanationTerm,
         question: explanationQuestion.trim(),
       });
-      setExplanationResult(result);
+      if (explanationRequests.current.isCurrent(requestId)) {
+        setExplanationResult(result);
+      }
     } catch (error) {
-      setExplanationError(
-        error instanceof Error ? error.message : "Could not explain this term.",
-      );
+      if (explanationRequests.current.isCurrent(requestId)) {
+        setExplanationError(
+          error instanceof Error ? error.message : "Could not explain this term.",
+        );
+      }
     } finally {
-      setExplaining(false);
+      if (explanationRequests.current.isCurrent(requestId)) {
+        setExplaining(false);
+      }
     }
   };
 
@@ -383,6 +403,7 @@ export function LiveDebateScreen({
           <TextInput
             value={explanationQuestion}
             onChangeText={(value) => {
+              invalidateExplanationRequest();
               setExplanationQuestion(value);
               setExplanationResult(null);
             }}
