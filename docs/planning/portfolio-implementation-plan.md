@@ -1260,12 +1260,13 @@ Status: In progress
   and `catalog_only`/`debate_ready` coverage states.
 - [ ] Complete Discovery and Watchlist acceptance review for responsive layout,
   keyboard focus, screen-reader labels, and native-device behaviour.
-- [ ] Redesign stock detail and charts without losing provenance/accessibility.
-- [ ] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
+- [x] Redesign stock detail and charts without losing provenance/accessibility.
+- [x] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
   explanation, and failure states.
-- [ ] Redesign History/About and diagnostic presentation.
-- [ ] Test responsive Web, keyboard navigation, reduced motion, and screen-reader
-  labels.
+- [x] Redesign History/About and diagnostic presentation.
+- [x] Test the responsive Web baseline, keyboard navigation, reduced motion, and
+  screen-reader labels; see [`phase-8-verification-record.md`](phase-8-verification-record.md)
+  for the scope and remaining visual-state limitations.
 - [ ] Test iOS/Android simulator and one physical device.
 
 Completion rule: all core states use the same reusable design system and pass

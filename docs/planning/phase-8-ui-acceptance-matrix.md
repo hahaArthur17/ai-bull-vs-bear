@@ -91,6 +91,10 @@ route/screen, data fixture or safe account state, current commit, and known
 limitation in the Phase 8 verification record. Never capture credentials,
 access tokens, or private user content.
 
+The current record is [`phase-8-verification-record.md`](phase-8-verification-record.md).
+It may contain partial evidence; only the documented closure gates permit
+Phase 8 to move to Done.
+
 At Phase 8 close, repeat the representative flows on an iOS simulator, an
 Android simulator, and at least one physical device. Record OS/device, app
 version or commit, executed flow, result, and any limitation. A Web screenshot

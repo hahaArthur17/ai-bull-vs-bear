@@ -19,10 +19,10 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | The latest recorded backend gate has 345 passing tests; 23 mobile state tests, the mobile TypeScript check, and Expo Web export passed on 2026-08-30. The only backend warning is the existing Starlette/httpx test-client deprecation. |
-| Phase 8 authentication UI | In progress | Implementation is complete, including distinct sign-in/sign-up submission states; visual, keyboard, screen-reader, responsive, and device acceptance remain pending. |
-| Phase 8 Discovery and Watchlist UI | In progress | Implementation is complete, including coverage-aware search and a loaded-stock “Ready to review” summary; visual, keyboard, screen-reader, responsive, and device acceptance remain pending. |
-| Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
+| Automated verification | Done | The latest recorded backend gate has 345 passing tests; 35 mobile state tests, the mobile TypeScript check, and Expo Web export passed on 2026-08-30. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Phase 8 authentication UI | In progress | Implementation is complete, including distinct sign-in/sign-up submission states. Responsive Web, keyboard, semantic-label, and axe checks are recorded; native simulator and physical-device acceptance remain open. |
+| Phase 8 Discovery and Watchlist UI | In progress | Implementation is complete, including coverage-aware search and a loaded-stock “Ready to review” summary. Responsive Web and Android-browser simulator evidence are recorded; native simulator and physical-device acceptance remain open. |
+| Native-device verification | In progress | The Android browser simulator pass is recorded, but Expo Go/native Android review, iOS review, and one physical-device pass remain open. See [`phase-8-verification-record.md`](phase-8-verification-record.md). |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
 returned a healthy production API with `provider=demo`, and listed AAPL, GOOG,
