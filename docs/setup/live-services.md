@@ -145,6 +145,15 @@ if the measured `total_with_indexes` exceeds it. Before marking Phase 2
 deployed, confirm an anon/public catalog search succeeds and repeat the existing
 two-user test proving that each user can change only their own Watchlist.
 
+Recorded 2026-08-29 deployment result: the database passed the preflight at
+23,727,251 bytes. The three Catalog migrations produced 7,695 active rows and
+preserved four `debate_ready` rows. `stocks` measured 1,294,336 table bytes plus
+4,513,792 index bytes, 5,849,088 bytes total; the full database then measured
+30,157,971 bytes. Anonymous ranked search returned MSFT for `microsoft`, and the
+two-user Watchlist RLS/reconnect verifier passed all four checks. The Catalog
+gate is complete; the remaining preflight order is the two Debate persistence
+migrations followed by the Queue migration.
+
 Only after that gate, apply `20260827_v2_debate_persistence.sql` followed by
 `20260827_v2_debate_persistence_rpc.sql`. Verify with two users that each can
 read only their own Session, Message, citation, Intervention, and Job rows and
@@ -257,6 +266,8 @@ be selected before an ingestion adapter can be implemented.
 - [x] The API response contains real token usage and no secret values.
 - [x] The Supabase schema has been applied to the dedicated project.
 - [x] Supabase contains public stocks, evidence documents, chunks, and vectors.
+- [x] Hosted Catalog has 7,695 active rows, fits the 15 MiB relation budget, and
+  passes anonymous ranked search.
 - [x] Embedding profiles and the structured `financial_facts` table are applied.
 - [x] SEC parsing, throttling, retry, and metadata fallback pass mocked tests.
 - [x] Alpha Vantage parsing, retries, Supabase upsert, and read fallback pass
@@ -288,6 +299,9 @@ checks:
   background.
 - Public frontend and API health were rechecked on 2026-08-27; the API reported
   `environment=production` and `provider=demo`.
+- Hosted Catalog deployment was verified on 2026-08-29: 7,695 active identities,
+  5,849,088 bytes including indexes, anonymous search success, and unchanged
+  two-user Watchlist RLS isolation.
 
 The implemented, default-off Queue Worker needs a server-only Supabase secret
 on the backend. Add it only for the controlled Phase 5 hosted verification
@@ -301,8 +315,8 @@ snapshot for six hours; custom questions bypass this cache. Rate limits and
 the one-active-Debate rule run through Redis when enabled and the bounded local
 fallback otherwise. Their safe defaults are three admissions per 3,600 seconds
 and a 1,200-second active-key TTL; canonical non-terminal Sessions remain the
-authority after the TTL. Distributed Debate idempotency locking remains future
-Phase 6 work.
+authority after the TTL. Owner-scoped Debate idempotency locking is implemented
+with deterministic database uniqueness as the degraded fallback.
 
 ### Credential hygiene follow-up
 

@@ -48,10 +48,9 @@ These are limitations of the current implementation, not completed features:
   free-form Challenge only at the Interim Judge pause. Arbitrary term
   explanation is not implemented, and the mid-generation cancellation protocol
   is not yet reachable from the deployed screen.
-- The 7,695-row catalog, ranked search function, and coverage columns are
-  implemented in repository migrations but have not yet been applied to the
-  hosted Supabase project. Hosted production therefore still exposes its
-  previously deployed four-stock data until that controlled migration.
+- The hosted catalog now contains 7,695 searchable identities, but only the
+  four curated `debate_ready` stocks have verified price, evidence, indicator,
+  and Debate coverage. The other 7,691 rows remain Watchlist-only by design.
 - Technical indicators, evidence types, and legacy model prompt inputs still
   use several fixed API schemas. Common `FactorProvider` contracts now build
   the V2 Session snapshot, so a future provider is additive at that boundary.
@@ -59,8 +58,8 @@ These are limitations of the current implementation, not completed features:
   Optional Redis/local adapters and public stock search/bundle caching now
   exist. Standard V2 requests can reuse only a public factor snapshot; custom
   questions bypass that shared cache. Per-user generation limits and the
-  one-active-Debate rule are wired; the simultaneous duplicate-request lock is
-  not. The current quote remains outside the bundle response cache.
+  one-active-Debate rule and simultaneous duplicate-request lock are wired.
+  The current quote remains outside the bundle response cache.
 - The durable Queue is connected only to the default-off V2 Debate path. The
   public legacy `/analysis` path remains synchronous by design.
 - Stock detail, charting, legacy Debate, Evidence, and Examination UI still
@@ -93,9 +92,9 @@ The complete target architecture, product rules, phase order, acceptance tests,
 and current coding entry point are canonical in
 [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md).
 
-Documentation Phase 0 and modular-boundary Phase 1 are complete. Phase 2
-behaviour is implemented and verified locally; its remaining gate is the
-controlled hosted Supabase migration, size measurement, and RLS verification.
+Documentation Phase 0, modular-boundary Phase 1, and hosted Catalog Phase 2 are
+complete. The next controlled deployment slice is the Phase 3 Debate
+persistence migration and its two-user RLS/service-role verification.
 
 ### Phase 1 completion evidence
 
@@ -148,8 +147,9 @@ generation validates source shape, duplicate tickers, provenance, and the
 Repository DDL now adds nullable classification fields, CIK, aliases/search
 text, four explicit coverage states, indexed search, ranked search RPC, and
 public-read RLS. A generated migration seeds all 7,695 rows in 16 bounded
-upserts while preserving the four curated `debate_ready` records. The migrations
-have not yet been applied to the hosted Supabase project.
+upserts while preserving the four curated `debate_ready` records. On 2026-08-29
+the coverage, search, and seed migrations were applied to hosted Supabase in
+filename order after the database passed the capacity gate.
 
 `DemoStore` searches the versioned snapshot without external calls.
 `SupabaseStore` treats successful Supabase results—including an empty result—as
@@ -164,11 +164,13 @@ and no synthetic analysis is substituted. The mobile UI debounces server
 search, labels Watchlist-only results, and renders an identity/coverage page
 without requesting the stock bundle.
 
-The catalog's stored text is 455,371 bytes. Its table and indexes are estimated
-at 3.9–6.9 MiB, with a conservative 15 MiB deployment budget—3% of the current
-500 MB Supabase Free database quota. The feature remains in scope. Deployment
-must stop if the existing database is already above 400 MB or the measured
-catalog relation exceeds 15 MiB after migration.
+The catalog's stored text is 455,371 bytes. Before deployment the database was
+23,727,251 bytes, safely below the 400 MB stop threshold. After deployment,
+`stocks` measured 1,294,336 bytes of table data plus 4,513,792 bytes of indexes,
+5,849,088 bytes total (about 5.7 MiB), below the 15 MiB budget. The whole
+database measured 30,157,971 bytes. Anonymous ranked search returned MSFT for
+`microsoft`, and the two-user Watchlist RLS/reconnect verifier passed all four
+checks.
 
 ### Phase 3 completion
 
@@ -309,15 +311,13 @@ The remaining gate is the controlled hosted Supabase migration/RLS/restart
 verification. The flags remain off in production, so no hosted durability
 claim is made yet.
 
-A read-only hosted preflight on 2026-08-29 confirmed that the configured
-Dashboard project matches the API project and is healthy. The existing
-two-user Watchlist verifier passed owner access, hidden cross-user reads,
-rejected cross-user writes, and persistence across a new connection. PostgREST
-metadata shows that the catalog extensions, five Debate tables, two persistence
-RPCs, and seven Queue RPCs are not yet deployed. No remote SQL was executed.
-The next gate is the SQL Editor database-size query, followed by the six
-checked-in migrations in the order reported by
-`scripts/verify_supabase_migration_preflight.py`.
+The 2026-08-29 hosted preflight matched the configured Dashboard and API
+project, and the subsequent controlled Catalog deployment passed its capacity,
+relation-size, anonymous-search, and Watchlist RLS gates. PostgREST metadata now
+reports all Catalog columns and the ranked search RPC as deployed. The five
+Debate tables, two persistence RPCs, and seven Queue RPCs remain absent; the
+preflight now reports only the two Debate persistence migrations followed by
+the Queue migration.
 
 ### Phase 6 progress
 

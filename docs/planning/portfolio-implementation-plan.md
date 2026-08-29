@@ -953,7 +953,7 @@ Suggested focused commits:
 
 ### Phase 2 — Catalog search and coverage-aware watchlist
 
-Status: In progress
+Status: Done
 
 - [x] Choose and document a bounded static symbol catalog source.
 - [x] Add catalog/coverage migration and seed data.
@@ -964,7 +964,7 @@ Status: In progress
 - [x] Add coverage badges and catalog-only detail state.
 - [x] Keep Debate restricted to `debate_ready` symbols.
 - [x] Prove search causes zero market-data provider requests.
-- [ ] Apply the three catalog migrations to hosted Supabase only after the
+- [x] Apply the three catalog migrations to hosted Supabase only after the
   preflight size check; then record relation size and verify public-read RLS.
 
 Completion rule: an unsupported catalog ticker can be searched, identified, and
@@ -981,8 +981,12 @@ Implementation evidence: `c8fa984`, `f049a59`, `89b0044`, `f99c2da`,
 `e48a7de`, `4f870e3`, and `791bcc0`. The repository contains the validated
 7,695-row snapshot, coverage/search DDL, idempotent seed, authoritative
 repository paths, API coverage gates, regression proofs, and mobile catalog
-flow. These migrations are prepared but not yet applied to the hosted Supabase
-project.
+flow. On 2026-08-29 the hosted database passed the 400 MB capacity gate at
+23,727,251 bytes, all three migrations were applied in filename order, and the
+result contained 7,695 active rows while preserving four `debate_ready` rows.
+The `stocks` relation measured 5,849,088 bytes including indexes, anonymous
+ranked search returned MSFT for `microsoft`, and the two-user Watchlist
+RLS/reconnect verifier passed all four checks.
 
 ### Phase 3 — Debate persistence and deterministic state machine
 
@@ -1111,13 +1115,11 @@ and 390px browser checks completed both deterministic rounds without console
 errors. Hosted migration/RLS/restart verification is the remaining Phase 5
 gate.
 
-The 2026-08-29 hosted read-only preflight matched the Dashboard and API project,
-re-ran the existing two-user Watchlist RLS/reconnect checks successfully, and
-confirmed through PostgREST metadata that the catalog, Debate, and Queue
-migrations are still absent. No SQL was executed. The reusable preflight script
-now reports the exact six-file migration order without exposing project or key
-data; the next action remains the SQL Editor capacity query before applying the
-catalog files.
+The 2026-08-29 hosted preflight matched the Dashboard and API project and the
+controlled Catalog deployment then passed its capacity, size, public-search,
+and Watchlist RLS gates. PostgREST metadata now reports the Catalog as deployed
+and reduces the remaining ordered migration list to the two Debate persistence
+files and the Queue file, without exposing project or key data.
 
 ### Phase 6 — Redis cache and coordination
 
@@ -1297,12 +1299,14 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phase 2 behaviour is implemented and passes local acceptance tests. Before
-declaring the hosted phase done, use the SQL Editor procedure in
-[`live-services.md`](../setup/live-services.md): verify the current hosted
-database is below 400 MB, apply coverage, search, and seed migrations in filename
-order, measure the `stocks` relation against the 15 MiB budget, and rerun
-public-read plus two-user Watchlist RLS checks.
+Phase 2 is complete locally and on hosted Supabase. The controlled deployment
+applied coverage, search, and seed migrations after the database passed the
+400 MB capacity gate; the 5,849,088-byte `stocks` relation passed the 15 MiB
+budget, anonymous search succeeded, and the two-user Watchlist verifier passed.
+The next hosted slice is the Phase 3 procedure in
+[`live-services.md`](../setup/live-services.md): apply the two Debate
+persistence migrations and verify owner RLS, rejected client writes, and
+server-only transaction RPCs.
 
 Do not enable hosted Redis or Queue flags until that deployment gate is
 recorded. Default-off code and local fallback work may proceed. Phase 3 is
@@ -1314,15 +1318,13 @@ hosted Supabase.
 
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
 experience are implemented and verified locally. Phase 6 now has its
-Redis/local adapter, public stock-search/bundle cache, and privacy-bounded
-standard-Debate factor snapshot cache, per-user admission limits, and the
-one-active-Debate rule. The next code-only slice is the distributed
-duplicate-request lock with database uniqueness as the final fallback.
-Independently,
-apply the catalog, Debate, and Queue migrations to hosted Supabase in filename
-order and record size/RLS/restart evidence before enabling hosted flags. Do not
-claim Redis, hosted Queue durability, or cross-process transient-event replay
-before those checks are complete.
+Redis/local adapter, public stock-search/bundle cache, privacy-bounded standard-
+Debate factor snapshot cache, per-user admission limits, one-active-Debate rule,
+and distributed duplicate-request lock with database uniqueness as the final
+fallback. Apply the remaining Debate and Queue migrations to hosted Supabase in
+filename order and record RLS/service-role/restart evidence before enabling
+hosted flags. Do not claim Redis, hosted Queue durability, or cross-process
+transient-event replay before those checks are complete.
 
 ## 22. Primary implementation references
 

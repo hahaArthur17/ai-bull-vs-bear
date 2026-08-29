@@ -88,8 +88,8 @@ correct local fallback when Redis operations time out.
 
 ## Recommended next tasks
 
-1. Apply and verify the checked-in catalog, Debate persistence, and Queue
-   migrations against the controlled Supabase project, including RLS and
+1. Apply and verify the remaining Debate persistence and Queue migrations
+   against the controlled Supabase project, including RLS, service-role, and
    restart recovery.
 2. Run one quota-controlled live Groq streaming smoke test.
 3. Begin the bounded Explanation Agent slice without coupling it to Debate
@@ -121,3 +121,25 @@ content. Its output lists the three catalog, two Debate persistence, and one
 Queue migration in order. The next action is the documented read-only database
 size query; migration execution must not begin if the database exceeds the
 400 MB capacity gate.
+
+## Follow-up — hosted Catalog deployment
+
+On 2026-08-29 the capacity query reported 23,727,251 bytes (23 MB), below the
+400 MB stop threshold. The coverage and search migrations completed in filename
+order. The 1.14 MB seed exceeded the SQL Editor's single-query limit, so its
+existing 16 bounded, idempotent INSERT statements were executed unchanged in
+six smaller transactions. All six succeeded and produced 7,695 active rows
+while preserving the four curated `debate_ready` rows.
+
+The deployed `stocks` relation measured 1,294,336 bytes for the table and
+4,513,792 bytes for indexes, or 5,849,088 bytes total (about 5.7 MiB), below the
+15 MiB acceptance budget. The whole database measured 30,157,971 bytes after
+deployment. Anonymous PostgREST RPC search returned `MSFT` / `MICROSOFT CORP`
+for `microsoft` with status 200.
+
+The reusable migration preflight now reports Catalog columns and the ranked
+search RPC as deployed, with only the two Debate persistence migrations and the
+Queue migration remaining. The two-user Watchlist verifier again passed owner
+read, hidden cross-user reads, rejected cross-user writes, and persistence
+through a new connection. Phase 2 is therefore complete; the next controlled
+slice is the Debate persistence/RLS/service-role gate.
