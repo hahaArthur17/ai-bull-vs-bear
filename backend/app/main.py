@@ -229,7 +229,7 @@ async def app_lifespan(_app: FastAPI):
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
-    description="Educational stock-signal explanations using deterministic demo data.",
+    description="Educational stock-signal explanations using bounded configured providers.",
     lifespan=app_lifespan,
 )
 

@@ -75,6 +75,9 @@ class Settings(BaseSettings):
     groq_model: str = "openai/gpt-oss-20b"
     debate_groq_model: str = "openai/gpt-oss-20b"
     debate_provider_timeout_seconds: float = Field(default=45, ge=5, le=120)
+    explanation_groq_model: str = "openai/gpt-oss-20b"
+    explanation_provider_timeout_seconds: float = Field(default=20, ge=5, le=120)
+    explanation_max_completion_tokens: int = Field(default=320, ge=60, le=600)
     gemini_model: str = "gemini-2.0-flash"
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 
