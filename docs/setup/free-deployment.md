@@ -105,7 +105,7 @@ minute. The production frontend therefore uses a 75-second request timeout.
 | Render | 750 free web-service hours/workspace/month; free static site | One backend only; `plan: free`; no payment method, so limit exhaustion suspends instead of billing |
 | Supabase | 500 MB database, 50,000 MAU, 5 GB egress, 5 GB cached egress, 1 GB file storage | Keep 100 MB database headroom; catalog budget 15 MiB; no file uploads; never upgrade from Free |
 | Daily market data | Provider free allowance | AAPL only by default, one provider call per weekday refresh, and no retry in the batch command |
-| Groq / Gemini | Provider-specific free rate limits | 0 production requests because `ANALYSIS_PROVIDER=demo` |
+| Groq / Gemini | Provider-specific free rate limits | 0 production requests because `ANALYSIS_PROVIDER=demo` and `EXPLANATION_PROVIDER=deterministic` |
 | Apify | $5/month Free prepaid usage, no card required | Disabled; 0 production runs until a concrete Actor is justified |
 | Finnhub | Free account has request limits and incomplete free historical coverage | Disabled; 0 production calls |
 | SEC EDGAR / RSS | No paid runtime dependency | 0 requests in the web request path; refresh only through a deliberate offline ingestion run |

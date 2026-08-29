@@ -170,6 +170,10 @@ boundary. Complete-message term chips now open a separate, read-only panel;
 Explanation deliberately does not enter the event stream or canonical
 transcript. V2 History reloads owner-scoped canonical Sessions, labels completed
 Round 2 entries with their durable Final Judge, and reopens their transcript.
+The Explanation provider selection is independent and defaults to deterministic.
+The explicit Groq implementation sends only the source message, selected text,
+question, and message-linked evidence under server-owned aliases; its one-call
+local verifier remains opt-in and production stays deterministic.
 
 The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the
@@ -191,8 +195,9 @@ mobile reducer also understands queued/running/retry/failed Job events.
 A default-off V2 screen now mounts live mobile/Web consumption, shows transient
 drafts separately from canonical messages, renders Job/retry/failure states,
 exposes generation-scoped cancellation, and queues Round 2 from an exact
-passage selected in a complete message. Explanation and cross-process
-transient-event reconnect remain later work. Redis cache/coordination is
+passage selected in a complete message. The same screen also has a separate
+read-only Explanation panel; cross-process transient-event reconnect remains
+later work. Redis cache/coordination is
 complete in code and local verification. The
 catalog, Debate, and Queue migrations were applied to hosted Supabase on
 2026-08-29; a disposable two-round Queue run passed idempotency, retry,
@@ -285,8 +290,8 @@ Target responsibilities:
 3. The Worker produces six mutually aware Bull/Bear messages and an interim
    Judge summary while the client receives streamed events.
 4. Persist each completed message and pause at `awaiting_user`.
-5. An explanation request leaves the session state unchanged; a challenge
-   creates an intervention and a new branch from the last complete message.
+5. An explanation request leaves the session state unchanged; a Challenge
+   creates an intervention and queues Round 2 on the active linear branch.
 6. Enqueue round two, produce four grounded messages and a final Judge summary,
    then mark the session complete.
 7. Retry/redelivery resumes from the next missing planned turn, and Redis plus

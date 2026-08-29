@@ -17,9 +17,9 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price/macro caches, and the default-off V2 Debate schema/RPCs are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
-| Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
+| Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 328 backend tests, 17 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 340 backend tests, 17 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -52,9 +52,10 @@ These are limitations of the current implementation, not completed features:
   free-form Challenge only at the Interim Judge pause. The context-bounded
   Explanation service is available through an authenticated default-off HTTP
   endpoint and its mobile panel is connected for exact terms in complete
-  messages. It currently uses the credential-free deterministic provider. The
-  mid-generation cancellation protocol is not yet reachable from the deployed
-  screen.
+  messages. It defaults to the credential-free deterministic provider; the
+  bounded Groq provider is an explicit local/deployment selection and has not
+  been enabled in production. The mid-generation cancellation protocol is not
+  yet reachable from the deployed screen.
 - The hosted catalog now contains 7,695 searchable identities, but only the
   four curated `debate_ready` stocks have verified price, evidence, indicator,
   and Debate coverage. The other 7,691 rows remain Watchlist-only by design.
@@ -102,8 +103,10 @@ and current coding entry point are canonical in
 Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
-streaming completion gate. The next bounded implementation slice is Explanation
-branch-from-message intervention.
+streaming completion gate. Explanation now has a stable read-only mobile/API
+path plus a bounded optional Groq provider. The next product choices are
+arbitrary Web selection, UI polish, Replay, or a deliberately scoped live
+provider rollout; message branching remains deferred.
 
 ### Phase 1 completion evidence
 
@@ -426,6 +429,13 @@ does not mutate the stream, Session, Job, generation, branch, or transcript.
 V2 History now refreshes owner-scoped canonical Sessions, labels durable Final
 Judge summaries, and reopens the corresponding transcript.
 
+`EXPLANATION_PROVIDER=deterministic` remains the safe default. The independent
+`groq` selection uses the existing server-only `GROQ_API_KEY`, sends only the
+complete source message, exact selection/question, and that message's linked
+evidence under public aliases, and rejects unknown aliases or oversized output.
+Its one-request verifier is opt-in and is not run by automated tests or this
+recorded baseline.
+
 The V2 interaction deliberately remains linear: Round 1 must reach
 `awaiting_user` before a Challenge queues Round 2 on the active branch. The
 selected message is a Challenge reference, not a transcript truncation point.
@@ -454,4 +464,14 @@ PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
 (cd apps/mobile && npm run typecheck)
 (cd apps/mobile && npm run test:stream)
 (cd apps/mobile && npm run build:web)
+```
+
+The following is deliberately excluded from automated verification because it
+makes exactly one live Groq request; it needs both a local key and explicit
+operator confirmation:
+
+```shell
+EXPLANATION_PROVIDER=groq PYTHONPATH=backend \
+  backend/.venv/bin/python scripts/verify_groq_explanation.py \
+  --confirm-live-quota
 ```

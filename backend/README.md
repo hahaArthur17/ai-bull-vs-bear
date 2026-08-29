@@ -85,14 +85,20 @@ hashed duplicate-request lock before factor work;
 competing request returns `409` with a short `Retry-After`, while deterministic
 IDs and the database transaction/unique constraints remain the final fallback.
 
-The first Explanation Agent slice is a read-only backend service boundary. It
-requires an exact selection from a complete message on the owned active branch,
-passes only that message's linked evidence to an injected provider, applies the
+The Explanation Agent is a read-only backend service boundary. It requires an
+exact selection from a complete message on the owned active branch, passes only
+that message's linked evidence to an injected provider, applies the
 financial-language guardrail, and leaves Session/Job/transcript state
 unchanged. Its authenticated HTTP route is available only with Debate V2
 enabled and has a separate per-user fixed-window admission limit (12 requests
-per hour by default) using only a hashed cache key; the mobile explanation panel
-is not mounted yet.
+per hour by default) using only a hashed cache key; the mobile Explanation panel
+is mounted for complete-message terms.
+
+`EXPLANATION_PROVIDER=deterministic` is the safe default. Set it to `groq` only
+with a server-side `GROQ_API_KEY`. The Groq provider receives one complete
+source message, the exact selection/question, and only message-linked evidence
+under server-owned `[E1]` aliases. It rejects unknown aliases and oversized
+output before the shared financial-language guardrail runs.
 
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set
@@ -129,6 +135,14 @@ to the in-memory repository, and prints no generated content or credentials:
 
     DEBATE_STREAMING_PROVIDER=groq PYTHONPATH=backend \
       backend/.venv/bin/python scripts/verify_groq_debate_streaming.py \
+      --confirm-live-quota
+
+The separate Explanation verifier is also explicit: it makes exactly one Groq
+request using a synthetic in-memory message and prints no generated text or
+credentials. It does not change V2, Queue, or production configuration:
+
+    EXPLANATION_PROVIDER=groq PYTHONPATH=backend \
+      backend/.venv/bin/python scripts/verify_groq_explanation.py \
       --confirm-live-quota
 
 Supported model providers:

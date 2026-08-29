@@ -46,6 +46,10 @@ GROQ_MODEL=openai/gpt-oss-20b
 DEBATE_STREAMING_PROVIDER=deterministic
 DEBATE_GROQ_MODEL=openai/gpt-oss-20b
 DEBATE_PROVIDER_TIMEOUT_SECONDS=45
+EXPLANATION_PROVIDER=deterministic
+EXPLANATION_GROQ_MODEL=openai/gpt-oss-20b
+EXPLANATION_PROVIDER_TIMEOUT_SECONDS=20
+EXPLANATION_MAX_COMPLETION_TOKENS=320
 
 GEMINI_API_KEY=
 GEMINI_MODEL=gemini-2.0-flash
@@ -87,6 +91,23 @@ Turns plus the local deterministic Judge. The run persisted seven canonical
 messages, emitted 697 ordered deltas, linked 11 valid citations, resumed from a
 stream cursor, reloaded canonical state, and recorded 6,041 prompt plus 939
 completion tokens (6,980 total). Production configuration was not changed.
+
+Term Explanation is a separate provider choice. Keep
+`EXPLANATION_PROVIDER=deterministic` for normal development, tests, and the
+deployed baseline. To verify the real Explanation transport locally, set it to
+`groq` and run the following command only after accepting one provider request:
+
+```shell
+EXPLANATION_PROVIDER=groq PYTHONPATH=backend \
+  backend/.venv/bin/python scripts/verify_groq_explanation.py \
+  --confirm-live-quota
+```
+
+The verifier sends one synthetic complete message and linked synthetic evidence,
+caps completion at 160 tokens, prints no generated text or credentials, and
+does not write a Session, Job, Message, or production setting. A successful
+local run is evidence for credential and provider compatibility, not approval to
+enable Groq in production.
 
 ## Gemini
 

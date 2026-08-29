@@ -252,11 +252,11 @@ safe terminal failure when attempts are exhausted.
 The authenticated Web/React Native stream client and reducer are mounted behind
 `EXPO_PUBLIC_DEBATE_V2_ENABLED=false`. The screen renders Queue/Worker states,
 temporary drafts, durable messages, cancellation, exact selected-passage
-Challenge input, and queued Round 2. Explanation and cross-process
-transient-event replay are not implemented. Redis-backed admission limits and
-owner-scoped idempotency coordination are implemented with safe local/database
-fallbacks. Public stock search/bundle caching is implemented but remains
-disabled by default. In Supabase persistence mode V2 additionally requires the
+Challenge input, queued Round 2, and a separate complete-message term
+Explanation panel. Cross-process transient-event replay is not implemented.
+Redis-backed admission limits and owner-scoped idempotency coordination are
+implemented with safe local/database fallbacks. Public stock search/bundle
+caching is implemented but remains disabled by default. In Supabase persistence mode V2 additionally requires the
 server-only secret and deployed catalog/Debate/Queue migrations. Those hosted
 schema and deterministic Queue lifecycle gates passed on 2026-08-29;
 production remains disabled pending deliberate rollout and a live-provider
@@ -283,10 +283,12 @@ POST /debates/{session_id}/explanations
 Explanation will not change Debate state. The Challenge endpoint and mounted V2
 screen already queue Round 2 from an exact passage in a complete message. The
 cancel route is generation-scoped and is reachable while a queued/running Job
-is active; redirecting an active Debate into a new branch remains Phase 7. The
-read-only Explanation service core now validates owned active-branch messages,
-exact selections, message-linked evidence, guardrails, and safe provider
-failure. Its authenticated, default-off route accepts `message_id`,
+is active; V2 remains linear and message branching is deferred. The read-only
+Explanation service core validates owned active-branch messages, exact
+selections, message-linked evidence, guardrails, and safe provider failure.
+`EXPLANATION_PROVIDER=deterministic` is the default; the explicit `groq`
+provider receives only the selected complete message and linked evidence under
+server-owned aliases. Its authenticated, default-off route accepts `message_id`,
 `selected_text`, and `question`, then returns the bounded result without
 creating a Job or changing the Session. Missing owned sources return `404`, an
 invalid selection returns `409`, and provider failures return a safe `503`.

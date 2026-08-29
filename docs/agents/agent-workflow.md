@@ -169,9 +169,10 @@ evidence, and uncertainty without choosing a trade. The session moves to
 
 - Explanation Agent: explains a selected term/passage with minimal context and
   does not alter the Debate state.
-- User challenge: records a free-form intervention, cancels any current
-  generation on a best-effort basis, rejects late chunks by `generation_id`,
-  and creates a new branch from the last complete message.
+- User challenge: is available only at the durable `awaiting_user` pause,
+  records a free-form intervention against one selected complete message, and
+  queues Round 2 on the active linear branch. General message branching remains
+  deferred; cancellation independently rejects late chunks by `generation_id`.
 
 ### Step 6: Produce round two
 

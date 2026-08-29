@@ -1341,8 +1341,10 @@ Phases 2, 3, 4, 5, and 6 are complete in their recorded scopes. The Catalog
 passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
-checks. The Explanation service core is now present; the next bounded slice is
-branch-from-message intervention.
+checks. Explanation now has a read-only mobile/API path, deterministic default,
+and a bounded explicit Groq provider with a one-request opt-in verifier. The
+next bounded product choices are arbitrary Web selection, Replay, or UI work;
+message branching is explicitly deferred while V2 remains linear.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the
