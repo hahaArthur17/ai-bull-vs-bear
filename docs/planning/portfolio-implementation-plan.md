@@ -1252,7 +1252,9 @@ Status: In progress
   matrix in [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md).
 - [x] Finalize design tokens, typography, semantic colours, spacing, elevation,
   breakpoints, interaction targets, and motion rules without changing behavior.
-- [ ] Redesign authentication and home/search/watchlist.
+- [x] Redesign authentication for input, disabled, loading, error, and sign-up
+  confirmation states.
+- [ ] Redesign home/search/watchlist.
 - [ ] Redesign stock detail and charts without losing provenance/accessibility.
 - [ ] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
   explanation, and failure states.
