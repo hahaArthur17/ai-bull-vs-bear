@@ -275,7 +275,10 @@ POST /debates/{session_id}/explanations
 Explanation will not change Debate state. The Challenge endpoint and mounted V2
 screen already queue Round 2 from an exact passage in a complete message. The
 cancel route is generation-scoped and is reachable while a queued/running Job
-is active; redirecting an active Debate into a new branch remains Phase 7.
+is active; redirecting an active Debate into a new branch remains Phase 7. The
+read-only Explanation service core now validates owned active-branch messages,
+exact selections, message-linked evidence, guardrails, and safe provider
+failure. This HTTP route is not mounted yet.
 
 ### Compatibility
 

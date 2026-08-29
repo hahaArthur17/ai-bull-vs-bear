@@ -19,7 +19,7 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 316 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 321 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -49,9 +49,10 @@ These are limitations of the current implementation, not completed features:
   Complete messages remain durable; transient event replay is not
   cross-process.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
-  free-form Challenge only at the Interim Judge pause. Arbitrary term
-  explanation is not implemented, and the mid-generation cancellation protocol
-  is not yet reachable from the deployed screen.
+  free-form Challenge only at the Interim Judge pause. The context-bounded
+  Explanation service core now exists, but its HTTP endpoint and mobile panel
+  are not connected. The mid-generation cancellation protocol is not yet
+  reachable from the deployed screen.
 - The hosted catalog now contains 7,695 searchable identities, but only the
   four curated `debate_ready` stocks have verified price, evidence, indicator,
   and Debate coverage. The other 7,691 rows remain Watchlist-only by design.
@@ -100,7 +101,7 @@ Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
 streaming completion gate. The next bounded implementation slice is the
-independent Explanation Agent.
+Explanation HTTP boundary.
 
 ### Phase 1 completion evidence
 
@@ -402,6 +403,17 @@ recorded in [`project-week-15.md`](reports/project-week-15.md).
 Phase 6 is complete in code and local verification. These in-process results
 demonstrate the cache boundary and are not hosted Supabase/Redis measurements
 or a production latency SLA.
+
+### Phase 7 progress
+
+The first Explanation slice adds immutable request/draft/result contracts, a
+provider protocol, a credential-free deterministic provider, and a synchronous
+service boundary. It accepts only an exact selection from a complete message
+on the owned active branch, exposes only evidence already linked to that
+message, applies financial-language guardrails, and hides provider failures.
+Tests prove it leaves Session status/generation, the active Job, branch, and
+canonical transcript unchanged. HTTP, streaming events, rate limits,
+persistence, and the mobile explanation panel remain later slices.
 
 ## Boundaries that remain in force
 

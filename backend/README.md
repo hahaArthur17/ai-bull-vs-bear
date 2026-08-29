@@ -85,6 +85,12 @@ hashed duplicate-request lock before factor work;
 competing request returns `409` with a short `Retry-After`, while deterministic
 IDs and the database transaction/unique constraints remain the final fallback.
 
+The first Explanation Agent slice is a read-only backend service boundary. It
+requires an exact selection from a complete message on the owned active branch,
+passes only that message's linked evidence to an injected provider, applies the
+financial-language guardrail, and leaves Session/Job/transcript state
+unchanged. The HTTP route and mobile explanation panel are not mounted yet.
+
 `DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
 routes but does not by itself enable Queue admission. Set
 `DEBATE_QUEUE_ENABLED=true` only after the checked-in catalog, Debate, and Queue

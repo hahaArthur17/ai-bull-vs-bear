@@ -157,6 +157,14 @@ citation links, safe cursor replay/canonical reload, and 6,980 recorded tokens.
 The verifier bounds each completion to 220 tokens and trims transport-only
 transcript excerpts; production selection remains disabled.
 
+The first Phase 7 Explanation boundary is intentionally separate from Debate
+orchestration. An `ExplanationService` reads an owned Session and one complete
+active-branch message, requires an exact source selection, limits evidence to
+that message's canonical citation links, applies financial-language
+guardrails, and returns a panel result through an injected provider. It does
+not create a Job, append a message, rotate a generation, or transition Session
+state. HTTP/event/mobile integration remains pending.
+
 The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the
 canonical message, gaps trigger a canonical reload, and expired cursors resume

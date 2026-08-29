@@ -1196,11 +1196,11 @@ Redis does not corrupt or disable canonical workflows.
 
 ### Phase 7 — Explanation, interruption, and round two
 
-Status: Planned
+Status: In progress
 
 - [ ] Render model-provided terms as clickable cross-platform elements.
-- [ ] Implement context-bounded Explanation Agent requests.
-- [ ] Keep explanations outside the Debate state transition.
+- [x] Implement context-bounded Explanation Agent service requests.
+- [x] Keep explanations outside the Debate state transition.
 - [x] Implement challenge/intervention persistence.
 - [ ] Cancel or branch from the last complete message using generation IDs.
 - [x] Enqueue and stream round two around the user question.
@@ -1209,6 +1209,15 @@ Status: Planned
 
 Completion rule: the user can explain a term without stopping Debate or can
 challenge the debate and receive a grounded second round.
+
+Progress evidence: the first backend slice adds immutable Explanation
+request/draft/result contracts, a provider boundary, a deterministic provider,
+and a read-only service. Exact selected text must occur in a complete message
+on the owned active branch; provider citations are restricted to evidence
+already linked to that message. Guardrails and safe provider errors are tested,
+and Session, Job, generation, branch, and canonical messages remain unchanged.
+The HTTP route, event stream, rate limit, optional persistence, and mobile panel
+are not part of this commit.
 
 ### Phase 8 — Financial-technology UI redesign
 
@@ -1316,8 +1325,8 @@ Phases 2, 3, 4, 5, and 6 are complete in their recorded scopes. The Catalog
 passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
-checks. The next bounded implementation slice is the independent Explanation
-Agent.
+checks. The Explanation service core is now present; the next bounded slice is
+its authenticated HTTP boundary.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the
