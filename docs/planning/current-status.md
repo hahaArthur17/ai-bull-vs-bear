@@ -17,9 +17,9 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price/macro caches, and the default-off V2 Debate schema/RPCs are implemented. |
 | Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
-| Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Phase 4 also has a default-off, mock-verified async Groq Turn stream. |
+| Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 310 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | 316 backend tests, 11 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -37,15 +37,17 @@ These are limitations of the current implementation, not completed features:
   `DEBATE_QUEUE_ENABLED=false` it retains the synchronous deterministic preview;
   with the Queue flag enabled it atomically admits Round 1 and Round 2, returns
   `202`, and executes them in bounded background Workers. Production keeps both
-  V2 flags disabled pending a deliberate production rollout and a
-  quota-controlled live-provider smoke test; the hosted Queue migration and
-  deterministic Worker/restart checks are complete.
+  V2 flags disabled pending a deliberate production deployment smoke test and
+  rollback plan; the hosted Queue migration, deterministic Worker/restart, and
+  local live-provider checks are complete.
 - V2 has a process-local SSE replay/heartbeat broker and the queued Worker can
   publish real async provider deltas. A feature-flagged V2 mobile screen now
   mounts the resumable client, renders Queue/retry/draft/canonical states,
-  supports cancellation, and queues a selected-message Round 2 Challenge. No
-  live Groq smoke test has consumed quota. Complete messages remain durable;
-  transient event replay is not cross-process.
+  supports cancellation, and queues a selected-message Round 2 Challenge. A
+  quota-controlled local Groq Round 1 produced six live Turns plus one local
+  Judge, 697 ordered deltas, 11 citation links, and 6,980 recorded tokens.
+  Complete messages remain durable; transient event replay is not
+  cross-process.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause. Arbitrary term
   explanation is not implemented, and the mid-generation cancellation protocol
@@ -96,8 +98,9 @@ and current coding entry point are canonical in
 
 Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
-in their recorded scopes. The next controlled live-service slice is a
-quota-controlled Groq streaming smoke test.
+in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
+streaming completion gate. The next bounded implementation slice is the
+independent Explanation Agent.
 
 ### Phase 1 completion evidence
 
@@ -261,6 +264,13 @@ independent through `DEBATE_STREAMING_PROVIDER`, which defaults to
 `deterministic`; all automated tests use a fake client and consumed no quota.
 Commits: `77c33c4` and `a6529c3`.
 
+The 2026-08-29 quota-controlled local verifier then completed Round 1 through
+six live `openai/gpt-oss-20b` Turns and a deterministic Judge. Seven canonical
+messages, 697 ordered deltas, 11 citation links, cursor replay, canonical
+reload, and 6,980 tokens passed. The reusable command caps each completion at
+220 tokens, validates at 1,000 characters, and trims prior transcript inputs to
+300 characters per message. Production selection remains disabled.
+
 The mobile `DebateStreamClient` now parses fragmented SSE over an authenticated
 XHR transport, maintains non-canonical draft text, replaces it only with a
 complete server message, rejects sequence/delta gaps and late generations, and
@@ -321,7 +331,7 @@ retry with `read_count=2` and `attempt_count=2`, terminalized an exhausted Job,
 and rejected all seven Queue RPCs for an authenticated user. Exact verifier
 artifacts and their cascading Session data were removed; active and archived
 Queue counts returned to zero. Production flags remain off until a deliberate
-rollout and live-provider smoke test.
+deployment smoke test and rollback plan.
 
 The 2026-08-29 hosted preflight matched the configured Dashboard and API
 project. The controlled Catalog, Debate persistence, and Queue deployments have

@@ -71,6 +71,23 @@ default. The live Debate path is a separate opt-in: change
 local smoke test or after the asynchronous Worker path is deployed. This avoids
 spending six model requests merely by enabling the V2 HTTP preview.
 
+Run the live Round 1 verifier only with explicit quota confirmation:
+
+```shell
+DEBATE_STREAMING_PROVIDER=groq PYTHONPATH=backend \
+  backend/.venv/bin/python scripts/verify_groq_debate_streaming.py \
+  --confirm-live-quota
+```
+
+The command makes at most six non-retried Groq Turn requests, caps each at 220
+completion tokens, limits the provider transcript to 300 characters per prior
+message, persists only in memory, and never prints generated text or
+credentials. Recorded 2026-08-29 result: `openai/gpt-oss-20b` completed all six
+Turns plus the local deterministic Judge. The run persisted seven canonical
+messages, emitted 697 ordered deltas, linked 11 valid citations, resumed from a
+stream cursor, reloaded canonical state, and recorded 6,041 prompt plus 939
+completion tokens (6,980 total). Production configuration was not changed.
+
 ## Gemini
 
 Console: <https://aistudio.google.com/api-keys>
@@ -307,6 +324,8 @@ be selected before an ingestion adapter can be implemented.
 - [x] `.env` exists locally and remains ignored by Git.
 - [x] One real model provider is selected.
 - [x] The selected model provider completes an analysis successfully.
+- [x] One quota-controlled local Groq Round 1 completes ordered live Turn
+  streaming, canonical persistence, citations, token accounting, and reconnect.
 - [x] The API response contains real token usage and no secret values.
 - [x] The Supabase schema has been applied to the dedicated project.
 - [x] Supabase contains public stocks, evidence documents, chunks, and vectors.
@@ -336,7 +355,9 @@ The detailed data/deployment evidence is retained in the
 checks:
 
 - Production uses Supabase Auth/persistence and the deterministic analysis
-  provider; Groq was verified locally but is not required for the public demo.
+  provider. A six-request local Groq Round 1 passed streaming, persistence,
+  citation, token, and reconnect checks; Groq remains unnecessary for the
+  public demo.
 - Two-user tests proved owner access, cross-user RLS isolation, and persistence
   across a new backend/database connection.
 - AAPL has verified daily and separately labelled weekly price caches. Normal
@@ -361,7 +382,7 @@ checks:
 The implemented, default-off Queue Worker needs the existing server-only
 Supabase secret on the backend. Its migration and deterministic hosted
 lifecycle checks are complete; keep the Queue flag disabled until a deliberate
-production rollout has an explicit live-provider smoke-test and rollback plan.
+production rollout has an explicit deployment smoke-test and rollback plan.
 The first Phase 6 Redis slice is implemented but remains optional. Keep
 `REDIS_ENABLED=false` unless a deliberate test supplies a `redis://` or
 `rediss://` `REDIS_URL`. Stock search and the public stock bundle fail open to a

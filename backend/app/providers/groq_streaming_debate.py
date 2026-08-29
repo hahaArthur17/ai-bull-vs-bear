@@ -110,6 +110,7 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
     """Build one bounded prompt from immutable, already-selected context."""
 
     aliases = _evidence_aliases(request)
+    word_limit = max(40, min(250, request.max_output_chars // 8))
     evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
     evidence = [
         {
@@ -186,8 +187,8 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         f"{request.exchange_number}. {rebuttal_rule} {citation_rule} Answer a round-two user "
         "intervention when one is present. Avoid repeating previously_used_points.\n\n"
         "Return plain user-facing prose only: no JSON, no code fence, no heading, no hidden "
-        f"reasoning. Use one to three short paragraphs and stay under {request.max_output_chars} "
-        "characters.\n\n"
+        "reasoning. Use one to three short paragraphs and stay under "
+        f"{request.max_output_chars} characters and {word_limit} words.\n\n"
         f"<frozen_context>\n{json.dumps(payload, ensure_ascii=False, default=str)}\n"
         "</frozen_context>"
     )
@@ -283,13 +284,19 @@ class GroqStreamingDebateProvider:
         api_key: str | None,
         model: str = "openai/gpt-oss-20b",
         timeout_seconds: float = 45,
+        max_completion_tokens: int | None = None,
         client: Any | None = None,
     ) -> None:
         if not api_key:
             raise GroqDebateConfigurationError(
                 "GROQ_API_KEY is required when DEBATE_STREAMING_PROVIDER=groq"
             )
+        if max_completion_tokens is not None and not 1 <= max_completion_tokens <= 1600:
+            raise GroqDebateConfigurationError(
+                "Groq Debate completion-token cap must be between 1 and 1600"
+            )
         self.model = model
+        self.max_completion_tokens = max_completion_tokens
         if client is None:
             try:
                 from groq import AsyncGroq
@@ -315,7 +322,10 @@ class GroqStreamingDebateProvider:
                 messages=[{"role": "user", "content": build_groq_debate_prompt(request)}],
                 temperature=0.6,
                 top_p=0.95,
-                max_completion_tokens=min(request.max_output_chars, 1600),
+                max_completion_tokens=min(
+                    request.max_output_chars,
+                    self.max_completion_tokens or 1600,
+                ),
                 reasoning_effort="low",
                 include_reasoning=False,
                 citation_options="disabled",

@@ -208,9 +208,10 @@ failure does not block them.
 The async path rejects missing/late completion, non-contiguous chunks,
 truncated finish reasons, text mismatch, output overflow, wrong rebuttal
 targets, and out-of-snapshot evidence before persistence. It has deterministic
-and Groq implementations; Groq is explicit opt-in and mock-tested, and no live
-provider request has been recorded. A generation-scoped cancel route is also
-implemented:
+and Groq implementations. Groq remains explicit opt-in; a quota-controlled
+local Round 1 passed ordered streaming, validation, persistence, token
+accounting, and reconnect on 2026-08-29. A generation-scoped cancel route is
+also implemented:
 
 ```text
 POST /debates/{session_id}/cancel

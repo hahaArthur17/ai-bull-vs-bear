@@ -88,10 +88,10 @@ correct local fallback when Redis operations time out.
 
 ## Recommended next tasks
 
-1. Run one quota-controlled live Groq streaming smoke test.
-2. Begin the bounded Explanation Agent slice without coupling it to Debate
+1. Begin the bounded Explanation Agent slice without coupling it to Debate
    state transitions.
-3. Continue device/accessibility checks for the default-off V2 experience.
+2. Continue device/accessibility checks for the default-off V2 experience.
+3. Add Demo Replay without changing the canonical live event contract.
 
 ## Related documents
 
@@ -193,3 +193,27 @@ Sessions, Messages, Interventions, and Jobs. The full backend suite passes with
 complete in its controlled hosted scope. Production V2 and Queue flags remain
 default-off pending a deliberate rollout and quota-controlled live Groq smoke
 test.
+
+## Follow-up — quota-controlled live Groq Round 1
+
+On 2026-08-29 `scripts/verify_groq_debate_streaming.py` completed one local
+Round 1 through the real `openai/gpt-oss-20b` async stream. The explicit command
+permits at most six non-retried live Turn requests; the Judge remains local and
+deterministic. Each Turn is capped at 220 completion tokens, validates at 1,000
+characters, and receives at most 300 characters from each prior transcript
+message. Generated text and credentials are not printed.
+
+The successful run recorded:
+
+- six completed live Turns and one deterministic Judge message;
+- seven complete canonical messages and 11 valid citation links;
+- 697 ordered delta events within 728 total lifecycle events;
+- successful stream-cursor replay and canonical Session/Message reload; and
+- 6,041 prompt plus 939 completion tokens, or 6,980 total.
+
+Earlier intentionally tighter 500/800-character probes stopped at an
+over-length Turn and did not mark that partial Turn complete. Those tuning
+requests also consumed provider quota and are not included in the successful
+run's 6,980-token figure. No run wrote to Supabase or changed production flags.
+The final bounded verifier and its network-free tests complete the Phase 4
+acceptance rule; the next slice is the independent Explanation Agent.

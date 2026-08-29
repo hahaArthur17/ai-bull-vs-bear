@@ -1022,12 +1022,13 @@ On 2026-08-29 both persistence migrations were applied to hosted Supabase. A
 disposable two-user verifier passed owner and cross-user checks on all five
 tables, rejected authenticated table/RPC writes, exercised both service-only
 transaction boundaries plus expected-status updates, and cleaned up its rows.
-Production still keeps `DEBATE_WORKFLOW_V2=false` until Queue/Worker deployment
-verification is complete.
+Production still keeps `DEBATE_WORKFLOW_V2=false`; Queue/Worker deployment
+verification is complete, but production enablement needs its own smoke test
+and rollback plan.
 
 ### Phase 4 — Provider turn generation and SSE
 
-Status: In progress
+Status: Done
 
 - [x] Refactor provider adapters from one full JSON draft to one bounded turn at
   a time while retaining a compatibility adapter for the old flow.
@@ -1074,12 +1075,17 @@ Session settlement, and mobile cancellation reduction. A controlled async test
 releases provider output only after cancellation and proves that no late
 message, completion event, or failure state is produced.
 
-With the Phase 5 Queue flag enabled, HTTP creation now returns before the
-Worker selects the async Turn provider. This still does not satisfy the full
-Phase 4 completion rule: no real Groq quota was consumed for a recorded live
-smoke test. The client is now mounted behind a default-off flag and was locally
-verified with the deterministic async Worker; production live-provider
-selection is not claimed.
+With the Phase 5 Queue flag enabled, HTTP creation returns before the Worker
+selects the async Turn provider. On 2026-08-29 the explicit local live verifier
+completed one Round 1 through six `openai/gpt-oss-20b` Turn requests and the
+local deterministic Judge. It persisted seven complete messages, emitted 697
+ordered live deltas, created 11 valid citation links, resumed from a stream
+cursor, reloaded canonical state, and recorded 6,041 prompt plus 939 completion
+tokens. Earlier deliberately low 500/800-character probes rejected an
+over-length fifth Turn without completing it; the final verifier uses a
+220-token output cap, a 1,000-character validation bound, and 300-character
+transcript excerpts. The client remains default-off and production
+live-provider selection is not claimed.
 
 ### Phase 5 — Durable Queue and Worker
 
@@ -1126,7 +1132,7 @@ transcript, archive and delayed redelivery, recovery of a running Job with
 `read_count=2` and `attempt_count=2`, exhausted-attempt failure, authenticated
 RPC rejection, and complete canonical/Queue cleanup. The migration preflight
 now reports no required files. Production flags remain default-off pending a
-deliberate rollout and quota-controlled live-provider smoke test.
+deliberate deployment smoke test and rollback plan.
 
 ### Phase 6 — Redis cache and coordination
 
@@ -1306,20 +1312,20 @@ When a phase completes:
 
 ## 21. Current coding entry point
 
-Phases 2, 3, 5, and 6 are complete in their recorded scopes. The Catalog passed
-its capacity/size/public-search/RLS gates; the Debate persistence deployment
-passed five-table owner isolation, authenticated write rejection, service-only
-transaction, expected-status update, idempotency, and cleanup checks. The next
-live-service slice is one quota-controlled Groq streaming smoke test, followed
-by the bounded Explanation Agent slice.
+Phases 2, 3, 4, 5, and 6 are complete in their recorded scopes. The Catalog
+passed its capacity/size/public-search/RLS gates; the Debate persistence
+deployment passed five-table owner isolation, authenticated write rejection,
+service-only transaction, expected-status update, idempotency, and cleanup
+checks. The next bounded implementation slice is the independent Explanation
+Agent.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the
 safe default, the synchronous deterministic Session/Message/Challenge preview
 is covered by API tests, and legacy `/analysis` remains compatible. Hosted
-Queue/Worker/restart verification is complete, but production V2 remains
-disabled until the live-provider and deployment smoke gates are explicitly
-run.
+Queue/Worker/restart and local live-provider verification are complete, but
+production V2 remains disabled until the deployment smoke gate is explicitly
+run with a rollback plan.
 
 The cancellation boundary, Phase 5 Queue/Worker, and default-off V2 mobile
 experience are implemented and verified locally. Phase 6 now has its

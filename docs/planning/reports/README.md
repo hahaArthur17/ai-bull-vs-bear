@@ -48,7 +48,8 @@ When resuming the project:
 - [`project-week-14.md`](project-week-14.md) — resilient Redis/local adapters
   and the first public stock-search/bundle response-cache slice.
 - [`project-week-15.md`](project-week-15.md) — Debate admission coordination,
-  Redis outage proof, safe cache health, and measured cache evidence.
+  Redis outage proof, hosted Catalog/Debate/Queue gates, and a bounded live
+  Groq Round 1.
 
 ## Template for a new report
 

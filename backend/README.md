@@ -24,8 +24,10 @@ publishes deltas as they arrive but persists only after a normal completion
 frame passes text, output-bound, rebuttal-target, evidence-ID, and financial
 language validation. `DEBATE_STREAMING_PROVIDER=deterministic` is the safe
 default; `groq` is an explicit, quota-consuming selection. Queue Workers select
-this async path. The real provider remains mock-tested and is not selected by
-production configuration. The default-off API also exposes generation-scoped cancellation:
+this async path. One quota-controlled local Groq Round 1 passed the live stream,
+canonical persistence, citation, token-accounting, and reconnect gates; the
+provider is still not selected by production configuration. The default-off API
+also exposes generation-scoped cancellation:
 queued work stops immediately, running work stops at its next generation check,
 and the repository rejects any late completion after cancellation.
 
@@ -111,6 +113,14 @@ the additional bounded concurrency is intentional.
 `ANALYSIS_PROVIDER`. Keep it at `deterministic` for tests and the deployed
 preview. A deliberate local `groq` selection additionally requires
 `GROQ_API_KEY`; `DEBATE_GROQ_MODEL` defaults to `openai/gpt-oss-20b`.
+
+Run the bounded live Round 1 only with explicit quota confirmation. It makes at
+most six Groq requests, uses a 220-token completion cap per Turn, persists only
+to the in-memory repository, and prints no generated content or credentials:
+
+    DEBATE_STREAMING_PROVIDER=groq PYTHONPATH=backend \
+      backend/.venv/bin/python scripts/verify_groq_debate_streaming.py \
+      --confirm-live-quota
 
 Supported model providers:
 

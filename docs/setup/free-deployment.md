@@ -49,9 +49,10 @@ Supabase project:
   because Render does not provide a separate free Background Worker.
 - Redis-compatible adapters provide optional cache, rate limits, and
   idempotency locks with a bounded local fallback; no hosted Redis is claimed.
-- Live AI will exercise the real Queue/Worker/stream path when provider quota is
-  available. A clearly labelled Demo Replay will use the same event contract
-  for reliable classroom presentation.
+- A quota-controlled local Live AI round has exercised the real
+  Queue/Worker/stream path. Production remains deterministic and default-off.
+  A clearly labelled Demo Replay will use the same event contract for reliable
+  classroom presentation.
 
 These additions demonstrate architecture and failure handling. They do not
 remove Render Free cold starts, single-instance capacity, or lack of SLA.

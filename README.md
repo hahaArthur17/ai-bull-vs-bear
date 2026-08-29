@@ -77,16 +77,16 @@ response. A default-off V2 API and screen prove deterministic multi-turn state,
 durable background Queue work, and live-stream selection without changing that
 production baseline. The active
 [`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
-defines the next milestone: a quota-controlled live streamed Debate check,
-user explanations/interventions, Demo Replay, and a reusable
-financial-technology UI system. Redis cache and
+defines the next milestone: user explanations/interventions, Demo Replay, and
+a reusable financial-technology UI system. The quota-controlled local live
+Groq Round 1 now passes its streaming/persistence/reconnect gate. Redis cache and
 coordination work is complete in code and local verification; its measurements
 remain explicitly separate from hosted performance claims. Factor-provider and
 catalog/watchlist foundations are implemented, and the hosted Catalog plus
 Debate persistence/RLS gates passed on 2026-08-29. The hosted Queue migration
 and deterministic admission/Worker/retry/restart gate also passed; production
-V2 flags remain default-off until a deliberate live-provider deployment smoke
-test.
+V2 flags remain default-off until a deliberate production deployment smoke test
+with a rollback plan.
 
 Planned features are documented separately from implemented behaviour so the
 repository does not overstate its current capabilities.

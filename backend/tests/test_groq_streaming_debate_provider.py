@@ -157,9 +157,36 @@ def test_live_provider_streams_plain_text_and_builds_server_owned_metadata() -> 
     assert request_kwargs["stream"] is True
     assert request_kwargs["include_reasoning"] is False
     assert request_kwargs["citation_options"] == "disabled"
+    assert request_kwargs["max_completion_tokens"] == 800
     assert "response_format" not in request_kwargs
     assert key not in str(request_kwargs)
     assert request_kwargs["messages"][0]["role"] == "user"
+
+
+def test_live_provider_accepts_a_smaller_explicit_completion_token_cap() -> None:
+    client = FakeGroqClient(
+        [chunk("A bounded grounded point [E1]."), chunk(finish_reason="stop")]
+    )
+    provider = GroqStreamingDebateProvider(
+        api_key="test-key",
+        max_completion_tokens=220,
+        client=client,
+    )
+
+    result = collect(provider)
+
+    assert result.draft.evidence_ids == ("news-1",)
+    assert client.completions.kwargs is not None
+    assert client.completions.kwargs["max_completion_tokens"] == 220
+
+
+def test_live_provider_rejects_an_invalid_completion_token_cap() -> None:
+    with pytest.raises(GroqDebateConfigurationError, match="between 1 and 1600"):
+        GroqStreamingDebateProvider(
+            api_key="test-key",
+            max_completion_tokens=1601,
+            client=FakeGroqClient([]),
+        )
 
 
 def test_prompt_treats_snapshot_text_as_data_and_never_exposes_real_evidence_ids() -> None:
@@ -170,6 +197,7 @@ def test_prompt_treats_snapshot_text_as_data_and_never_exposes_real_evidence_ids
     assert '"citation": "[E1]"' in prompt
     assert "news-1" not in prompt
     assert "Return plain user-facing prose only: no JSON" in prompt
+    assert "under 800 characters and 100 words" in prompt
 
 
 @pytest.mark.parametrize(

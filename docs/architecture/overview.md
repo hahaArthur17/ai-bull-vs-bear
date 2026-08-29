@@ -150,11 +150,18 @@ and financial guardrails remain server-owned. This avoids exposing partial JSON
 and respects Groq's current incompatibility between Structured Outputs and
 streaming. Selection is independent and defaults to deterministic.
 
+A quota-controlled local run on 2026-08-29 exercised that adapter through the
+real Queue/Worker orchestration boundary: six live Turns plus a deterministic
+Judge produced seven canonical messages, 697 ordered delta events, 11 valid
+citation links, safe cursor replay/canonical reload, and 6,980 recorded tokens.
+The verifier bounds each completion to 220 tokens and trims transport-only
+transcript excerpts; production selection remains disabled.
+
 The mobile layer now has an authenticated XHR SSE transport and reducer. Deltas
 remain temporary by message/generation, a completion replaces them with the
 canonical message, gaps trigger a canonical reload, and expired cursors resume
-from the server-advertised latest sequence. It is an integration boundary, not
-yet the active screen path. Cancellation rotates the Session generation,
+from the server-advertised latest sequence. The default-off V2 screen mounts
+this integration boundary. Cancellation rotates the Session generation,
 clears matching mobile drafts, ignores late old-generation events, and checks
 status/generation again inside the atomic complete-message write. Queued Jobs
 cancel immediately; an executing Job settles when it observes the invalidated
@@ -170,9 +177,9 @@ mobile reducer also understands queued/running/retry/failed Job events.
 A default-off V2 screen now mounts live mobile/Web consumption, shows transient
 drafts separately from canonical messages, renders Job/retry/failure states,
 exposes generation-scoped cancellation, and queues Round 2 from an exact
-passage selected in a complete message. A recorded external-provider smoke
-test, explanation, and cross-process transient-event reconnect remain later
-work. Redis cache/coordination is complete in code and local verification. The
+passage selected in a complete message. Explanation and cross-process
+transient-event reconnect remain later work. Redis cache/coordination is
+complete in code and local verification. The
 catalog, Debate, and Queue migrations were applied to hosted Supabase on
 2026-08-29; a disposable two-round Queue run passed idempotency, retry,
 restart, exhaustion, authorization, and cleanup gates. Production still keeps
