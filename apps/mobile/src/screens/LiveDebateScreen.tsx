@@ -72,7 +72,7 @@ function rolePresentation(
   if (role === "bear") return { label: "BEAR", color: colors.bear };
   if (role === "judge") {
     return {
-      label: isFinalJudge ? "FINAL NEUTRAL JUDGE" : "NEUTRAL JUDGE",
+      label: isFinalJudge ? "FINAL NEUTRAL JUDGE" : "INTERIM NEUTRAL JUDGE",
       color: colors.judge,
     };
   }

@@ -21,22 +21,31 @@ test("History distinguishes the durable final Judge from interim and active sess
   assert.deepEqual(
     debateHistoryCopy({ ...baseSession, final_judge_message_id: "judge-2" }),
     {
-      label: "FINAL JUDGE READY",
-      detail: "Round 2 is complete with a durable neutral summary.",
+      label: "FINAL JUDGE",
+      title: "Final neutral assessment is ready",
+      detail: "Round 2 is complete. Its canonical transcript and final Judge remain available to review.",
+      action: "Review final assessment",
+      kind: "final",
     },
   );
   assert.deepEqual(
     debateHistoryCopy({ ...baseSession, status: "awaiting_user" }),
     {
-      label: "WAITING FOR CHALLENGE",
-      detail: "Round 1 is complete and the interim Judge is ready.",
+      label: "INTERIM JUDGE",
+      title: "Round 1 is ready for your challenge",
+      detail: "The interim Judge has paused the Debate. You may ask one evidence-grounded follow-up before Round 2.",
+      action: "Open interim assessment",
+      kind: "interim",
     },
   );
   assert.deepEqual(
     debateHistoryCopy({ ...baseSession, status: "running_round_2" }),
     {
-      label: "DEBATE IN PROGRESS",
+      label: "IN PROGRESS",
+      title: "Canonical Debate is still running",
       detail: "Open the durable session to see its current transcript.",
+      action: "Open live transcript",
+      kind: "active",
     },
   );
 });

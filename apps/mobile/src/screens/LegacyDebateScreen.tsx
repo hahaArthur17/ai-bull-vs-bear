@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 
 import { AnalysisSnapshotCard } from "../components/debate/AnalysisSnapshotCard";
@@ -24,6 +25,7 @@ export function LegacyDebateScreen({
   onExamine,
   onRun,
 }: LegacyDebateScreenProps) {
+  const [showDiagnostics, setShowDiagnostics] = useState(false);
   if (loading && !analysis) return <LoadingView label="Running the evidence workflow..." onBack={onBack} />;
   return (
     <ScrollView contentContainerStyle={styles.page}>
@@ -44,10 +46,24 @@ export function LegacyDebateScreen({
           <JudgeSummaryCard judge={analysis.judge} />
           <LegacyClaimCard claim={analysis.bull} closeDate={analysis.snapshot.price.as_of} evidence={analysis.evidence} onExamine={onExamine} />
           <LegacyClaimCard claim={analysis.bear} closeDate={analysis.snapshot.price.as_of} evidence={analysis.evidence} onExamine={onExamine} />
-          <View style={styles.traceCard}>
-            <View style={styles.rowBetween}><Text style={styles.cardLabel}>AGENT TRACE</Text><Text style={styles.mutedText}>{analysis.token_usage.model_name}</Text></View>
-            {analysis.trace.map((step) => <Text key={step.step} style={styles.traceLine}>✓ {step.step.replace(/_/g, " ")} — {step.detail}</Text>)}
-            <Text style={styles.traceLine}>Token ledger: {analysis.token_usage.total_tokens} demo tokens</Text>
+          <View style={styles.diagnosticDisclosure}>
+            <Pressable
+              accessibilityLabel={`${showDiagnostics ? "Hide" : "Show"} analysis technical details`}
+              accessibilityRole="button"
+              accessibilityState={{ expanded: showDiagnostics }}
+              onPress={() => setShowDiagnostics((current) => !current)}
+              style={styles.diagnosticDisclosureButton}
+            >
+              <Text style={styles.diagnosticDisclosureTitle}>Analysis technical details</Text>
+              <Text style={styles.diagnosticDisclosureAction}>{showDiagnostics ? "Hide" : "Show"}</Text>
+            </Pressable>
+            {showDiagnostics ? (
+              <View style={styles.diagnosticPanel}>
+                <View style={styles.rowBetween}><Text style={styles.cardLabel}>AGENT TRACE</Text><Text style={styles.mutedText}>{analysis.token_usage.model_name}</Text></View>
+                {analysis.trace.map((step) => <Text key={step.step} style={styles.traceLine}>✓ {step.step.replace(/_/g, " ")} — {step.detail}</Text>)}
+                <Text style={styles.traceLine}>Token ledger: {analysis.token_usage.total_tokens} demo tokens</Text>
+              </View>
+            ) : null}
           </View>
           <Text style={styles.safeNote}>{analysis.disclaimer}</Text>
         </>
