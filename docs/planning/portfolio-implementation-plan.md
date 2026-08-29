@@ -671,7 +671,7 @@ access token, or user financial information in a Redis key.
 
 - One active live Debate per user.
 - Three newly generated live Debates per user per hour.
-- Thirty explanation requests per user per hour.
+- Twelve Explanation requests per user per 3,600-second window by default.
 - Replay and cached-result viewing do not consume the live-generation limit.
 - Limits are configuration, not hard-coded product facts.
 
@@ -1233,8 +1233,8 @@ on the owned active branch; provider citations are restricted to evidence
 already linked to that message. Guardrails and safe provider errors are tested,
 and Session, Job, generation, branch, and canonical messages remain unchanged.
 The HTTP route is now authenticated, default-off, and covered for ownership,
-safe validation/provider errors, and immutability. Event-stream rate limiting
-is independently enforced with a hashed user key and local fallback;
+safe validation/provider errors, and immutability. Explanation admission is
+independently rate-limited with a hashed user key and local fallback;
 the mobile client now has the typed request/result boundary and a contract test.
 Complete-message terms now open a cross-platform read-only panel that validates
 the exact selection before calling the API and never writes a result into the
@@ -1252,10 +1252,14 @@ Status: In progress
   matrix in [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md).
 - [x] Finalize design tokens, typography, semantic colours, spacing, elevation,
   breakpoints, interaction targets, and motion rules without changing behavior.
-- [x] Redesign authentication for input, disabled, loading, error, and sign-up
-  confirmation states.
-- [x] Redesign home/search/watchlist, including empty, failure, and
-  `catalog_only`/`debate_ready` coverage states.
+- [x] Implement the authentication redesign for input, disabled, loading,
+  error, and sign-up confirmation states.
+- [ ] Complete authentication acceptance review for responsive layout, keyboard
+  focus, screen-reader labels, and native-device behaviour.
+- [x] Implement the home/search/watchlist redesign, including empty, failure,
+  and `catalog_only`/`debate_ready` coverage states.
+- [ ] Complete Discovery and Watchlist acceptance review for responsive layout,
+  keyboard focus, screen-reader labels, and native-device behaviour.
 - [ ] Redesign stock detail and charts without losing provenance/accessibility.
 - [ ] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
   explanation, and failure states.

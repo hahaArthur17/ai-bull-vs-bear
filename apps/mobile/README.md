@@ -50,9 +50,11 @@ interaction targets, and motion rules live in `src/theme/tokens.ts` and are
 re-exported through `src/theme.ts`. The existing app styles continue to use the
 compatibility palette while screens migrate in their own redesign slices.
 Reusable base UI components live under `src/components/`. Watchlist, History,
-and About are standalone screen modules under `src/screens/`. Stock detail,
-charts, Debate, Evidence, and Examination remain in `App.tsx` and will be
-extracted incrementally with their owning feature phases.
+About, Stock detail/charting, Evidence, Examination, and V2 Debate are
+standalone screen modules under `src/screens/`. `App.tsx` retains app-level
+state/orchestration and the legacy Debate/Claim Card presentation; those
+remaining presentation components will be extracted incrementally with their
+owning feature phases.
 
 The mobile app intentionally presents analysis as educational context and
 always shows the financial-advice disclaimer.

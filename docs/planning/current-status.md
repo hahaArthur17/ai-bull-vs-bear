@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last verified: 2026-08-29
+Last verified: 2026-08-30
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -19,7 +19,9 @@ Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 | Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | 345 backend tests, 17 mobile stream/view-state tests, the mobile TypeScript check, and Expo Web export pass. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Automated verification | Done | The latest recorded backend gate has 345 passing tests; 23 mobile state tests, the mobile TypeScript check, and Expo Web export passed on 2026-08-30. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Phase 8 authentication UI | In progress | Implementation is complete, including distinct sign-in/sign-up submission states; visual, keyboard, screen-reader, responsive, and device acceptance remain pending. |
+| Phase 8 Discovery and Watchlist UI | In progress | Implementation is complete, including coverage-aware search and a loaded-stock “Ready to review” summary; visual, keyboard, screen-reader, responsive, and device acceptance remain pending. |
 | Native-device verification | In progress | Expo checks and Web export pass; physical iOS/Android testing remains. |
 
 Public verification on 2026-08-27 returned `200` from the deployed frontend,
@@ -71,10 +73,10 @@ These are limitations of the current implementation, not completed features:
   The current quote remains outside the bundle response cache.
 - The durable Queue is connected only to the default-off V2 Debate path. The
   public legacy `/analysis` path remains synchronous by design.
-- Stock detail, charting, legacy Debate, Evidence, and Examination UI still
-  live in a large `App.tsx`; the shared theme/components, three low-coupling
-  screens, and the V2 Debate screen are now extracted, but the remaining UI
-  needs incremental modularization.
+- Stock detail/charting, Evidence, Examination, Watchlist, History, About, and
+  V2 Debate now live in screen modules. `App.tsx` is 513 lines and retains the
+  app-level state/orchestration plus the legacy Debate and Claim Card
+  presentation; those remaining pieces need incremental modularization.
 
 ## Accepted product direction
 

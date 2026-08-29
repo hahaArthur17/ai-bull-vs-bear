@@ -164,8 +164,9 @@ that message's canonical citation links, applies financial-language
 guardrails, and returns a panel result through an injected provider. It does
 not create a Job, append a message, rotate a generation, or transition Session
 state. Its authenticated default-off HTTP boundary is now wired and is
-independently admission-limited with the hashed `rate:explain` cache key and a
-safe local fallback. The mobile client now has the typed authenticated request
+independently admission-limited to 12 requests per user per 3,600-second window
+by default, using a hashed `rate:explain` cache key and a safe local fallback.
+The mobile client now has the typed authenticated request
 boundary. Complete-message term chips now open a separate, read-only panel;
 Explanation deliberately does not enter the event stream or canonical
 transcript. V2 History reloads owner-scoped canonical Sessions, labels completed
