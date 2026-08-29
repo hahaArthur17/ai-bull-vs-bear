@@ -130,7 +130,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         timeout_seconds=settings.explanation_provider_timeout_seconds,
         max_completion_tokens=LIVE_EXPLANATION_MAX_COMPLETION_TOKENS,
     )
-    print(json.dumps(verify_one_live_explanation(provider), indent=2, sort_keys=True))
+    try:
+        report = verify_one_live_explanation(provider)
+    finally:
+        provider.close()
+    print(json.dumps(report, indent=2, sort_keys=True))
 
 
 if __name__ == "__main__":

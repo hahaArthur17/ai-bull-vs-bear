@@ -7,6 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.domain.explanations import ExplanationDraft
 from app.providers.current_factors import build_current_factor_registry
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
@@ -274,6 +275,9 @@ def test_explanation_endpoint_hides_provider_failure_details(
         name = "failing-explainer"
         version = "test"
 
+        def close(self) -> None:
+            pass
+
         def generate_explanation(self, _request):
             raise RuntimeError("private provider response and request identifier")
 
@@ -296,6 +300,52 @@ def test_explanation_endpoint_hides_provider_failure_details(
     assert response.status_code == 503
     assert response.json() == {"detail": "Explanation service is temporarily unavailable"}
     assert "private provider" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("selected_text", "provider_fails", "expected_status"),
+    [
+        ("frozen snapshot", False, 200),
+        ("text that is not present", False, 409),
+        ("frozen snapshot", True, 503),
+    ],
+)
+def test_explanation_endpoint_closes_provider_on_every_outcome(
+    monkeypatch: pytest.MonkeyPatch,
+    selected_text: str,
+    provider_fails: bool,
+    expected_status: int,
+) -> None:
+    class ClosingProvider:
+        name = "closing-explainer"
+        version = "test"
+
+        def __init__(self) -> None:
+            self.close_calls = 0
+
+        def generate_explanation(self, _request):
+            if provider_fails:
+                raise RuntimeError("private provider response")
+            return ExplanationDraft(content="A bounded explanation.")
+
+        def close(self) -> None:
+            self.close_calls += 1
+
+    payload = create_round_one(monkeypatch)
+    provider = ClosingProvider()
+    monkeypatch.setattr(main, "build_explanation_provider", lambda _settings: provider)
+    response = client.post(
+        f"/debates/{payload['session']['id']}/explanations",
+        headers={"X-User-Id": "preview-user"},
+        json={
+            "message_id": payload["messages"][0]["message"]["id"],
+            "selected_text": selected_text,
+            "question": "What does this mean here?",
+        },
+    )
+
+    assert response.status_code == expected_status
+    assert provider.close_calls == 1
 
 
 def test_explanation_endpoint_returns_admission_headers_and_a_bounded_retry(

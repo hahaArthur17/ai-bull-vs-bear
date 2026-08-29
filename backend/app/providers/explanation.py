@@ -16,12 +16,18 @@ class ExplanationProvider(Protocol):
     ) -> ExplanationDraft:
         ...
 
+    def close(self) -> None:
+        ...
+
 
 class DeterministicExplanationProvider:
     """Credential-free provider for the first Explanation service boundary."""
 
     name = "deterministic-explainer"
     version = "v1"
+
+    def close(self) -> None:
+        """Keep the provider lifecycle uniform without allocating a client."""
 
     def generate_explanation(
         self,

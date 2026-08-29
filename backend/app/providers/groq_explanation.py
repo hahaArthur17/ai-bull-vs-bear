@@ -143,6 +143,13 @@ class GroqExplanationProvider:
             )
         self.client = client
 
+    def close(self) -> None:
+        """Release the synchronous Groq/httpx client when the request finishes."""
+
+        close = getattr(self.client, "close", None)
+        if callable(close):
+            close()
+
     def generate_explanation(self, request: ExplanationAgentRequest) -> ExplanationDraft:
         aliases = _evidence_aliases(request)
         try:

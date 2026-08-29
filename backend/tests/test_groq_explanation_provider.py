@@ -45,6 +45,10 @@ class FakeGroqClient:
     def __init__(self, result: Any | Exception) -> None:
         self.completions = RecordingCompletions(result)
         self.chat = SimpleNamespace(completions=self.completions)
+        self.close_calls = 0
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 def completion(content: str | None) -> Any:
@@ -165,6 +169,15 @@ def test_live_provider_hides_private_upstream_failure() -> None:
 
     assert str(error.value) == "Groq Explanation request failed safely"
     assert "private" not in str(error.value)
+
+
+def test_live_provider_closes_the_underlying_client() -> None:
+    client = FakeGroqClient(completion("A bounded definition [E1]."))
+    provider = GroqExplanationProvider(api_key="test-key", client=client)
+
+    provider.close()
+
+    assert client.close_calls == 1
 
 
 def test_live_provider_configuration_and_factory_are_explicit() -> None:

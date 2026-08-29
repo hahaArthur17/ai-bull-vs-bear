@@ -940,6 +940,11 @@ def explain_debate(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Explanation service is temporarily unavailable",
         ) from exc
+    finally:
+        try:
+            provider.close()
+        except Exception:
+            logger.warning("Explanation provider client close failed")
 
 
 @app.get(
