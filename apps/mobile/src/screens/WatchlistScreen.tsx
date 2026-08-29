@@ -103,7 +103,7 @@ export function WatchlistScreen({
         </View>
       )}
       <View style={styles.catalogHeading}>
-        <Text style={styles.eyebrow}>SECURITY CATALOG</Text>
+        <Text style={styles.catalogEyebrow}>SECURITY CATALOG</Text>
         <Text style={styles.catalogTitle}>Find a listed security</Text>
         <Text style={styles.catalogBody}>Catalog search identifies securities only. A coverage label tells you whether research data is available before opening it.</Text>
       </View>
@@ -163,7 +163,7 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
         onPress={() => onToggle(stock.ticker)}
         style={styles.starButton}
       >
-        <Text style={[styles.star, watched && styles.starActive]}>{watched ? "★" : "☆"}</Text>
+        <Text style={[styles.star, watched && styles.starActive]}>{watched ? "Saved" : "Save"}</Text>
       </Pressable>
     </View>
   );
@@ -189,6 +189,7 @@ const styles = StyleSheet.create({
   emptyTitle: { color: palette.ink, fontSize: 15, fontWeight: "800", marginBottom: spacing.xs },
   emptyText: { color: palette.muted, fontSize: 13, lineHeight: 20 },
   catalogHeading: { marginTop: spacing.xxl },
+  catalogEyebrow: { color: palette.accent, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
   catalogTitle: { color: palette.ink, fontSize: 23, fontWeight: "800", lineHeight: 29, marginBottom: spacing.xs },
   catalogBody: { color: palette.muted, fontSize: 13, lineHeight: 20, marginBottom: spacing.lg },
   label: { color: palette.ink, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginBottom: spacing.xs },
@@ -205,13 +206,13 @@ const styles = StyleSheet.create({
   tickerRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
   stockTicker: { color: palette.ink, fontSize: 16, fontWeight: "900" },
   coverageBadge: { borderRadius: radii.sm, fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: 3 },
-  readyBadge: { backgroundColor: colors.surface.positive, color: palette.bull },
+  readyBadge: { backgroundColor: colors.surface.positive, color: palette.accent },
   catalogOnlyBadge: { backgroundColor: colors.surface.information, color: palette.accent },
   stockCompany: { color: palette.muted, fontSize: 13, marginTop: 2 },
   stockMeta: { color: palette.muted, fontSize: 11, marginTop: 2 },
   starButton: { alignItems: "center", justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize },
-  star: { color: palette.muted, fontSize: 26 },
-  starActive: { color: palette.signal },
+  star: { color: palette.muted, fontSize: 11, fontWeight: "800" },
+  starActive: { color: palette.accent },
   disclaimerBox: { backgroundColor: colors.surface.subtle, borderRadius: radii.md, marginTop: spacing.xl, padding: spacing.lg },
   disclaimerText: { color: palette.ink, fontSize: 12, lineHeight: 18 },
 });
