@@ -190,3 +190,20 @@ def test_prompt_never_includes_unlinked_evidence_identifiers() -> None:
     assert "[E1]" in prompt
     assert "linked-evidence" not in prompt
     assert "unlinked-evidence" not in prompt
+
+
+def test_prompt_neutralizes_historical_source_citation_aliases() -> None:
+    request = grounded_request()
+    source = request.source_message.model_copy(
+        update={
+            "content": (
+                "The moving average has an original source citation [E2] and another [E3]."
+            )
+        }
+    )
+    prompt = build_groq_explanation_prompt(request.model_copy(update={"source_message": source}))
+
+    assert "[E2]" not in prompt
+    assert "[E3]" not in prompt
+    assert prompt.count("[source citation]") == 2
+    assert "[E1]" in prompt

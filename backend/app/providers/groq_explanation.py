@@ -9,6 +9,7 @@ from app.domain.explanations import ExplanationAgentRequest, ExplanationDraft
 
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
 _CITATION_TOKEN_PATTERN = re.compile(r"\[E[^\]\r\n]*\]")
+_HISTORICAL_CITATION_PATTERN = re.compile(r"\[E[0-9]+\]")
 _MAX_OUTPUT_CHARS = 1600
 
 
@@ -24,6 +25,12 @@ def _truncate(value: str | None, limit: int) -> str | None:
     if value is None:
         return None
     return value if len(value) <= limit else f"{value[: limit - 1]}…"
+
+
+def _neutralize_historical_citations(value: str | None) -> str | None:
+    if value is None:
+        return None
+    return _HISTORICAL_CITATION_PATTERN.sub("[source citation]", value)
 
 
 def _evidence_aliases(request: ExplanationAgentRequest) -> dict[str, str]:
@@ -42,20 +49,24 @@ def build_groq_explanation_prompt(request: ExplanationAgentRequest) -> str:
     payload = {
         "ticker": request.ticker,
         "as_of": request.analysis_context.as_of,
-        "selected_text": request.selected_text,
-        "user_question": request.question,
+        "selected_text": _neutralize_historical_citations(request.selected_text),
+        "user_question": _neutralize_historical_citations(request.question),
         "source_message": {
             "role": request.source_message.role,
             "round": request.source_message.round_number,
-            "content": request.source_message.content,
+            "content": _neutralize_historical_citations(request.source_message.content),
         },
         "linked_evidence": [
             {
                 "citation": f"[{alias}]",
                 "source_type": evidence_by_id[evidence_id].source_type,
-                "title": _truncate(evidence_by_id[evidence_id].title, 300),
+                "title": _neutralize_historical_citations(
+                    _truncate(evidence_by_id[evidence_id].title, 300)
+                ),
                 "published_at": evidence_by_id[evidence_id].published_at,
-                "excerpt": _truncate(evidence_by_id[evidence_id].excerpt, 700),
+                "excerpt": _neutralize_historical_citations(
+                    _truncate(evidence_by_id[evidence_id].excerpt, 700)
+                ),
             }
             for alias, evidence_id in aliases.items()
         ],
