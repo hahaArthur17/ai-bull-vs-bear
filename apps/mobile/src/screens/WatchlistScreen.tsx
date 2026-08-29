@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { SectionHeader } from "../components/common";
+import { getDiscoverySummary } from "../discoverySummary";
 import { colors, interaction, palette, radii, spacing, typography } from "../theme";
 import type { Stock } from "../types";
 
@@ -34,7 +35,7 @@ export function WatchlistScreen({
     () => stocks.filter((stock) => watchlist.includes(stock.ticker)),
     [stocks, watchlist],
   );
-  const debateReadyCount = results.filter((stock) => stock.coverage_status === "debate_ready").length;
+  const { readyToReview } = useMemo(() => getDiscoverySummary(stocks), [stocks]);
 
   useEffect(() => {
     if (!query.trim()) {
@@ -82,7 +83,7 @@ export function WatchlistScreen({
         <View style={styles.statRow}>
           <View style={styles.stat}><Text style={styles.statValue}>{visible.length}</Text><Text style={styles.statLabel}>WATCHED</Text></View>
           <View style={styles.statDivider} />
-          <View style={styles.stat}><Text style={styles.statValue}>{debateReadyCount}</Text><Text style={styles.statLabel}>READY TO REVIEW</Text></View>
+          <View style={styles.stat}><Text style={styles.statValue}>{readyToReview}</Text><Text style={styles.statLabel}>READY TO REVIEW</Text></View>
         </View>
       </View>
       {error ? (
