@@ -30,6 +30,7 @@ accepted design or completion state changes.
 | --- | --- |
 | [`current-status.md`](current-status.md) | Concise, verified current state and limitations. |
 | [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) | Canonical architecture, phases, acceptance tests, and next coding task. |
+| [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md) | Required visual, responsive, accessibility, and device-review evidence for the active UI redesign. |
 | [`issue-log.md`](issue-log.md) | Append-only material incidents and remediation evidence. |
 | [`reports/`](reports/README.md) | Append-only weekly implementation and verification history. |
 

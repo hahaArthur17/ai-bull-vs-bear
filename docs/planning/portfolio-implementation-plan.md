@@ -1244,8 +1244,12 @@ remains later work.
 
 ### Phase 8 — Financial-technology UI redesign
 
-Status: Planned
+Status: In progress
 
+- [x] Add a serial mobile CI verification gate for stream tests, TypeScript,
+  and Expo Web export.
+- [x] Define the visual, responsive, accessibility, and device-review acceptance
+  matrix in [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md).
 - [ ] Finalize design tokens, typography, semantic colours, spacing, elevation,
   and motion rules.
 - [ ] Redesign authentication and home/search/watchlist.
