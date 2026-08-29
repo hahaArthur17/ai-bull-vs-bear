@@ -13,7 +13,7 @@ export function Metric({ label, value }: { label: string; value: string }) {
 }
 
 export function BackButton({ onPress }: { onPress: () => void }) {
-  return <Pressable onPress={onPress} style={styles.backButton}><Text style={styles.backText}>← Back</Text></Pressable>;
+  return <Pressable accessibilityLabel="Go back" accessibilityRole="button" onPress={onPress} style={styles.backButton}><Text style={styles.backText}>← Back</Text></Pressable>;
 }
 
 export function LoadingView({ label, onBack }: { label: string; onBack: () => void }) {
@@ -26,13 +26,12 @@ export function FailureView({ message, onBack, onRetry }: { message: string; onB
       <BackButton onPress={onBack} />
       <View style={styles.errorCard}>
         <Text style={styles.errorText}>{message}</Text>
-        <Pressable style={styles.smallButton} onPress={onRetry}><Text style={styles.smallButtonText}>Retry</Text></Pressable>
+        <Pressable accessibilityLabel="Retry loading this screen" accessibilityRole="button" style={styles.smallButton} onPress={onRetry}><Text style={styles.smallButtonText}>Retry</Text></Pressable>
       </View>
     </View>
   );
 }
 
 export function NavButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return <Pressable onPress={onPress} style={styles.navButton}><Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text></Pressable>;
+  return <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={styles.navButton}><Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text></Pressable>;
 }
-

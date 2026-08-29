@@ -13,7 +13,7 @@ const semanticColors = {
   },
   content: {
     primary: "#1e2826",
-    secondary: "#71807a",
+    secondary: "#5e6d66",
     inverse: "#fffdf8",
     inverseMuted: "#c8d9d3",
     inverseSubtle: "#d7f0dc",
@@ -28,7 +28,7 @@ const semanticColors = {
     inverseSubtle: "rgba(255,255,255,0.24)",
   },
   action: {
-    primary: "#d95c3b",
+    primary: "#a33d2b",
     secondary: "#1d5c56",
   },
   market: {

@@ -171,7 +171,7 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
 const styles = StyleSheet.create({
   page: { padding: spacing.xl, paddingBottom: 110 },
   hero: { backgroundColor: palette.accent, borderRadius: radii.xl, marginBottom: spacing.lg, padding: spacing.xl },
-  eyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
+  eyebrow: { color: colors.content.inverseSubtle, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
   title: { color: colors.content.inverse, fontSize: 31, fontWeight: "800", lineHeight: 37 },
   heroBody: { color: colors.content.inverseMuted, fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
   statRow: { alignItems: "center", flexDirection: "row", marginTop: spacing.lg },
