@@ -23,9 +23,14 @@ import {
   canChallengeDebate,
   debateStatusCopy,
 } from "../liveDebateView";
+import {
+  defaultExplanationQuestion,
+  exactExplanationTerm,
+} from "../explanationView";
 import type {
   DebateMessageRecord,
   DebateMutationResponse,
+  ExplanationResult,
 } from "../types";
 
 type LiveDebateScreenProps = {
@@ -90,6 +95,12 @@ export function LiveDebateScreen({
   const [challengeTarget, setChallengeTarget] = useState<DebateMessageRecord | null>(null);
   const [selectedText, setSelectedText] = useState("");
   const [question, setQuestion] = useState("");
+  const [explanationTarget, setExplanationTarget] = useState<DebateMessageRecord | null>(null);
+  const [explanationTerm, setExplanationTerm] = useState("");
+  const [explanationQuestion, setExplanationQuestion] = useState("");
+  const [explanationResult, setExplanationResult] = useState<ExplanationResult | null>(null);
+  const [explanationError, setExplanationError] = useState("");
+  const [explaining, setExplaining] = useState(false);
   const challengeKey = useRef<string | null>(null);
   const streamClient = useRef<DebateStreamClient | null>(null);
   const sessionId = initialDetail.session.id;
@@ -101,6 +112,12 @@ export function LiveDebateScreen({
     setChallengeTarget(null);
     setSelectedText("");
     setQuestion("");
+    setExplanationTarget(null);
+    setExplanationTerm("");
+    setExplanationQuestion("");
+    setExplanationResult(null);
+    setExplanationError("");
+    setExplaining(false);
     challengeKey.current = null;
   }, [sessionId]);
 
@@ -136,12 +153,39 @@ export function LiveDebateScreen({
     && selectedTextIsValid
     && question.trim().length > 0
     && !challenging;
+  const selectedExplanationTerm = explanationTarget
+    ? exactExplanationTerm(explanationTarget, explanationTerm)
+    : null;
+  const canSubmitExplanation = selectedExplanationTerm !== null
+    && explanationQuestion.trim().length > 0
+    && !explaining;
 
   const selectChallengeTarget = (record: DebateMessageRecord) => {
     setChallengeTarget(record);
     setSelectedText(record.message.content.slice(0, 500));
     setActionError("");
     challengeKey.current = null;
+  };
+
+  const selectExplanationTerm = (record: DebateMessageRecord, term: string) => {
+    const selectedTerm = exactExplanationTerm(record, term);
+    if (selectedTerm === null) {
+      setActionError("This term is not an exact selection from a complete message.");
+      return;
+    }
+    setExplanationTarget(record);
+    setExplanationTerm(selectedTerm);
+    setExplanationQuestion(defaultExplanationQuestion(selectedTerm));
+    setExplanationResult(null);
+    setExplanationError("");
+  };
+
+  const closeExplanation = () => {
+    setExplanationTarget(null);
+    setExplanationTerm("");
+    setExplanationQuestion("");
+    setExplanationResult(null);
+    setExplanationError("");
   };
 
   const cancelDebate = async () => {
@@ -186,6 +230,26 @@ export function LiveDebateScreen({
       );
     } finally {
       setChallenging(false);
+    }
+  };
+
+  const submitExplanation = async () => {
+    if (!explanationTarget || !selectedExplanationTerm || !canSubmitExplanation) return;
+    setExplaining(true);
+    setExplanationError("");
+    try {
+      const result = await api.explainDebate(sessionId, {
+        messageId: explanationTarget.message.id,
+        selectedText: selectedExplanationTerm,
+        question: explanationQuestion.trim(),
+      });
+      setExplanationResult(result);
+    } catch (error) {
+      setExplanationError(
+        error instanceof Error ? error.message : "Could not explain this term.",
+      );
+    } finally {
+      setExplaining(false);
     }
   };
 
@@ -280,10 +344,81 @@ export function LiveDebateScreen({
           challengeEnabled={canChallenge}
           selected={challengeTarget?.message.id === record.message.id}
           onChallenge={() => selectChallengeTarget(record)}
+          onExplainTerm={(term) => selectExplanationTerm(record, term)}
         />
       ))}
 
       {drafts.map((draft) => <DraftCard key={draft.messageId} draft={draft} />)}
+
+      {explanationTarget ? (
+        <View style={screenStyles.explanationPanel}>
+          <View style={screenStyles.rowBetween}>
+            <Text style={screenStyles.explanationEyebrow}>TERM EXPLANATION · READ ONLY</Text>
+            <Pressable
+              onPress={closeExplanation}
+              style={screenStyles.dismissButton}
+              accessibilityRole="button"
+              accessibilityLabel="Close term explanation"
+            >
+              <Text style={screenStyles.dismissButtonText}>Close</Text>
+            </Pressable>
+          </View>
+          <Text style={screenStyles.explanationTitle}>Understand the argument</Text>
+          <Text style={screenStyles.explanationHelp}>
+            This explains the selected term using only this complete message and its linked,
+            dated evidence. It does not change the Debate or start another round.
+          </Text>
+          <Text style={screenStyles.inputLabel}>EXACT TERM · {rolePresentation(explanationTarget.message.role).label}</Text>
+          <Text style={screenStyles.selectedTerm}>{selectedExplanationTerm || explanationTerm}</Text>
+          <Text style={screenStyles.inputLabel}>YOUR QUESTION</Text>
+          <TextInput
+            value={explanationQuestion}
+            onChangeText={(value) => {
+              setExplanationQuestion(value);
+              setExplanationResult(null);
+            }}
+            maxLength={500}
+            multiline
+            style={screenStyles.textArea}
+            placeholder="What does this mean in the argument?"
+            placeholderTextColor={colors.muted}
+          />
+          {explanationError ? (
+            <Text style={screenStyles.validationText}>{explanationError}</Text>
+          ) : null}
+          <Pressable
+            disabled={!canSubmitExplanation}
+            style={[
+              screenStyles.explanationButton,
+              !canSubmitExplanation && screenStyles.disabledButton,
+            ]}
+            onPress={() => void submitExplanation()}
+            accessibilityRole="button"
+            accessibilityState={{ disabled: !canSubmitExplanation }}
+          >
+            {explaining ? <ActivityIndicator color={colors.background} size="small" /> : null}
+            <Text style={screenStyles.explanationButtonText}>
+              {explaining ? "Explaining term…" : "Explain this term"}
+            </Text>
+          </Pressable>
+          {explanationResult ? (
+            <View style={screenStyles.explanationResult}>
+              <Text style={screenStyles.explanationResultTitle}>Explanation</Text>
+              <Text style={screenStyles.explanationContent}>{explanationResult.content}</Text>
+              {explanationResult.evidence_ids.length > 0 ? (
+                <Text style={screenStyles.citations}>
+                  EVIDENCE {explanationResult.evidence_ids.join(" · ")}
+                </Text>
+              ) : null}
+              {explanationResult.guardrail_status === "rewritten" ? (
+                <Text style={screenStyles.explanationSafetyNote}>
+                  Safety language was adjusted to keep this educational.
+                </Text>
+              ) : null}
+            </View>
+          ) : null}
+        </View>
+      ) : null}
 
       {canChallenge ? (
         <View style={screenStyles.challengePanel}>
@@ -374,11 +509,13 @@ function MessageCard({
   challengeEnabled,
   selected,
   onChallenge,
+  onExplainTerm,
 }: {
   record: DebateMessageRecord;
   challengeEnabled: boolean;
   selected: boolean;
   onChallenge: () => void;
+  onExplainTerm: (term: string) => void;
 }) {
   const role = rolePresentation(record.message.role);
   const canTarget = challengeEnabled
@@ -401,9 +538,17 @@ function MessageCard({
       {record.message.terms.length > 0 ? (
         <View style={screenStyles.termRow}>
           {record.message.terms.map((term) => (
-            <View key={term} style={screenStyles.termChip}>
+            <Pressable
+              key={`${record.message.id}:${term}`}
+              disabled={exactExplanationTerm(record, term) === null}
+              onPress={() => onExplainTerm(term)}
+              style={screenStyles.termChip}
+              accessibilityRole="button"
+              accessibilityLabel={`Explain ${term}`}
+              accessibilityState={{ disabled: exactExplanationTerm(record, term) === null }}
+            >
               <Text style={screenStyles.termText}>{term}</Text>
-            </View>
+            </Pressable>
           ))}
         </View>
       ) : null}
@@ -488,6 +633,19 @@ const screenStyles = StyleSheet.create({
   streamingRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   streamingText: { color: colors.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   draftNote: { color: colors.muted, fontSize: 10, fontStyle: "italic", marginTop: 9 },
+  explanationPanel: { backgroundColor: "#142518", borderColor: colors.bull, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
+  explanationEyebrow: { color: colors.bull, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
+  explanationTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
+  explanationHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 7 },
+  dismissButton: { borderBottomColor: colors.muted, borderBottomWidth: 1, paddingBottom: 2 },
+  dismissButtonText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  selectedTerm: { color: colors.bull, backgroundColor: colors.background, borderColor: colors.line, borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, fontSize: 13, fontWeight: "800" },
+  explanationButton: { minHeight: 46, backgroundColor: colors.bull, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
+  explanationButtonText: { color: colors.background, fontSize: 13, fontWeight: "900" },
+  explanationResult: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 11, padding: 13, marginTop: 14 },
+  explanationResultTitle: { color: colors.bull, fontSize: 11, fontWeight: "900", letterSpacing: 0.8 },
+  explanationContent: { color: colors.text, fontSize: 13, lineHeight: 20, marginTop: 8 },
+  explanationSafetyNote: { color: colors.warning, fontSize: 10, lineHeight: 16, marginTop: 10 },
   challengePanel: { backgroundColor: "#101d30", borderColor: colors.judge, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
   challengeEyebrow: { color: colors.judge, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
   challengeTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },

@@ -1198,7 +1198,7 @@ Redis does not corrupt or disable canonical workflows.
 
 Status: In progress
 
-- [ ] Render model-provided terms as clickable cross-platform elements.
+- [x] Render model-provided terms as clickable cross-platform elements.
 - [x] Implement context-bounded Explanation Agent service requests.
 - [x] Keep explanations outside the Debate state transition.
 - [x] Expose Explanation through an authenticated default-off HTTP endpoint.
@@ -1221,7 +1221,9 @@ The HTTP route is now authenticated, default-off, and covered for ownership,
 safe validation/provider errors, and immutability. The event stream, rate
 limit is now independently enforced with a hashed user key and local fallback;
 the mobile client now has the typed request/result boundary and a contract test.
-Optional persistence and the mobile panel remain later slices.
+Complete-message terms now open a cross-platform read-only panel that validates
+the exact selection before calling the API and never writes a result into the
+Debate. Optional persistence remains later work.
 
 ### Phase 8 — Financial-technology UI redesign
 
@@ -1330,7 +1332,7 @@ passed its capacity/size/public-search/RLS gates; the Debate persistence
 deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
 checks. The Explanation service core is now present; the next bounded slice is
-its mobile term-panel interaction.
+final Judge and History presentation.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the

@@ -101,7 +101,7 @@ Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
 streaming completion gate. The next bounded implementation slice is Explanation
-term-panel interaction.
+history presentation.
 
 ### Phase 1 completion evidence
 
@@ -417,9 +417,10 @@ now maps missing sources, invalid selections, and provider failures to safe
 404, 409, and 503 responses without changing that state. Explanation now has a
 separate per-user fixed-window admission limit, safe `429`/`Retry-After`
 response, hashed cache key, and Redis-to-local fallback. Streaming events,
-persistence, and the mobile explanation panel remain later slices. The mobile
-client now has typed result/request contracts and a tested serializer for the
-authenticated endpoint, but presents no explanation UI yet.
+persistence, and arbitrary Web selection remain later slices. The mobile V2
+screen now makes complete-message model terms accessible, validates the exact
+selection locally, and opens an independent read-only Explanation panel; it
+does not mutate the stream, Session, Job, generation, branch, or transcript.
 
 ## Boundaries that remain in force
 
