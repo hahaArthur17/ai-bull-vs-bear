@@ -7,6 +7,7 @@ import {
   SafeAreaView,
   ScrollView,
   Text,
+  useWindowDimensions,
   View,
 } from "react-native";
 
@@ -17,6 +18,7 @@ import {
   LoadingView,
   NavButton,
 } from "./src/components/common";
+import { getResponsiveAppShellLayout } from "./src/appShell";
 import { formatMarketDate } from "./src/dateFormat";
 import { AboutScreen } from "./src/screens/AboutScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
@@ -56,6 +58,8 @@ function mergeStocks(...groups: Stock[][]): Stock[] {
 }
 
 export default function App() {
+  const { width } = useWindowDimensions();
+  const responsiveShell = getResponsiveAppShellLayout(width);
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
   const [screen, setScreen] = useState<Screen>("watchlist");
@@ -376,12 +380,23 @@ export default function App() {
             <Text style={styles.errorText}>{error}</Text>
           </Pressable>
         ) : null}
-        {renderScreen()}
-        <View style={styles.bottomNav}>
-          <NavButton label="Watchlist" active={screen === "watchlist"} onPress={() => nav("watchlist")} />
-          <NavButton label="Signals" active={screen === "stock" || screen === "debate" || screen === "evidence" || screen === "examine"} onPress={() => void openStock(selectedTicker)} />
-          <NavButton label="History" active={screen === "history"} onPress={() => nav("history")} />
-          <NavButton label="About" active={screen === "about"} onPress={() => nav("about")} />
+        <View style={[styles.contentFrame, { maxWidth: responsiveShell.contentMaxWidth }]}>
+          {renderScreen()}
+        </View>
+        <View accessibilityLabel="Primary navigation" accessibilityRole="tablist" style={styles.bottomNav}>
+          <View style={[
+            styles.bottomNavContent,
+            {
+              columnGap: responsiveShell.navigationGap,
+              maxWidth: responsiveShell.contentMaxWidth,
+              paddingHorizontal: responsiveShell.navigationPadding,
+            },
+          ]}>
+            <NavButton label="Watchlist" active={screen === "watchlist"} onPress={() => nav("watchlist")} />
+            <NavButton label="Signals" active={screen === "stock" || screen === "debate" || screen === "evidence" || screen === "examine"} onPress={() => void openStock(selectedTicker)} />
+            <NavButton label="History" active={screen === "history"} onPress={() => nav("history")} />
+            <NavButton label="About" active={screen === "about"} onPress={() => nav("about")} />
+          </View>
         </View>
       </View>
     </SafeAreaView>

@@ -1,7 +1,7 @@
-import React from "react";
+import React, { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
-import { appStyles as styles, palette } from "../theme";
+import { appStyles as styles, interaction, palette } from "../theme";
 
 
 export function SectionHeader({ title, meta }: { title: string; meta: string }) {
@@ -33,5 +33,20 @@ export function FailureView({ message, onBack, onRetry }: { message: string; onB
 }
 
 export function NavButton({ label, active, onPress }: { label: string; active: boolean; onPress: () => void }) {
-  return <Pressable accessibilityLabel={label} accessibilityRole="button" accessibilityState={{ selected: active }} onPress={onPress} style={styles.navButton}><Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text></Pressable>;
+  const [focused, setFocused] = useState(false);
+
+  return (
+    <Pressable
+      accessibilityHint={`Opens the ${label} section.`}
+      accessibilityLabel={label}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: active }}
+      onBlur={() => setFocused(false)}
+      onFocus={() => setFocused(true)}
+      onPress={onPress}
+      style={[styles.navButton, focused && { borderColor: palette.accent, borderWidth: interaction.focusRingWidth }]}
+    >
+      <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
+    </Pressable>
+  );
 }

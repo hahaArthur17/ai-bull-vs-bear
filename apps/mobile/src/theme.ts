@@ -17,6 +17,7 @@ import { colors, palette } from "./theme/tokens";
 export const appStyles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.paper },
   appShell: { flex: 1 },
+  contentFrame: { alignSelf: "center", flex: 1, width: "100%" },
   page: { padding: 22, paddingBottom: 110 },
   eyebrow: { color: palette.signal, fontSize: 11, fontWeight: "800", letterSpacing: 1.4, marginBottom: 8 },
   heroTitle: { color: palette.ink, fontSize: 38, lineHeight: 42, fontWeight: "800", marginBottom: 10 },
@@ -140,8 +141,9 @@ export const appStyles = StyleSheet.create({
   historyStatus: { color: palette.accent, fontSize: 10, fontWeight: "900", letterSpacing: 0.8, marginTop: 4, marginBottom: 3 },
   aboutCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
   loading: { flex: 1, padding: 22, alignItems: "center", justifyContent: "center", gap: 14 },
-  bottomNav: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: palette.card, borderTopWidth: 1, borderTopColor: palette.line, flexDirection: "row", justifyContent: "space-around", paddingVertical: 13, paddingBottom: 18 },
-  navButton: { alignItems: "center", justifyContent: "center", minHeight: 44, minWidth: 44, paddingHorizontal: 8 },
+  bottomNav: { position: "absolute", bottom: 0, left: 0, right: 0, backgroundColor: palette.card, borderTopWidth: 1, borderTopColor: palette.line, paddingVertical: 10, paddingBottom: 14 },
+  bottomNavContent: { alignSelf: "center", flexDirection: "row", justifyContent: "space-between", width: "100%" },
+  navButton: { alignItems: "center", borderColor: "transparent", borderRadius: 8, borderWidth: 3, justifyContent: "center", minHeight: 44, minWidth: 44, paddingHorizontal: 8 },
   navLabel: { color: palette.muted, fontSize: 12, fontWeight: "700" },
   navLabelActive: { color: palette.signal },
 });
