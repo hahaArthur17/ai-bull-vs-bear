@@ -26,6 +26,8 @@ import { formatChartDate, formatMarketDate, formatQuoteTime } from "./src/dateFo
 import { AboutScreen } from "./src/screens/AboutScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
 import { LiveDebateScreen } from "./src/screens/LiveDebateScreen";
+import { EvidenceScreen } from "./src/screens/EvidenceScreen";
+import { ExaminationScreen } from "./src/screens/ExaminationScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { loadStockDetail } from "./src/stockDetail";
 import { isSupabaseConfigured, supabase } from "./src/supabase";
@@ -1192,72 +1194,5 @@ function ClaimCard({
       </View>
       <Pressable onPress={() => onExamine(claim)}><Text style={styles.examineLink}>Tap to cross-examine →</Text></Pressable>
     </View>
-  );
-}
-
-function EvidenceScreen({ ticker, evidence, onBack }: { ticker: string; evidence: EvidenceItem[]; onBack: () => void }) {
-  return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <BackButton onPress={onBack} />
-      <Text style={styles.eyebrow}>{ticker} · WHAT THE AGENTS USED</Text>
-      <Text style={styles.detailTitle}>Evidence Board</Text>
-      {evidence.length === 0 ? <Text style={styles.mutedText}>No evidence is available yet.</Text> : evidence.map((item) => (
-        <View key={item.id} style={styles.evidenceCard}>
-          <View style={styles.rowBetween}><Text style={styles.evidenceTag}>{item.id}</Text><Text style={styles.mutedText}>{item.source_type}</Text></View>
-          <Text style={styles.cardTitle}>{item.title}</Text>
-          <Text style={styles.mutedText}>{item.excerpt}</Text>
-          <Text style={styles.sourceText}>
-            {typeof item.metadata.source === "string" ? item.metadata.source : "cached source"} · {item.published_at || "undated"}
-          </Text>
-          <Text style={[
-            styles.freshnessText,
-            item.freshness.status === "current" && styles.freshnessCurrent,
-            item.freshness.status === "stale" && styles.freshnessStale,
-          ]}>
-            {item.freshness.status === "current"
-              ? `Current · ${item.freshness.age_days ?? 0}d old`
-              : item.freshness.status === "stale"
-                ? `Stale · ${item.freshness.age_days ?? "?"}d old`
-                : "Freshness unavailable"}
-          </Text>
-        </View>
-      ))}
-      <Text style={styles.safeNote}>Evidence is shown for interpretation, not as a recommendation.</Text>
-    </ScrollView>
-  );
-}
-
-function ExaminationScreen({
-  claim,
-  result,
-  loading,
-  onBack,
-  onAsk,
-}: {
-  claim: Claim | null;
-  result: ExaminationResponse | null;
-  loading: boolean;
-  onBack: () => void;
-  onAsk: (questionType: ExaminationResponse["question_type"]) => void;
-}) {
-  if (!claim) return <LoadingView label="No claim selected." onBack={onBack} />;
-  return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <BackButton onPress={onBack} />
-      <Text style={styles.eyebrow}>SELECTED {claim.agent.toUpperCase()} CLAIM</Text>
-      <Text style={styles.detailTitle}>Cross Examination</Text>
-      <View style={styles.answerCard}><Text style={styles.cardTitle}>{claim.text}</Text><Text style={styles.evidenceIds}>{claim.evidence_ids.join(" + ")}</Text></View>
-      <SectionHeader title="Ask a focused question" meta="explanation agent" />
-      {([
-        ["evidence_support", "What evidence supports this?"],
-        ["explain_term", "What does this term mean?"],
-        ["signal_strength", "How strong is the signal?"],
-        ["risk_meaning", "What is the risk meaning?"],
-      ] as const).map(([type, label]) => (
-        <Pressable key={type} style={styles.questionButton} onPress={() => onAsk(type)}><Text style={styles.questionText}>{label}</Text></Pressable>
-      ))}
-      {loading ? <ActivityIndicator color={palette.accent} style={styles.loader} /> : null}
-      {result ? <View style={styles.answerCard}><Text style={styles.cardLabel}>ANSWER</Text><Text style={styles.answerText}>{result.answer}</Text><Text style={styles.safeNote}>{result.disclaimer}</Text></View> : null}
-    </ScrollView>
   );
 }
