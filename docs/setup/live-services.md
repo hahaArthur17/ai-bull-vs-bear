@@ -109,6 +109,11 @@ does not write a Session, Job, Message, or production setting. A successful
 local run is evidence for credential and provider compatibility, not approval to
 enable Groq in production.
 
+Recorded local result on 2026-08-29: `openai/gpt-oss-20b` completed the single
+request with 625 bounded output characters and one linked evidence citation;
+all request, output, evidence, and term checks passed. No generated text or
+credentials were printed, and production configuration was unchanged.
+
 ## Gemini
 
 Console: <https://aistudio.google.com/api-keys>

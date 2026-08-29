@@ -145,6 +145,11 @@ credentials. It does not change V2, Queue, or production configuration:
       backend/.venv/bin/python scripts/verify_groq_explanation.py \
       --confirm-live-quota
 
+On 2026-08-29, one `openai/gpt-oss-20b` Explanation verification completed with
+625 bounded output characters and one linked evidence citation. All request,
+output, evidence, and term checks passed; no generated text or credentials were
+printed and production remained deterministic.
+
 Supported model providers:
 
 - ANALYSIS_PROVIDER=groq with GROQ_API_KEY and optional GROQ_MODEL.
