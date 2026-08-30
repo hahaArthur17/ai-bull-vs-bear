@@ -29,6 +29,7 @@ import {
   defaultExplanationQuestion,
   exactExplanationTerm,
 } from "../explanationView";
+import { interaction } from "../theme";
 import type {
   DebateMessageRecord,
   DebateSessionDetail,
@@ -289,7 +290,12 @@ export function LiveDebateScreen({
       contentContainerStyle={screenStyles.page}
       accessibilityLabel={`${ticker} live Bull versus Bear Debate`}
     >
-      <Pressable onPress={onBack} style={screenStyles.backButton} accessibilityRole="button">
+      <Pressable
+        onPress={onBack}
+        style={screenStyles.backButton}
+        accessibilityLabel={`Return to ${ticker} market snapshot`}
+        accessibilityRole="button"
+      >
         <Text style={screenStyles.backText}>← Market snapshot</Text>
       </Pressable>
 
@@ -338,6 +344,8 @@ export function LiveDebateScreen({
           <Pressable
             style={screenStyles.inlineButton}
             onPress={() => setStreamEpoch((current) => current + 1)}
+            accessibilityLabel="Reconnect to live Debate updates"
+            accessibilityRole="button"
           >
             <Text style={screenStyles.inlineButtonText}>Reconnect</Text>
           </Pressable>
@@ -421,6 +429,8 @@ export function LiveDebateScreen({
             style={screenStyles.textArea}
             placeholder="What does this mean in the argument?"
             placeholderTextColor={colors.muted}
+            accessibilityLabel="Question about the selected term"
+            accessibilityHint="Ask for a read-only explanation of the selected term."
           />
           {explanationError ? (
             <Text style={screenStyles.validationText}>{explanationError}</Text>
@@ -432,6 +442,7 @@ export function LiveDebateScreen({
               !canSubmitExplanation && screenStyles.disabledButton,
             ]}
             onPress={() => void submitExplanation()}
+            accessibilityLabel="Explain the selected term"
             accessibilityRole="button"
             accessibilityState={{ busy: explaining, disabled: !canSubmitExplanation }}
           >
@@ -480,6 +491,8 @@ export function LiveDebateScreen({
                 style={screenStyles.textArea}
                 placeholder="Exact text from the selected message"
                 placeholderTextColor={colors.muted}
+                accessibilityLabel="Exact quoted passage for the Round 2 challenge"
+                accessibilityHint="Enter text copied exactly from the selected Debate message."
               />
               {!selectedTextIsValid ? (
                 <Text style={screenStyles.validationText}>
@@ -495,6 +508,7 @@ export function LiveDebateScreen({
                 style={screenStyles.textArea}
                 placeholder="Which evidence should both sides reconsider?"
                 placeholderTextColor={colors.muted}
+                accessibilityLabel="Question for the Round 2 challenge"
               />
               <Pressable
                 disabled={!canSubmitChallenge}
@@ -503,6 +517,7 @@ export function LiveDebateScreen({
                   !canSubmitChallenge && screenStyles.disabledButton,
                 ]}
                 onPress={() => void submitChallenge()}
+                accessibilityLabel="Queue Round 2 challenge"
                 accessibilityRole="button"
                 accessibilityState={{ busy: challenging, disabled: !canSubmitChallenge }}
               >
@@ -525,6 +540,7 @@ export function LiveDebateScreen({
           disabled={!canCancel}
           style={[screenStyles.cancelButton, !canCancel && screenStyles.disabledButton]}
           onPress={() => void cancelDebate()}
+          accessibilityLabel="Stop the current Debate generation"
           accessibilityRole="button"
           accessibilityState={{ busy: cancelling, disabled: !canCancel }}
         >
@@ -599,7 +615,13 @@ function MessageCard({
         </Text>
       ) : null}
       {canTarget ? (
-        <Pressable onPress={onChallenge} style={screenStyles.messageAction}>
+        <Pressable
+          onPress={onChallenge}
+          style={screenStyles.messageAction}
+          accessibilityLabel={selected ? "Selected for Round 2 challenge" : "Challenge this point in Round 2"}
+          accessibilityRole="button"
+          accessibilityState={{ selected }}
+        >
           <Text style={screenStyles.messageActionText}>
             {selected ? "Selected for Round 2" : "Challenge this point →"}
           </Text>
@@ -631,7 +653,7 @@ function DraftCard({ draft }: { draft: DebateDraft }) {
 const screenStyles = StyleSheet.create({
   scroll: { flex: 1, backgroundColor: colors.background },
   page: { backgroundColor: colors.background, padding: 20, paddingBottom: 130 },
-  backButton: { alignSelf: "flex-start", paddingVertical: 8, marginBottom: 16 },
+  backButton: { alignSelf: "flex-start", justifyContent: "center", marginBottom: 16, minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
   backText: { color: colors.cyan, fontSize: 13, fontWeight: "800" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", gap: 14, marginBottom: 18 },
   headerCopy: { flex: 1 },
@@ -649,7 +671,7 @@ const screenStyles = StyleSheet.create({
   telemetry: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
   warningCard: { backgroundColor: "#332814", borderColor: "#6e5525", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   warningText: { color: colors.warning, fontSize: 12, lineHeight: 18 },
-  inlineButton: { alignSelf: "flex-start", marginTop: 8, borderBottomColor: colors.warning, borderBottomWidth: 1 },
+  inlineButton: { alignSelf: "flex-start", alignItems: "center", borderBottomColor: colors.warning, borderBottomWidth: 1, justifyContent: "center", marginTop: 8, minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
   inlineButtonText: { color: colors.warning, fontSize: 12, fontWeight: "800" },
   errorCard: { backgroundColor: "#351923", borderColor: "#6d2d3e", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   errorText: { color: colors.danger, fontSize: 12, lineHeight: 18 },
@@ -669,10 +691,10 @@ const screenStyles = StyleSheet.create({
   messageMeta: { color: colors.muted, fontSize: 9, fontWeight: "700" },
   messageText: { color: colors.text, fontSize: 14, lineHeight: 22, marginTop: 11 },
   termRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 },
-  termChip: { borderColor: colors.line, borderWidth: 1, borderRadius: 12, paddingHorizontal: 8, paddingVertical: 4 },
+  termChip: { alignItems: "center", borderColor: colors.line, borderWidth: 1, borderRadius: 12, justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 8, paddingVertical: 4 },
   termText: { color: colors.muted, fontSize: 10 },
   citations: { color: colors.cyan, fontSize: 9, lineHeight: 15, fontWeight: "700", marginTop: 12 },
-  messageAction: { alignSelf: "flex-start", marginTop: 13, paddingVertical: 5 },
+  messageAction: { alignSelf: "flex-start", alignItems: "center", justifyContent: "center", marginTop: 13, minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
   messageActionText: { color: colors.cyan, fontSize: 12, fontWeight: "800" },
   streamingRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   streamingText: { color: colors.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
@@ -681,7 +703,7 @@ const screenStyles = StyleSheet.create({
   explanationEyebrow: { color: colors.bull, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
   explanationTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
   explanationHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 7 },
-  dismissButton: { borderBottomColor: colors.muted, borderBottomWidth: 1, paddingBottom: 2 },
+  dismissButton: { alignItems: "center", borderBottomColor: colors.muted, borderBottomWidth: 1, justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
   dismissButtonText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
   selectedTerm: { color: colors.bull, backgroundColor: colors.background, borderColor: colors.line, borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, fontSize: 13, fontWeight: "800" },
   explanationButton: { minHeight: 46, backgroundColor: colors.bull, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },

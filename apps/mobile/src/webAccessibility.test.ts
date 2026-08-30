@@ -37,3 +37,8 @@ test("watchlist labels use AA text contrast on their rendered surfaces", () => {
   assert.ok(contrastRatio(palette.accent, colors.surface.canvas) >= 4.5);
   assert.ok(contrastRatio(palette.muted, colors.surface.raised) >= 4.5);
 });
+
+test("small positive-state labels and interactive controls keep their accessibility tokens", () => {
+  assert.ok(contrastRatio(palette.accent, colors.surface.positive) >= 4.5);
+  assert.equal(interaction.minTargetSize, 44);
+});

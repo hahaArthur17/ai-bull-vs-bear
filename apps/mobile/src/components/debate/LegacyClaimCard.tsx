@@ -27,7 +27,15 @@ export function LegacyClaimCard({
       <View style={styles.claimCitations}>
         {claim.evidence_ids.map((id) => <EvidenceCitation key={id} evidenceId={id} item={evidenceById.get(id)} closeDate={closeDate} />)}
       </View>
-      <Pressable accessibilityHint="Opens focused questions about this claim." accessibilityRole="button" onPress={() => onExamine(claim)}><Text style={styles.examineLink}>Tap to cross-examine →</Text></Pressable>
+      <Pressable
+        accessibilityHint="Opens focused questions about this claim."
+        accessibilityLabel="Cross-examine this claim"
+        accessibilityRole="button"
+        onPress={() => onExamine(claim)}
+        style={styles.examineButton}
+      >
+        <Text style={styles.examineLink}>Tap to cross-examine →</Text>
+      </Pressable>
     </View>
   );
 }
