@@ -2,7 +2,7 @@
 
 **Status:** Partial evidence recorded; Phase 8 remains in progress  
 **Recorded:** 2026-08-30  
-**Subject revision:** `58c3c53` (`test: verify responsive and accessible web flows`)
+**Subject revision:** `118f3d1` (`fix: finish phase 8 accessibility coverage`)
 
 This is an honest acceptance record, not a release sign-off. It uses only the
 deterministic demo backend and `EXPO_PUBLIC_AUTH_MODE=demo`; no credentials,
@@ -13,14 +13,15 @@ external market calls, or model calls were used.
 From `apps/mobile`, the following passed at the subject revision:
 
 ```sh
-npm run test:stream  # 35 passing tests
+npm run test:stream  # 36 passing tests
 npm run typecheck
 npm run build:web
 ```
 
 The Web export built successfully. The focused tests cover all required CSS
-widths, navigation target fit, focus-ring token strength, and the Watchlist
-label contrast regression fixed in the subject revision.
+widths, navigation target fit, focus-ring token strength, AA contrast for
+small positive-state labels, and the 44 px interaction-target token used by
+the corrected chart and Debate controls.
 
 ## Web browser verification
 
@@ -45,8 +46,8 @@ initial axe audit had 0 violations.
 
 | Target | Result | Executed flow | Limitation |
 | --- | --- | --- | --- |
-| Android Emulator — Pixel (`emulator-5556`, `sdk_gphone16k_arm64`) | Partial pass | Chrome opened the local deterministic Web bundle through `10.0.2.2`; catalog/watchlist data loaded, source/freshness wording remained visible, and direct taps reached About and the empty History. Android's accessibility tree exposed all four bottom-navigation labels and the About disclosure. | This is Android Chrome running the Expo Web bundle, not the native Expo Go/standalone app. Expo Go was not installed because the required SDK 52 APK download is 211 MB and did not make transfer progress in the available verification window. Chrome's own Translate prompt appeared once and was not treated as application UI. |
-| iOS Simulator — iPhone 17 Pro, iOS 26.5 | Blocked | Simulator booted and Safari was sent the local Web URL. | Safari's first-run Start Page onboarding obscured the app, and the available iOS automation provider did not return within 30 seconds. No app-page result is claimed. |
+| Android Emulator — Pixel (`emulator-5556`, `sdk_gphone16k_arm64`) | Partial pass | Chrome opened the local deterministic Web bundle through `10.0.2.2`; catalog/watchlist data loaded, source/freshness wording remained visible, and direct taps reached About and the empty History. Android's accessibility tree exposed all four bottom-navigation labels and the About disclosure. On 2026-08-30 the locally installed Expo CLI resolved the SDK 52 client as Expo Go 2.32.20 and attempted its official Expo GitHub APK download for 90 seconds. | This is Android Chrome running the Expo Web bundle, not the native Expo Go/standalone app. The APK download produced no progress or cache file, so it was stopped without installing anything. Chrome's own Translate prompt appeared once and was not treated as application UI. |
+| iOS Simulator — iPhone 17 Pro, iOS 26.5 | Blocked | Simulator booted; the installed-app inventory contained no Expo Go client. | Safari's earlier first-run Start Page onboarding obscured the Web check, and no native Expo client or standalone app is installed. No app-page result is claimed. |
 | Physical device | Not run | No physical iOS or Android device was connected to the workstation. | Required before Phase 8 can close. A device must be unlocked, developer/USB-debugging enabled where applicable, and able to reach the local backend through the workstation LAN address (not `10.0.2.2`). |
 
 Android screenshots were visually inspected after data loaded and after About and
