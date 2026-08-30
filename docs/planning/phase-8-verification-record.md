@@ -18,6 +18,13 @@ npm run typecheck
 npm run build:web
 ```
 
+The restored CI-equivalent backend entry point also passed:
+
+```sh
+cd backend
+pytest -q  # 345 passing tests
+```
+
 The Web export built successfully. The focused tests cover all required CSS
 widths, navigation target fit, focus-ring token strength, AA contrast for
 small positive-state labels, and the 44 px interaction-target token used by
