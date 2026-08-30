@@ -73,10 +73,11 @@ These are limitations of the current implementation, not completed features:
   The current quote remains outside the bundle response cache.
 - The durable Queue is connected only to the default-off V2 Debate path. The
   public legacy `/analysis` path remains synchronous by design.
-- Stock detail/charting, Evidence, Examination, Watchlist, History, About, and
-  V2 Debate now live in screen modules. `App.tsx` is 513 lines and retains the
-  app-level state/orchestration plus the legacy Debate and Claim Card
-  presentation; those remaining pieces need incremental modularization.
+- Stock detail/charting, Evidence, Examination, Watchlist, History, About,
+  Legacy Debate, and V2 Debate now live in screen modules. Shared Legacy Debate
+  presentation (Claim Cards, Judge summaries, agent status, and evidence
+  citations) lives in `src/components/debate/`; `App.tsx` retains app-level
+  authentication, state, navigation, and API orchestration.
 
 ## Accepted product direction
 
