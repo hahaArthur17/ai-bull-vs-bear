@@ -10,9 +10,12 @@ test("app shell keeps a readable content width and compacts navigation below tab
   const tablet = getResponsiveAppShellLayout(768);
   const desktop = getResponsiveAppShellLayout(1280);
 
-  assert.equal(compact.contentMaxWidth, layout.contentMaxWidth);
+  assert.ok(compact.contentMaxWidth < layout.contentMaxWidth);
+  assert.equal(desktop.contentMaxWidth, layout.contentMaxWidth);
+  assert.ok(phone.contentGutter > compact.contentGutter);
   assert.equal(phone.navigationGap, compact.navigationGap);
   assert.ok(tablet.navigationGap > compact.navigationGap);
   assert.ok(desktop.navigationGap > tablet.navigationGap);
   assert.ok(desktop.navigationPadding > compact.navigationPadding);
+  assert.ok(desktop.navigationMaxWidth <= layout.navigationMaxWidth);
 });

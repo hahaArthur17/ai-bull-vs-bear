@@ -246,6 +246,13 @@ product-owner approval remain WP4/WP8 gates.
 **Suggested agent:** Terra; Luna may handle mechanical replacement only after
 Terra establishes the token/component contract.
 
+**Status:** Implemented locally on 2026-09-07; automated and browser
+characterization evidence is recorded in
+[`phase-8-verification-record.md`](phase-8-verification-record.md). This
+package establishes the shared deep-theme foundation only. Product-owner visual
+approval, Stock workspace information architecture, V2 chat composition, and
+complete native/device proof remain open in WP4, WP6, and WP8/WP9.
+
 **File scope:** `prototype.html` as read-only reference,
 `apps/mobile/src/theme/tokens.ts`, `theme.ts`, shared components,
 `appShell.ts`, `App.tsx`, status bar/navigation, and Web/native typography or

@@ -395,7 +395,7 @@ export default function App() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <StatusBar style={screen === "debate" && debateExperience === "v2" ? "light" : "dark"} />
+      <StatusBar backgroundColor={palette.paper} style="light" />
       <View style={styles.appShell}>
         {reviewFixtureMode ? (
           <View accessibilityRole="text" style={styles.fixtureBanner}>
@@ -415,7 +415,7 @@ export default function App() {
             styles.bottomNavContent,
             {
               columnGap: responsiveShell.navigationGap,
-              maxWidth: responsiveShell.contentMaxWidth,
+              maxWidth: responsiveShell.navigationMaxWidth,
               paddingHorizontal: responsiveShell.navigationPadding,
             },
           ]}>

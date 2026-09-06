@@ -18,6 +18,10 @@ function contrastRatio(foreground: string, background: string): number {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
+function nonTextContrast(foreground: string, background: string): number {
+  return contrastRatio(foreground, background);
+}
+
 test("responsive web shell keeps every required viewport inside its frame", () => {
   for (const viewport of [320, 390, 768, 1280]) {
     const shell = getResponsiveAppShellLayout(viewport);
@@ -26,7 +30,8 @@ test("responsive web shell keeps every required viewport inside its frame", () =
       + interaction.minTargetSize * 4
       + shell.navigationGap * 3
     );
-    assert.ok(navigationWidth <= viewport, `${viewport}px should keep all four navigation targets reachable`);
+    assert.ok(navigationWidth <= shell.navigationMaxWidth, `${viewport}px should keep all four navigation targets reachable`);
+    assert.ok(shell.contentMaxWidth + shell.contentGutter * 2 <= viewport, `${viewport}px should keep the root content frame inside the viewport`);
   }
   assert.ok(layout.contentMaxWidth < layout.breakpoints.desktop, "desktop content must not span a 1280px viewport");
   assert.ok(interaction.focusRingWidth >= 2, "keyboard focus needs a visible ring");
@@ -40,5 +45,12 @@ test("watchlist labels use AA text contrast on their rendered surfaces", () => {
 
 test("small positive-state labels and interactive controls keep their accessibility tokens", () => {
   assert.ok(contrastRatio(palette.accent, colors.surface.positive) >= 4.5);
+  assert.ok(contrastRatio(colors.content.primary, colors.surface.raised) >= 4.5);
+  assert.ok(contrastRatio(colors.content.danger, colors.surface.danger) >= 4.5);
+  assert.ok(contrastRatio(colors.content.warning, colors.surface.warning) >= 4.5);
+  assert.ok(contrastRatio(colors.content.inverseSubtle, colors.surface.inverse) >= 4.5);
+  assert.ok(nonTextContrast(colors.chart.price, colors.surface.elevated) >= 3);
+  assert.ok(nonTextContrast(colors.chart.movingAverageShort, colors.surface.elevated) >= 3);
+  assert.ok(nonTextContrast(colors.chart.movingAverageLong, colors.surface.elevated) >= 3);
   assert.equal(interaction.minTargetSize, 44);
 });

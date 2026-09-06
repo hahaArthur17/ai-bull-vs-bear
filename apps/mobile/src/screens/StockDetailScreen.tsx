@@ -17,7 +17,7 @@ import {
 } from "../research/chartMath";
 import type { MacroChart, SeriesPoint } from "../research/chartMath";
 import { getQuoteProvenance } from "../stockResearchSummary";
-import { appStyles as styles, palette } from "../theme";
+import { appStyles as styles, colors, palette } from "../theme";
 import type { Stock, StockBundle } from "../types";
 
 export function StockDetailScreen({
@@ -387,8 +387,8 @@ function InteractivePriceChart({
         <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image">
           <Defs>
             <LinearGradient id="price-area" x1="0" x2="0" y1="0" y2="1">
-              <Stop offset="0" stopColor="#9bc6ac" stopOpacity="0.46" />
-              <Stop offset="1" stopColor="#9bc6ac" stopOpacity="0" />
+              <Stop offset="0" stopColor={colors.chart.priceArea} stopOpacity="0.46" />
+              <Stop offset="1" stopColor={colors.chart.priceArea} stopOpacity="0" />
             </LinearGradient>
           </Defs>
           {[0.25, 0.5, 0.75].map((position) => (
@@ -398,18 +398,18 @@ function InteractivePriceChart({
               x2={width - padding.right}
               y1={padding.top + plotHeight * position}
               y2={padding.top + plotHeight * position}
-              stroke="#ffffff"
+              stroke={colors.chart.grid}
               strokeOpacity="0.16"
               strokeDasharray="4 4"
             />
           ))}
           <Path d={areaPath} fill="url(#price-area)" />
-          <Path d={linePath} fill="none" stroke="#d7f0dc" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-          <Path d={ma20Path} fill="none" stroke="#f5c86e" strokeWidth="2" strokeLinecap="round" />
-          <Path d={ma50Path} fill="none" stroke="#d59be3" strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" />
-          <Line x1={activeCoordinate.x} x2={activeCoordinate.x} y1={padding.top} y2={height - padding.bottom} stroke="#fffdf8" strokeOpacity="0.7" strokeDasharray="3 3" />
-          <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="5" fill="#fffdf8" />
-          <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="2.5" fill="#d95c3b" />
+          <Path d={linePath} fill="none" stroke={colors.chart.price} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+          <Path d={ma20Path} fill="none" stroke={colors.chart.movingAverageShort} strokeWidth="2" strokeLinecap="round" />
+          <Path d={ma50Path} fill="none" stroke={colors.chart.movingAverageLong} strokeWidth="2" strokeLinecap="round" strokeDasharray="5 3" />
+          <Line x1={activeCoordinate.x} x2={activeCoordinate.x} y1={padding.top} y2={height - padding.bottom} stroke={colors.content.primary} strokeOpacity="0.7" strokeDasharray="3 3" />
+          <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="5" fill={colors.content.primary} />
+          <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="2.5" fill={colors.action.primary} />
         </Svg>
       </Pressable>
       <View style={styles.chartAxis}>
@@ -485,12 +485,12 @@ function TechnicalPanels({ prices }: { prices: StockBundle["prices"] }) {
       <TechnicalLineChart
         title="Relative strength"
         subtitle="RSI 14 · 30 / 70 reference lines"
-        series={[{ label: "RSI", color: "#7664a8", points: data.rsi }]}
+        series={[{ label: "RSI", color: colors.chart.oscillator, points: data.rsi }]}
         references={[30, 70]}
         fixedDomain={[0, 100]}
       />
       <MacdChart macd={data.macd} signal={data.macdSignal} histogram={data.histogram} />
-      <TechnicalBarChart title="Daily volume" subtitle="Shares traded" points={data.volume} color="#638ba2" />
+      <TechnicalBarChart title="Daily volume" subtitle="Shares traded" points={data.volume} color={colors.chart.volume} />
       <TechnicalLineChart
         title="Annualised volatility"
         subtitle="20-session realised volatility"
@@ -534,14 +534,14 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
         <TechnicalLineChart
           title={`${charts.sp500.label} · ${formatMacroValue(charts.sp500.latest.value ?? 0, charts.sp500.unit)}`}
           subtitle={`${charts.sp500.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.sp500.source.toUpperCase()} · latest ${formatMarketDate(charts.sp500.latest.date)} · last 30 observations`}
-          series={[{ label: charts.sp500.label, color: "#3e8b6d", points: charts.sp500.points }]}
+          series={[{ label: charts.sp500.label, color: colors.chart.positive, points: charts.sp500.points }]}
         />
       ) : null}
       {charts.vix ? (
         <TechnicalLineChart
           title={`${charts.vix.label} · ${formatMacroValue(charts.vix.latest.value ?? 0, charts.vix.unit)}`}
           subtitle={`${charts.vix.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.vix.source.toUpperCase()} · latest ${formatMarketDate(charts.vix.latest.date)} · last 30 observations`}
-          series={[{ label: charts.vix.label, color: "#7664a8", points: charts.vix.points }]}
+          series={[{ label: charts.vix.label, color: colors.chart.oscillator, points: charts.vix.points }]}
         />
       ) : null}
       {rateSeries.length ? (
@@ -550,7 +550,7 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
           subtitle={`${rateSeries.some((chart) => chart.simulated) ? "REVIEW FIXTURE (SIMULATED) · " : ""}${rateLatest}`}
           series={rateSeries.map((chart, index) => ({
             label: chart.label,
-            color: ["#d95c3b", "#638ba2", "#3e8b6d", "#7664a8"][index],
+            color: [colors.action.primary, colors.chart.volume, colors.chart.positive, colors.chart.oscillator][index],
             points: chart.points,
           }))}
           suffix="%"
@@ -560,7 +560,7 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
         <TechnicalLineChart
           title={`${charts.wti.label} · ${formatMacroValue(charts.wti.latest.value ?? 0, charts.wti.unit)}`}
           subtitle={`${charts.wti.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.wti.source.toUpperCase()} · latest ${formatMarketDate(charts.wti.latest.date)} · last 30 observations`}
-          series={[{ label: charts.wti.label, color: "#b95455", points: charts.wti.points }]}
+          series={[{ label: charts.wti.label, color: colors.chart.negative, points: charts.wti.points }]}
           prefix="$"
         />
       ) : null}
@@ -608,8 +608,8 @@ function TechnicalLineChart({
         </Text>
       ))}
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
-        {[0.25, 0.5, 0.75].map((position) => <Line key={position} x1={padding} x2={width - padding} y1={padding + plotHeight * position} y2={padding + plotHeight * position} stroke="#d8d5ca" strokeDasharray="3 4" />)}
-        {references.map((value) => <Line key={value} x1={padding} x2={width - padding} y1={yForValue(value)} y2={yForValue(value)} stroke="#b4a67d" strokeDasharray="5 4" />)}
+        {[0.25, 0.5, 0.75].map((position) => <Line key={position} x1={padding} x2={width - padding} y1={padding + plotHeight * position} y2={padding + plotHeight * position} stroke={colors.chart.grid} strokeDasharray="3 4" />)}
+        {references.map((value) => <Line key={value} x1={padding} x2={width - padding} y1={yForValue(value)} y2={yForValue(value)} stroke={colors.chart.reference} strokeDasharray="5 4" />)}
         {series.map((item) => <Path key={item.label} d={technicalPath(item.points, min, max, width, height, padding)} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinecap="round" />)}
       </Svg>
       <View style={styles.chartNumericAxis}><Text style={styles.chartNumericText}>{prefix}{min.toFixed(1)}{suffix}</Text><Text style={styles.chartNumericText}>{prefix}{max.toFixed(1)}{suffix}</Text></View>
@@ -635,14 +635,14 @@ function MacdChart({ macd, signal, histogram }: { macd: SeriesPoint[]; signal: S
       <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend("MACD", seriesTrend(macd))}</Text>
       <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend("Signal", seriesTrend(signal))}</Text>
       <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel="MACD and signal line chart with a positive or negative histogram.">
-        <Line x1={padding} x2={width - padding} y1={baseline} y2={baseline} stroke="#b4a67d" strokeDasharray="5 4" />
+        <Line x1={padding} x2={width - padding} y1={baseline} y2={baseline} stroke={colors.chart.reference} strokeDasharray="5 4" />
         {histogram.map((point, index) => {
           if (point.value === null) return null;
           const x = padding + (index / Math.max(histogram.length - 1, 1)) * plotWidth;
           const y = yForValue(point.value);
-          return <Rect key={point.date} x={x - 1.5} y={Math.min(y, baseline)} width={3} height={Math.abs(y - baseline)} fill={point.value >= 0 ? "#92bd9d" : "#df9c99"} />;
+          return <Rect key={point.date} x={x - 1.5} y={Math.min(y, baseline)} width={3} height={Math.abs(y - baseline)} fill={point.value >= 0 ? colors.chart.positive : colors.chart.negative} />;
         })}
-        <Path d={technicalPath(macd, min, max, width, height, padding)} fill="none" stroke="#7664a8" strokeWidth="2.3" />
+        <Path d={technicalPath(macd, min, max, width, height, padding)} fill="none" stroke={colors.chart.oscillator} strokeWidth="2.3" />
         <Path d={technicalPath(signal, min, max, width, height, padding)} fill="none" stroke={palette.signal} strokeWidth="2.3" />
       </Svg>
       <View style={styles.chartNumericAxis}><Text style={styles.chartNumericText}>{min.toFixed(2)}</Text><Text style={styles.chartNumericText}>{max.toFixed(2)}</Text></View>

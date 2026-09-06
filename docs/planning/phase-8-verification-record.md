@@ -20,6 +20,44 @@ The checks use only deterministic tests or the demo backend and
 `EXPO_PUBLIC_AUTH_MODE=demo`; no credentials, external market calls, or model
 calls were used.
 
+## WP3 prototype-derived design foundation verification on 2026-09-07
+
+WP3 replaces the shared warm-paper shell with one semantic deep-theme contract
+derived from `prototype.html`: navy canvas and layered blue surfaces, teal
+constructive/positive states, pink risk states, and gold action/evidence
+attention. The contract includes typography, spacing, radius, contrast-safe
+content and status colours, focus-ring colour/width, elevated/floating
+surfaces, responsive content/navigation sizing, and an explicit reduced-motion
+timing selector. Existing fixture, error, accessibility, and provenance copy
+remained intact. Stock chart strokes and the existing V2 screen now consume the
+same chart/role tokens; this changes visual roles only, not the Stock workspace
+information architecture or the Debate conversation layout.
+
+From `apps/mobile`, the following passed after the foundation change:
+
+```sh
+npm run test:stream  # 47 passing tests
+npm run typecheck
+npm run build:web
+```
+
+The added token, shell, and accessibility assertions cover the deep canvas and
+semantic role mappings, spacing/radius/elevation contract, reduced-motion
+durations, 44 px targets, AA contrast for primary/secondary/status and
+on-accent text, focus-ring strength, and root-frame/navigation fit at 320,
+390, 768, and 1280 CSS pixels.
+
+Using the documented local `review_fixture` backend and demo-auth frontend,
+the Web app was then inspected at those four viewports. Every viewport kept
+`document.documentElement.scrollWidth` equal to the viewport width; the
+floating navigation measured 288 px at 320, 680 px at 768, and stayed centred
+at 680 px on 1280. The fixture banner stayed visible, no framework error overlay
+or browser console error appeared, and the loaded AAPL workspace retained its
+simulated label and rendered price-chart controls. The temporary local servers
+were stopped after inspection. This is implementation/regression evidence only:
+it does not approve subjective page composition, Stock workspace hierarchy,
+V2 chat choreography, native-device appearance, or the final product design.
+
 ## Automated baseline
 
 From `apps/mobile`, the following passed at the subject revision:

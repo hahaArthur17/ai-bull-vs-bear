@@ -29,7 +29,7 @@ import {
   defaultExplanationQuestion,
   exactExplanationTerm,
 } from "../explanationView";
-import { interaction } from "../theme";
+import { colors as themeColors, interaction } from "../theme";
 import type {
   DebateMessageRecord,
   DebateSessionDetail,
@@ -43,18 +43,18 @@ type LiveDebateScreenProps = {
 };
 
 const colors = {
-  background: "#07111f",
-  surface: "#0d1b2d",
-  elevated: "#12243a",
-  line: "#263c55",
-  text: "#edf7ff",
-  muted: "#91a6ba",
-  cyan: "#36d4e8",
-  bull: "#4bd49b",
-  bear: "#ff7185",
-  judge: "#c8a8ff",
-  warning: "#f5bd5c",
-  danger: "#ff7185",
+  background: themeColors.surface.canvas,
+  surface: themeColors.surface.raised,
+  elevated: themeColors.surface.elevated,
+  line: themeColors.border.subtle,
+  text: themeColors.content.primary,
+  muted: themeColors.content.secondary,
+  cyan: themeColors.agent.user,
+  bull: themeColors.agent.bull,
+  bear: themeColors.agent.bear,
+  judge: themeColors.agent.judge,
+  warning: themeColors.content.warning,
+  danger: themeColors.content.danger,
 } as const;
 
 function newIdempotencyKey(prefix: string): string {
@@ -669,11 +669,11 @@ const screenStyles = StyleSheet.create({
   statusDetail: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
   telemetryRow: { flexDirection: "row", flexWrap: "wrap", gap: 12, borderTopColor: colors.line, borderTopWidth: 1, marginTop: 12, paddingTop: 10 },
   telemetry: { color: colors.muted, fontSize: 9, fontWeight: "800", letterSpacing: 0.8 },
-  warningCard: { backgroundColor: "#332814", borderColor: "#6e5525", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
+  warningCard: { backgroundColor: themeColors.surface.warning, borderColor: themeColors.border.warning, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   warningText: { color: colors.warning, fontSize: 12, lineHeight: 18 },
   inlineButton: { alignSelf: "flex-start", alignItems: "center", borderBottomColor: colors.warning, borderBottomWidth: 1, justifyContent: "center", marginTop: 8, minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
   inlineButtonText: { color: colors.warning, fontSize: 12, fontWeight: "800" },
-  errorCard: { backgroundColor: "#351923", borderColor: "#6d2d3e", borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
+  errorCard: { backgroundColor: themeColors.surface.danger, borderColor: themeColors.border.danger, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   errorText: { color: colors.danger, fontSize: 12, lineHeight: 18 },
   actionStatusCard: { backgroundColor: colors.elevated, borderColor: colors.line, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 12 },
   actionStatusLabel: { color: colors.cyan, fontSize: 12, fontWeight: "900" },
@@ -685,7 +685,7 @@ const screenStyles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 14, fontWeight: "800", marginBottom: 7 },
   emptyText: { color: colors.muted, fontSize: 12, lineHeight: 19 },
   messageCard: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderLeftWidth: 4, borderRadius: 14, padding: 15, marginBottom: 11 },
-  selectedMessage: { borderColor: colors.cyan, backgroundColor: "#102a3b" },
+  selectedMessage: { borderColor: colors.cyan, backgroundColor: themeColors.surface.selected },
   draftCard: { backgroundColor: colors.elevated, borderColor: colors.cyan, borderWidth: 1, borderLeftWidth: 4, borderRadius: 14, padding: 15, marginBottom: 11 },
   roleLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1.1 },
   messageMeta: { color: colors.muted, fontSize: 9, fontWeight: "700" },
@@ -699,7 +699,7 @@ const screenStyles = StyleSheet.create({
   streamingRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   streamingText: { color: colors.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
   draftNote: { color: colors.muted, fontSize: 10, fontStyle: "italic", marginTop: 9 },
-  explanationPanel: { backgroundColor: "#142518", borderColor: colors.bull, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
+  explanationPanel: { backgroundColor: themeColors.surface.positive, borderColor: colors.bull, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
   explanationEyebrow: { color: colors.bull, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
   explanationTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
   explanationHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 7 },
@@ -712,7 +712,7 @@ const screenStyles = StyleSheet.create({
   explanationResultTitle: { color: colors.bull, fontSize: 11, fontWeight: "900", letterSpacing: 0.8 },
   explanationContent: { color: colors.text, fontSize: 13, lineHeight: 20, marginTop: 8 },
   explanationSafetyNote: { color: colors.warning, fontSize: 10, lineHeight: 16, marginTop: 10 },
-  challengePanel: { backgroundColor: "#101d30", borderColor: colors.judge, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
+  challengePanel: { backgroundColor: themeColors.surface.information, borderColor: colors.judge, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
   challengeEyebrow: { color: colors.judge, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
   challengeTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
   challengeHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 14 },

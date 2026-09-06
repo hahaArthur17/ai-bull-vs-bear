@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { ActivityIndicator, Pressable, Text, View } from "react-native";
 
-import { appStyles as styles, interaction, palette } from "../theme";
+import { appStyles as styles, colors, interaction, palette } from "../theme";
 
 
 export function SectionHeader({ title, meta }: { title: string; meta: string }) {
@@ -44,7 +44,7 @@ export function NavButton({ label, active, onPress }: { label: string; active: b
       onBlur={() => setFocused(false)}
       onFocus={() => setFocused(true)}
       onPress={onPress}
-      style={[styles.navButton, focused && { borderColor: palette.accent, borderWidth: interaction.focusRingWidth }]}
+      style={[styles.navButton, focused && { borderColor: colors.action.focus, borderWidth: interaction.focusRingWidth }]}
     >
       <Text style={[styles.navLabel, active && styles.navLabelActive]}>{label}</Text>
     </Pressable>

@@ -115,7 +115,7 @@ export function AuthScreen() {
             onPress={() => void authenticate("sign-in")}
             style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
           >
-            {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
+            {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color={colors.content.onSignal} /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
           </Pressable>
           <Pressable
             accessibilityHint="Creates an account with the email address and password above."
@@ -141,7 +141,7 @@ const styles = StyleSheet.create({
   scrollContent: { alignItems: "center", flexGrow: 1, justifyContent: "center", padding: spacing.xl, gap: spacing.lg },
   brandRow: { alignItems: "center", alignSelf: "center", flexDirection: "row", gap: spacing.sm, maxWidth: 640, width: "100%" },
   brandMark: { alignItems: "center", backgroundColor: palette.accent, borderRadius: radii.md, height: interaction.minTargetSize, justifyContent: "center", width: interaction.minTargetSize },
-  brandMarkText: { color: "#fff", fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
+  brandMarkText: { color: colors.content.inverse, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
   brandName: { color: palette.ink, fontSize: 12, fontWeight: "900", letterSpacing: 1.1 },
   brandMeta: { color: palette.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginTop: 2 },
   card: { alignSelf: "center", backgroundColor: palette.card, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, maxWidth: 640, padding: spacing.xl, width: "100%" },
@@ -156,7 +156,7 @@ const styles = StyleSheet.create({
   error: { backgroundColor: colors.surface.danger, borderRadius: radii.sm, color: colors.content.danger, fontSize: 12, lineHeight: 18, marginBottom: spacing.md, padding: spacing.sm },
   message: { backgroundColor: colors.surface.positive, borderRadius: radii.sm, color: palette.accent, fontSize: 12, lineHeight: 18, marginBottom: spacing.md, padding: spacing.sm },
   primaryButton: { alignItems: "center", backgroundColor: palette.signal, borderRadius: radii.md, justifyContent: "center", minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  primaryText: { color: "#fff", fontSize: 14, fontWeight: "800" },
+  primaryText: { color: colors.content.onSignal, fontSize: 14, fontWeight: "800" },
   buttonDisabled: { opacity: 0.45 },
   secondaryButton: { alignItems: "center", borderColor: palette.accent, borderRadius: radii.md, borderWidth: 1, justifyContent: "center", marginTop: spacing.sm, minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   secondaryButtonDisabled: { borderColor: palette.line },
