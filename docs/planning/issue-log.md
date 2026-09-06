@@ -69,6 +69,16 @@ The data/release workstream owns items 1–4; the Phase 8 UI workstream owns ite
 verification, indicator parity tests, and the visual acceptance evidence are
 recorded. No credentials or private configuration are included in this entry.
 
+**2026-09-07 local mitigation update**
+
+WP1 now implements items 2–4 locally: failed and non-advancing daily refreshes
+exit nonzero, Supabase reads the newest rather than oldest limited window,
+backend/client indicators share a golden-vector contract, and complete-history
+status requires 50 valid ordered unique completed closes plus trusted
+provenance. The complete backend and mobile gates pass. The issue remains open
+until an authorized live refresh proves the hosted AAPL cache advances and the
+same-SHA staging and `review_fixture` checks close items 1 and 5.
+
 ---
 
 ## 2026-08-28 — Local Settings representation exposed configured credentials

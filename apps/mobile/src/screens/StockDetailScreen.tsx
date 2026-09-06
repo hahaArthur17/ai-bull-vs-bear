@@ -7,8 +7,8 @@ import { formatChartDate, formatMarketDate, formatQuoteTime } from "../dateForma
 import {
   calculateRsi,
   calculateVolatility,
+  calculateMacd,
   chartScale,
-  exponentialMovingAverage,
   formatMacroValue,
   macroChart,
   seriesTrend,
@@ -90,7 +90,18 @@ export function StockDetailScreen({
     );
   }
   const quoteProvenance = getQuoteProvenance(bundle);
-  const { hasVerifiedMarketData } = quoteProvenance;
+  const {
+    curveSource,
+    hasPriceCurve,
+    hasVerifiedMarketData,
+    preferredChartRange,
+  } = quoteProvenance;
+  const availability = bundle.indicators.availability;
+  const hasAnyTechnicalData = availability
+    ? Object.values(availability).some(Boolean)
+    : hasVerifiedMarketData;
+  const historyExplanation = bundle.indicators.history?.explanation
+    ?? "Daily history has not been assessed.";
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <BackButton onPress={onBack} />
@@ -110,7 +121,7 @@ export function StockDetailScreen({
           <Text style={styles.priceProvenanceText}>{quoteProvenance.timestamp}</Text>
           <Text style={styles.priceProvenanceText}>Freshness · {quoteProvenance.freshness}</Text>
           <Text style={styles.priceProvenanceText}>
-            Curve source · {hasVerifiedMarketData ? "Verified daily market cache" : "Unavailable until daily data is verified"}
+            Curve source · {curveSource}
           </Text>
         </View>
         {quoteProvenance.warning ? (
@@ -119,23 +130,28 @@ export function StockDetailScreen({
             <Text style={styles.priceWarningText}>{quoteProvenance.warning}</Text>
           </View>
         ) : null}
-        {hasVerifiedMarketData ? (
-          <InteractivePriceChart ticker={bundle.stock.ticker} dailyPrices={bundle.prices} weeklyPrices={bundle.weekly_history} />
+        {hasPriceCurve ? (
+          <InteractivePriceChart
+            ticker={bundle.stock.ticker}
+            dailyPrices={bundle.prices}
+            weeklyPrices={bundle.weekly_history}
+            initialRange={preferredChartRange}
+          />
         ) : (
           <View style={styles.chartUnavailable}>
-            <Text style={styles.chartUnavailableText}>No curve is shown until market data is verified.</Text>
+            <Text style={styles.chartUnavailableText}>{historyExplanation}</Text>
           </View>
         )}
       </View>
-      {hasVerifiedMarketData ? (
+      {hasAnyTechnicalData ? (
         <>
           <MacroContextPanel context={bundle.macro_context} />
           <SectionHeader title="Signal snapshot" meta="technical agent" />
           <View style={styles.metricGrid}>
-            <Metric label="RSI" value={bundle.indicators.rsi.toFixed(1)} />
-            <Metric label="MACD" value={bundle.indicators.macd.toFixed(2)} />
-            <Metric label="MA20" value={bundle.indicators.moving_average_20.toFixed(2)} />
-            <Metric label="Volatility" value={bundle.indicators.volatility.toFixed(1) + "%"} />
+            <Metric label="RSI" value={availability?.rsi === false ? "—" : bundle.indicators.rsi.toFixed(1)} />
+            <Metric label="MACD" value={availability?.macd === false ? "—" : bundle.indicators.macd.toFixed(2)} />
+            <Metric label="MA20" value={availability?.moving_average_20 === false ? "—" : bundle.indicators.moving_average_20.toFixed(2)} />
+            <Metric label="Volatility" value={availability?.volatility === false ? "—" : bundle.indicators.volatility.toFixed(1) + "%"} />
           </View>
           <TechnicalPanels prices={bundle.prices} />
           <View style={styles.signalCard}><Text style={styles.signalText}>{bundle.indicators.signal_summary}</Text></View>
@@ -143,7 +159,7 @@ export function StockDetailScreen({
       ) : (
         <View style={styles.signalUnavailable}>
           <Text style={styles.signalUnavailableTitle}>Technical signals are paused</Text>
-          <Text style={styles.signalUnavailableText}>RSI, MACD, and the curve will appear once the daily-price cache has verified history.</Text>
+          <Text style={styles.signalUnavailableText}>{historyExplanation}</Text>
         </View>
       )}
       <View style={styles.actionRow}>
@@ -193,7 +209,7 @@ type InteractivePricePoint = {
   date: string;
   close: number;
   frequency: "daily" | "weekly";
-  source: "daily_market_cache" | "demo_fallback" | "alpha_vantage_weekly";
+  source: "daily_market_cache" | "demo_fallback" | "review_fixture" | "alpha_vantage_weekly";
   ma20: number | null;
   ma50: number | null;
   is_stale?: boolean;
@@ -204,12 +220,14 @@ function InteractivePriceChart({
   ticker,
   dailyPrices,
   weeklyPrices,
+  initialRange,
 }: {
   ticker: string;
   dailyPrices: StockBundle["prices"];
   weeklyPrices: StockBundle["weekly_history"];
+  initialRange: ChartRange;
 }) {
-  const [range, setRange] = useState<ChartRange>("1M");
+  const [range, setRange] = useState<ChartRange>(initialRange);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [chartWidth, setChartWidth] = useState(320);
   const points: InteractivePricePoint[] = useMemo(() => {
@@ -310,7 +328,9 @@ function InteractivePriceChart({
     });
   };
   const frequencyLabel = activePoint.frequency === "daily"
-    ? activePoint.is_stale
+    ? activePoint.source === "review_fixture"
+      ? "Simulated review fixture · not live market data"
+      : activePoint.is_stale
       ? "Daily market cache · stale"
       : "Daily market cache · verified"
     : activePoint.retrieved_at
@@ -431,17 +451,16 @@ function TechnicalPanels({ prices }: { prices: StockBundle["prices"] }) {
   const data = useMemo(() => {
     const closes = prices.map((point) => point.close);
     const toPoints = (values: Array<number | null>): SeriesPoint[] => values.map((value, index) => ({ date: prices[index].date, value }));
-    const ema12 = exponentialMovingAverage(closes, 12);
-    const ema26 = exponentialMovingAverage(closes, 26);
-    const macd = closes.map((_, index) => ema12[index] - ema26[index]);
-    const signal = exponentialMovingAverage(macd, 9);
+    const { macd, signal } = calculateMacd(closes);
     return {
       ma20: toPoints(simpleMovingAverage(closes, 20)),
       ma50: toPoints(simpleMovingAverage(closes, 50)),
       rsi: toPoints(calculateRsi(closes)),
       macd: toPoints(macd),
       macdSignal: toPoints(signal),
-      histogram: toPoints(macd.map((value, index) => value - signal[index])),
+      histogram: toPoints(macd.map((value, index) => (
+        value === null || signal[index] === null ? null : value - signal[index]
+      ))),
       volume: prices.map((point) => ({ date: point.date, value: point.volume })),
       volatility: toPoints(calculateVolatility(closes)),
     };

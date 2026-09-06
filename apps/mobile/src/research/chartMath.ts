@@ -41,14 +41,32 @@ export function calculateRsi(values: number[], period = 14): Array<number | null
   }
   let averageGain = gains / period;
   let averageLoss = losses / period;
-  result[period] = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+  result[period] = averageGain === 0 && averageLoss === 0
+    ? 50
+    : averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
   for (let index = period + 1; index < values.length; index += 1) {
     const change = values[index] - values[index - 1];
     averageGain = (averageGain * (period - 1) + Math.max(0, change)) / period;
     averageLoss = (averageLoss * (period - 1) + Math.max(0, -change)) / period;
-    result[index] = averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
+    result[index] = averageGain === 0 && averageLoss === 0
+      ? 50
+      : averageLoss === 0 ? 100 : 100 - 100 / (1 + averageGain / averageLoss);
   }
   return result;
+}
+
+export function calculateMacd(values: number[]): {
+  macd: Array<number | null>;
+  signal: Array<number | null>;
+} {
+  const ema12 = exponentialMovingAverage(values, 12);
+  const ema26 = exponentialMovingAverage(values, 26);
+  const rawMacd = values.map((_, index) => ema12[index] - ema26[index]);
+  const rawSignal = exponentialMovingAverage(rawMacd, 9);
+  return {
+    macd: rawMacd.map((value, index) => index < 25 ? null : value),
+    signal: rawSignal.map((value, index) => index < 33 ? null : value),
+  };
 }
 
 export function exponentialMovingAverage(values: number[], period: number): number[] {

@@ -1,7 +1,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { chartScale, seriesTrend, simpleMovingAverage, technicalPath } from "./research/chartMath.ts";
+import {
+  calculateMacd,
+  calculateRsi,
+  calculateVolatility,
+  chartScale,
+  seriesTrend,
+  simpleMovingAverage,
+  technicalPath,
+} from "./research/chartMath.ts";
 
 test("chart calculations retain gaps and use complete trailing windows", () => {
   assert.deepEqual(simpleMovingAverage([1, 2, 3, 4], 3), [null, null, 2, 3]);
@@ -38,4 +46,32 @@ test("chart trend retains the selected date range and does not invent a percenta
   });
   assert.equal(seriesTrend([{ date: "2026-08-01", value: 0 }, { date: "2026-08-02", value: 3 }])?.percentChange, null);
   assert.equal(seriesTrend([{ date: "2026-08-01", value: null }]), null);
+});
+
+test("canonical indicator golden vector matches the backend", () => {
+  const closes = Array.from(
+    { length: 55 },
+    (_, index) => 100 + index * 0.7 + ((index % 5) - 2) * 0.9,
+  );
+  const rsi = calculateRsi(closes);
+  const volatility = calculateVolatility(closes);
+  const { macd, signal } = calculateMacd(closes);
+
+  assert.equal(rsi.at(-1)?.toFixed(4), "72.9231");
+  assert.equal(macd.at(-1)?.toFixed(4), "4.9502");
+  assert.equal(signal.at(-1)?.toFixed(4), "4.7633");
+  assert.equal(volatility.at(-1)?.toFixed(4), "22.0120");
+  assert.equal(simpleMovingAverage(closes, 20).at(-1)?.toFixed(4), "131.1500");
+  assert.equal(simpleMovingAverage(closes, 50).at(-1)?.toFixed(4), "120.6500");
+});
+
+test("indicator warm-up boundaries remain unavailable per series", () => {
+  assert.equal(calculateRsi(Array(14).fill(100)).at(-1), null);
+  assert.equal(calculateRsi(Array(15).fill(100)).at(-1), 50);
+  assert.equal(calculateVolatility(Array(20).fill(100)).at(-1), null);
+  assert.equal(calculateVolatility(Array(21).fill(100)).at(-1), 0);
+  assert.equal(calculateMacd(Array(25).fill(100)).macd.at(-1), null);
+  assert.equal(calculateMacd(Array(26).fill(100)).macd.at(-1), 0);
+  assert.equal(calculateMacd(Array(33).fill(100)).signal.at(-1), null);
+  assert.equal(calculateMacd(Array(34).fill(100)).signal.at(-1), 0);
 });

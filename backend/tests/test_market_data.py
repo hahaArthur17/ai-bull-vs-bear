@@ -10,6 +10,7 @@ from app.services.market_data import (
     MarketDataError,
     QuoteCache,
     SupabasePriceWriter,
+    ensure_successful_price_refresh,
     ingest_live_prices,
     ingest_weekly_price_history,
     parse_alpha_vantage_daily,
@@ -247,6 +248,26 @@ def test_supabase_price_writer_upserts_daily_cache() -> None:
     assert written_rows[-1]["trading_date"] == "2026-08-14"
 
 
+def test_supabase_price_writer_reads_latest_cached_date_for_advancement_check() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        table = request.url.path.rsplit("/", 1)[-1]
+        if table == "stocks":
+            return httpx.Response(200, json=[{"id": 7}])
+        if table == "stock_prices":
+            assert request.url.params["order"] == "trading_date.desc"
+            assert request.url.params["limit"] == "1"
+            return httpx.Response(200, json=[{"trading_date": "2026-08-14"}])
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    writer = SupabasePriceWriter(
+        "https://example.supabase.co",
+        "secret-key",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    assert writer.latest_price_date("AAPL") == "2026-08-14"
+
+
 def test_supabase_price_writer_upserts_labelled_weekly_history() -> None:
     written_rows: list[dict[str, object]] = []
 
@@ -342,3 +363,165 @@ def test_live_price_ingestion_enforces_provider_call_budget() -> None:
 
     assert provider.tickers == ["AAPL", "GOOG"]
     assert result["skipped"] == ["NVDA", "TSLA"]
+
+
+def test_live_price_ingestion_rejects_non_advancing_refresh() -> None:
+    class FakeProvider:
+        def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+            return parse_alpha_vantage_daily(daily_payload())
+
+    class FakeWriter:
+        def latest_price_date(self, ticker: str) -> str:
+            return "2026-08-14"
+
+        def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+            raise AssertionError("a non-advancing refresh must not write")
+
+    result = ingest_live_prices(FakeProvider(), FakeWriter())  # type: ignore[arg-type]
+
+    assert result["updated"] == {}
+    assert result["non_advancing"] == ["AAPL"]
+    with pytest.raises(SystemExit, match="non_advancing"):
+        ensure_successful_price_refresh(result)
+
+
+def test_refresh_result_with_failed_item_exits_nonzero() -> None:
+    with pytest.raises(SystemExit, match="failed"):
+        ensure_successful_price_refresh({"updated": {}, "failed": ["AAPL"], "skipped": []})
+
+    ensure_successful_price_refresh({"updated": {"AAPL": 100}, "failed": [], "skipped": []})
+
+
+def test_refresh_result_with_empty_ticker_selection_exits_nonzero() -> None:
+    result = ingest_live_prices(  # type: ignore[arg-type]
+        object(),
+        object(),
+        tickers=(),
+    )
+
+    assert result == {"updated": {}, "failed": [], "skipped": []}
+    with pytest.raises(SystemExit, match="no_tickers_updated"):
+        ensure_successful_price_refresh(result)
+
+
+def test_supabase_ingestion_requires_post_write_date_advancement() -> None:
+    stock_reads = 0
+    price_reads = 0
+    price_writes = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal stock_reads, price_reads, price_writes
+        table = request.url.path.rsplit("/", 1)[-1]
+        if table == "stocks":
+            stock_reads += 1
+            return httpx.Response(200, json=[{"id": 7}])
+        if table == "stock_prices" and request.method == "GET":
+            price_reads += 1
+            return httpx.Response(200, json=[{"trading_date": "2026-08-13"}])
+        if table == "stock_prices" and request.method == "POST":
+            price_writes += 1
+            return httpx.Response(201)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    writer = SupabasePriceWriter(
+        "https://example.supabase.co",
+        "secret-key",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    class FakeProvider:
+        def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+            return parse_alpha_vantage_daily(daily_payload())
+
+    result = ingest_live_prices(FakeProvider(), writer)
+
+    assert result == {"updated": {}, "failed": ["AAPL"], "skipped": []}
+    assert stock_reads == 1
+    assert price_reads == 2
+    assert price_writes == 1
+    with pytest.raises(SystemExit, match="failed"):
+        ensure_successful_price_refresh(result)
+
+
+def test_supabase_ingestion_accepts_verified_post_write_date() -> None:
+    wrote = False
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal wrote
+        table = request.url.path.rsplit("/", 1)[-1]
+        if table == "stocks":
+            return httpx.Response(200, json=[{"id": 7}])
+        if table == "stock_prices" and request.method == "GET":
+            date_value = "2026-08-14" if wrote else "2026-08-13"
+            return httpx.Response(200, json=[{"trading_date": date_value}])
+        if table == "stock_prices" and request.method == "POST":
+            wrote = True
+            return httpx.Response(201)
+        raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+    writer = SupabasePriceWriter(
+        "https://example.supabase.co",
+        "secret-key",
+        httpx.Client(transport=httpx.MockTransport(handler)),
+    )
+
+    class FakeProvider:
+        def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+            return parse_alpha_vantage_daily(daily_payload())
+
+    result = ingest_live_prices(FakeProvider(), writer)
+
+    assert result == {"updated": {"AAPL": 2}, "failed": [], "skipped": []}
+    ensure_successful_price_refresh(result)
+
+
+def test_live_price_ingestion_rejects_duplicate_or_out_of_order_provider_rows() -> None:
+    class FakeWriter:
+        def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+            raise AssertionError("invalid history must not write")
+
+    first = {
+        "date": "2026-08-13",
+        "open": 219.0,
+        "high": 222.0,
+        "low": 218.0,
+        "close": 220.0,
+        "volume": 1,
+    }
+    second = {
+        "date": "2026-08-14",
+        "open": 220.0,
+        "high": 223.0,
+        "low": 219.0,
+        "close": 221.0,
+        "volume": 1,
+    }
+    for points in (
+        [first, {**second, "date": first["date"]}],
+        [second, first],
+    ):
+        class FakeProvider:
+            def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+                return points
+
+        result = ingest_live_prices(FakeProvider(), FakeWriter())  # type: ignore[arg-type]
+        assert result["failed"] == ["AAPL"]
+
+
+def test_live_price_ingestion_rejects_invalid_ohlcv_values() -> None:
+    class FakeWriter:
+        def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
+            raise AssertionError("invalid history must not write")
+
+    invalid_rows = [
+        {**parse_alpha_vantage_daily(daily_payload())[0], "volume": -1},
+        {**parse_alpha_vantage_daily(daily_payload())[0], "high": 100.0},
+        {**parse_alpha_vantage_daily(daily_payload())[0], "close": float("nan")},
+    ]
+    for row in invalid_rows:
+        class FakeProvider:
+            def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
+                return [row]
+
+        result = ingest_live_prices(FakeProvider(), FakeWriter())  # type: ignore[arg-type]
+        assert result["failed"] == ["AAPL"]

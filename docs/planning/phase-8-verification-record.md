@@ -42,6 +42,56 @@ widths, navigation target fit, focus-ring token strength, AA contrast for
 small positive-state labels, and the 44 px interaction-target token used by
 the corrected chart and Debate controls.
 
+## WP1 market-data and indicator verification on 2026-09-07
+
+WP1's automated implementation checks use local fakes and MockTransport; they
+do not contact Supabase or a market provider. The implementation adds the canonical contract in
+[`phase-8-indicator-contract.md`](phase-8-indicator-contract.md) and preserves
+the existing numeric indicator fields while adding explicit history and
+per-series availability metadata.
+
+From `backend`, the complete suite passed:
+
+```sh
+.venv/bin/pytest -q  # 359 passed, 1 existing Starlette/httpx warning
+```
+
+From `apps/mobile`, all client gates passed:
+
+```sh
+npm run typecheck
+npm run test:stream  # 42 passed
+npm run build:web
+```
+
+`git diff --check` also passed. Focused tests prove the mirrored backend/client
+golden vector, Wilder RSI including the flat-series case, full-window MA20 and
+MA50, MACD/signal warm-up, 20-session annualised log-return volatility, 49/50
+complete-view boundary, duplicate/out-of-order/future-close rejection,
+source-only false-complete rejection, latest-100 Supabase read order, failed
+ingestion exit, and non-advancing refresh exit.
+
+The old Supabase read requested `trading_date.asc` with `limit=100`, which can
+freeze an accumulating table on its oldest 100 rows. WP1 requests the newest
+100 rows descending and restores chronological order in memory. No database
+schema change was needed. No live AAPL refresh or remote write was run, so the
+previously observed hosted-cache freshness remains an open deployment check
+rather than being inferred from passing local tests. During an additional
+manual API-shape check, the local `.env` unexpectedly selected the configured
+Supabase store and issued one read-only AAPL bundle GET. It returned cache data
+but made no write, exposed no secret, and called no market or model provider.
+That accidental read is recorded for transparency and is excluded from WP1
+acceptance evidence.
+
+The strengthened review also proves that simulated `review_fixture` history can
+render its labelled curve without becoming verified market data, stale verified
+history stays inspectable with a warning, valid weekly history remains available
+when daily history is insufficient, missing or invalid OHLCV degrades safely,
+empty ticker selection fails, and a mocked Supabase write must pass a post-write
+latest-date check. A non-advancing result may reflect a market holiday or stale
+provider response; it remains deliberately nonzero because the freshness gate
+cannot prove advancement.
+
 ## WP0 browser characterization on 2026-09-07
 
 Root ran Expo Web at `http://localhost:8081` against a local FastAPI backend

@@ -91,8 +91,9 @@ done:
 - No deterministic `review_fixture` currently covers all chart, freshness,
   partial-history, unavailable, and V2 lifecycle states. Existing
   `demo_fallback` is not evidence of a safe review fixture.
-- Current frontend and backend RSI/volatility definitions still require WP1
-  normalization before indicator output can be characterized as equivalent.
+- WP1 has now normalized and mirrored frontend/backend RSI, MACD, moving-average,
+  and volatility rules. Visual comparison of the resulting series remains a
+  WP4 acceptance task.
 - Existing mobile tests are logic/state tests; they do not prove that the
   current warm-paper screens meet the Prototype's dark visual direction.
 - There is no dedicated end-to-end UI test for authentication, examination,

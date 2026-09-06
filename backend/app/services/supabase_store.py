@@ -182,11 +182,13 @@ class SupabaseStore(DemoStore):
                 params={
                     "select": "trading_date,open,high,low,close,volume",
                     "stock_id": f"eq.{stock_rows[0]['id']}",
-                    "order": "trading_date.asc",
+                    # PostgREST applies the limit after ordering. Read the most
+                    # recent 100 closes, then restore chronological API order.
+                    "order": "trading_date.desc",
                     "limit": "100",
                 },
             )
-            rows = price_response.json()
+            rows = list(reversed(price_response.json()))
             if not rows:
                 return self._demo_prices(normalized)
             latest_date = max(date.fromisoformat(str(row["trading_date"])) for row in rows)

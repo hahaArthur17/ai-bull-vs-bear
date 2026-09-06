@@ -41,7 +41,7 @@ class PricePoint(BaseModel):
     low: float
     close: float
     volume: int
-    source: Literal["daily_market_cache", "demo_fallback"] = "demo_fallback"
+    source: Literal["daily_market_cache", "demo_fallback", "review_fixture"] = "demo_fallback"
     is_stale: bool = True
 
 
@@ -90,6 +90,33 @@ class MacroSeriesContext(BaseModel):
     observations: list[MacroObservation]
 
 
+class IndicatorAvailability(BaseModel):
+    price_line: bool = False
+    price_change: bool = False
+    moving_average_20: bool = False
+    moving_average_50: bool = False
+    rsi: bool = False
+    macd: bool = False
+    macd_signal: bool = False
+    volume: bool = False
+    volatility: bool = False
+
+
+class TechnicalHistoryStatus(BaseModel):
+    provenance: Literal["live_fresh", "live_stale", "review_fixture", "unavailable"] = "unavailable"
+    record_count: int = 0
+    completed_close_count: int = 0
+    required_for_complete: int = 50
+    is_ordered: bool = False
+    has_unique_dates: bool = False
+    has_valid_closes: bool = False
+    has_valid_ohlcv: bool = False
+    has_only_completed_closes: bool = False
+    is_valid: bool = False
+    complete_view: bool = False
+    explanation: str = "Daily history has not been assessed."
+
+
 class TechnicalIndicators(BaseModel):
     ticker: str
     as_of: str
@@ -101,6 +128,8 @@ class TechnicalIndicators(BaseModel):
     volatility: float
     volume_spike: bool
     signal_summary: str
+    availability: IndicatorAvailability = Field(default_factory=IndicatorAvailability)
+    history: TechnicalHistoryStatus = Field(default_factory=TechnicalHistoryStatus)
 
 
 class EvidenceFreshness(BaseModel):
@@ -135,7 +164,7 @@ class StockBundle(BaseModel):
 class PriceSnapshot(BaseModel):
     as_of: str
     close: float
-    source: Literal["daily_market_cache", "demo_fallback"]
+    source: Literal["daily_market_cache", "demo_fallback", "review_fixture"]
     is_stale: bool
 
 

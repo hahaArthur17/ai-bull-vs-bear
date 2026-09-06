@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qs
 
 import httpx
@@ -73,7 +73,13 @@ class FakePostgrest:
             ]
             return httpx.Response(200, json=rows[: int(body["result_limit"])])
         if table == "stock_prices":
-            return httpx.Response(self.price_status, json=self.price_rows)
+            rows = sorted(
+                self.price_rows,
+                key=lambda row: str(row["trading_date"]),
+                reverse=query.get("order") == ["trading_date.desc"],
+            )
+            limit = int(query.get("limit", [str(len(rows))])[0])
+            return httpx.Response(self.price_status, json=rows[:limit])
         if table == "stock_price_history":
             return httpx.Response(
                 200,
@@ -354,6 +360,28 @@ def test_supabase_prices_include_live_cache_provenance() -> None:
     assert prices[0]["source"] == "daily_market_cache"
     assert prices[0]["is_stale"] is False
     assert prices[0]["close"] == 223.75
+
+
+def test_supabase_prices_return_latest_hundred_in_chronological_order() -> None:
+    fake = FakePostgrest()
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc).date()
+    fake.price_rows = [
+        {
+            "trading_date": (start + timedelta(days=index)).isoformat(),
+            "open": str(200 + index),
+            "high": str(202 + index),
+            "low": str(199 + index),
+            "close": str(201 + index),
+            "volume": 1_000 + index,
+        }
+        for index in range(105)
+    ]
+
+    prices = build_store(fake).get_prices("AAPL")
+
+    assert len(prices) == 100
+    assert prices[0]["date"] == "2026-01-06"
+    assert prices[-1]["date"] == "2026-04-15"
 
 
 def test_supabase_prices_fall_back_when_cache_is_unavailable() -> None:

@@ -28,4 +28,5 @@ jobs:
           cache: pip
           cache-dependency-path: backend/requirements-runtime.txt
       - run: pip install -r backend/requirements-runtime.txt
-      - run: PYTHONPATH=backend python scripts/ingest_live_prices.py
+      - name: Refresh and verify advancing daily cache
+        run: PYTHONPATH=backend python scripts/ingest_live_prices.py

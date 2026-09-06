@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from threading import Lock
 from time import monotonic, sleep
 from typing import Callable, Protocol
 
 import httpx
 
+from app.services.indicators import validate_completed_daily_prices
 from app.services.supabase_headers import service_headers
 
 
@@ -364,6 +365,7 @@ class SupabasePriceWriter:
         self.rest_url = f"{supabase_url.rstrip('/')}/rest/v1"
         self.secret_key = secret_key
         self.client = client
+        self._stock_ids: dict[str, int] = {}
 
     def _request(self, method: str, table: str, **kwargs: object) -> httpx.Response:
         requester = self.client.request if self.client is not None else httpx.request
@@ -388,19 +390,51 @@ class SupabasePriceWriter:
         return response
 
     def _stock_id(self, ticker: str) -> int:
+        normalized = ticker.upper()
+        cached = self._stock_ids.get(normalized)
+        if cached is not None:
+            return cached
         response = self._request(
             "GET",
             "stocks",
-            params={"select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1"},
+            params={"select": "id", "ticker": f"eq.{normalized}", "limit": "1"},
         )
         rows = response.json()
         if not rows:
-            raise PriceCacheError(f"Stock {ticker.upper()} is not seeded in Supabase")
-        return int(rows[0]["id"])
+            raise PriceCacheError(f"Stock {normalized} is not seeded in Supabase")
+        stock_id = int(rows[0]["id"])
+        self._stock_ids[normalized] = stock_id
+        return stock_id
+
+    def latest_price_date(self, ticker: str) -> str | None:
+        stock_id = self._stock_id(ticker)
+        response = self._request(
+            "GET",
+            "stock_prices",
+            params={
+                "select": "trading_date",
+                "stock_id": f"eq.{stock_id}",
+                "order": "trading_date.desc",
+                "limit": "1",
+            },
+        )
+        rows = response.json()
+        if not isinstance(rows, list):
+            raise PriceCacheError("Supabase price cache returned an invalid latest-date payload")
+        if not rows:
+            return None
+        try:
+            return date.fromisoformat(str(rows[0]["trading_date"])).isoformat()
+        except (KeyError, TypeError, ValueError) as exc:
+            raise PriceCacheError("Supabase price cache returned an invalid latest date") from exc
 
     def upsert_prices(self, ticker: str, prices: list[dict[str, object]]) -> int:
         if not prices:
             return 0
+        try:
+            validate_completed_daily_prices(prices)
+        except ValueError as exc:
+            raise PriceCacheError(str(exc)) from exc
         stock_id = self._stock_id(ticker)
         rows = [
             {
@@ -464,15 +498,53 @@ def ingest_live_prices(
         raise ValueError("max_provider_calls must be at least 1")
     updated: dict[str, int] = {}
     failed: list[str] = []
+    non_advancing: list[str] = []
     selected_tickers = tickers[:max_provider_calls]
     skipped = list(tickers[max_provider_calls:])
     for ticker in selected_tickers:
         try:
-            prices = provider.fetch_daily(ticker)
+            prices = validate_completed_daily_prices(provider.fetch_daily(ticker))
+            latest_cached = None
+            latest_price_date = getattr(writer, "latest_price_date", None)
+            if callable(latest_price_date):
+                latest_cached = latest_price_date(ticker)
+            newest_fetched = str(prices[-1]["date"])
+            if latest_cached is not None and newest_fetched <= latest_cached:
+                non_advancing.append(ticker)
+                continue
             updated[ticker] = writer.upsert_prices(ticker, prices)
-        except (MarketDataError, PriceCacheError):
-            failed.append(ticker)
-    return {"updated": updated, "failed": failed, "skipped": skipped}
+            if updated[ticker] <= 0:
+                failed.append(ticker)
+                updated.pop(ticker, None)
+                continue
+            if callable(latest_price_date):
+                latest_after_write = latest_price_date(ticker)
+                if latest_after_write != newest_fetched:
+                    updated.pop(ticker, None)
+                    failed.append(ticker)
+        except (MarketDataError, PriceCacheError, ValueError):
+            updated.pop(ticker, None)
+            if ticker not in failed:
+                failed.append(ticker)
+    result: dict[str, object] = {"updated": updated, "failed": failed, "skipped": skipped}
+    if non_advancing:
+        result["non_advancing"] = non_advancing
+    return result
+
+
+def ensure_successful_price_refresh(result: dict[str, object]) -> None:
+    failed = result.get("failed")
+    non_advancing = result.get("non_advancing")
+    updated = result.get("updated")
+    if failed or non_advancing or not isinstance(updated, dict) or not updated:
+        parts: list[str] = []
+        if failed:
+            parts.append(f"failed={failed}")
+        if non_advancing:
+            parts.append(f"non_advancing={non_advancing}")
+        if not isinstance(updated, dict) or not updated:
+            parts.append("no_tickers_updated")
+        raise SystemExit("Daily price refresh did not advance: " + ", ".join(parts))
 
 
 def ingest_weekly_price_history(

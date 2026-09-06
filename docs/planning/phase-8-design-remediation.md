@@ -181,6 +181,13 @@ target.
 **Suggested agent:** Sol because the work crosses ingestion, storage, API,
 client-derived summaries, and CI failure semantics.
 
+**Status:** Implemented locally on 2026-09-07; automated verification is
+recorded in [`phase-8-verification-record.md`](phase-8-verification-record.md).
+The canonical calculation and sufficiency rules are fixed in
+[`phase-8-indicator-contract.md`](phase-8-indicator-contract.md). A live AAPL
+refresh remains a deployment operation and is not claimed by this code-only
+package.
+
 **File scope:** `backend/app/services/indicators.py`, `market_data.py`,
 `ingestion.py`, `supabase_store.py`, stock response schemas/API assembly,
 `apps/mobile/src/research/chartMath.ts`, `chartMath.test.ts`, stock-summary

@@ -8,6 +8,7 @@ from app.services.market_data import (
     AlphaVantageClient,
     FinnhubClient,
     SupabasePriceWriter,
+    ensure_successful_price_refresh,
     ingest_live_prices,
 )
 
@@ -23,17 +24,14 @@ def main() -> None:
     else:
         raise SystemExit("ALPHA_VANTAGE_API_KEY or FINNHUB_API_KEY is required")
     writer = SupabasePriceWriter(settings.supabase_url, settings.supabase_secret_key)
-    print(
-        json.dumps(
-            ingest_live_prices(
-                provider,
-                writer,
-                tickers=settings.price_ticker_list,
-                max_provider_calls=settings.price_max_calls_per_run,
-            ),
-            indent=2,
-        )
+    result = ingest_live_prices(
+        provider,
+        writer,
+        tickers=settings.price_ticker_list,
+        max_provider_calls=settings.price_max_calls_per_run,
     )
+    print(json.dumps(result, indent=2))
+    ensure_successful_price_refresh(result)
 
 
 if __name__ == "__main__":

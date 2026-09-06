@@ -18,7 +18,7 @@ export type PricePoint = {
   low: number;
   close: number;
   volume: number;
-  source: "daily_market_cache" | "demo_fallback";
+  source: "daily_market_cache" | "demo_fallback" | "review_fixture";
   is_stale: boolean;
 };
 
@@ -45,6 +45,31 @@ export type TechnicalIndicators = {
   volatility: number;
   volume_spike: boolean;
   signal_summary: string;
+  availability?: {
+    price_line: boolean;
+    price_change: boolean;
+    moving_average_20: boolean;
+    moving_average_50: boolean;
+    rsi: boolean;
+    macd: boolean;
+    macd_signal: boolean;
+    volume: boolean;
+    volatility: boolean;
+  };
+  history?: {
+    provenance: "live_fresh" | "live_stale" | "review_fixture" | "unavailable";
+    record_count: number;
+    completed_close_count: number;
+    required_for_complete: number;
+    is_ordered: boolean;
+    has_unique_dates: boolean;
+    has_valid_closes: boolean;
+    has_valid_ohlcv: boolean;
+    has_only_completed_closes: boolean;
+    is_valid: boolean;
+    complete_view: boolean;
+    explanation: string;
+  };
 };
 
 export type MarketQuote = {
@@ -129,7 +154,7 @@ export type AnalysisResponse = {
     price: {
       as_of: string;
       close: number;
-      source: "daily_market_cache" | "demo_fallback";
+      source: "daily_market_cache" | "demo_fallback" | "review_fixture";
       is_stale: boolean;
     };
     retrieved_evidence_count: number;
