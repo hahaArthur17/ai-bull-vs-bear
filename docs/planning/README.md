@@ -33,6 +33,7 @@ accepted design or completion state changes.
 | [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) | Canonical architecture, phases, acceptance tests, and next coding task. |
 | [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md) | Required visual, responsive, accessibility, and device-review evidence for the active UI redesign. |
 | [`phase-8-design-remediation.md`](phase-8-design-remediation.md) | Active Phase 8 remediation register for the Prototype dark theme, chart/Debate UX, review fixtures, data integrity, staging, and device acceptance. |
+| [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md) | WP0 map of existing functions and states to implementation, automated evidence, missing manual proof, and later work-package ownership. |
 | [`issue-log.md`](issue-log.md) | Append-only material incidents and remediation evidence. |
 | [`reports/`](reports/README.md) | Append-only weekly implementation and verification history. |
 

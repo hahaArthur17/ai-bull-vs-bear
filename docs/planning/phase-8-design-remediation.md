@@ -77,38 +77,41 @@ changes them and the parent plan is updated in the same change.
 ## 3. Functional preservation contract
 
 Before redesign work begins, record characterization evidence for this list.
-Every later package must prove that its touched behaviours still work.
+The checked state below means the behaviour is mapped in
+[`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md); it does not
+mean its final visual or device acceptance has passed. Every later package must
+prove that its touched behaviours still work.
 
-- [ ] Authentication: sign in, sign up, validation, disabled/submitting,
+- [x] Authentication: sign in, sign up, validation, disabled/submitting,
   failure, confirmation, sign out, and session restore.
-- [ ] Discovery: debounced catalog search, no-result/failure recovery, company
+- [x] Discovery: debounced catalog search, no-result/failure recovery, company
   identity, exchange/sector metadata, and coverage status.
-- [ ] Watchlist: add/remove, persistence, empty state, and `catalog_only`
+- [x] Watchlist: add/remove, persistence, empty state, and `catalog_only`
   support without triggering market or model calls.
-- [ ] Stock workspace: bundle loading/failure, current quote, provenance,
+- [x] Stock workspace: bundle loading/failure, current quote, provenance,
   freshness, warnings, watchlist action, and `catalog_only` boundary.
-- [ ] Technical exploration: 1M/3M daily and 6M/1Y weekly price ranges, moving
+- [x] Technical exploration: 1M/3M daily and 6M/1Y weekly price ranges, moving
   averages, RSI, MACD, volume, volatility, textual summaries, and unavailable
   states.
-- [ ] Macro exploration: all seven dated macro series and their source/freshness
+- [x] Macro exploration: all seven dated macro series and their source/freshness
   presentation.
-- [ ] Evidence and Examination: partial/missing evidence, citation metadata,
+- [x] Evidence and Examination: partial/missing evidence, citation metadata,
   claim selection, loading, result, and failure.
-- [ ] V2 Debate: queued, running, streaming draft, persisted turn, retry delay,
+- [x] V2 Debate: queued, running, streaming draft, persisted turn, retry delay,
   failed, cancelled, reconnect, `awaiting_user`, Round 2, and completed states.
-- [ ] Debate semantics: six Round 1 Bull/Bear turns, Interim Judge, one durable
+- [x] Debate semantics: six Round 1 Bull/Bear turns, Interim Judge, one durable
   Challenge, four Round 2 turns, Final Judge, mutually aware rebuttals, and
   citation constraints.
-- [ ] Explanation: exact-term selection, loading/result/error, read-only
+- [x] Explanation: exact-term selection, loading/result/error, read-only
   behaviour, and no Debate state mutation.
-- [ ] History: legacy analysis, active V2 session, Interim/Final distinction,
+- [x] History: legacy analysis, active V2 session, Interim/Final distinction,
   reopening the correct ticker, empty state, and load failure.
-- [ ] About/diagnostics: product guidance, progressive technical disclosure,
+- [x] About/diagnostics: product guidance, progressive technical disclosure,
   health status, and safe error wording.
-- [ ] Cross-cutting: responsive navigation, keyboard focus, screen-reader
+- [x] Cross-cutting: responsive navigation, keyboard focus, screen-reader
   labels/status, 44px targets, 200% zoom, reduced motion, and no horizontal page
   overflow.
-- [ ] Legacy Debate remains a labelled fallback and its existing synchronous
+- [x] Legacy Debate remains a labelled fallback and its existing synchronous
   path continues to work until a deliberate V2 production rollout.
 
 No item may be removed because it is visually inconvenient. If implementation
@@ -151,6 +154,9 @@ package receives a focused commit and updates its tests and verification record.
 
 **Depends on:** none  
 **Suggested agent:** Luna; Root reviews the inventory and resolves scope gaps.
+
+**Status:** Complete; preservation and browser characterization recorded on
+2026-09-07 against baseline revision `898e821`.
 
 **File scope:** existing `apps/mobile/src/*.test.ts`, screen modules,
 `phase-8-ui-acceptance-matrix.md`, and `phase-8-verification-record.md`. Add

@@ -1267,6 +1267,10 @@ this portfolio plan and does not create a parallel product plan.
   and Expo Web export.
 - [x] Define the visual, responsive, accessibility, and device-review acceptance
   matrix in [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md).
+- [x] Freeze the WP0 functional baseline in
+  [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md), rerun the
+  backend/mobile gates, and record representative 390/1280 browser
+  characterization without treating the warm UI as design approval.
 - [x] Preserve the extracted screen modules, shared primitives, semantic state
   coverage, keyboard labels, and reduced-motion foundations from the earlier UI
   pass; these are regression constraints, not approval of its visual direction.
@@ -1396,12 +1400,13 @@ service-only transaction, expected-status update, idempotency, and cleanup
 checks. Phase 7 is complete: Explanation has a read-only mobile/API path,
 deterministic default, and a bounded explicit Groq provider with a one-request
 opt-in verifier; Challenge/Round 2/Final Judge remain linear. The current coding
-entry point is the re-baselined Phase 8 remediation in
-[`phase-8-design-remediation.md`](phase-8-design-remediation.md): first freeze
-the preservation contract and data integrity, then add `review_fixture`, migrate
-the shared deep theme and stock workspace, implement the V2 chronological chat
-experience, migrate remaining surfaces, and close user/device/same-SHA staging
-acceptance. Earlier warm-theme completion marks are not release evidence.
+entry point is WP1 of the re-baselined Phase 8 remediation in
+[`phase-8-design-remediation.md`](phase-8-design-remediation.md). WP0 has frozen
+the preservation contract; next normalize data/indicator integrity, then add
+`review_fixture`, migrate the shared deep theme and stock workspace, implement
+the V2 chronological chat experience, migrate remaining surfaces, and close
+user/device/same-SHA staging acceptance. Earlier warm-theme completion marks
+are not release evidence.
 
 Phase 9 remains Planned and starts only after Phase 8 closes. Its Replay,
 observability, resilience, and release-proof scope must not be duplicated inside

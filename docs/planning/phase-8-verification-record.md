@@ -2,9 +2,11 @@
 
 **Status:** Re-baselined; Phase 8 remains in progress and final visual acceptance is reopened
 
-**Recorded:** 2026-09-06
+**Recorded:** 2026-09-07
 
-**Subject revision:** `118f3d1` (`fix: finish phase 8 accessibility coverage`) — historical baseline only
+**Current WP0 baseline revision:** `898e821` (`docs: rebaseline phase 8 design remediation`)
+
+**Historical subject revision:** `118f3d1` (`fix: finish phase 8 accessibility coverage`)
 
 This is an honest acceptance record, not a release sign-off. On 2026-09-06 the
 acceptance baseline changed: repository-root `prototype.html` is the required
@@ -14,7 +16,7 @@ below remains useful accessibility/regression evidence, but cannot be used as
 final evidence that Phase 8 visual design, charts, or Debate experience is
 complete. No implementation completion is claimed by this update.
 
-The historic checks used only the deterministic demo backend and
+The checks use only deterministic tests or the demo backend and
 `EXPO_PUBLIC_AUTH_MODE=demo`; no credentials, external market calls, or model
 calls were used.
 
@@ -39,6 +41,27 @@ The Web export built successfully. The focused tests cover all required CSS
 widths, navigation target fit, focus-ring token strength, AA contrast for
 small positive-state labels, and the 44 px interaction-target token used by
 the corrected chart and Debate controls.
+
+## WP0 browser characterization on 2026-09-07
+
+Root ran Expo Web at `http://localhost:8081` against a local FastAPI backend
+with demo authentication, demo persistence, deterministic analysis, V2 off,
+and Queue off. This establishes a reproducible pre-redesign baseline; it is not
+approval of the current visual direction.
+
+| Surface / viewport | Result | Characterization evidence |
+| --- | --- | --- |
+| Watchlist, 390 px | Pass as functional baseline | The catalog and saved AAPL row rendered with meaningful accessible text. No browser error overlay or console warning appeared. The warm-paper layout is explicitly not the accepted Phase 8 visual result. |
+| Watchlist, 1280 px | Pass as functional baseline | Catalog, Watchlist controls, and bottom navigation rendered; document width equalled viewport width with no page-level horizontal overflow. The composition remains visually sparse and warm. |
+| AAPL workspace, 1280 px | Expected current limitation reproduced | A quote was present, followed by a stale-history warning, “No curve is shown until market data is verified,” and paused RSI/MACD. This proves the reported missing-chart experience is a current gate outcome, not a missing route. |
+| Legacy Debate, 1280 px | Expected current limitation reproduced | Snapshot, Judge, Bull, and Bear appeared as a vertical stack of wide cards. The accepted Bull-left/Bear-right chronological V2 chat was not present because the baseline flags deliberately retained Legacy. |
+
+The demo-mode AAPL workspace labelled its displayed quote as a Finnhub quote
+dated 2026-09-04, while the generated Legacy Debate snapshot used a 2026-02-25
+close and a different value. WP0 treats this as evidence that the current demo
+fallback/provenance presentation is ambiguous; neither value is asserted to be
+live market data. Browser screenshots were visually inspected but not committed
+and contained no credentials or private user content.
 
 ## Historical Web browser verification (superseded as final visual evidence)
 

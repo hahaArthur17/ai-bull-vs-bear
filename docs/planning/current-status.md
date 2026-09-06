@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last verified: 2026-09-06
+Last verified: 2026-09-07
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -25,7 +25,8 @@ remains an active product/UI remediation phase.
 | Technical and macro exploration | In progress | The API and screen contracts include 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series. A reproducible `review_fixture`, visible local chart rendering, and one consistent frontend/backend RSI/volatility calculation are still required for UI acceptance. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic, but the hosted frontend/backend are not yet proven to be the same release: the public API does not expose the current `/bundle` contract, and a staging deployment from one shared SHA plus smoke-test/rollback evidence is still required. |
-| Automated verification | In progress | The latest recorded backend gate has 345 passing tests; 35 mobile state tests, the mobile TypeScript check, and Expo Web export passed on 2026-08-30. These checks establish implementation contracts, not final visual or interaction approval; fixture-driven chart/Debate review, native simulator, physical-device, staging, and current-data acceptance remain open. |
+| Automated verification | In progress | The 2026-09-07 WP0 rerun has 345 passing backend tests and 36 passing mobile tests; the mobile TypeScript check and Expo Web export also pass. These checks establish implementation contracts, not final visual or interaction approval; fixture-driven chart/Debate review, native simulator, physical-device, staging, and current-data acceptance remain open. |
+| Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | Implementation is complete, including distinct sign-in/sign-up submission states. Responsive Web, keyboard, semantic-label, and axe checks are recorded; native simulator and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | The functional implementation is present, including coverage-aware search and a loaded-stock “Ready to review” summary. Responsive Web and Android-browser simulator evidence are recorded; the global Prototype dark-theme migration, final visual review, native simulator, and physical-device acceptance remain open. |
 | Native-device verification | In progress | The Android browser simulator pass is recorded, but Expo Go/native Android review, iOS review, and one physical-device pass remain open. See [`phase-8-verification-record.md`](phase-8-verification-record.md). |
