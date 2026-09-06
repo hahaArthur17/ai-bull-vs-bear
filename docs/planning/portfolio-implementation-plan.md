@@ -1,6 +1,6 @@
 # Portfolio Implementation Plan
 
-Last reviewed: 2026-08-29
+Last reviewed: 2026-09-06
 
 Status: Active
 
@@ -777,12 +777,14 @@ Before the visual redesign:
 
 ### 13.2 Design direction
 
-- Deep navy/charcoal surfaces rather than the current warm-paper dominant
-  palette.
-- Restrained cyan/blue technology accent.
-- Semantic Bull green and Bear red with icons/labels so colour is not the only
-  distinction.
-- Neutral Judge styling.
+- Treat repository-root `prototype.html` as the formal visual reference and
+  adapt it to responsive production states rather than copying its fixed phone
+  frame.
+- Use its deep navy/charcoal canvas, layered blue surfaces, near-white text,
+  muted blue-grey metadata, restrained cyan/blue accents, Bull teal/green,
+  Bear pink/red, and Evidence/Judge gold through shared semantic tokens.
+- Pair every Bull, Bear, Judge, evidence, freshness, warning, and error colour
+  with a label, icon, shape, or other non-colour distinction.
 - Tabular or monospaced numerals for prices, dates, percentages, and indicators.
 - Clear density hierarchy: market snapshot, evidence quality, debate messages,
   then trace/diagnostics.
@@ -793,12 +795,18 @@ Before the visual redesign:
 
 ### 13.3 Debate experience
 
-- Desktop/Web: readable debate timeline or two-sided layout without forcing
-  equal-height columns.
-- Mobile: chronological message timeline with explicit round/exchange labels.
+- Use one chronological, readable-width chat transcript rather than stacked
+  full-width agent cards or two independent columns.
+- Align Bull messages left and Bear messages right on desktop/Web. Preserve
+  that distinction as modest offsets on mobile without narrowing the bubbles
+  into two columns.
+- Centre Interim Judge, user Challenge, and Final Judge interventions; make the
+  Final Judge the strongest and last transcript conclusion.
 - Stream only the active message; completed messages become stable cards.
 - Show queue, generation, awaiting-user, cancelled, failed, and replay states.
-- Display citations and evidence freshness per completed message.
+- Separate each completed argument from its facts, interpretation, uncertainty,
+  citations, and evidence freshness. Keep all cited evidence reachable from an
+  expandable detail even when the collapsed bubble shows only a concise subset.
 - Provide separate `Explain` and `Challenge debate` actions.
 - Start with model-provided `terms` as clickable spans/chips across platforms.
 - Add arbitrary Web text selection after the term path is stable; treat native
@@ -1246,31 +1254,56 @@ remains later work.
 
 Status: In progress
 
+Phase 8 was re-baselined on 2026-09-06 after product review showed that the
+implemented warm UI and card-heavy Debate presentation do not match the
+accepted product direction. Earlier responsive and accessibility work remains
+useful engineering evidence, but it does not count as completion of the new
+visual, interaction, data-review, or product-acceptance gates. The canonical
+phase-specific execution breakdown is
+[`phase-8-design-remediation.md`](phase-8-design-remediation.md); it elaborates
+this portfolio plan and does not create a parallel product plan.
+
 - [x] Add a serial mobile CI verification gate for stream tests, TypeScript,
   and Expo Web export.
 - [x] Define the visual, responsive, accessibility, and device-review acceptance
   matrix in [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md).
-- [x] Finalize design tokens, typography, semantic colours, spacing, elevation,
-  breakpoints, interaction targets, and motion rules without changing behavior.
-- [x] Implement the authentication redesign for input, disabled, loading,
-  error, and sign-up confirmation states.
-- [ ] Complete authentication acceptance review for responsive layout, keyboard
-  focus, screen-reader labels, and native-device behaviour.
-- [x] Implement the home/search/watchlist redesign, including empty, failure,
-  and `catalog_only`/`debate_ready` coverage states.
-- [ ] Complete Discovery and Watchlist acceptance review for responsive layout,
-  keyboard focus, screen-reader labels, and native-device behaviour.
-- [x] Redesign stock detail and charts without losing provenance/accessibility.
-- [x] Redesign Debate timeline, active streaming turn, Judge, evidence, queue,
-  explanation, and failure states.
-- [x] Redesign History/About and diagnostic presentation.
-- [x] Test the responsive Web baseline, keyboard navigation, reduced motion, and
-  screen-reader labels; see [`phase-8-verification-record.md`](phase-8-verification-record.md)
-  for the scope and remaining visual-state limitations.
-- [ ] Test iOS/Android simulator and one physical device.
+- [x] Preserve the extracted screen modules, shared primitives, semantic state
+  coverage, keyboard labels, and reduced-motion foundations from the earlier UI
+  pass; these are regression constraints, not approval of its visual direction.
+- [ ] Establish `prototype.html` as the global deep-theme reference and migrate
+  shared tokens, typography, surfaces, App Shell, navigation, and interaction
+  motion to that language.
+- [ ] Add a deterministic `review_fixture` data mode that renders the complete
+  stock/chart and V2 Debate experience while permanently labelling all values
+  as simulated and never substituting them for production data.
+- [ ] Close the market-data integrity prerequisites: align indicator formulas,
+  require at least 50 valid historical closes for the complete technical view,
+  make refresh workflow failures exit nonzero, and restore/verify stale daily
+  refresh behaviour.
+- [ ] Redesign stock detail and technical exploration in the deep theme, with
+  per-indicator sufficiency states, accessible range interaction, provenance,
+  freshness, and complete chart visibility in `review_fixture`.
+- [ ] Make V2 the target Debate experience while retaining Legacy as a labelled
+  fallback; present Bull left and Bear right in one chronological chat flow,
+  center Interim/Final Judge and user Challenge, and expose facts,
+  interpretation, uncertainty, and expandable evidence.
+- [ ] Migrate Authentication, Discovery, Watchlist, Evidence, Examination,
+  History, About, diagnostics, loading, empty, stale, unavailable, retry,
+  cancellation, reconnect, and error states without losing existing features.
+- [ ] Complete automated regression, responsive Web, keyboard, screen-reader,
+  200% zoom, reduced-motion, iOS simulator, Android simulator, and one physical
+  device review; record evidence in the Phase 8 verification record.
+- [ ] Obtain explicit product-owner approval of the AAPL research workspace and
+  V2 Debate at phone and desktop widths before staging release.
+- [ ] Deploy frontend and backend from the same commit SHA to staging and pass
+  the phase-specific smoke and rollback gates before changing the public demo.
 
-Completion rule: all core states use the same reusable design system and pass
-Web export/typecheck plus recorded visual/device review.
+Completion rule: every work package and gate in the Phase 8 remediation plan is
+complete; all existing functions remain available; local terminal startup shows
+the approved deep experience with labelled review data; the product owner has
+approved the two reference surfaces; and same-SHA staging passes automated,
+responsive, accessibility, device, data-integrity, and smoke review. Automated
+tests or a previous warm-theme screenshot alone cannot complete this phase.
 
 ### Phase 9 — Replay, observability, resilience, and release proof
 
@@ -1363,8 +1396,18 @@ service-only transaction, expected-status update, idempotency, and cleanup
 checks. Phase 7 is complete: Explanation has a read-only mobile/API path,
 deterministic default, and a bounded explicit Groq provider with a one-request
 opt-in verifier; Challenge/Round 2/Final Judge remain linear. The current coding
-entry point is Phase 8 UI work, followed by Phase 9 Replay and release proof.
-Message branching and arbitrary Web selection are deferred backlog items.
+entry point is the re-baselined Phase 8 remediation in
+[`phase-8-design-remediation.md`](phase-8-design-remediation.md): first freeze
+the preservation contract and data integrity, then add `review_fixture`, migrate
+the shared deep theme and stock workspace, implement the V2 chronological chat
+experience, migrate remaining surfaces, and close user/device/same-SHA staging
+acceptance. Earlier warm-theme completion marks are not release evidence.
+
+Phase 9 remains Planned and starts only after Phase 8 closes. Its Replay,
+observability, resilience, and release-proof scope must not be duplicated inside
+Phase 8; Phase 8 may use deterministic review fixtures solely to make its visual
+and interaction states inspectable. Message branching and arbitrary Web
+selection remain deferred backlog items.
 
 Do not enable hosted Redis or Queue flags without a deliberate rollout and
 rollback plan. Phase 3 is complete in code: `DEBATE_WORKFLOW_V2=false` is the

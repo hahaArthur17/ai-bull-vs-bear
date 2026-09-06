@@ -2,7 +2,7 @@
 
 **Status:** Active for Phase 8  
 **Owner:** Mobile application  
-**Last updated:** 2026-08-30
+**Last updated:** 2026-09-06
 
 This matrix is the visual and interaction acceptance contract for the
 financial-research UI redesign. It supplements executable checks; it does not
@@ -11,12 +11,32 @@ boundaries.
 
 ## Product direction
 
-The interface should feel like a calm, information-dense research workspace:
-clear market hierarchy, quiet neutral surfaces, purposeful bullish/bearish
-signals, and readable evidence before visual decoration. Colour must never be
-the sole carrier of financial direction, freshness, job state, or validation
-feedback. The same semantic components and content hierarchy must work on
-native mobile and Expo Web.
+The repository-root [`prototype.html`](../../prototype.html) is the formal
+visual reference for Phase 8. The interface should feel like a dark,
+information-dense research workspace: clear market hierarchy, purposeful
+bullish/bearish signals, and readable evidence before visual decoration. The
+prior warm-paper visual direction is not an acceptable alternative. Colour must
+never be the sole carrier of financial direction, freshness, job state, or
+validation feedback. The same semantic components and content hierarchy must
+work on native mobile and Expo Web.
+
+### Design-system acceptance
+
+The implementation must turn the Prototype language into shared semantic
+tokens and reusable components, rather than retaining a warm global theme plus
+a separate hard-coded dark Debate theme.
+
+| Token family | Required visual direction | Acceptance boundary |
+| --- | --- | --- |
+| Canvas and surfaces | Deep navy canvas (`#09101d`), darker outer canvas (`#050a12`), and layered blue-navy surfaces | No warm paper/background palette remains on a production surface. |
+| Text and structure | Near-white primary text and muted blue-grey metadata | Contrast, hierarchy, and focus state remain legible without relying on colour alone. |
+| Market roles | Bull = teal/green (`#6cd8c8`); Bear = pink (`#f59ba8`); Evidence and Judge = gold (`#ffc66f`) | Role names/icons/patterns accompany colour; the colours are not repurposed for unrelated states. |
+| Interaction language | Short, restrained transitions; floating rounded navigation; elevated cards and clear evidence hierarchy | Prototype interactions may be adapted for real content and accessibility, not copied as static decoration. |
+
+The Prototype is inspiration, not a layout constraint: desktop must not be
+forced into a 390 px phone frame, static mock content must be replaced by real
+application states, and new functional states introduced after the Prototype
+must remain visible and usable.
 
 Every redesign slice must preserve these product invariants:
 
@@ -37,13 +57,58 @@ Every redesign slice must preserve these product invariants:
 | --- | --- | --- |
 | Authentication | initial form, invalid input, submit disabled, submitting, authentication failure, sign-up confirmation | Inputs are labelled; errors are announced and tied to the affected field; submit cannot duplicate a request. |
 | Discovery and Watchlist | saved list, empty list, search in progress, search results, no results, search failure, `catalog_only`, `debate_ready` | Search and watchlist controls retain clear names; coverage labels have text as well as visual treatment; empty and failure states provide a recovery action. |
-| Stock research workspace | bundle loading, bundle failure, normal quote, stale/warning evidence, watchlist add/remove, `catalog_only` | Quote time, source, evidence date, freshness, and all warnings remain readable; an identity-only security has no analysis CTA. |
-| Charts and technical signals | normal data, no data, narrow layout, keyboard/focus interaction where controls exist | Chart values have a textual summary; legends and trends do not depend on colour alone; layout does not horizontally overflow. |
+| Stock research workspace | bundle loading, bundle failure, normal quote, stale/warning evidence, review fixture, watchlist add/remove, `catalog_only` | Quote time, source, evidence date, freshness, and all warnings remain readable; an identity-only security has no analysis CTA. |
+| Charts and technical signals | fresh verified history, stale history, `review_fixture`, unavailable/no data, partial history, narrow layout, pointer/touch/keyboard interaction where controls exist | Price and every eligible indicator trend render with a textual summary; legends and trends do not depend on colour alone; layout does not horizontally overflow; unavailable data never becomes a plausible fake market chart. |
 | Evidence and Examination | evidence list, missing/partial evidence, claim selected, examination loading, result, request failure | Each evidence item retains source, date, freshness, and link/identifier; loading and error copy do not imply a completed answer. |
 | Legacy Debate | idle/start, active stream, completed transcript, error | Existing start and transcript behavior remains available until shared presentation is adopted; evidence provenance remains legible. |
-| V2 Debate | queued, running, retry delay, failed, cancelled, `awaiting_user`, final; connection recovery; explanation closed/loading/result/error | Only canonical messages read as durable; drafts are visually and textually temporary; cancel and retry availability match state; Challenge is enabled only in `awaiting_user`; Explanation does not alter Debate. |
+| V2 Debate | queued, running, retry delay, failed, cancelled, `awaiting_user`, final; connection recovery; explanation closed/loading/result/error | The transcript is a chronological chat timeline: Bull messages align left, Bear messages align right, and interim/final neutral Judge summaries are horizontally centred. On mobile it remains chronological with readable offset bubbles, not narrow two columns. Only canonical messages read as durable; drafts are visually and textually temporary; cancel and retry availability match state; Challenge is enabled only in `awaiting_user`; Explanation does not alter Debate. |
 | History | empty, analysis item, V2 active item, interim Judge, final Judge, load failure | Final and interim Judge states remain distinct; reopening a saved session restores its matching ticker bundle. |
 | About and diagnostics | normal content, sign-out available, diagnostic disclosure expanded | Product guidance precedes technical detail; any disclosure has an accessible name and state. |
+
+## Market-data and chart acceptance
+
+`demo_fallback` is an internal resilience/test compatibility state; it must not
+be the only way a reviewer can inspect charts, and it must not be presented as
+real market data. A dedicated `review_fixture` must provide deterministic
+history and full chart interaction for local/UI review. It must be visibly and
+persistently labelled, for example: “SIMULATED DATA · LOCAL UI REVIEW · NOT A
+MARKET PRICE”.
+
+| Data state | Required display |
+| --- | --- |
+| `live/fresh` | Full price and eligible technical trends with source, observation time, and freshness. |
+| `live/stale` | Historical curves remain inspectable; stale/historical status and date are prominent. |
+| `review_fixture` | Full deterministic curves and interactions with the persistent simulated-data label. |
+| `unavailable` | No fabricated price/indicator output; clear cause and recovery action. |
+| `catalog_only` | Identity details only; no market-data or analysis implication. |
+
+Technical visibility is per series, not an all-or-nothing gate. At minimum:
+price requires two observations; RSI requires 15; MA20 requires 20; rolling
+volatility requires 21; MA50 requires 50; MACD requires the implemented
+calculation window. A series below its threshold shows an explicit insufficient
+history state without hiding otherwise eligible price or indicator series.
+
+For every rendered indicator, range changes, hover/focus/touch inspection,
+date/value tooltip or textual equivalent, and visible selected point must use
+the same underlying value. Frontend and backend calculations for displayed RSI
+and volatility must be checked for one shared definition before final closure.
+
+## Debate facts and citation acceptance
+
+Each completed Bull/Bear message must separate the argument from the facts it
+uses and the limits of its interpretation. The collapsed message may surface up
+to three immediately useful facts with a value, observation/publication date,
+and source, but every cited item must remain reachable in expanded detail.
+Citation chips must be actionable: their expanded detail includes evidence ID,
+title, type, date, freshness, supporting span/quotation when available, and
+original-source link. IDs alone are not sufficient evidence presentation.
+
+The desktop transcript is centred and constrained to a readable chat width;
+it must not consume the entire viewport. A collapsible evidence rail may be
+provided as secondary detail. Interim Judge follows its round, the user
+Challenge is visually distinct from Bear, and Final Judge is the final,
+centred conclusion. Streaming must not forcibly scroll a user who is reading
+earlier messages; instead surface a new-message affordance.
 
 ## Responsive acceptance
 
@@ -78,7 +143,10 @@ allowing the page to overflow.
   in addition to colour.
 - Body text, charts, evidence metadata, and controls remain legible at 200%
   browser zoom. Reduced-motion preference removes non-essential transitions
-  and streaming decoration without removing state feedback.
+  and streaming decoration without removing state feedback. Motion defaults to
+  restrained 160–240 ms transitions; page/card entrance, hover elevation, and
+  streaming/replay motion must be reviewed both with and without reduced
+  motion.
 - Evidence citations, dates, freshness, prices, chart trends, and queue state
   have textual equivalents that do not rely only on placement or colour.
 
@@ -99,6 +167,17 @@ At Phase 8 close, repeat the representative flows on an iOS simulator, an
 Android simulator, and at least one physical device. Record OS/device, app
 version or commit, executed flow, result, and any limitation. A Web screenshot
 is supporting visual evidence only; it does not substitute for native review.
+
+## Staging-release acceptance
+
+Local review is not a release substitute. Before a public-demo update, deploy
+frontend and backend from the same immutable Git SHA to a separate staging
+environment. Verify the frontend calls the matching `/bundle` contract, then
+run the fresh, stale, unavailable, V2 Debate, and responsive checks there.
+`review_fixture` remains limited to local or explicitly protected preview
+review and must not leak into the public data path. Record both deployment
+identifiers and SHA in the verification record. A public demo must not be used
+as the first visual acceptance environment.
 
 ## Required checks per UI commit
 

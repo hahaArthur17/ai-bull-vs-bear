@@ -12,13 +12,14 @@ When resuming development:
 2. read the active
    [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) and
    select only its current phase;
-3. review the [project issue log](issue-log.md) for unresolved or recurring
+3. read the active phase-specific remediation register, when present;
+4. review the [project issue log](issue-log.md) for unresolved or recurring
    risks;
-4. read the latest entry in [`reports/`](reports/README.md) when historical
+5. read the latest entry in [`reports/`](reports/README.md) when historical
    implementation detail is needed;
-5. open only the architecture, API, database, agent, or setup document relevant
+6. open only the architecture, API, database, agent, or setup document relevant
    to the selected task; and
-6. compare documentation with the repository and tests before changing code.
+7. compare documentation with the repository and tests before changing code.
 
 The repository and passing verification checks are the implementation source
 of truth. Planning documents describe intent and must be updated when an
@@ -31,6 +32,7 @@ accepted design or completion state changes.
 | [`current-status.md`](current-status.md) | Concise, verified current state and limitations. |
 | [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) | Canonical architecture, phases, acceptance tests, and next coding task. |
 | [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md) | Required visual, responsive, accessibility, and device-review evidence for the active UI redesign. |
+| [`phase-8-design-remediation.md`](phase-8-design-remediation.md) | Active Phase 8 remediation register for the Prototype dark theme, chart/Debate UX, review fixtures, data integrity, staging, and device acceptance. |
 | [`issue-log.md`](issue-log.md) | Append-only material incidents and remediation evidence. |
 | [`reports/`](reports/README.md) | Append-only weekly implementation and verification history. |
 

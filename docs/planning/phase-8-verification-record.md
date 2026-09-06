@@ -1,12 +1,22 @@
 # Phase 8 verification record
 
-**Status:** Partial evidence recorded; Phase 8 remains in progress  
-**Recorded:** 2026-08-30  
-**Subject revision:** `118f3d1` (`fix: finish phase 8 accessibility coverage`)
+**Status:** Re-baselined; Phase 8 remains in progress and final visual acceptance is reopened
 
-This is an honest acceptance record, not a release sign-off. It uses only the
-deterministic demo backend and `EXPO_PUBLIC_AUTH_MODE=demo`; no credentials,
-external market calls, or model calls were used.
+**Recorded:** 2026-09-06
+
+**Subject revision:** `118f3d1` (`fix: finish phase 8 accessibility coverage`) — historical baseline only
+
+This is an honest acceptance record, not a release sign-off. On 2026-09-06 the
+acceptance baseline changed: repository-root `prototype.html` is the required
+dark visual reference and the warm-paper implementation is no longer an
+acceptable completed design. Consequently, the 2026-08-30 local Web evidence
+below remains useful accessibility/regression evidence, but cannot be used as
+final evidence that Phase 8 visual design, charts, or Debate experience is
+complete. No implementation completion is claimed by this update.
+
+The historic checks used only the deterministic demo backend and
+`EXPO_PUBLIC_AUTH_MODE=demo`; no credentials, external market calls, or model
+calls were used.
 
 ## Automated baseline
 
@@ -30,7 +40,7 @@ widths, navigation target fit, focus-ring token strength, AA contrast for
 small positive-state labels, and the 44 px interaction-target token used by
 the corrected chart and Debate controls.
 
-## Web browser verification
+## Historical Web browser verification (superseded as final visual evidence)
 
 The local deterministic Web demo was checked in Chromium with the live FastAPI
 demo backend.
@@ -47,7 +57,9 @@ demo backend.
 
 The Supabase-configured Web entry was also opened without entering or submitting
 credentials. Its 320/390/768/1280 layouts had no horizontal overflow and its
-initial axe audit had 0 violations.
+initial axe audit had 0 violations. This did not establish that data was fresh,
+that charts/indicators were inspectable, that the frontend and backend were
+deployed together, or that the V2 transcript met the re-baselined design.
 
 ## Simulator review
 
@@ -62,15 +74,54 @@ History navigation. They showed a single-column layout, a persistent bottom
 navigation bar, visible source/freshness wording, and no application error
 banner in the successful demo run.
 
-## Remaining closure gates
+## Findings recorded on 2026-09-06
 
+- The current application retains a warm global theme while V2 Debate carries
+  a separate dark theme; shared dark semantic tokens and component adoption are
+  still required.
+- The root Prototype establishes deep navy surfaces with teal Bull, pink Bear,
+  and gold Evidence/Judge, but it must be adapted to live content and desktop
+  layouts rather than copied as a fixed phone frame.
+- The current visual evidence does not cover complete technical trends. The
+  `demo_fallback` path intentionally protects users from synthetic data being
+  mistaken for market data, but it also prevents a complete local chart review
+  in its current form.
+- A labelled deterministic `review_fixture` is required for UI acceptance;
+  fallback, simulated review data, stale live data, and unavailable data must
+  be distinguishable.
+- V2 contains the underlying message/evidence concepts, but the current
+  acceptance evidence does not show a left/right chronological chat transcript
+  with centred interim/final Judge summaries or expandable fact/citation
+  detail.
+- The prior review did not prove a common frontend/backend definition for the
+  displayed RSI and volatility values.
+- Public-demo deployment cannot be treated as the first acceptance target:
+  frontend and backend must be staged and verified from the same Git SHA.
+
+## Reopened closure gates
+
+- Implement and review the shared Prototype-derived dark design system across
+  the app. Confirm that no warm-paper production surface remains and that
+  desktop adapts beyond the phone-frame reference.
+- Provide the explicitly labelled local `review_fixture`, then visually review
+  complete price and eligible technical-indicator curves alongside fresh,
+  stale, unavailable, and `catalog_only` states. Verify per-indicator minimum
+  history thresholds and one shared RSI/volatility definition.
+- Rework and review V2 Debate as a chronological chat transcript: Bull left,
+  Bear right, mobile chronological offsets, centred interim/final neutral
+  Judge, distinct user Challenge, and no unwanted forced auto-scroll.
+- Review fact output and actionable citation detail: value, date, source,
+  freshness, support span where available, and original link. Preserve
+  provenance, default-off V2/Groq Explanation, read-only Explanation, and
+  `awaiting_user`-only Challenge.
+- Capture new Web evidence at 320, 390, 768, and 1280 px, 200% zoom, and both
+  normal/reduced-motion settings for the redesigned Stock and V2 Debate flows.
 - Run the actual managed Expo app or a standalone/dev build on both iOS and
   Android simulators; a browser bundle is supporting evidence only.
 - Run the representative flow on at least one physical device and record its
   OS/device, commit, screenshot, flow, and result.
-- Exercise the remaining state-gated V2 Debate views in a visual device pass
-  while preserving default-off V2/Groq Explanation, read-only Explanation,
-  `catalog_only` zero-call behavior, provenance, and `awaiting_user`-only
-  Challenge.
-- Run the complete backend suite and all Phase 8 acceptance checks before
-  changing Phase 8 to Done.
+- Deploy frontend and backend from the same immutable SHA to staging. Verify
+  the matching `/bundle` contract, data-state labelling, V2 states, and
+  responsive flows there before any public-demo release.
+- Re-run the complete backend suite and all Phase 8 acceptance checks after
+  implementation; only then may the phase be evaluated for Done.

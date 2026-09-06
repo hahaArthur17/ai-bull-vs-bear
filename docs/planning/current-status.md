@@ -1,6 +1,6 @@
 # Current Project Status
 
-Last verified: 2026-08-30
+Last verified: 2026-09-06
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -8,25 +8,33 @@ evidence live in [`reports/`](reports/README.md); material incidents live in the
 
 Status values are `Done`, `In progress`, `Planned`, and `Blocked`.
 
+Important: `Done` in the baseline below means that the corresponding code
+path or contract has been implemented and covered by its recorded checks. It
+does not mean that the final visual design, interaction review, native-device
+acceptance, current-data release, or public-demo rollout is complete. Phase 8
+remains an active product/UI remediation phase.
+
 ## Verified baseline
 
 | Area | Status | Current state |
 | --- | --- | --- |
-| Mobile application | Done | Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. |
+| Mobile application | In progress | The functional Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock detail, Signals, Evidence Board, Debate, claim examination, History, and About. Final migration to the Prototype HTML dark visual system, chat-style Debate layout, fact/citation presentation, motion polish, and native/physical-device acceptance remain open. |
 | Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. A default-off V2 path adds Session, Message, Challenge, generation-scoped Cancellation, resumable SSE, and optional durable Queue admission. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price/macro caches, and the default-off V2 Debate schema/RPCs are implemented. |
-| Market and evidence integrity | Done | AAPL uses a verified completed-close cache, current-source freshness rules, immutable evidence/macro snapshots, and dated citations. Missing current news lowers confidence instead of being silently replaced by demo narrative evidence. |
-| Technical and macro exploration | Done | 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series are available. |
+| Market and evidence integrity | In progress | Source/freshness rules, immutable evidence/macro snapshots, and dated citations are implemented, but the current AAPL daily cache is stale, refresh failure can still be reported as a successful workflow, and `verified` history validation checks source identity without requiring the minimum history length. Public-data integrity is therefore not closed. |
+| Technical and macro exploration | In progress | The API and screen contracts include 1M/3M daily and 6M/1Y weekly price views, MA overlays, RSI, MACD, volume, volatility, and seven dated macro series. A reproducible `review_fixture`, visible local chart rendering, and one consistent frontend/backend RSI/volatility calculation are still required for UI acceptance. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
-| Deployment | Done | Render Free serves the static Expo Web site and one FastAPI web service; Supabase Free provides Auth and persistent data. Production deliberately uses the deterministic provider. |
-| Automated verification | Done | The latest recorded backend gate has 345 passing tests; 35 mobile state tests, the mobile TypeScript check, and Expo Web export passed on 2026-08-30. The only backend warning is the existing Starlette/httpx test-client deprecation. |
+| Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic, but the hosted frontend/backend are not yet proven to be the same release: the public API does not expose the current `/bundle` contract, and a staging deployment from one shared SHA plus smoke-test/rollback evidence is still required. |
+| Automated verification | In progress | The latest recorded backend gate has 345 passing tests; 35 mobile state tests, the mobile TypeScript check, and Expo Web export passed on 2026-08-30. These checks establish implementation contracts, not final visual or interaction approval; fixture-driven chart/Debate review, native simulator, physical-device, staging, and current-data acceptance remain open. |
 | Phase 8 authentication UI | In progress | Implementation is complete, including distinct sign-in/sign-up submission states. Responsive Web, keyboard, semantic-label, and axe checks are recorded; native simulator and physical-device acceptance remain open. |
-| Phase 8 Discovery and Watchlist UI | In progress | Implementation is complete, including coverage-aware search and a loaded-stock “Ready to review” summary. Responsive Web and Android-browser simulator evidence are recorded; native simulator and physical-device acceptance remain open. |
+| Phase 8 Discovery and Watchlist UI | In progress | The functional implementation is present, including coverage-aware search and a loaded-stock “Ready to review” summary. Responsive Web and Android-browser simulator evidence are recorded; the global Prototype dark-theme migration, final visual review, native simulator, and physical-device acceptance remain open. |
 | Native-device verification | In progress | The Android browser simulator pass is recorded, but Expo Go/native Android review, iOS review, and one physical-device pass remain open. See [`phase-8-verification-record.md`](phase-8-verification-record.md). |
 
-Public verification on 2026-08-27 returned `200` from the deployed frontend,
-returned a healthy production API with `provider=demo`, and listed AAPL, GOOG,
-NVDA, and TSLA.
+The historical public verification on 2026-08-27 returned `200` from the
+deployed frontend, returned a healthy production API with `provider=demo`, and
+listed AAPL, GOOG, NVDA, and TSLA. It is retained as evidence of that release,
+but does not close the current same-SHA, `/bundle`, freshness, or UI-acceptance
+gaps described in the 2026-09-06 baseline.
 
 ## Current product limitations
 
@@ -109,9 +117,40 @@ persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
 streaming completion gate. Explanation now has a stable read-only mobile/API
 path plus a bounded optional Groq provider. Phase 7 is complete in its linear
-interaction scope. The next implementation phase is the financial-technology UI
-redesign, followed by Replay, observability, resilience, and release proof;
-message branching and arbitrary Web selection remain deferred backlog items.
+interaction scope. Phase 8 is not complete: the active work is the
+Prototype-based dark UI migration, chart and technical-indicator review,
+chat-style V2 Debate transcript with visible facts/citations, deterministic
+review fixtures, data/release integrity, staging proof, and native/physical
+device acceptance. Replay, observability, resilience, and release proof follow
+this remediation; message branching and arbitrary Web selection remain
+deferred backlog items. See the phase-specific work register in
+[`phase-8-design-remediation.md`](phase-8-design-remediation.md).
+
+### Phase 8 design-remediation baseline (2026-09-06)
+
+The current implementation has substantial functional coverage, but the
+product is not yet visually or operationally ready for final acceptance. The
+active work register must preserve all existing feature behavior while
+addressing these linked workstreams:
+
+- migrate the application shell, navigation, cards, typography, colors, and
+  motion to the Prototype HTML dark design system;
+- reshape V2 Debate into a bounded chat-style transcript with Bull messages
+  left, Bear messages right, and an Interim/Final neutral Judge summary in a
+  centered panel rather than a stack of full-width agent boxes;
+- render grounded facts and expandable citation details (source, date,
+  freshness, and supporting passage) in completed Debate messages;
+- add an explicit `review_fixture` mode that shows deterministic simulated
+  chart/indicator/Debate states while clearly labeling them as simulated and
+  never presenting them as market prices;
+- align indicator calculations and availability thresholds across API and
+  mobile, including partial-history behavior instead of an all-or-nothing
+  chart gate;
+- make refresh failures, stale caches, `/bundle` compatibility, and workflow
+  exit status observable and release-blocking where appropriate; and
+- deploy frontend and backend from one SHA to staging, then collect visual,
+  responsive, accessibility, native-simulator, physical-device, and rollback
+  evidence before public-demo promotion.
 
 ### Phase 1 completion evidence
 

@@ -21,6 +21,56 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-06 — Data and release integrity gaps block current UI acceptance
+
+**Status:** Open; release and Phase 8 remediation required.
+
+**Scope and verified evidence**
+
+- The local implementation is approximately 150 commits ahead of the remote
+  `main` branch, so the public deployment is not a reliable representation of
+  the current working tree. The public API returns `404` for the current
+  `GET /stocks/{ticker}/bundle` contract.
+- The deployed AAPL daily cache is stale; the latest observed daily close is
+  2026-08-19 at the time of this audit.
+- The daily price-refresh workflow can still exit successfully after its
+  update step fails, allowing a failed refresh to appear green to the release
+  process.
+- Frontend and backend RSI/volatility calculations do not currently share one
+  verified calculation contract, so displayed values and plotted series can
+  diverge.
+- The current `verified` history check verifies the final source identity but
+  does not require the minimum number of valid historical observations.
+
+**Impact**
+
+The public demo can be stale or serve an older API surface while local code
+appears healthy. A reviewer cannot distinguish a design/chart defect from a
+deployment mismatch or an incomplete data snapshot, and a green refresh job
+does not prove that current market data was written.
+
+**Required remediation**
+
+1. Establish a single release SHA and expose the current `/bundle` contract in
+   staging before public-demo promotion.
+2. Make refresh failures fail the workflow, record freshness, and add a
+   post-write verification for the expected close date and row count.
+3. Centralize RSI/volatility formulas and test frontend/backend parity against
+   fixed fixtures.
+4. Require both source provenance and minimum valid history length for
+   `verified` status; represent stale or insufficient data explicitly.
+5. Add a clearly labelled `review_fixture` for local visual/chart/Debate review
+   so simulated data is inspectable without being presented as market data.
+
+**Owner and follow-up**
+
+The data/release workstream owns items 1–4; the Phase 8 UI workstream owns item
+5. Close this entry only after staging same-SHA smoke tests, refresh-failure
+verification, indicator parity tests, and the visual acceptance evidence are
+recorded. No credentials or private configuration are included in this entry.
+
+---
+
 ## 2026-08-28 — Local Settings representation exposed configured credentials
 
 **Status:** Code mitigation complete; owner credential rotation required.
