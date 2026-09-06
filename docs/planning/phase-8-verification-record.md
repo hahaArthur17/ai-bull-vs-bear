@@ -41,6 +41,13 @@ npm run typecheck
 npm run build:web
 ```
 
+The provenance-aware fixture wording added during visual review was also
+covered by the full backend run:
+
+```sh
+cd backend && .venv/bin/pytest -q  # 365 passing tests
+```
+
 The added token, shell, and accessibility assertions cover the deep canvas and
 semantic role mappings, spacing/radius/elevation contract, reduced-motion
 durations, 44 px targets, AA contrast for primary/secondary/status and
@@ -57,6 +64,74 @@ simulated label and rendered price-chart controls. The temporary local servers
 were stopped after inspection. This is implementation/regression evidence only:
 it does not approve subjective page composition, Stock workspace hierarchy,
 V2 chat choreography, native-device appearance, or the final product design.
+
+## WP4 Stock research workspace verification on 2026-09-07
+
+WP4 implements the Stock research layout locally without changing indicator
+formulas or the API schema. The pure workspace-layout helper fixes the intended
+breakpoint contract: 320 and 390 CSS px use a single reading column; 768 uses
+two-up technical/macro chart grids without a sidebar; 1280 uses a primary
+price/research column beside a data-readiness and signal-snapshot sidebar.
+The phone order is price, snapshot, technical panels, market backdrop, then
+actions. Technical panels precede macro context at every size.
+
+Price, technical, and macro SVG components now derive their viewBox from the
+measured layout width after a safe first render, rather than retaining a
+320-pixel chart coordinate system. The price inspector preserves 1M/3M/6M/1Y
+range selection, touch drag, adjustable accessibility actions, Earlier/Later
+buttons, selected date/value text, and textual trend equivalents. A daily range
+is disabled and empty when its verified/simulated daily curve is unavailable;
+weekly-only history defaults to 6M. Per-series availability gates each
+technical visual and shows its truthful unavailable state. The volume scale
+also handles an all-zero series without invalid numeric SVG attributes.
+
+The provenance helper now fails closed if optional history or availability
+metadata is absent: a `daily_market_cache` source string alone cannot make a
+daily curve or verified-history claim, and `demo_fallback` never supplies a
+daily range. An intraday quote uses the neutral wording “Quote snapshot ·
+cached server-side for up to one minute,” rather than asserting market-data
+freshness. Fixture label/provenance and catalog/loading/error/unavailable
+branches remain in place.
+
+From `apps/mobile`, these local checks passed after the WP4 change and root
+review fixes:
+
+```sh
+npm run test:stream  # 56 passing tests
+npm run typecheck
+npm run build:web
+```
+
+Focused tests cover all four workspace breakpoints, source-only and
+metadata-absent fail-closed provenance, a weekly-only plus `demo_fallback`
+conflict, mixed or mode-mismatched history provenance, simulated and
+weekly-only history, an all-zero finite volume scale, truthful catalog coverage
+labels, and the existing price/indicator math boundaries.
+
+Root then ran the isolated `review_fixture` backend and demo-auth Expo Web app.
+At 320/390/768/1280 CSS px the root scroll width exactly matched the viewport.
+The AAPL price chart measured 202/260/630/738 px respectively, and each SVG
+viewBox adopted the measured width; the first technical cards measured
+214/272/300/354 px. The 1280 layout rendered a 320 px readiness/sidebar with
+Evidence and Debate actions beside the primary price workspace. The floating
+navigation remained 288/346/680/680 px.
+
+On 390 px, Earlier changed the selected point from 22 to 21 and an actual mouse
+move over the chart changed it to point 3. Switching to 6M produced a weekly
+27-point chart and retained the simulated provenance label. The state matrix
+also rendered GOOG stale, NVDA with 19 closes and unavailable MA panels, TSLA
+with unavailable price/paused signals, and MSFT as catalog-only without losing
+their boundary copy. Two reference screenshots were visually inspected at 390
+and 1280; no error overlay or browser warning/error appeared. These results are
+Web implementation evidence, not native-device or subjective product-owner
+approval; those remain WP8/WP9 gates.
+
+A final clean restart confirmed that the readiness copy now says “Simulated
+review history is sufficient” and no longer describes fixture rows as
+verified; the 390 px page remained overflow-free with no browser warning/error.
+The final entry-path check also distinguishes NVDA and TSLA as “Limited
+coverage” while retaining “Watchlist only” for the MSFT catalog-only boundary,
+so partial and unavailable research states remain discoverable during review.
 
 ## Automated baseline
 

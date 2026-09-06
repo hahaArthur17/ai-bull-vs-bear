@@ -17,15 +17,52 @@ export type QuoteProvenance = {
   warning: string | null;
 };
 
-function hasValidWeeklyCurve(bundle: StockBundle): boolean {
+function hasValidWeeklyCurve(bundle: StockBundle, isReviewFixture: boolean): boolean {
   if (bundle.weekly_history.length < 2) return false;
+  const source = bundle.weekly_history[0]?.source;
+  const expectedSource = isReviewFixture ? "review_fixture" : "alpha_vantage_weekly";
+  if (source !== expectedSource) return false;
   return bundle.weekly_history.every((point, index, points) => (
-    ["alpha_vantage_weekly", "review_fixture"].includes(point.source)
+    point.source === source
     && Number.isFinite(point.close)
     && point.close > 0
     && !Number.isNaN(Date.parse(`${point.date}T00:00:00Z`))
     && (index === 0 || points[index - 1].date < point.date)
   ));
+}
+
+function hasValidDailyHistory(bundle: StockBundle, isReviewFixture: boolean): boolean {
+  const history = bundle.indicators.history;
+  const allowedSources = isReviewFixture ? ["review_fixture"] : ["daily_market_cache"];
+  const hasExpectedProvenance = isReviewFixture
+    ? history?.provenance === "review_fixture"
+    : history !== undefined && ["live_fresh", "live_stale"].includes(history.provenance);
+  return Boolean(
+    history
+    && hasExpectedProvenance
+    && history.is_valid
+    && history.is_ordered
+    && history.has_unique_dates
+    && history.has_valid_closes
+    && history.has_valid_ohlcv
+    && history.has_only_completed_closes
+    && bundle.prices.length >= 1
+    && bundle.prices.every((point, index, points) => (
+      allowedSources.includes(point.source)
+      && Number.isFinite(point.close)
+      && point.close > 0
+      && !Number.isNaN(Date.parse(`${point.date}T00:00:00Z`))
+      && (index === 0 || points[index - 1].date < point.date)
+    )),
+  );
+}
+
+function hasValidDailyCurve(bundle: StockBundle, isReviewFixture: boolean): boolean {
+  return Boolean(
+    bundle.indicators.availability?.price_line
+    && bundle.prices.length >= 2
+    && hasValidDailyHistory(bundle, isReviewFixture),
+  );
 }
 
 /**
@@ -36,16 +73,14 @@ function hasValidWeeklyCurve(bundle: StockBundle): boolean {
 export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
   const latestDailyPrice = bundle.prices[bundle.prices.length - 1] ?? null;
   const history = bundle.indicators.history;
-  const availability = bundle.indicators.availability;
   const isReviewFixture = bundle.data_mode === "review_fixture"
     || history?.provenance === "review_fixture";
-  const hasVerifiedMarketData = history
-    ? history.is_valid && ["live_fresh", "live_stale"].includes(history.provenance)
-    : latestDailyPrice?.source === "daily_market_cache";
-  const hasDailyPriceCurve = availability?.price_line ?? hasVerifiedMarketData;
-  const hasWeeklyPriceCurve = hasValidWeeklyCurve(bundle);
+  const hasValidDailyData = hasValidDailyHistory(bundle, isReviewFixture);
+  const hasVerifiedMarketData = !isReviewFixture && hasValidDailyData;
+  const hasDailyPriceCurve = hasValidDailyCurve(bundle, isReviewFixture);
+  const hasWeeklyPriceCurve = hasValidWeeklyCurve(bundle, isReviewFixture);
   const hasPriceCurve = hasDailyPriceCurve || hasWeeklyPriceCurve;
-  const hasCompleteTechnicalHistory = history?.complete_view ?? false;
+  const hasCompleteTechnicalHistory = Boolean(history?.complete_view && hasValidDailyData);
   const curveSource = hasDailyPriceCurve
     ? isReviewFixture ? "Simulated review fixture" : "Verified daily history"
     : hasWeeklyPriceCurve
@@ -60,12 +95,12 @@ export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
 
   if (bundle.quote && !isReviewFixture) {
     return {
-      label: "Latest market quote",
+      label: "Market quote snapshot",
       preferredChartRange,
       value: bundle.quote.close,
       source: "Finnhub quote",
       timestamp: `Quote time · ${formatQuoteTime(bundle.quote.as_of)}`,
-      freshness: "Cached server-side for up to one minute",
+      freshness: "Quote snapshot · cached server-side for up to one minute",
       curveSource,
       hasVerifiedMarketData,
       hasDailyPriceCurve,
@@ -78,7 +113,7 @@ export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
     };
   }
 
-  if (isReviewFixture && latestDailyPrice) {
+  if (isReviewFixture && latestDailyPrice?.source === "review_fixture") {
     return {
       label: latestDailyPrice.is_stale ? "Simulated stale review close" : "Simulated review close",
       preferredChartRange,

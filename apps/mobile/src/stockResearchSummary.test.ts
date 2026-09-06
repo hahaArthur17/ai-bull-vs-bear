@@ -112,7 +112,19 @@ test("quote provenance retains the intraday source, timestamp, and daily-history
   assert.equal(summary.value, 504);
   assert.equal(summary.source, "Finnhub quote");
   assert.match(summary.timestamp, /^Quote time/);
+  assert.match(summary.freshness, /^Quote snapshot/);
+  assert.equal(summary.hasVerifiedMarketData, false);
+  assert.equal(summary.hasDailyPriceCurve, false);
   assert.match(summary.warning ?? "", /daily price history is stale/);
+});
+
+test("missing history and availability fail closed even when a daily-cache point exists", () => {
+  const summary = getQuoteProvenance(bundle());
+
+  assert.equal(summary.hasVerifiedMarketData, false);
+  assert.equal(summary.hasDailyPriceCurve, false);
+  assert.equal(summary.hasPriceCurve, false);
+  assert.equal(summary.preferredChartRange, "6M");
 });
 
 test("a stale daily close is never presented as current", () => {
@@ -133,8 +145,8 @@ test("a stale daily close is never presented as current", () => {
   assert.equal(summary.label, "Latest daily close");
   assert.equal(summary.freshness, "Stale daily market data");
   assert.equal(summary.hasVerifiedMarketData, true);
-  assert.equal(summary.hasPriceCurve, true);
-  assert.equal(summary.preferredChartRange, "1M");
+  assert.equal(summary.hasPriceCurve, false);
+  assert.equal(summary.preferredChartRange, "6M");
   assert.match(summary.warning ?? "", /stale/);
 });
 
@@ -155,6 +167,39 @@ test("demo fallback remains unavailable rather than being shown as a market quot
   assert.equal(summary.value, null);
   assert.equal(summary.hasVerifiedMarketData, false);
   assert.match(summary.source, /not displayed as a market price/);
+});
+
+test("weekly history never makes demo fallback eligible for a daily curve", () => {
+  const summary = getQuoteProvenance(bundle({
+    prices: ["2026-08-27", "2026-08-28"].map((date, index) => ({
+      date,
+      open: 500 + index,
+      high: 505 + index,
+      low: 499 + index,
+      close: 503 + index,
+      volume: 100 + index,
+      source: "demo_fallback" as const,
+      is_stale: false,
+    })),
+    weekly_history: ["2026-08-21", "2026-08-28"].map((date, index) => ({
+      date,
+      open: 490 + index,
+      high: 505 + index,
+      low: 480 + index,
+      close: 500 + index,
+      volume: 1_000 + index,
+      frequency: "weekly" as const,
+      source: "alpha_vantage_weekly" as const,
+      retrieved_at: "2026-08-29T00:00:00Z",
+    })),
+    indicators: indicatorsWithHistory("live_fresh", 2),
+  }));
+
+  assert.equal(summary.hasDailyPriceCurve, false);
+  assert.equal(summary.hasWeeklyPriceCurve, true);
+  assert.equal(summary.hasPriceCurve, true);
+  assert.equal(summary.preferredChartRange, "6M");
+  assert.match(summary.source, /Demo fallback/);
 });
 
 test("a cache source alone cannot claim verified or complete history", () => {
@@ -289,6 +334,7 @@ test("valid weekly history remains inspectable without daily verification", () =
 
 test("review-fixture weekly history is labelled simulated instead of Alpha Vantage", () => {
   const summary = getQuoteProvenance(bundle({
+    data_mode: "review_fixture",
     prices: [],
     weekly_history: ["2025-02-14", "2025-02-21"].map((date, index) => ({
       date,
@@ -308,6 +354,77 @@ test("review-fixture weekly history is labelled simulated instead of Alpha Vanta
   assert.equal(summary.curveSource, "Simulated review fixture");
   assert.equal(summary.preferredChartRange, "6M");
   assert.equal(summary.hasVerifiedMarketData, false);
+});
+
+test("mixed weekly provenance fails closed instead of inheriting the first source label", () => {
+  const summary = getQuoteProvenance(bundle({
+    data_mode: "review_fixture",
+    prices: [],
+    weekly_history: [
+      {
+        date: "2025-02-14",
+        open: 100,
+        high: 102,
+        low: 99,
+        close: 101,
+        volume: 1000,
+        frequency: "weekly",
+        source: "review_fixture",
+        retrieved_at: "2025-03-01T00:00:00Z",
+      },
+      {
+        date: "2025-02-21",
+        open: 101,
+        high: 103,
+        low: 100,
+        close: 102,
+        volume: 1100,
+        frequency: "weekly",
+        source: "alpha_vantage_weekly",
+        retrieved_at: "2025-03-01T00:00:00Z",
+      },
+    ],
+    indicators: indicatorsWithHistory("unavailable", 0),
+  }));
+
+  assert.equal(summary.hasWeeklyPriceCurve, false);
+  assert.equal(summary.hasPriceCurve, false);
+  assert.equal(summary.curveSource, "Unavailable at the current history threshold");
+});
+
+test("history provenance must match the bundle mode before daily data can be shown", () => {
+  const liveMetadataWithFixtureRows = getQuoteProvenance(bundle({
+    prices: ["2026-08-27", "2026-08-28"].map((date, index) => ({
+      date,
+      open: 500 + index,
+      high: 505 + index,
+      low: 499 + index,
+      close: 503 + index,
+      volume: 100 + index,
+      source: "review_fixture" as const,
+      is_stale: false,
+    })),
+    indicators: indicatorsWithHistory("live_fresh", 50),
+  }));
+  const fixtureModeWithLiveMetadata = getQuoteProvenance(bundle({
+    data_mode: "review_fixture",
+    prices: ["2026-08-27", "2026-08-28"].map((date, index) => ({
+      date,
+      open: 500 + index,
+      high: 505 + index,
+      low: 499 + index,
+      close: 503 + index,
+      volume: 100 + index,
+      source: "review_fixture" as const,
+      is_stale: false,
+    })),
+    indicators: indicatorsWithHistory("live_fresh", 50),
+  }));
+
+  assert.equal(liveMetadataWithFixtureRows.hasDailyPriceCurve, false);
+  assert.equal(liveMetadataWithFixtureRows.hasCompleteTechnicalHistory, false);
+  assert.equal(fixtureModeWithLiveMetadata.hasDailyPriceCurve, false);
+  assert.equal(fixtureModeWithLiveMetadata.hasCompleteTechnicalHistory, false);
 });
 
 test("review-fixture unavailable state stays visibly simulated", () => {

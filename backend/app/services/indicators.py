@@ -161,10 +161,10 @@ def assess_price_history(
     elif not has_verified_provenance:
         explanation = "Daily history provenance is not verified for market presentation."
     elif len(points) < COMPLETE_HISTORY_RECORDS:
-        explanation = (
-            f"{len(points)} verified closes are available; {COMPLETE_HISTORY_RECORDS} are required "
-            "for the complete technical view."
-        )
+        history_label = "simulated review closes" if provenance == "review_fixture" else "verified closes"
+        explanation = f"{len(points)} {history_label} are available; {COMPLETE_HISTORY_RECORDS} are required for the complete technical view."
+    elif provenance == "review_fixture":
+        explanation = "Simulated review history is sufficient for the complete technical view."
     else:
         explanation = "Verified daily history is sufficient for the complete technical view."
 

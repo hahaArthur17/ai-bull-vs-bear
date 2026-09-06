@@ -60,6 +60,19 @@ def test_history_threshold_degrades_each_series_independently() -> None:
     assert fifty["history"]["complete_view"] is True
 
 
+def test_review_fixture_history_never_describes_simulated_closes_as_verified() -> None:
+    nineteen = calculate_indicators("AAPL", price_points(19, source="review_fixture"))
+    fifty = calculate_indicators("AAPL", price_points(50, source="review_fixture"))
+
+    assert nineteen["history"]["provenance"] == "review_fixture"
+    assert nineteen["history"]["explanation"] == (
+        "19 simulated review closes are available; 50 are required for the complete technical view."
+    )
+    assert fifty["history"]["explanation"] == (
+        "Simulated review history is sufficient for the complete technical view."
+    )
+
+
 def test_invalid_or_unverified_history_never_claims_complete() -> None:
     duplicate = price_points(50)
     duplicate[20]["date"] = duplicate[19]["date"]

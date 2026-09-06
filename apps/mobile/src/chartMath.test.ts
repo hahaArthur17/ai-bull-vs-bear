@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  chartBarScaleMaximum,
   calculateMacd,
   calculateRsi,
   calculateVolatility,
@@ -10,6 +11,11 @@ import {
   simpleMovingAverage,
   technicalPath,
 } from "./research/chartMath.ts";
+
+test("bar charts keep a finite scale for all-zero observations", () => {
+  assert.equal(chartBarScaleMaximum([0, 0, 0]), 1);
+  assert.equal(chartBarScaleMaximum([0, 12, 4]), 12);
+});
 
 test("chart calculations retain gaps and use complete trailing windows", () => {
   assert.deepEqual(simpleMovingAverage([1, 2, 3, 4], 3), [null, null, 2, 3]);

@@ -132,6 +132,11 @@ export function chartScale(
   return { min: fixedDomain ? min : min - padding, max: fixedDomain ? max : max + padding };
 }
 
+/** Keep an all-zero bar series finite without altering its displayed maximum. */
+export function chartBarScaleMaximum(values: number[]): number {
+  return Math.max(...values, 1);
+}
+
 export function seriesTrend(points: SeriesPoint[]): SeriesTrend | null {
   const values = points.filter((point): point is { date: string; value: number } => point.value !== null);
   if (values.length < 2) return null;

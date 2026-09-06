@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getDiscoverySummary } from "./discoverySummary.ts";
+import { getCoveragePresentation, getDiscoverySummary } from "./discoverySummary.ts";
 import type { Stock } from "./types.ts";
 
 function stock(ticker: string, coverageStatus: Stock["coverage_status"]): Stock {
@@ -42,4 +42,11 @@ test("rapid catalog query switches cannot replace the discovery summary", () => 
   assert.deepEqual(getDiscoverySummary(loadedStocks), { readyToReview: 1 });
   assert.notDeepEqual(firstQueryResults, laterQueryResults);
   assert.deepEqual(getDiscoverySummary(loadedStocks), { readyToReview: 1 });
+});
+
+test("coverage labels preserve partial research states in catalog results", () => {
+  assert.deepEqual(getCoveragePresentation("debate_ready"), { label: "Research ready", tone: "ready" });
+  assert.deepEqual(getCoveragePresentation("evidence_ready"), { label: "Evidence ready", tone: "ready" });
+  assert.deepEqual(getCoveragePresentation("price_cached"), { label: "Limited coverage", tone: "partial" });
+  assert.deepEqual(getCoveragePresentation("catalog_only"), { label: "Watchlist only", tone: "catalog" });
 });

@@ -276,6 +276,17 @@ matrix, and desktop is responsive rather than a fixed 390px frame.
 **Suggested agent:** Terra for chart/UI implementation; Sol reviews provenance,
 formula, and state-boundary correctness.
 
+**Status:** Implemented locally on 2026-09-07. The screen now has a pure
+320/390/768/1280 responsive layout contract, measured SVG chart widths,
+per-series technical availability states, a phone-first reading order, and a
+desktop primary-research/readiness-sidebar composition. Provenance now fails
+closed when historical sufficiency fields are absent, and `demo_fallback` is
+not eligible for a daily curve. Automated evidence is recorded in
+[`phase-8-verification-record.md`](phase-8-verification-record.md). Root-owned
+review-fixture browser verification now covers the required Web viewports and
+state matrix. Native-device and product-owner visual approval remain open
+acceptance gates; this status does not claim subjective design approval.
+
 **File scope:** `apps/mobile/src/screens/StockDetailScreen.tsx`,
 `apps/mobile/src/research/chartMath.ts`, stock detail/summary helpers and tests,
 finance/chart components introduced under `components/finance/`, and only the

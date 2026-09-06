@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 
 import { SectionHeader } from "../components/common";
-import { getDiscoverySummary } from "../discoverySummary";
+import { getCoveragePresentation, getDiscoverySummary } from "../discoverySummary";
 import { colors, interaction, palette, radii, spacing, typography } from "../theme";
 import type { Stock } from "../types";
 
@@ -138,20 +138,26 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
   onOpen: (ticker: string) => void;
   onToggle: (ticker: string) => void;
 }) {
-  const isReady = stock.coverage_status === "debate_ready";
-  const coverageLabel = isReady ? "Research ready" : "Watchlist only";
+  const coverage = getCoveragePresentation(stock.coverage_status);
+  const isCatalogOnly = coverage.tone === "catalog";
   return (
     <View style={styles.stockRow}>
       <Pressable
         accessibilityHint="Opens this security's research workspace."
-        accessibilityLabel={`${stock.ticker}, ${stock.company_name}, ${coverageLabel}`}
+        accessibilityLabel={`${stock.ticker}, ${stock.company_name}, ${coverage.label}`}
         accessibilityRole="button"
         onPress={() => onOpen(stock.ticker)}
         style={styles.stockMain}
       >
-        <View style={[styles.symbolBadge, !isReady && styles.catalogBadge]}><Text style={[styles.symbolText, !isReady && styles.catalogSymbolText]}>{stock.ticker.slice(0, 1)}</Text></View>
+        <View style={[styles.symbolBadge, isCatalogOnly && styles.catalogBadge]}><Text style={[styles.symbolText, isCatalogOnly && styles.catalogSymbolText]}>{stock.ticker.slice(0, 1)}</Text></View>
         <View style={styles.stockCopy}>
-          <View style={styles.tickerRow}><Text style={styles.stockTicker}>{stock.ticker}</Text><Text style={[styles.coverageBadge, isReady ? styles.readyBadge : styles.catalogOnlyBadge]}>{coverageLabel}</Text></View>
+          <View style={styles.tickerRow}>
+            <Text style={styles.stockTicker}>{stock.ticker}</Text>
+            <Text style={[
+              styles.coverageBadge,
+              coverage.tone === "ready" ? styles.readyBadge : coverage.tone === "partial" ? styles.partialBadge : styles.catalogOnlyBadge,
+            ]}>{coverage.label}</Text>
+          </View>
           <Text numberOfLines={1} style={styles.stockCompany}>{stock.company_name}</Text>
           <Text style={styles.stockMeta}>{stock.exchange}{stock.sector ? ` · ${stock.sector}` : ""}</Text>
         </View>
@@ -207,6 +213,7 @@ const styles = StyleSheet.create({
   stockTicker: { color: palette.ink, fontSize: 16, fontWeight: "900" },
   coverageBadge: { borderRadius: radii.sm, fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: 3 },
   readyBadge: { backgroundColor: colors.surface.positive, color: palette.accent },
+  partialBadge: { backgroundColor: colors.surface.warning, color: colors.content.warning },
   catalogOnlyBadge: { backgroundColor: colors.surface.information, color: palette.accent },
   stockCompany: { color: palette.muted, fontSize: 13, marginTop: 2 },
   stockMeta: { color: palette.muted, fontSize: 11, marginTop: 2 },
