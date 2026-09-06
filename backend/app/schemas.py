@@ -53,7 +53,7 @@ class PriceHistoryPoint(BaseModel):
     close: float
     volume: int
     frequency: Literal["weekly"]
-    source: Literal["alpha_vantage_weekly"]
+    source: Literal["alpha_vantage_weekly", "review_fixture"]
     retrieved_at: str
 
 
@@ -153,6 +153,7 @@ class EvidenceItem(BaseModel):
 
 class StockBundle(BaseModel):
     stock: Stock
+    data_mode: Literal["standard", "review_fixture"] = "standard"
     prices: list[PricePoint]
     weekly_history: list[PriceHistoryPoint]
     quote: MarketQuote | None

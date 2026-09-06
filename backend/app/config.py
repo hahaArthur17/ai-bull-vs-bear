@@ -1,5 +1,6 @@
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -17,6 +18,9 @@ class Settings(BaseSettings):
 
     app_name: str = "AI Bull vs Bear API"
     environment: str = "development"
+    # This is deliberately independent from persistence/provider configuration.
+    # A reviewer opts in explicitly; missing credentials must never select it.
+    app_data_mode: Literal["standard", "review_fixture"] = "standard"
     auth_mode: str = "demo"
     demo_user_id: str = "demo-user"
     persistence_mode: str = "demo"
@@ -90,11 +94,37 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_redis_configuration(self) -> "Settings":
+        if self.is_review_fixture and self.environment.lower().strip() not in {
+            "development",
+            "local",
+            "test",
+        }:
+            raise ValueError(
+                "APP_DATA_MODE=review_fixture is allowed only in local development or test environments"
+            )
+        if self.is_review_fixture:
+            # An explicit review-fixture opt-in is a complete local runtime
+            # profile.  It must win over credentials and provider flags loaded
+            # from a developer's .env file, otherwise a visual review could
+            # unexpectedly read or write hosted data or spend model quota.
+            self.persistence_mode = "demo"
+            self.auth_mode = "demo"
+            self.analysis_provider = "demo"
+            self.explanation_provider = "deterministic"
+            self.debate_streaming_provider = "deterministic"
+            self.debate_workflow_v2 = True
+            self.debate_queue_enabled = False
+            self.redis_enabled = False
+            self.redis_url = None
         if self.redis_enabled and not self.redis_url:
             raise ValueError("REDIS_URL is required when REDIS_ENABLED=true")
         if self.redis_url and not self.redis_url.startswith(("redis://", "rediss://")):
             raise ValueError("REDIS_URL must use redis:// or rediss://")
         return self
+
+    @property
+    def is_review_fixture(self) -> bool:
+        return self.app_data_mode == "review_fixture"
 
     @property
     def cors_origin_list(self) -> list[str]:

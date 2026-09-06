@@ -333,9 +333,11 @@ function InteractivePriceChart({
       : activePoint.is_stale
       ? "Daily market cache · stale"
       : "Daily market cache · verified"
-    : activePoint.retrieved_at
-      ? `Weekly Alpha Vantage history · refreshed ${formatQuoteTime(activePoint.retrieved_at)}`
-      : "Weekly Alpha Vantage history";
+    : activePoint.source === "review_fixture"
+      ? "Simulated review fixture · not live market data"
+      : activePoint.retrieved_at
+        ? `Weekly Alpha Vantage history · refreshed ${formatQuoteTime(activePoint.retrieved_at)}`
+        : "Weekly Alpha Vantage history";
   const trendSummary = describeTrend(`${ticker} ${range} price`, priceTrend, "$", "");
 
   return (
@@ -518,7 +520,12 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
 
   return (
     <View style={styles.macroSection}>
-      <SectionHeader title="Market backdrop" meta="cached daily context" />
+      <SectionHeader
+        title="Market backdrop"
+        meta={Object.values(charts).some((chart) => chart?.simulated)
+          ? "SIMULATED REVIEW FIXTURE"
+          : "cached daily context"}
+      />
       <View style={styles.macroDisclosure}>
         <Text style={styles.macroDisclosureTitle}>Background, not a price-move explanation</Text>
         <Text style={styles.macroDisclosureText}>These dated market series can frame broad conditions. They do not prove why a security moved on a particular day and are not personal investment advice.</Text>
@@ -526,21 +533,21 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
       {charts.sp500 ? (
         <TechnicalLineChart
           title={`${charts.sp500.label} · ${formatMacroValue(charts.sp500.latest.value ?? 0, charts.sp500.unit)}`}
-          subtitle={`${charts.sp500.source.toUpperCase()} · latest ${formatMarketDate(charts.sp500.latest.date)} · last 30 observations`}
+          subtitle={`${charts.sp500.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.sp500.source.toUpperCase()} · latest ${formatMarketDate(charts.sp500.latest.date)} · last 30 observations`}
           series={[{ label: charts.sp500.label, color: "#3e8b6d", points: charts.sp500.points }]}
         />
       ) : null}
       {charts.vix ? (
         <TechnicalLineChart
           title={`${charts.vix.label} · ${formatMacroValue(charts.vix.latest.value ?? 0, charts.vix.unit)}`}
-          subtitle={`${charts.vix.source.toUpperCase()} · latest ${formatMarketDate(charts.vix.latest.date)} · last 30 observations`}
+          subtitle={`${charts.vix.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.vix.source.toUpperCase()} · latest ${formatMarketDate(charts.vix.latest.date)} · last 30 observations`}
           series={[{ label: charts.vix.label, color: "#7664a8", points: charts.vix.points }]}
         />
       ) : null}
       {rateSeries.length ? (
         <TechnicalLineChart
           title="U.S. rates"
-          subtitle={rateLatest}
+          subtitle={`${rateSeries.some((chart) => chart.simulated) ? "REVIEW FIXTURE (SIMULATED) · " : ""}${rateLatest}`}
           series={rateSeries.map((chart, index) => ({
             label: chart.label,
             color: ["#d95c3b", "#638ba2", "#3e8b6d", "#7664a8"][index],
@@ -552,7 +559,7 @@ function MacroContextPanel({ context }: { context: StockBundle["macro_context"] 
       {charts.wti ? (
         <TechnicalLineChart
           title={`${charts.wti.label} · ${formatMacroValue(charts.wti.latest.value ?? 0, charts.wti.unit)}`}
-          subtitle={`${charts.wti.source.toUpperCase()} · latest ${formatMarketDate(charts.wti.latest.date)} · last 30 observations`}
+          subtitle={`${charts.wti.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.wti.source.toUpperCase()} · latest ${formatMarketDate(charts.wti.latest.date)} · last 30 observations`}
           series={[{ label: charts.wti.label, color: "#b95455", points: charts.wti.points }]}
           prefix="$"
         />

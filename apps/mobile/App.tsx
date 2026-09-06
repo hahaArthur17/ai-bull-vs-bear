@@ -67,6 +67,7 @@ export default function App() {
   const [analysis, setAnalysis] = useState<AnalysisResponse | null>(null);
   const [liveDebate, setLiveDebate] = useState<DebateSessionDetail | null>(null);
   const [debateExperience, setDebateExperience] = useState<DebateExperience>("legacy");
+  const [reviewFixtureMode, setReviewFixtureMode] = useState(false);
   const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
   const [examination, setExamination] = useState<ExaminationResponse | null>(null);
   const [examinationError, setExaminationError] = useState("");
@@ -81,11 +82,25 @@ export default function App() {
   const loadHome = async () => {
     try {
       setError("");
+      // Older or partially deployed APIs may not expose the optional runtime
+      // metadata yet. Preserve the existing stock flow in that case.
+      const healthRequest = api.getHealth().catch(() => ({
+        data_mode: undefined,
+        debate_workflow_v2: undefined,
+      }));
+      const stockRequest = api.listStocks();
+      const watchlistRequest = api.getWatchlist();
+      const analysisRequest = api.listAnalyses();
+      const health = await healthRequest;
+      const fixtureMode = health.data_mode === "review_fixture";
+      const fixtureV2 = fixtureMode && health.debate_workflow_v2 === true;
+      setReviewFixtureMode(fixtureMode);
+      const debateV2Enabled = DEBATE_V2_UI_ENABLED || fixtureV2;
       const [stockResult, watchlistResult, analysisResult, debateResult] = await Promise.all([
-        api.listStocks(),
-        api.getWatchlist(),
-        api.listAnalyses(),
-        DEBATE_V2_UI_ENABLED
+        stockRequest,
+        watchlistRequest,
+        analysisRequest,
+        debateV2Enabled
           ? api.listDebates().catch(() => [])
           : Promise.resolve<DebateSessionSummary[]>([]),
       ]);
@@ -100,6 +115,8 @@ export default function App() {
       setError(requestError instanceof Error ? requestError.message : "Could not load the demo API.");
     }
   };
+
+  const debateV2Enabled = DEBATE_V2_UI_ENABLED || reviewFixtureMode;
 
   useEffect(() => {
     if (!supabase) {
@@ -185,7 +202,7 @@ export default function App() {
     setLoading(true);
     setError("");
     try {
-      if (DEBATE_V2_UI_ENABLED) {
+      if (debateV2Enabled) {
         debateAdmissionKey.current ||= newDebateIdempotencyKey(selectedTicker);
         const nextDebate = await api.createDebate(selectedTicker, {
           idempotencyKey: debateAdmissionKey.current,
@@ -234,7 +251,7 @@ export default function App() {
   };
 
   const refreshDebateHistory = async () => {
-    if (!DEBATE_V2_UI_ENABLED) {
+    if (!debateV2Enabled) {
       setDebateHistory([]);
       return;
     }
@@ -380,6 +397,11 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar style={screen === "debate" && debateExperience === "v2" ? "light" : "dark"} />
       <View style={styles.appShell}>
+        {reviewFixtureMode ? (
+          <View accessibilityRole="text" style={styles.fixtureBanner}>
+            <Text style={styles.fixtureBannerText}>SIMULATED DATA · LOCAL UI REVIEW · NOT A MARKET PRICE</Text>
+          </View>
+        ) : null}
         {error && screen !== "watchlist" && !(screen === "stock" && !selectedBundle) ? (
           <Pressable style={styles.errorBanner} onPress={() => setError("")}>
             <Text style={styles.errorText}>{error}</Text>

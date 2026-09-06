@@ -286,3 +286,40 @@ test("valid weekly history remains inspectable without daily verification", () =
   assert.match(summary.curveSource, /weekly Alpha Vantage/);
   assert.equal(summary.preferredChartRange, "6M");
 });
+
+test("review-fixture weekly history is labelled simulated instead of Alpha Vantage", () => {
+  const summary = getQuoteProvenance(bundle({
+    prices: [],
+    weekly_history: ["2025-02-14", "2025-02-21"].map((date, index) => ({
+      date,
+      open: 100 + index,
+      high: 102 + index,
+      low: 99 + index,
+      close: 101 + index,
+      volume: 1000,
+      frequency: "weekly" as const,
+      source: "review_fixture" as const,
+      retrieved_at: "2025-03-01T00:00:00Z",
+    })),
+    indicators: indicatorsWithHistory("unavailable", 0),
+  }));
+
+  assert.equal(summary.hasPriceCurve, true);
+  assert.equal(summary.curveSource, "Simulated review fixture");
+  assert.equal(summary.preferredChartRange, "6M");
+  assert.equal(summary.hasVerifiedMarketData, false);
+});
+
+test("review-fixture unavailable state stays visibly simulated", () => {
+  const summary = getQuoteProvenance(bundle({
+    data_mode: "review_fixture",
+    prices: [],
+    weekly_history: [],
+    indicators: indicatorsWithHistory("unavailable", 0),
+  }));
+
+  assert.equal(summary.label, "Simulated price unavailable");
+  assert.equal(summary.source, "Review fixture (simulated)");
+  assert.equal(summary.freshness, "Simulated unavailable state");
+  assert.match(summary.warning ?? "", /intentionally omits/);
+});

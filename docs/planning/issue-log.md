@@ -76,8 +76,10 @@ exit nonzero, Supabase reads the newest rather than oldest limited window,
 backend/client indicators share a golden-vector contract, and complete-history
 status requires 50 valid ordered unique completed closes plus trusted
 provenance. The complete backend and mobile gates pass. The issue remains open
-until an authorized live refresh proves the hosted AAPL cache advances and the
-same-SHA staging and `review_fixture` checks close items 1 and 5.
+until an authorized live refresh proves the hosted AAPL cache advances and
+same-SHA staging plus visual review close items 1 and 5. WP2's deterministic
+`review_fixture` implementation and no-outbound checks are now recorded; its
+responsive/device/product-owner acceptance remains open.
 
 ---
 

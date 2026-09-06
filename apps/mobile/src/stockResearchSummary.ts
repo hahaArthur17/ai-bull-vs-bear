@@ -20,7 +20,7 @@ export type QuoteProvenance = {
 function hasValidWeeklyCurve(bundle: StockBundle): boolean {
   if (bundle.weekly_history.length < 2) return false;
   return bundle.weekly_history.every((point, index, points) => (
-    point.source === "alpha_vantage_weekly"
+    ["alpha_vantage_weekly", "review_fixture"].includes(point.source)
     && Number.isFinite(point.close)
     && point.close > 0
     && !Number.isNaN(Date.parse(`${point.date}T00:00:00Z`))
@@ -37,7 +37,8 @@ export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
   const latestDailyPrice = bundle.prices[bundle.prices.length - 1] ?? null;
   const history = bundle.indicators.history;
   const availability = bundle.indicators.availability;
-  const isReviewFixture = history?.provenance === "review_fixture";
+  const isReviewFixture = bundle.data_mode === "review_fixture"
+    || history?.provenance === "review_fixture";
   const hasVerifiedMarketData = history
     ? history.is_valid && ["live_fresh", "live_stale"].includes(history.provenance)
     : latestDailyPrice?.source === "daily_market_cache";
@@ -47,7 +48,11 @@ export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
   const hasCompleteTechnicalHistory = history?.complete_view ?? false;
   const curveSource = hasDailyPriceCurve
     ? isReviewFixture ? "Simulated review fixture" : "Verified daily history"
-    : hasWeeklyPriceCurve ? "Verified weekly Alpha Vantage history" : "Unavailable at the current history threshold";
+    : hasWeeklyPriceCurve
+      ? bundle.weekly_history[0]?.source === "review_fixture"
+        ? "Simulated review fixture"
+        : "Verified weekly Alpha Vantage history"
+      : "Unavailable at the current history threshold";
   const fixtureWarning = isReviewFixture
     ? "Simulated review data for interface evaluation only; it is not live market data."
     : null;
@@ -75,12 +80,12 @@ export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
 
   if (isReviewFixture && latestDailyPrice) {
     return {
-      label: "Simulated review close",
+      label: latestDailyPrice.is_stale ? "Simulated stale review close" : "Simulated review close",
       preferredChartRange,
       value: latestDailyPrice.close,
       source: "Review fixture (simulated)",
       timestamp: `Fixture date · ${formatMarketDate(latestDailyPrice.date)}`,
-      freshness: "Simulated review data",
+      freshness: latestDailyPrice.is_stale ? "Simulated stale review data" : "Simulated review data",
       curveSource,
       hasVerifiedMarketData: false,
       hasDailyPriceCurve,
@@ -108,6 +113,24 @@ export function getQuoteProvenance(bundle: StockBundle): QuoteProvenance {
       warning: latestDailyPrice.is_stale
         ? "This daily close is stale. Refresh market data before treating the signals as current."
         : history && !history.complete_view ? history.explanation : null,
+    };
+  }
+
+  if (isReviewFixture) {
+    return {
+      label: "Simulated price unavailable",
+      preferredChartRange,
+      value: null,
+      source: "Review fixture (simulated)",
+      timestamp: "Fixture state · no price history",
+      freshness: "Simulated unavailable state",
+      hasVerifiedMarketData: false,
+      curveSource,
+      hasDailyPriceCurve,
+      hasPriceCurve,
+      hasWeeklyPriceCurve,
+      hasCompleteTechnicalHistory: false,
+      warning: "This fixture intentionally omits price history to review the unavailable state; it is not a market-data failure.",
     };
   }
 

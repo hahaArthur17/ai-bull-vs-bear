@@ -92,6 +92,53 @@ latest-date check. A non-advancing result may reflect a market holiday or stale
 provider response; it remains deliberately nonzero because the freshness gate
 cannot prove advancement.
 
+## WP2 isolated review-fixture verification on 2026-09-07
+
+The local-only `APP_DATA_MODE=review_fixture` profile was exercised without
+credentials or external requests. Its settings validator overrides any
+Supabase, model, auth, Queue, Redis, or quote-provider values inherited from
+`.env`; production-like environments reject the mode rather than selecting it.
+The API returned a deterministic AAPL fresh scenario, GOOG stale scenario,
+NVDA 19-record insufficient scenario, TSLA unavailable-price scenario, and
+MSFT catalog-only identity. AAPL's bundle contained seven dated macro series,
+all marked with simulated metadata. Daily and weekly fixture rows use the
+explicit `review_fixture` source, while Alpha Vantage remains reserved for
+real weekly cache rows.
+
+Focused local checks passed:
+
+```sh
+PYTHONPATH=backend backend/.venv/bin/pytest -q backend/tests/test_review_fixture.py  # 5 passed
+```
+
+The complete local regression also passed: `364` backend tests, `44` mobile
+tests, TypeScript, and Expo Web export. The frontend run explicitly set
+`EXPO_PUBLIC_AUTH_MODE=demo`, so the configured root `.env` could not construct
+or refresh a Supabase client during fixture review.
+
+The no-outbound test patched HTTP clients and exercised the AAPL bundle,
+analysis, macro context, and catalog/unavailable boundaries. A direct
+`TestClient` run with `APP_DATA_MODE=review_fixture` also returned `data_mode`
+as `review_fixture`, `provider=demo`, no quote, seven macro contexts, and
+`history.provenance=review_fixture`. This proves local mode selection and
+provenance boundaries, including a complete deterministic V2 Round 1 preview
+with simulated news and filing citations. Retry, reconnect, cancellation, and
+responsive/native/physical-device visual review remain later acceptance work;
+this package does not alter those state-machine contracts.
+
+Root then ran the documented backend/frontend command pair and inspected the
+actual Web UI at 390 px. The global simulated-data banner remained visible on
+Watchlist, stock research, and Debate; document width matched the viewport with
+no error overlay or console warning. AAPL visibly rendered its daily price
+curve, MA20/MA50, RSI, MACD, volume, realised volatility, and all seven macro
+series. The Earlier control changed the selected point, and 6M switched to the
+simulated weekly series without claiming Alpha Vantage provenance. The V2 flow
+advanced from seven canonical Round 1 messages through an exact-text Challenge
+to 13 canonical messages and a Final Neutral Judge; displayed citations used
+only `review-aapl-*` fixture IDs. Backend logs for that run contained only the
+expected localhost API requests. This is WP2 functional evidence, not approval
+of the still-warm visual design; Prototype dark-theme migration starts in WP3.
+
 ## WP0 browser characterization on 2026-09-07
 
 Root ran Expo Web at `http://localhost:8081` against a local FastAPI backend

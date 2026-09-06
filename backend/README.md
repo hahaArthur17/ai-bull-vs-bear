@@ -41,6 +41,29 @@ and the repository rejects any late completion after cancellation.
 
 Open http://localhost:8000/docs for the interactive API documentation.
 
+### Review fixture mode
+
+For a deterministic UI review, start the backend with the explicit local-only
+profile below:
+
+    ENVIRONMENT=development APP_DATA_MODE=review_fixture uvicorn app.main:app --reload --port 8000
+
+This profile overrides provider, persistence, auth, Queue, and Redis settings
+from `.env`, and uses only the in-memory deterministic stores. It makes no
+Supabase, market-data, model, or Redis requests. The fixture maps AAPL to a
+fresh history, GOOG to a stale history, NVDA to insufficient history, TSLA to
+an unavailable-price state, and MSFT to a catalog-only identity. It also
+includes seven dated simulated macro series and the deterministic V2 Debate
+flow. Every chart/evidence surface must retain the `SIMULATED DATA` label; the
+fixture is for interface acceptance only and is never selected automatically
+when credentials are absent.
+
+In the frontend terminal, use demo authentication explicitly so a root `.env`
+configured for Supabase cannot create an authentication client during review:
+
+    cd apps/mobile
+    EXPO_PUBLIC_AUTH_MODE=demo EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
+
 ## Test
 
     cd backend

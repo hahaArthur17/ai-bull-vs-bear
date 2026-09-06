@@ -89,6 +89,7 @@ from app.services.debate_event_broker import (
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
+from app.services.review_fixture_store import ReviewFixtureStore
 from app.services.explanation import (
     ExplanationNotFound,
     ExplanationProviderError,
@@ -112,7 +113,11 @@ from app.services.supabase_store import RepositoryError, SupabaseStore
 
 settings = get_settings()
 logger = logging.getLogger(__name__)
-if settings.persistence_mode.lower().strip() == "supabase":
+if settings.is_review_fixture:
+    # Keep the explicit local review profile ahead of persistence selection.
+    # Settings also neutralizes provider flags inherited from .env.
+    store = ReviewFixtureStore()
+elif settings.persistence_mode.lower().strip() == "supabase":
     if not settings.supabase_url or not settings.supabase_anon_key:
         raise RuntimeError("Supabase persistence requires SUPABASE_URL and SUPABASE_ANON_KEY")
     store = SupabaseStore(
@@ -158,16 +163,19 @@ else:
     )
 quote_cache = (
     QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))
-    if settings.finnhub_api_key and settings.environment != "test"
+    if settings.finnhub_api_key and settings.environment != "test" and not settings.is_review_fixture
     else None
 )
 cache_backend = build_cache_backend(
-    enabled=settings.redis_enabled,
+    enabled=settings.redis_enabled and not settings.is_review_fixture,
     redis_url=settings.redis_url,
     connect_timeout_seconds=settings.redis_connect_timeout_seconds,
     socket_timeout_seconds=settings.redis_socket_timeout_seconds,
 )
-response_cache = JsonResponseCache(cache_backend, enabled=settings.redis_enabled)
+response_cache = JsonResponseCache(
+    cache_backend,
+    enabled=settings.redis_enabled and not settings.is_review_fixture,
+)
 debate_snapshot_cache = StandardDebateSnapshotCache(response_cache)
 debate_admission_policy = DebateAdmissionPolicy(
     cache_backend,
@@ -287,8 +295,14 @@ def current_auth(
 
 
 @app.get("/health")
-def health() -> dict[str, str]:
-    return {"status": "ok", "environment": settings.environment, "provider": settings.analysis_provider}
+def health() -> dict[str, object]:
+    return {
+        "status": "ok",
+        "environment": settings.environment,
+        "provider": settings.analysis_provider,
+        "data_mode": settings.app_data_mode,
+        "debate_workflow_v2": settings.debate_workflow_v2,
+    }
 
 
 @app.get("/health/cache")
@@ -595,6 +609,7 @@ def _stock_bundle_core(ticker: str) -> StockBundle:
     macro_context = get_macro_context(limit=60) if ticker.upper() == "AAPL" else []
     return StockBundle(
         stock=stock,
+        data_mode=settings.app_data_mode,
         prices=prices,
         weekly_history=weekly_history,
         quote=None,

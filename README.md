@@ -106,6 +106,13 @@ repository does not overstate its current capabilities.
     pip install -r requirements.txt
     uvicorn app.main:app --reload --port 8000
 
+For deterministic visual acceptance, use the explicit local-only fixture profile:
+
+    ENVIRONMENT=development APP_DATA_MODE=review_fixture uvicorn app.main:app --reload --port 8000
+
+It overrides `.env` provider/persistence settings, makes no outbound requests,
+and labels all simulated prices, evidence, macro data, and Debate context.
+
 Open http://localhost:8000/docs for the interactive API docs.
 
 ## Run the mobile app
@@ -115,6 +122,14 @@ In another terminal:
     cd apps/mobile
     npm install
     npm run start
+
+When the backend uses `APP_DATA_MODE=review_fixture`, explicitly disable the
+client's configured Supabase authentication as well:
+
+    EXPO_PUBLIC_AUTH_MODE=demo EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
+
+The client reads the backend's local-only mode from `/health`, enables the
+deterministic V2 flow, and keeps a simulated-data banner above every screen.
 
 The mobile app defaults to http://localhost:8000. For a physical device, set
 EXPO_PUBLIC_API_URL to the computer's LAN address, for example

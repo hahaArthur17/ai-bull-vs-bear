@@ -54,7 +54,8 @@ Removes a stock from watchlist.
 
 GET /stocks/{ticker}/prices
 Returns cached daily OHLCV data. Every price point includes `source` with
-`daily_market_cache` or `demo_fallback`, plus `is_stale`. A daily market cache
+`daily_market_cache`, `demo_fallback`, or the explicit local-only
+`review_fixture`, plus `is_stale`. A daily market cache
 is populated from the configured provider (Alpha Vantage when available,
 otherwise Finnhub); it is not an intraday quote. Returns an empty list for a
 catalog-only identity.
@@ -77,7 +78,10 @@ catalog-only identity returns an empty list.
 GET /stocks/{ticker}/bundle
 Returns the stock identity, daily and weekly history, technical indicators,
 evidence, applicable macro context, and the latest optional quote in one mobile
-request. The public core is cached for five minutes when Redis is enabled; the
+request. It includes `data_mode` (`standard` or `review_fixture`) so simulated
+responses remain visibly distinguishable. Weekly rows use
+`alpha_vantage_weekly` for the real provider and `review_fixture` for the
+explicit local review profile. The public core is cached for five minutes when Redis is enabled; the
 current quote is resolved after the cache read and is not stored in the bundle
 cache. A catalog-only identity returns `409 Conflict`. `X-Cache-Status` uses the
 same values as stock search.

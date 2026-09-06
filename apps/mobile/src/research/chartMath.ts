@@ -19,6 +19,7 @@ export type MacroChart = {
   unit: string;
   points: SeriesPoint[];
   latest: SeriesPoint;
+  simulated: boolean;
 };
 
 export function simpleMovingAverage(values: number[], period: number): Array<number | null> {
@@ -101,7 +102,16 @@ export function macroChart(
     .map((observation) => ({ date: observation.observation_date, value: observation.value }));
   const latest = points[points.length - 1];
   if (!latest || latest.value === null) return null;
-  return { code, label, source: item.series.source, unit: item.series.unit, points, latest };
+  return {
+    code,
+    label,
+    source: item.series.source,
+    unit: item.series.unit,
+    points,
+    latest,
+    simulated: item.series.metadata.simulated === true
+      || item.series.metadata.source === "review_fixture",
+  };
 }
 
 export function formatMacroValue(value: number, unit: string): string {

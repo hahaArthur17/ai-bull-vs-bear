@@ -41,6 +41,8 @@ export const appStyles = StyleSheet.create({
   errorCard: { padding: 14, backgroundColor: colors.surface.danger, borderRadius: 12, marginBottom: 14 },
   errorBanner: { backgroundColor: colors.surface.danger, paddingHorizontal: 16, paddingVertical: 8 },
   errorText: { color: colors.content.danger, fontSize: 12, lineHeight: 18 },
+  fixtureBanner: { backgroundColor: colors.surface.information, borderBottomColor: colors.border.information, borderBottomWidth: 1, paddingHorizontal: 16, paddingVertical: 8 },
+  fixtureBannerText: { color: palette.accent, fontSize: 11, fontWeight: "900", letterSpacing: 0.7, textAlign: "center" },
   smallButton: { marginTop: 8, alignSelf: "flex-start", minHeight: 44, justifyContent: "center", paddingHorizontal: 12, paddingVertical: 8, borderRadius: 9, backgroundColor: palette.signal },
   smallButtonText: { color: "#fff", fontWeight: "700" },
   backButton: { alignSelf: "flex-start", justifyContent: "center", marginBottom: 18, minHeight: 44, minWidth: 44, paddingHorizontal: 4 },

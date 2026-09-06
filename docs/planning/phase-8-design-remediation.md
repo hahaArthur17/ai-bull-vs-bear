@@ -1,7 +1,7 @@
 # Phase 8 Design Remediation Execution Plan
 
 **Status:** In progress  
-**Last updated:** 2026-09-06  
+**Last updated:** 2026-09-07
 **Parent plan:** [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md)  
 **Visual reference:** [`../../prototype.html`](../../prototype.html)
 
@@ -231,6 +231,15 @@ production-unavailable tests proving that no fixture values leak into live mode.
 with stable data; screenshots cannot be mistaken for live market output; live
 failure never silently switches to simulated facts.
 
+**Status:** Implemented locally on 2026-09-07. `APP_DATA_MODE=review_fixture`
+overrides `.env` persistence/provider/auth/Queue/Redis selections, uses only
+deterministic in-memory stores, and is rejected outside development, local, or
+test environments. AAPL, GOOG, NVDA, TSLA, and MSFT cover fresh, stale,
+insufficient, unavailable, and catalog-only states; seven dated macro series
+and the deterministic V2 flow are included. The implementation and automated
+no-outbound checks are complete, but visual responsive/device review and final
+product-owner approval remain WP4/WP8 gates.
+
 ### WP3 — Build the prototype-derived design foundation
 
 **Depends on:** WP0; can run alongside WP1/WP2 after preservation is frozen  
@@ -446,14 +455,14 @@ guidance during WP2. The target developer experience is equivalent to:
 
 ```sh
 cd backend
-APP_DATA_MODE=review_fixture uvicorn app.main:app --reload --port 8000
+ENVIRONMENT=development APP_DATA_MODE=review_fixture uvicorn app.main:app --reload --port 8000
 ```
 
 In a second terminal:
 
 ```sh
 cd apps/mobile
-EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
+EXPO_PUBLIC_AUTH_MODE=demo EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
 ```
 
 The actual accepted environment-variable name may change during implementation

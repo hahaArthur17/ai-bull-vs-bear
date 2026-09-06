@@ -88,9 +88,10 @@ done:
 - Representative 390/1280 warm-theme Web characterization is recorded, but the
   complete 320/390/768/1280 redesigned-state matrix, native simulators, and a
   physical device remain later acceptance gates.
-- No deterministic `review_fixture` currently covers all chart, freshness,
-  partial-history, unavailable, and V2 lifecycle states. Existing
-  `demo_fallback` is not evidence of a safe review fixture.
+- WP2 now provides a deterministic local `review_fixture` covering fresh,
+  stale, insufficient, unavailable, catalog-only, seven macro-series, and V2
+  review states. Existing `demo_fallback` remains distinct and is not evidence
+  of a safe review fixture; responsive/device visual acceptance is still open.
 - WP1 has now normalized and mirrored frontend/backend RSI, MACD, moving-average,
   and volatility rules. Visual comparison of the resulting series remains a
   WP4 acceptance task.

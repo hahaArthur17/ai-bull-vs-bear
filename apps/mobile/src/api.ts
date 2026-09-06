@@ -69,6 +69,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 }
 
 export const api = {
+  getHealth: (): Promise<{ data_mode?: string; debate_workflow_v2?: boolean }> =>
+    request<{ data_mode?: string; debate_workflow_v2?: boolean }>("/health"),
+
   listStocks: (query = "", limit = 20): Promise<Stock[]> => {
     const params = new URLSearchParams();
     if (query) params.set("q", query);

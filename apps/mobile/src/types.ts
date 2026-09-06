@@ -30,7 +30,7 @@ export type PriceHistoryPoint = {
   close: number;
   volume: number;
   frequency: "weekly";
-  source: "alpha_vantage_weekly";
+  source: "alpha_vantage_weekly" | "review_fixture";
   retrieved_at: string;
 };
 
@@ -124,6 +124,7 @@ export type EvidenceItem = {
 
 export type StockBundle = {
   stock: Stock;
+  data_mode?: "standard" | "review_fixture";
   prices: PricePoint[];
   weekly_history: PriceHistoryPoint[];
   quote: MarketQuote | null;

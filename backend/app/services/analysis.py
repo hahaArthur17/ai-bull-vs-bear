@@ -115,6 +115,8 @@ class AnalysisService:
         if stock is None:
             raise ValueError(f"Unsupported ticker: {normalized}")
         prices = self.store.get_prices(normalized)
+        if not prices:
+            raise ValueError(f"No cached price history is available for {normalized}")
         raw_indicators = calculate_indicators(normalized, prices)
         indicators = TechnicalIndicators.model_validate(raw_indicators)
         latest_price = prices[-1]
@@ -271,7 +273,11 @@ class AnalysisService:
             price=PriceSnapshot(
                 as_of=str(latest_price["date"]),
                 close=float(latest_price["close"]),
-                source=price_source if price_source == "daily_market_cache" else "demo_fallback",
+                source=(
+                    price_source
+                    if price_source in {"daily_market_cache", "review_fixture"}
+                    else "demo_fallback"
+                ),
                 is_stale=bool(latest_price.get("is_stale", price_source != "daily_market_cache")),
             ),
             retrieved_evidence_count=len(retrieved_evidence) + len(supplemented_evidence),

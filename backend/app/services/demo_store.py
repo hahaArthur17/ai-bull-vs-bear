@@ -307,6 +307,11 @@ class DemoStore:
     def get_price_history(self, ticker: str, frequency: str = "weekly") -> list[dict[str, object]]:
         return []
 
+    def review_fixture_status(self, ticker: str) -> dict[str, object]:
+        """Expose a stable disabled shape without conflating demo and review data."""
+
+        return {"enabled": False, "scenario": None, "notice": None}
+
     def get_macro_series(self) -> list[dict[str, object]]:
         return []
 
