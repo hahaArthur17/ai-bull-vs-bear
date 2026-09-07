@@ -6,7 +6,7 @@ import { getDebateMessagePlacement } from "../../debateChatView";
 import { debateMessageSections } from "../../liveDebateView";
 import { exactExplanationTerm } from "../../explanationView";
 import { colors, interaction } from "../../theme";
-import type { DebateEvidenceView } from "../../evidencePresentation";
+import { isSafeEvidenceDestination, type DebateEvidenceView } from "../../evidencePresentation";
 import type { DebateMessageRecord } from "../../types";
 
 const roleColors = {
@@ -153,7 +153,7 @@ export function CanonicalDebateMessage({
 
 function DebateFact({ fact }: { fact: DebateEvidenceView }) {
   const [sourceError, setSourceError] = useState(false);
-  const sourceAvailable = Boolean(fact.sourceDestination);
+  const sourceAvailable = isSafeEvidenceDestination(fact.sourceDestination);
   const openSource = () => {
     const sourceDestination = fact.sourceDestination;
     if (!sourceDestination) return;

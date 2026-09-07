@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { presentDebateEvidence, presentEvidence } from "./evidencePresentation.ts";
+import { isSafeEvidenceDestination, presentDebateEvidence, presentEvidence } from "./evidencePresentation.ts";
 import type { DebateEvidencePresentation, EvidenceItem } from "./types.ts";
 
 function evidence(overrides: Partial<EvidenceItem> = {}): EvidenceItem {
@@ -72,4 +72,17 @@ test("Debate evidence presentation preserves server-declared missing metadata wi
   assert.equal(result.freshness, "Freshness unavailable");
   assert.equal(result.supportSpan, null);
   assert.deepEqual(result.missingMetadata, item.missing_metadata);
+});
+
+test("evidence destinations accept only public credential-free HTTPS URLs", () => {
+  assert.equal(isSafeEvidenceDestination("https://example.com/evidence?id=E1"), true);
+  assert.equal(isSafeEvidenceDestination("http://example.com/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://user:secret@example.com/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://localhost/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://127.0.0.1/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://10.1.2.3/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://172.20.1.2/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://192.168.1.2/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("not a URL"), false);
+  assert.equal(isSafeEvidenceDestination(null), false);
 });

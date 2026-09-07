@@ -18,6 +18,34 @@ export type DebateEvidenceView = EvidencePresentation & {
   missingMetadata: DebateEvidencePresentation["missing_metadata"];
 };
 
+export function isSafeEvidenceDestination(value: string | null | undefined): value is string {
+  if (!value) return false;
+  try {
+    const destination = new URL(value);
+    if (destination.protocol !== "https:" || destination.username || destination.password) return false;
+
+    const hostname = destination.hostname.toLowerCase().replace(/^\[|\]$/g, "");
+    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) return false;
+    if (hostname === "::1" || /^(?:fc|fd|fe8|fe9|fea|feb)/i.test(hostname)) return false;
+
+    const octets = hostname.split(".").map(Number);
+    if (octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)) {
+      const [first, second] = octets;
+      if (
+        first === 0
+        || first === 10
+        || first === 127
+        || (first === 169 && second === 254)
+        || (first === 172 && second >= 16 && second <= 31)
+        || (first === 192 && second === 168)
+      ) return false;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function presentEvidence(item: EvidenceItem): EvidencePresentation {
   const source = typeof item.metadata.source === "string" && item.metadata.source.trim()
     ? item.metadata.source
