@@ -39,7 +39,7 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
           <View style={styles.diagnosticPanel}>
             <Text style={styles.traceLine}>The default demo uses deterministic cached data and needs no API key.</Text>
             <Text style={styles.traceLine}>Optional authentication and model providers are configured outside the app; explanations remain read-only and V2 Debate is the target experience when explicitly enabled.</Text>
-            <Text style={styles.traceLine}>The older synchronous Debate screen is retained as a clearly labelled legacy fallback for saved classic analyses.</Text>
+            <Text style={styles.traceLine}>The older synchronous Debate remains the default while V2 is off and also reopens saved classic analyses; it is clearly labelled as a legacy fallback.</Text>
           </View>
         ) : null}
       </View>

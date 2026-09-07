@@ -55,7 +55,7 @@ export function LegacyDebateScreen({
       <BackButton onPress={onBack} />
       <View accessibilityLiveRegion="polite" style={fallbackStyles.notice}>
         <Text style={fallbackStyles.noticeTitle}>LEGACY FALLBACK · NOT V2 CANONICAL DEBATE</Text>
-        <Text style={fallbackStyles.noticeBody}>This saved-analysis view is retained for compatibility. New sessions use V2 only when that experience is explicitly enabled.</Text>
+        <Text style={fallbackStyles.noticeBody}>This classic synchronous route remains available while V2 is off and for saved-analysis compatibility. When V2 is explicitly enabled, new sessions use the V2 Debate.</Text>
       </View>
       <View style={styles.detailHeader}>
         <View><Text style={styles.eyebrow}>LEGACY TRACE · {ticker}</Text><Text accessibilityRole="header" style={styles.detailTitle}>Classic Debate</Text></View>
