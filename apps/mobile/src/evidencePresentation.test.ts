@@ -87,6 +87,9 @@ test("evidence destinations accept only public credential-free HTTPS URLs", () =
   assert.equal(isSafeEvidenceDestination("https://224.0.0.1/evidence"), false);
   assert.equal(isSafeEvidenceDestination("https://research.internal/evidence"), false);
   assert.equal(isSafeEvidenceDestination("https://[::ffff:127.0.0.1]/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://[2002:0a00:0001::]/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://[2002:7f00:0001::]/evidence"), false);
+  assert.equal(isSafeEvidenceDestination("https://[2002:c0a8:0101::]/evidence"), false);
   assert.equal(isSafeEvidenceDestination(" https://example.com/evidence"), false);
   assert.equal(isSafeEvidenceDestination("not a URL"), false);
   assert.equal(isSafeEvidenceDestination(null), false);

@@ -40,18 +40,6 @@ function isPublicIpv4Address(hostname: string): boolean {
   );
 }
 
-function isPublicIpv6Address(hostname: string): boolean {
-  if (!hostname.includes(":")) return true;
-  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
-  const [first = "", second = ""] = normalized.split(":");
-  const firstValue = Number.parseInt(first, 16);
-  const secondValue = Number.parseInt(second || "0", 16);
-
-  if (!Number.isFinite(firstValue) || firstValue < 0x2000 || firstValue > 0x3fff) return false;
-  if (firstValue === 0x2001 && (secondValue <= 0x01ff || secondValue === 0x0db8)) return false;
-  return firstValue !== 0x3ffe;
-}
-
 export function isSafeEvidenceDestination(value: string | null | undefined): value is string {
   if (!value || value !== value.trim() || /\s/.test(value)) return false;
   try {
@@ -60,7 +48,10 @@ export function isSafeEvidenceDestination(value: string | null | undefined): val
 
     const hostname = destination.hostname.toLowerCase().replace(/^\[|\]$/g, "");
     if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal")) return false;
-    return isPublicIpv4Address(hostname) && isPublicIpv6Address(hostname);
+    // Fail closed for IPv6 literals. React Native has no cross-platform
+    // equivalent of Python's ipaddress.is_global, and transition addresses
+    // such as 6to4 can embed a private IPv4 destination.
+    return !hostname.includes(":") && isPublicIpv4Address(hostname);
   } catch {
     return false;
   }
