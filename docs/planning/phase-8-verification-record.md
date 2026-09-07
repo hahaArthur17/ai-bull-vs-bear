@@ -2,7 +2,7 @@
 
 **Status:** Re-baselined; Phase 8 remains in progress and final visual acceptance is reopened
 
-**Recorded:** 2026-09-07
+**Recorded:** 2026-09-08
 
 **Current WP0 baseline revision:** `898e821` (`docs: rebaseline phase 8 design remediation`)
 
@@ -19,6 +19,28 @@ complete. No implementation completion is claimed by this update.
 The checks use only deterministic tests or the demo backend and
 `EXPO_PUBLIC_AUTH_MODE=demo`; no credentials, external market calls, or model
 calls were used.
+
+## WP8 integrated regression baseline on 2026-09-08
+
+WP8 began from revision `1f9adfe`. Luna ran the complete local automated gate
+without changing the worktree. Root checked the reported commands and retained
+WP8 as in progress until the browser, accessibility, native-simulator, and
+physical-device evidence below is resolved.
+
+```sh
+cd backend && PYTHONPATH=. .venv/bin/pytest -q  # 369 passing, 1 existing warning
+cd ../apps/mobile && npm run test:stream        # 66 passing
+npm run typecheck
+npm run build:web
+git diff --check
+```
+
+The mobile count includes the reduced-motion transcript policy committed in
+`1f9adfe`. `AccessibilityInfo` supplies the current platform preference; both
+direct and frame-scheduled transcript scrolling read the latest value and fail
+closed to non-animated movement until the preference is known. A separate Luna
+review found and Root fixed a stale-closure race before that commit, then the
+reviewer reported no remaining P1/P2 finding in the slice.
 
 ## WP3 prototype-derived design foundation verification on 2026-09-07
 
