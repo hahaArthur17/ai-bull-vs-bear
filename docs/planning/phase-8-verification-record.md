@@ -171,6 +171,63 @@ and the client rule that legacy citations never become invented fact details.
 WP5 changes the data contract only; expandable fact presentation and the
 chronological chat layout remain the separately committed WP6 deliverable.
 
+## WP6 chronological Debate chat verification on 2026-09-07
+
+WP6 replaces the full-width V2 card stack with one responsive chronological
+conversation. Bull messages align left, Bear messages align right, User
+Challenge messages are centred, and Interim/Final neutral Judge cards are
+centred with explicit textual phase labels. Round, exchange, and sequence
+markers remain visible. Argument, interpretation, and uncertainty remain
+separate, while Facts & evidence expands only the server-authored WP5
+presentation. Legacy records explicitly decline to infer fact metadata.
+
+Streaming drafts retain a dashed temporary treatment and are replaced only by
+canonical completion. Transcript auto-follow now runs only while the reader is
+near the end and coalesces repeated stream/content-size requests into one
+animation frame; otherwise a centred “New messages” action is shown. The
+source action handles platform rejection with a local visible error. The
+header badge reports the Debate phase rather than describing an
+`awaiting_user` transport as merely closed. Deterministic fixture terms are
+exact substrings of their canonical messages, so the bounded read-only
+Explanation panel can be exercised locally.
+
+Root verification after Terra implementation, Luna read-only review, and root
+fixes passed:
+
+```sh
+cd backend && .venv/bin/pytest -q  # 369 passing, 1 existing Starlette warning
+cd apps/mobile && npm run test:stream  # 64 passing
+cd apps/mobile && npm run typecheck
+cd apps/mobile && npm run build:web
+```
+
+Root then ran the isolated `review_fixture` backend and demo-auth Expo Web app.
+At 320, 390, 768, and 1280 CSS px, both document and body scroll widths exactly
+matched the viewport. At 1280, the 780 px conversation column rendered 530 px
+Bull and Bear bubbles at its left and right edges; the 577 px Judge card was
+centred. The 320 and 390 captures retained readable role and phase labels,
+44 px actions, the permanent simulated-data banner, and the floating
+navigation without horizontal clipping.
+
+The AAPL Round 1 fixture rendered six ordered Bull/Bear turns and a centred
+Interim Judge. Expanding the first Bull disclosure showed two authoritative
+simulated fact excerpts with evidence type, title, source, date, freshness,
+and explicit missing `support span`/`source destination` labels; no metadata
+was reconstructed from IDs. Selecting an exact term opened the read-only panel
+and produced a bounded explanation with the two linked evidence IDs. Selecting
+the first Bull argument and submitting a Challenge produced 13 ordered
+canonical messages: the centred User Challenge, four Round 2 agent turns, and
+the centred Final neutral Judge as the last message. History reopened the
+paused Session and the header correctly displayed `ROUND 1 PAUSED`.
+
+The synchronous fixture cannot visually hold transient queued, retry,
+reconnect, cancellation, or high-frequency draft states long enough for a
+browser screenshot. Their state visibility, cancellation boundaries, late
+output rejection, cursor recovery, and draft-to-canonical rules remain covered
+by the existing mobile/backend automated suites. Native simulator, physical
+device, reduced-motion, zoom, and subjective product-owner approval remain
+WP8/WP9 gates.
+
 ## Automated baseline
 
 From `apps/mobile`, the following passed at the subject revision:

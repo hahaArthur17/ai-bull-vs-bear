@@ -344,6 +344,18 @@ state or fabricating labels.
 **Suggested agent:** Terra for responsive interaction implementation; Sol
 reviews event ordering, persistence, cancellation, and reconnect semantics.
 
+**Status:** Implemented locally on 2026-09-07. The V2 screen is now one
+chronological conversation with Bull-left, Bear-right, centred User Challenge,
+and centred Interim/Final Judge presentation. Completed messages expose only
+the authoritative WP5 fact projection; drafts remain visibly temporary.
+Conditional auto-follow is frame-coalesced and preserves the reader's position,
+with a centred new-message affordance when they are away from the end. The
+isolated fixture now supplies exact selectable terms so the read-only
+Explanation interaction is reviewable. Root browser verification covers the
+complete two-round flow and 320/390/768/1280 Web layouts. Queue/retry/cancel/
+reconnect/failure remain covered by the preserved reducer and state tests;
+native-device and product-owner acceptance remain WP8/WP9 gates.
+
 **File scope:** `apps/mobile/src/screens/LiveDebateScreen.tsx`, Debate components,
 `liveDebateView.ts`, `debateActionState.ts`, `debateStream.ts`, explanation
 views, evidence disclosure components, and focused tests. Backend changes are

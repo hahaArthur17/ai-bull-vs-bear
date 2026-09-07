@@ -1,16 +1,28 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  type NativeScrollEvent,
+  type NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import { api, createDebateStreamClient } from "../api";
+import {
+  CanonicalDebateMessage,
+  DraftDebateMessage,
+} from "../components/debate/LiveDebateMessage";
 import { debateActionStatus } from "../debateActionState";
+import {
+  debatePhaseBadge,
+  getDebateChatLayout,
+  shouldAutoFollowTranscript,
+} from "../debateChatView";
 import {
   createCanonicalDebateSnapshot,
 } from "../debateStream";
@@ -112,9 +124,15 @@ export function LiveDebateScreen({
   const [explanationResult, setExplanationResult] = useState<ExplanationResult | null>(null);
   const [explanationError, setExplanationError] = useState("");
   const [explaining, setExplaining] = useState(false);
+  const [hasNewMessages, setHasNewMessages] = useState(false);
   const challengeKey = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
+  const scrollRef = useRef<ScrollView | null>(null);
+  const scrollFrame = useRef<number | null>(null);
+  const followsTranscript = useRef(true);
+  const { width: viewportWidth } = useWindowDimensions();
+  const chatLayout = getDebateChatLayout(viewportWidth);
   const sessionId = initialDetail.session.id;
 
   const invalidateExplanationRequest = () => {
@@ -134,6 +152,12 @@ export function LiveDebateScreen({
     setExplanationQuestion("");
     setExplanationResult(null);
     setExplanationError("");
+    setHasNewMessages(false);
+    followsTranscript.current = true;
+    if (scrollFrame.current !== null) {
+      cancelAnimationFrame(scrollFrame.current);
+      scrollFrame.current = null;
+    }
     invalidateExplanationRequest();
     challengeKey.current = null;
   }, [sessionId]);
@@ -163,8 +187,25 @@ export function LiveDebateScreen({
     };
   }, [sessionId, streamEpoch]);
 
+  useEffect(() => {
+    if (snapshot.lastSequence === 0) return;
+    if (!followsTranscript.current) {
+      setHasNewMessages(true);
+      return;
+    }
+    scheduleTranscriptFollow(true);
+  }, [snapshot.canonicalMessages.length, snapshot.lastSequence]);
+
+  useEffect(() => () => {
+    if (scrollFrame.current !== null) cancelAnimationFrame(scrollFrame.current);
+  }, []);
+
   const status = debateStatusCopy(snapshot);
   const drafts = Object.values(snapshot.drafts);
+  const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
+    || snapshot.sessionStatus === "running_round_2"
+    ? 2
+    : 1;
   const canCancel = canCancelDebate(snapshot) && !cancelling;
   const canChallenge = canChallengeDebate(snapshot);
   const selectedTextIsValid = challengeTarget !== null
@@ -181,6 +222,31 @@ export function LiveDebateScreen({
     && explanationQuestion.trim().length > 0
     && !explaining;
   const activeAction = debateActionStatus({ cancelling, challenging, explaining });
+
+  const updateTranscriptFollow = (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const { contentOffset, contentSize, layoutMeasurement } = event.nativeEvent;
+    const shouldFollow = shouldAutoFollowTranscript(
+      contentSize.height,
+      layoutMeasurement.height,
+      contentOffset.y,
+    );
+    followsTranscript.current = shouldFollow;
+    if (shouldFollow) setHasNewMessages(false);
+  };
+
+  const followLatestMessage = () => {
+    followsTranscript.current = true;
+    setHasNewMessages(false);
+    scrollRef.current?.scrollToEnd({ animated: true });
+  };
+
+  function scheduleTranscriptFollow(animated: boolean) {
+    if (scrollFrame.current !== null) return;
+    scrollFrame.current = requestAnimationFrame(() => {
+      scrollFrame.current = null;
+      if (followsTranscript.current) scrollRef.current?.scrollToEnd({ animated });
+    });
+  }
 
   const selectChallengeTarget = (record: DebateMessageRecord) => {
     setChallengeTarget(record);
@@ -284,10 +350,63 @@ export function LiveDebateScreen({
     }
   };
 
+  const statusPanel = (
+    <View style={[screenStyles.statusCard, { borderLeftColor: statusColor(status.tone) }]}>
+      <View style={screenStyles.rowBetween}>
+        <Text style={[screenStyles.statusLabel, { color: statusColor(status.tone) }]}>
+          {status.label}
+        </Text>
+        {snapshot.status === "connecting" || snapshot.status === "reconnecting" ? (
+          <ActivityIndicator color={colors.cyan} size="small" />
+        ) : null}
+      </View>
+      <Text style={screenStyles.statusDetail}>{status.detail}</Text>
+      <View style={screenStyles.telemetryRow}>
+        <Text style={screenStyles.telemetry}>
+          {snapshot.jobId
+            ? `JOB ${shortId(snapshot.jobId)}`
+            : snapshot.jobStatus === "stage_completed"
+              ? "JOB SETTLED"
+              : "JOB NOT ACTIVE"}
+        </Text>
+        {snapshot.jobId ? (
+          <Text style={screenStyles.telemetry}>ATTEMPT {snapshot.jobAttemptCount}</Text>
+        ) : null}
+        <Text style={screenStyles.telemetry}>EVENT {snapshot.lastSequence}</Text>
+      </View>
+    </View>
+  );
+
+  const cancelControl = canCancel || cancelling ? (
+    <Pressable
+      disabled={!canCancel}
+      style={[screenStyles.cancelButton, !canCancel && screenStyles.disabledButton]}
+      onPress={() => void cancelDebate()}
+      accessibilityLabel="Stop the current Debate generation"
+      accessibilityRole="button"
+      accessibilityState={{ busy: cancelling, disabled: !canCancel }}
+    >
+      {cancelling ? <ActivityIndicator color={colors.bear} size="small" /> : null}
+      <Text style={screenStyles.cancelText}>
+        {cancelling ? "Requesting cancellation…" : "Stop this generation"}
+      </Text>
+    </Pressable>
+  ) : null;
+
   return (
+    <View style={screenStyles.screen}>
     <ScrollView
+      ref={scrollRef}
       style={screenStyles.scroll}
-      contentContainerStyle={screenStyles.page}
+      contentContainerStyle={[
+        screenStyles.page,
+        { paddingHorizontal: chatLayout.pagePadding },
+      ]}
+      onScroll={updateTranscriptFollow}
+      onContentSizeChange={() => {
+        if (followsTranscript.current) scheduleTranscriptFollow(false);
+      }}
+      scrollEventThrottle={32}
       accessibilityLabel={`${ticker} live Bull versus Bear Debate`}
     >
       <Pressable
@@ -309,34 +428,15 @@ export function LiveDebateScreen({
         </View>
         <View style={screenStyles.liveBadge}>
           <View style={screenStyles.liveDot} />
-          <Text style={screenStyles.liveText}>{snapshot.status.toUpperCase()}</Text>
+          <Text style={screenStyles.liveText}>
+            {debatePhaseBadge(snapshot.sessionStatus, snapshot.status)}
+          </Text>
         </View>
       </View>
 
-      <View style={[screenStyles.statusCard, { borderLeftColor: statusColor(status.tone) }]}>
-        <View style={screenStyles.rowBetween}>
-          <Text style={[screenStyles.statusLabel, { color: statusColor(status.tone) }]}>
-            {status.label}
-          </Text>
-          {snapshot.status === "connecting" || snapshot.status === "reconnecting" ? (
-            <ActivityIndicator color={colors.cyan} size="small" />
-          ) : null}
-        </View>
-        <Text style={screenStyles.statusDetail}>{status.detail}</Text>
-        <View style={screenStyles.telemetryRow}>
-          <Text style={screenStyles.telemetry}>
-            {snapshot.jobId
-              ? `JOB ${shortId(snapshot.jobId)}`
-              : snapshot.jobStatus === "stage_completed"
-                ? "JOB SETTLED"
-                : "JOB NOT ACTIVE"}
-          </Text>
-          {snapshot.jobId ? (
-            <Text style={screenStyles.telemetry}>ATTEMPT {snapshot.jobAttemptCount}</Text>
-          ) : null}
-          <Text style={screenStyles.telemetry}>EVENT {snapshot.lastSequence}</Text>
-        </View>
-      </View>
+      <View style={[screenStyles.workspace, chatLayout.showStatusRail && screenStyles.workspaceDesktop]}>
+        <View style={screenStyles.conversationColumn}>
+      {!chatLayout.showStatusRail ? statusPanel : null}
 
       {connectionError ? (
         <View style={screenStyles.warningCard}>
@@ -382,11 +482,13 @@ export function LiveDebateScreen({
         </View>
       ) : null}
 
+      <View style={screenStyles.transcript}>
       {snapshot.canonicalMessages.map((record) => (
-        <MessageCard
+        <CanonicalDebateMessage
           key={record.message.id}
           record={record}
-          isFinalJudge={record.message.role === "judge" && record.message.round_number === 2}
+          bubbleWidth={chatLayout.bubbleWidth}
+          judgeWidth={chatLayout.judgeWidth}
           challengeEnabled={canChallenge}
           selected={challengeTarget?.message.id === record.message.id}
           onChallenge={() => selectChallengeTarget(record)}
@@ -394,7 +496,16 @@ export function LiveDebateScreen({
         />
       ))}
 
-      {drafts.map((draft) => <DraftCard key={draft.messageId} draft={draft} />)}
+      {drafts.map((draft) => (
+        <DraftDebateMessage
+          key={draft.messageId}
+          draft={draft}
+          roundNumber={activeRoundNumber}
+          bubbleWidth={chatLayout.bubbleWidth}
+          judgeWidth={chatLayout.judgeWidth}
+        />
+      ))}
+      </View>
 
       {explanationTarget ? (
         <View style={screenStyles.explanationPanel}>
@@ -535,124 +646,55 @@ export function LiveDebateScreen({
         </View>
       ) : null}
 
-      {canCancel || cancelling ? (
-        <Pressable
-          disabled={!canCancel}
-          style={[screenStyles.cancelButton, !canCancel && screenStyles.disabledButton]}
-          onPress={() => void cancelDebate()}
-          accessibilityLabel="Stop the current Debate generation"
-          accessibilityRole="button"
-          accessibilityState={{ busy: cancelling, disabled: !canCancel }}
-        >
-          {cancelling ? <ActivityIndicator color={colors.bear} size="small" /> : null}
-          <Text style={screenStyles.cancelText}>
-            {cancelling ? "Requesting cancellation…" : "Stop this generation"}
-          </Text>
-        </Pressable>
-      ) : null}
+      {!chatLayout.showStatusRail ? cancelControl : null}
+
+        </View>
+        {chatLayout.showStatusRail ? (
+          <View style={screenStyles.statusRail}>
+            {statusPanel}
+            {connectionError ? (
+              <Text style={screenStyles.railNote}>Connection controls remain available in the transcript.</Text>
+            ) : null}
+            {cancelControl}
+          </View>
+        ) : null}
+      </View>
 
       <Text style={screenStyles.disclaimer}>
         Educational analysis only. Bull and Bear arguments are evidence-grounded scenarios, not
         trading instructions or predictions.
       </Text>
     </ScrollView>
-  );
-}
-
-function MessageCard({
-  record,
-  isFinalJudge,
-  challengeEnabled,
-  selected,
-  onChallenge,
-  onExplainTerm,
-}: {
-  record: DebateMessageRecord;
-  isFinalJudge: boolean;
-  challengeEnabled: boolean;
-  selected: boolean;
-  onChallenge: () => void;
-  onExplainTerm: (term: string) => void;
-}) {
-  const role = rolePresentation(record.message.role, isFinalJudge);
-  const canTarget = challengeEnabled
-    && record.message.role !== "user"
-    && record.message.role !== "system"
-    && record.message.role !== "explainer";
-  return (
-    <View style={[
-      screenStyles.messageCard,
-      { borderLeftColor: role.color },
-      selected && screenStyles.selectedMessage,
-    ]}>
-      <View style={screenStyles.rowBetween}>
-        <Text style={[screenStyles.roleLabel, { color: role.color }]}>{role.label} · {isFinalJudge ? "FINAL" : "CANONICAL"}</Text>
-        <Text style={screenStyles.messageMeta}>
-          R{record.message.round_number} · E{record.message.exchange_number} · #{record.message.sequence_number}
-        </Text>
-      </View>
-      <Text selectable style={screenStyles.messageText}>{record.message.content}</Text>
-      {record.message.terms.length > 0 ? (
-        <View style={screenStyles.termRow}>
-          {record.message.terms.map((term) => (
-            <Pressable
-              key={`${record.message.id}:${term}`}
-              disabled={exactExplanationTerm(record, term) === null}
-              onPress={() => onExplainTerm(term)}
-              style={screenStyles.termChip}
-              accessibilityRole="button"
-              accessibilityLabel={`Explain ${term}`}
-              accessibilityState={{ disabled: exactExplanationTerm(record, term) === null }}
-            >
-              <Text style={screenStyles.termText}>{term}</Text>
-            </Pressable>
-          ))}
-        </View>
-      ) : null}
-      {record.citations.length > 0 ? (
-        <Text style={screenStyles.citations}>
-          EVIDENCE {record.citations.map((citation) => citation.evidence_id).join(" · ")}
-        </Text>
-      ) : null}
-      {canTarget ? (
+    {hasNewMessages ? (
+      <View
+        accessibilityLiveRegion="polite"
+        pointerEvents="box-none"
+        style={screenStyles.newMessagesOverlay}
+      >
         <Pressable
-          onPress={onChallenge}
-          style={screenStyles.messageAction}
-          accessibilityLabel={selected ? "Selected for Round 2 challenge" : "Challenge this point in Round 2"}
+          onPress={followLatestMessage}
+          style={screenStyles.newMessagesButton}
+          accessibilityLabel="Jump to new Debate messages"
           accessibilityRole="button"
-          accessibilityState={{ selected }}
         >
-          <Text style={screenStyles.messageActionText}>
-            {selected ? "Selected for Round 2" : "Challenge this point →"}
-          </Text>
+          <Text style={screenStyles.newMessagesText}>New messages ↓</Text>
         </Pressable>
-      ) : null}
-    </View>
-  );
-}
-
-function DraftCard({ draft }: { draft: DebateDraft }) {
-  const role = rolePresentation(draft.role);
-  return (
-    <View style={[screenStyles.draftCard, { borderLeftColor: role.color }]}>
-      <View style={screenStyles.rowBetween}>
-        <Text style={[screenStyles.roleLabel, { color: role.color }]}>{role.label} · DRAFT</Text>
-        <View style={screenStyles.streamingRow}>
-          <ActivityIndicator color={colors.cyan} size="small" />
-          <Text style={screenStyles.streamingText}>STREAMING</Text>
-        </View>
       </View>
-      <Text style={screenStyles.messageText}>
-        {draft.content || "The agent has started this turn…"}
-      </Text>
-      <Text style={screenStyles.draftNote}>Draft · temporary and not yet canonical</Text>
+    ) : null}
     </View>
   );
 }
 
 const screenStyles = StyleSheet.create({
+  screen: { flex: 1, backgroundColor: colors.background },
   scroll: { flex: 1, backgroundColor: colors.background },
-  page: { backgroundColor: colors.background, padding: 20, paddingBottom: 130 },
+  page: { alignSelf: "center", width: "100%", maxWidth: 1160, backgroundColor: colors.background, padding: 20, paddingBottom: 130 },
+  workspace: { width: "100%" },
+  workspaceDesktop: { flexDirection: "row", alignItems: "flex-start", gap: 24 },
+  conversationColumn: { flex: 1, minWidth: 0 },
+  transcript: { width: "100%" },
+  statusRail: { width: 300 },
+  railNote: { color: colors.muted, fontSize: 10, lineHeight: 16, marginBottom: 10 },
   backButton: { alignSelf: "flex-start", justifyContent: "center", marginBottom: 16, minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
   backText: { color: colors.cyan, fontSize: 13, fontWeight: "800" },
   headerRow: { flexDirection: "row", justifyContent: "space-between", gap: 14, marginBottom: 18 },
@@ -684,21 +726,7 @@ const screenStyles = StyleSheet.create({
   emptyCard: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderStyle: "dashed", borderRadius: 14, padding: 18, marginBottom: 12 },
   emptyTitle: { color: colors.text, fontSize: 14, fontWeight: "800", marginBottom: 7 },
   emptyText: { color: colors.muted, fontSize: 12, lineHeight: 19 },
-  messageCard: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderLeftWidth: 4, borderRadius: 14, padding: 15, marginBottom: 11 },
-  selectedMessage: { borderColor: colors.cyan, backgroundColor: themeColors.surface.selected },
-  draftCard: { backgroundColor: colors.elevated, borderColor: colors.cyan, borderWidth: 1, borderLeftWidth: 4, borderRadius: 14, padding: 15, marginBottom: 11 },
-  roleLabel: { fontSize: 10, fontWeight: "900", letterSpacing: 1.1 },
-  messageMeta: { color: colors.muted, fontSize: 9, fontWeight: "700" },
-  messageText: { color: colors.text, fontSize: 14, lineHeight: 22, marginTop: 11 },
-  termRow: { flexDirection: "row", flexWrap: "wrap", gap: 6, marginTop: 12 },
-  termChip: { alignItems: "center", borderColor: colors.line, borderWidth: 1, borderRadius: 12, justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 8, paddingVertical: 4 },
-  termText: { color: colors.muted, fontSize: 10 },
   citations: { color: colors.cyan, fontSize: 9, lineHeight: 15, fontWeight: "700", marginTop: 12 },
-  messageAction: { alignSelf: "flex-start", alignItems: "center", justifyContent: "center", marginTop: 13, minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
-  messageActionText: { color: colors.cyan, fontSize: 12, fontWeight: "800" },
-  streamingRow: { flexDirection: "row", alignItems: "center", gap: 6 },
-  streamingText: { color: colors.cyan, fontSize: 9, fontWeight: "900", letterSpacing: 0.8 },
-  draftNote: { color: colors.muted, fontSize: 10, fontStyle: "italic", marginTop: 9 },
   explanationPanel: { backgroundColor: themeColors.surface.positive, borderColor: colors.bull, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
   explanationEyebrow: { color: colors.bull, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
   explanationTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
@@ -725,5 +753,8 @@ const screenStyles = StyleSheet.create({
   cancelButton: { minHeight: 44, borderColor: colors.bear, borderWidth: 1, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 11, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   cancelText: { color: colors.bear, fontSize: 13, fontWeight: "800" },
   disabledButton: { opacity: 0.42 },
+  newMessagesOverlay: { position: "absolute", left: 0, right: 0, bottom: 92, alignItems: "center" },
+  newMessagesButton: { minHeight: interaction.minTargetSize, justifyContent: "center", backgroundColor: themeColors.action.primary, borderColor: themeColors.border.inverse, borderWidth: 1, borderRadius: 22, paddingHorizontal: 18, elevation: 8, boxShadow: "0px 8px 20px rgba(0,0,0,0.32)" },
+  newMessagesText: { color: themeColors.content.onSignal, fontSize: 12, fontWeight: "900" },
   disclaimer: { color: colors.muted, fontSize: 10, lineHeight: 16, marginTop: 18 },
 });

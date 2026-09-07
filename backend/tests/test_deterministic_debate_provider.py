@@ -35,6 +35,7 @@ def test_deterministic_provider_uses_latest_opponent_and_allowed_evidence_only()
     assert draft.responds_to_message_id == bull.id
     assert "latest Bull message" in draft.content
     assert set(draft.evidence_ids) <= context.allowed_evidence_ids
+    assert all(term in draft.content for term in draft.terms)
 
 
 def test_deterministic_judge_reports_phase_and_shared_snapshot_boundary() -> None:

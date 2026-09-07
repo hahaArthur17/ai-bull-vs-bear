@@ -61,7 +61,9 @@ class DeterministicDebateProvider:
                 "The evidence is incomplete and may become stale; this argument does not imply "
                 "a future return or a suitable action."
             ),
-            terms=("factor snapshot", "signal strength"),
+            # Explanation selections must be exact spans from the canonical message.
+            # These terms occur in both opening and rebuttal fixture content.
+            terms=("snapshot", "conditional"),
         )
 
     def generate_judgement(self, request: DebateJudgeRequest) -> DebateJudgeDraft:
