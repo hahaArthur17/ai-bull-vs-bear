@@ -78,6 +78,12 @@ export function shouldAutoFollowTranscript(
   return contentHeight - viewportHeight - offsetY <= threshold;
 }
 
+export function shouldAnimateTranscriptScroll(
+  reduceMotionEnabled: boolean | null,
+): boolean {
+  return reduceMotionEnabled === false;
+}
+
 export function debatePhaseBadge(
   sessionStatus: DebateSessionStatus | null,
   connectionStatus: string,

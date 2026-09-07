@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
+  AccessibilityInfo,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
@@ -21,6 +22,7 @@ import { debateActionStatus } from "../debateActionState";
 import {
   debatePhaseBadge,
   getDebateChatLayout,
+  shouldAnimateTranscriptScroll,
   shouldAutoFollowTranscript,
 } from "../debateChatView";
 import {
@@ -125,6 +127,7 @@ export function LiveDebateScreen({
   const [explanationError, setExplanationError] = useState("");
   const [explaining, setExplaining] = useState(false);
   const [hasNewMessages, setHasNewMessages] = useState(false);
+  const reduceMotionEnabled = useRef<boolean | null>(null);
   const challengeKey = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
@@ -164,6 +167,32 @@ export function LiveDebateScreen({
 
   useEffect(() => () => {
     explanationRequests.current.invalidate();
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    let preferenceEventReceived = false;
+    const handleReduceMotionChanged = (enabled: boolean) => {
+      preferenceEventReceived = true;
+      if (mounted) reduceMotionEnabled.current = enabled;
+    };
+    const subscription = AccessibilityInfo.addEventListener(
+      "reduceMotionChanged",
+      handleReduceMotionChanged,
+    );
+
+    void AccessibilityInfo.isReduceMotionEnabled()
+      .then((enabled) => {
+        if (mounted && !preferenceEventReceived) reduceMotionEnabled.current = enabled;
+      })
+      .catch(() => {
+        // Keep the conservative no-animation default when this platform cannot report a preference.
+      });
+
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
   }, []);
 
   useEffect(() => {
@@ -237,14 +266,20 @@ export function LiveDebateScreen({
   const followLatestMessage = () => {
     followsTranscript.current = true;
     setHasNewMessages(false);
-    scrollRef.current?.scrollToEnd({ animated: true });
+    scrollRef.current?.scrollToEnd({
+      animated: shouldAnimateTranscriptScroll(reduceMotionEnabled.current),
+    });
   };
 
   function scheduleTranscriptFollow(animated: boolean) {
     if (scrollFrame.current !== null) return;
     scrollFrame.current = requestAnimationFrame(() => {
       scrollFrame.current = null;
-      if (followsTranscript.current) scrollRef.current?.scrollToEnd({ animated });
+      if (followsTranscript.current) {
+        scrollRef.current?.scrollToEnd({
+          animated: animated && shouldAnimateTranscriptScroll(reduceMotionEnabled.current),
+        });
+      }
     });
   }
 

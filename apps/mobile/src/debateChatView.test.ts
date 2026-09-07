@@ -5,6 +5,7 @@ import {
   debatePhaseBadge,
   getDebateChatLayout,
   getDebateMessagePlacement,
+  shouldAnimateTranscriptScroll,
   shouldAutoFollowTranscript,
 } from "./debateChatView.ts";
 
@@ -51,4 +52,10 @@ test("transcript follows only while the reader remains near its end", () => {
   assert.equal(shouldAutoFollowTranscript(1200, 600, 520), true);
   assert.equal(shouldAutoFollowTranscript(1200, 600, 300), false);
   assert.equal(shouldAutoFollowTranscript(1200, 600, 504, 96), true);
+});
+
+test("transcript scroll animation waits for and honors the reduced-motion preference", () => {
+  assert.equal(shouldAnimateTranscriptScroll(null), false);
+  assert.equal(shouldAnimateTranscriptScroll(true), false);
+  assert.equal(shouldAnimateTranscriptScroll(false), true);
 });
