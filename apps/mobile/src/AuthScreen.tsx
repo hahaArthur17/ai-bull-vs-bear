@@ -56,16 +56,18 @@ export function AuthScreen() {
     }
   };
 
-  const formHint = !normalizedEmail
-    ? "Enter your email to continue."
-    : !isEmailValid
-      ? "Enter a valid email address."
-      : !isPasswordValid
-        ? "Use at least six password characters."
-        : "Your credentials are ready to submit.";
-  const describedBy = error ? "auth-form-hint auth-form-error" : "auth-form-hint";
-  const emailInvalid = Boolean(error) || Boolean(normalizedEmail && !isEmailValid);
-  const passwordInvalid = Boolean(error) || Boolean(password && !isPasswordValid);
+  const emailHint = !normalizedEmail
+    ? "Email is required."
+    : isEmailValid
+      ? "Email format is valid."
+      : "Enter a valid email address.";
+  const passwordHint = !password
+    ? "Password is required and must contain at least six characters."
+    : isPasswordValid
+      ? "Password length is valid."
+      : "Use at least six password characters.";
+  const emailInvalid = Boolean(normalizedEmail && !isEmailValid);
+  const passwordInvalid = Boolean(password && !isPasswordValid);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -96,8 +98,8 @@ export function AuthScreen() {
             <View style={styles.fieldGroup}>
               <Text nativeID="auth-email-label" style={styles.label}>EMAIL ADDRESS</Text>
               <TextInput
-                {...(Platform.OS === "web" ? { "aria-describedby": describedBy, "aria-invalid": emailInvalid, "aria-required": true } : {})}
-                accessibilityHint={error ? `Required. ${error}` : "Required. Enter a valid email address."}
+                {...(Platform.OS === "web" ? { "aria-describedby": "auth-email-hint", "aria-invalid": emailInvalid, "aria-required": true } : {})}
+                accessibilityHint={emailHint}
                 accessibilityLabel="Email address"
                 accessibilityLabelledBy="auth-email-label"
                 autoCapitalize="none"
@@ -110,12 +112,13 @@ export function AuthScreen() {
                 textContentType="emailAddress"
                 value={email}
               />
+              <Text accessibilityLiveRegion="polite" nativeID="auth-email-hint" style={styles.fieldHint}>{emailHint}</Text>
             </View>
             <View style={styles.fieldGroup}>
               <Text nativeID="auth-password-label" style={styles.label}>PASSWORD</Text>
               <TextInput
-                {...(Platform.OS === "web" ? { "aria-describedby": describedBy, "aria-invalid": passwordInvalid, "aria-required": true } : {})}
-                accessibilityHint={error ? `Required. ${error}` : "Required. Use at least six password characters."}
+                {...(Platform.OS === "web" ? { "aria-describedby": "auth-password-hint", "aria-invalid": passwordInvalid, "aria-required": true } : {})}
+                accessibilityHint={passwordHint}
                 accessibilityLabel="Password"
                 accessibilityLabelledBy="auth-password-label"
                 autoCapitalize="none"
@@ -128,8 +131,8 @@ export function AuthScreen() {
                 textContentType="password"
                 value={password}
               />
+              <Text accessibilityLiveRegion="polite" nativeID="auth-password-hint" style={styles.fieldHint}>{passwordHint}</Text>
             </View>
-            <Text accessibilityLiveRegion="polite" nativeID="auth-form-hint" style={styles.formHint}>{formHint}</Text>
             {error ? <Text accessibilityLiveRegion="assertive" nativeID="auth-form-error" style={styles.error}>{error}</Text> : null}
             {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
             <Pressable
@@ -190,7 +193,7 @@ const styles = StyleSheet.create({
   fieldGroup: { marginBottom: spacing.md },
   label: { color: palette.ink, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginBottom: spacing.xs },
   input: { borderColor: palette.line, borderRadius: radii.md, borderWidth: 1, color: palette.ink, fontSize: 16, minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  formHint: { color: palette.muted, fontSize: 12, lineHeight: 18, marginBottom: spacing.md },
+  fieldHint: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: spacing.xs },
   error: { backgroundColor: colors.surface.danger, borderRadius: radii.sm, color: colors.content.danger, fontSize: 12, lineHeight: 18, marginBottom: spacing.md, padding: spacing.sm },
   message: { backgroundColor: colors.surface.positive, borderRadius: radii.sm, color: palette.accent, fontSize: 12, lineHeight: 18, marginBottom: spacing.md, padding: spacing.sm },
   primaryButton: { alignItems: "center", backgroundColor: palette.signal, borderRadius: radii.md, justifyContent: "center", minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
