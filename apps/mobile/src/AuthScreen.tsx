@@ -7,11 +7,12 @@ import {
   StyleSheet,
   Text,
   TextInput,
+  useWindowDimensions,
   View,
 } from "react-native";
 
 import { supabase } from "./supabase";
-import { colors, interaction, palette, radii, spacing, typography } from "./theme";
+import { colors, interaction, layout, palette, radii, spacing, typography } from "./theme";
 import { isAuthenticationButtonSubmitting } from "./authState";
 import type { AuthenticationMode } from "./authState";
 
@@ -30,6 +31,8 @@ export function AuthScreen() {
   const isPasswordValid = password.length >= 6;
   const isSubmitting = submittingMode !== null;
   const canSubmit = !isSubmitting && isEmailValid && isPasswordValid;
+  const { width: viewportWidth } = useWindowDimensions();
+  const isWideLayout = viewportWidth >= layout.breakpoints.tablet;
 
   const authenticate = async (mode: AuthenticationMode) => {
     if (!supabase || !canSubmit) return;
@@ -63,15 +66,27 @@ export function AuthScreen() {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
-        <View style={styles.brandRow} accessibilityRole="header">
-          <View style={styles.brandMark}><Text style={styles.brandMarkText}>B/B</Text></View>
-          <View><Text style={styles.brandName}>AI BULL VS BEAR</Text><Text style={styles.brandMeta}>RESEARCH WORKSPACE</Text></View>
-        </View>
-        <View style={styles.card}>
+        <View style={[styles.authFrame, isWideLayout && styles.authFrameWide]}>
+          <View style={[styles.introPanel, isWideLayout && styles.introPanelWide]}>
+            <View style={styles.brandRow} accessibilityRole="header">
+              <View style={styles.brandMark}><Text style={styles.brandMarkText}>B/B</Text></View>
+              <View><Text style={styles.brandName}>AI BULL VS BEAR</Text><Text style={styles.brandMeta}>RESEARCH WORKSPACE</Text></View>
+            </View>
+            <View style={styles.introCopy}>
+              <Text style={styles.introEyebrow}>PRIVATE RESEARCH ACCESS</Text>
+              <Text style={styles.introTitle}>Make each market question traceable.</Text>
+              <Text style={styles.introBody}>A calm, evidence-first workspace for your watchlist, research history, and Bull vs Bear sessions.</Text>
+            </View>
+            <View style={styles.assuranceCard}>
+              <Text style={styles.assuranceTitle}>YOUR RESEARCH, IN CONTEXT</Text>
+              <Text style={styles.assuranceText}>Saved symbols and sessions stay scoped to your account. This workspace is educational research—not financial advice.</Text>
+            </View>
+          </View>
+          <View style={[styles.card, isWideLayout && styles.cardWide]}>
           <Text style={styles.eyebrow}>PRIVATE RESEARCH ACCESS</Text>
-          <Text style={styles.title}>Make your next market question traceable.</Text>
+          <Text style={styles.title}>Welcome back.</Text>
           <Text style={styles.body}>
-            Sign in to keep your watchlist, research history, and Debate sessions scoped to your account.
+            Sign in or create an account to continue to your research workspace.
           </Text>
           <View style={styles.divider} />
           <View style={styles.fieldGroup}>
@@ -130,6 +145,7 @@ export function AuthScreen() {
           <Text style={styles.note}>
             Authentication is handled by Supabase. Never paste passwords, API keys, or tokens into a research prompt.
           </Text>
+          </View>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -138,13 +154,25 @@ export function AuthScreen() {
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.paper },
-  scrollContent: { alignItems: "center", flexGrow: 1, justifyContent: "center", padding: spacing.xl, gap: spacing.lg },
-  brandRow: { alignItems: "center", alignSelf: "center", flexDirection: "row", gap: spacing.sm, maxWidth: 640, width: "100%" },
+  scrollContent: { alignItems: "center", flexGrow: 1, justifyContent: "center", padding: spacing.xl },
+  authFrame: { alignSelf: "center", maxWidth: 960, width: "100%" },
+  authFrameWide: { alignItems: "stretch", flexDirection: "row", gap: spacing.xl },
+  introPanel: { marginBottom: spacing.lg },
+  introPanelWide: { flex: 1, justifyContent: "space-between", marginBottom: 0, paddingVertical: spacing.sm },
+  brandRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
   brandMark: { alignItems: "center", backgroundColor: palette.accent, borderRadius: radii.md, height: interaction.minTargetSize, justifyContent: "center", width: interaction.minTargetSize },
   brandMarkText: { color: colors.content.inverse, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
   brandName: { color: palette.ink, fontSize: 12, fontWeight: "900", letterSpacing: 1.1 },
   brandMeta: { color: palette.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginTop: 2 },
-  card: { alignSelf: "center", backgroundColor: palette.card, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, maxWidth: 640, padding: spacing.xl, width: "100%" },
+  introCopy: { marginTop: spacing.xxxl },
+  introEyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.sm },
+  introTitle: { color: palette.ink, fontSize: typography.display.fontSize, fontWeight: typography.display.fontWeight, lineHeight: typography.display.lineHeight, maxWidth: 390 },
+  introBody: { color: palette.muted, fontSize: typography.body.fontSize, lineHeight: typography.body.lineHeight, marginTop: spacing.md, maxWidth: 390 },
+  assuranceCard: { backgroundColor: colors.surface.subtle, borderColor: palette.line, borderRadius: radii.lg, borderWidth: 1, marginTop: spacing.xl, padding: spacing.lg },
+  assuranceTitle: { color: palette.accent, fontSize: 10, fontWeight: "900", letterSpacing: 0.9, marginBottom: spacing.xs },
+  assuranceText: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+  card: { alignSelf: "center", backgroundColor: palette.card, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, maxWidth: 480, padding: spacing.xl, width: "100%" },
+  cardWide: { flex: 1, maxWidth: 440 },
   eyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.sm },
   title: { color: palette.ink, fontSize: typography.pageTitle.fontSize, fontWeight: typography.pageTitle.fontWeight, lineHeight: typography.pageTitle.lineHeight, marginBottom: spacing.sm },
   body: { color: palette.muted, fontSize: 15, lineHeight: 23 },

@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { SectionHeader } from "../components/common";
 import { getCoveragePresentation, getDiscoverySummary } from "../discoverySummary";
-import { colors, interaction, palette, radii, spacing, typography } from "../theme";
+import { colors, interaction, layout, palette, radii, spacing, typography } from "../theme";
 import type { Stock } from "../types";
 
 type WatchlistScreenProps = {
@@ -36,6 +36,8 @@ export function WatchlistScreen({
     [stocks, watchlist],
   );
   const { readyToReview } = useMemo(() => getDiscoverySummary(stocks), [stocks]);
+  const { width: viewportWidth } = useWindowDimensions();
+  const isWideLayout = viewportWidth >= layout.breakpoints.tablet;
 
   useEffect(() => {
     if (!query.trim()) {
@@ -93,38 +95,44 @@ export function WatchlistScreen({
           <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable>
         </View>
       ) : null}
-      <SectionHeader title="Your watchlist" meta={`${visible.length} saved`} />
-      {visible.length ? visible.map((stock) => (
-        <StockRow key={stock.ticker} stock={stock} watched onOpen={onOpen} onToggle={onToggle} />
-      )) : (
-        <View style={styles.emptyCard}>
-          <Text style={styles.emptyTitle}>Your watchlist is clear.</Text>
-          <Text style={styles.emptyText}>Save a catalog symbol to keep it at the top of this research queue.</Text>
+      <View style={[styles.workspaceGrid, isWideLayout && styles.workspaceGridWide]}>
+        <View style={[styles.watchlistPanel, isWideLayout && styles.watchlistPanelWide]}>
+          <SectionHeader title="Your watchlist" meta={`${visible.length} saved`} />
+          {visible.length ? visible.map((stock) => (
+            <StockRow key={stock.ticker} stock={stock} watched onOpen={onOpen} onToggle={onToggle} />
+          )) : (
+            <View style={styles.emptyCard}>
+              <Text style={styles.emptyTitle}>Your watchlist is clear.</Text>
+              <Text style={styles.emptyText}>Save a catalog symbol to keep it at the top of this research queue.</Text>
+            </View>
+          )}
         </View>
-      )}
-      <View style={styles.catalogHeading}>
-        <Text style={styles.catalogEyebrow}>SECURITY CATALOG</Text>
-        <Text style={styles.catalogTitle}>Find a listed security</Text>
-        <Text style={styles.catalogBody}>Catalog search identifies securities only. A coverage label tells you whether research data is available before opening it.</Text>
+        <View style={[styles.catalogPanel, isWideLayout && styles.catalogPanelWide]}>
+          <View style={[styles.catalogHeading, isWideLayout && styles.catalogHeadingWide]}>
+            <Text style={styles.catalogEyebrow}>SECURITY CATALOG</Text>
+            <Text style={styles.catalogTitle}>Find a listed security</Text>
+            <Text style={styles.catalogBody}>Catalog search identifies securities only. A coverage label tells you whether research data is available before opening it.</Text>
+          </View>
+          <Text style={styles.label}>TICKER OR COMPANY</Text>
+          <TextInput
+            accessibilityLabel="Search ticker or company"
+            autoCapitalize="characters"
+            onChangeText={setQuery}
+            placeholder="For example: AAPL or Apple"
+            placeholderTextColor={palette.muted}
+            style={styles.search}
+            value={query}
+          />
+          {searching ? <Text accessibilityLiveRegion="polite" style={styles.searchStatus}>Searching the security catalog…</Text> : null}
+          {searchError ? <Text accessibilityLiveRegion="assertive" style={styles.searchError}>{searchError}</Text> : null}
+          {!searching && !searchError && results.length === 0 ? (
+            <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No matching symbol</Text><Text style={styles.emptyText}>Try a ticker, a shorter company name, or clear the query to browse available research coverage.</Text></View>
+          ) : null}
+          {results.map((stock) => (
+            <StockRow key={stock.ticker} stock={stock} watched={watchlist.includes(stock.ticker)} onOpen={onOpen} onToggle={onToggle} />
+          ))}
+        </View>
       </View>
-      <Text style={styles.label}>TICKER OR COMPANY</Text>
-      <TextInput
-        accessibilityLabel="Search ticker or company"
-        autoCapitalize="characters"
-        onChangeText={setQuery}
-        placeholder="For example: AAPL or Apple"
-        placeholderTextColor={palette.muted}
-        style={styles.search}
-        value={query}
-      />
-      {searching ? <Text accessibilityLiveRegion="polite" style={styles.searchStatus}>Searching the security catalog…</Text> : null}
-      {searchError ? <Text accessibilityLiveRegion="assertive" style={styles.searchError}>{searchError}</Text> : null}
-      {!searching && !searchError && results.length === 0 ? (
-        <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No matching symbol</Text><Text style={styles.emptyText}>Try a ticker, a shorter company name, or clear the query to browse available research coverage.</Text></View>
-      ) : null}
-      {results.map((stock) => (
-        <StockRow key={stock.ticker} stock={stock} watched={watchlist.includes(stock.ticker)} onOpen={onOpen} onToggle={onToggle} />
-      ))}
       <View style={styles.disclaimerBox}>
         <Text style={styles.disclaimerText}>Educational research context only. Nothing here is a recommendation to buy, sell, or hold a security.</Text>
       </View>
@@ -176,7 +184,7 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
 }
 
 const styles = StyleSheet.create({
-  page: { padding: spacing.xl, paddingBottom: 110 },
+  page: { alignSelf: "center", maxWidth: layout.contentMaxWidth, padding: spacing.xl, paddingBottom: 110, width: "100%" },
   hero: { backgroundColor: colors.surface.elevated, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, marginBottom: spacing.lg, padding: spacing.xl },
   eyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
   title: { color: palette.ink, fontSize: 31, fontWeight: "800", lineHeight: 37 },
@@ -194,7 +202,14 @@ const styles = StyleSheet.create({
   emptyCard: { backgroundColor: colors.surface.subtle, borderColor: palette.line, borderRadius: radii.md, borderStyle: "dashed", borderWidth: 1, padding: spacing.lg },
   emptyTitle: { color: palette.ink, fontSize: 15, fontWeight: "800", marginBottom: spacing.xs },
   emptyText: { color: palette.muted, fontSize: 13, lineHeight: 20 },
+  workspaceGrid: { minWidth: 0 },
+  workspaceGridWide: { alignItems: "flex-start", flexDirection: "row", gap: spacing.xl },
+  watchlistPanel: { minWidth: 0 },
+  watchlistPanelWide: { flex: 1, minWidth: 0 },
+  catalogPanel: { minWidth: 0 },
+  catalogPanelWide: { flex: 1, minWidth: 0 },
   catalogHeading: { marginTop: spacing.xxl },
+  catalogHeadingWide: { marginTop: 18 },
   catalogEyebrow: { color: palette.accent, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
   catalogTitle: { color: palette.ink, fontSize: 23, fontWeight: "800", lineHeight: 29, marginBottom: spacing.xs },
   catalogBody: { color: palette.muted, fontSize: 13, lineHeight: 20, marginBottom: spacing.lg },
