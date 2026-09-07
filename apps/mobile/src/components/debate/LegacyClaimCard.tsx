@@ -1,7 +1,7 @@
 import { Pressable, Text, View } from "react-native";
 
-import { AgentStatusBadge } from "./AgentStatusBadge";
 import { EvidenceCitation } from "./EvidenceCitation";
+import { AgentStatusBadge } from "./AgentStatusBadge";
 import { formatMarketDate } from "../../dateFormat";
 import { appStyles as styles, palette } from "../../theme";
 import type { Claim, EvidenceItem } from "../../types";

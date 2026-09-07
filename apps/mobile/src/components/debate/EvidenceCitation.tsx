@@ -16,7 +16,7 @@ export function EvidenceCitation({
   const detail = item ? presentEvidence(item) : null;
   const date = detail?.date ?? (item?.source_type === "technical" ? closeDate : "Date unavailable");
   return (
-    <Text style={styles.evidenceIds}>
+    <Text accessibilityLabel={`Evidence ${evidenceId}, ${item?.source_type ?? "unavailable"}, source ${detail?.source ?? "unavailable"}, date ${date}, ${detail?.freshness ?? "freshness unavailable"}`} style={styles.evidenceIds}>
       Evidence · {evidenceId} · {item?.source_type ?? "unavailable"} · Source {detail?.source ?? "unavailable"} · {date} · {detail?.freshness ?? "Freshness unavailable"}
     </Text>
   );

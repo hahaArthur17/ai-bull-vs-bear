@@ -29,11 +29,11 @@ export function HistoryScreen({
 }: HistoryScreenProps) {
   const hasHistory = history.length > 0 || debates.length > 0;
   return (
-    <ScrollView contentContainerStyle={styles.page}>
-      <Text style={styles.eyebrow}>SAVED RESEARCH</Text>
-      <Text style={styles.detailTitle}>History</Text>
+    <ScrollView contentContainerStyle={[styles.page, styles.readingPage]}>
+      <Text style={styles.eyebrow}>SAVED RESEARCH · REOPENABLE</Text>
+      <Text accessibilityRole="header" style={styles.detailTitle}>History</Text>
       <Text style={styles.historyIntro}>
-        Reopen a canonical Debate, its interim or final Judge, or a classic analysis run.
+        Reopen a canonical V2 Debate, its interim or final Judge, or a classic analysis fallback.
       </Text>
       {!hasHistory ? (
         <View style={styles.emptyCard}>
@@ -45,7 +45,7 @@ export function HistoryScreen({
       ) : null}
       {debates.length > 0 ? (
         <>
-          <Text accessibilityRole="header" style={styles.historySectionTitle}>CANONICAL DEBATES</Text>
+          <Text accessibilityRole="header" style={styles.historySectionTitle}>V2 CANONICAL DEBATES</Text>
           {debates.map((session) => {
             const copy = debateHistoryCopy(session);
             return (
@@ -73,7 +73,7 @@ export function HistoryScreen({
           })}
         </>
       ) : null}
-      {history.length > 0 ? <Text accessibilityRole="header" style={styles.historySectionTitle}>CLASSIC ANALYSES</Text> : null}
+      {history.length > 0 ? <Text accessibilityRole="header" style={styles.historySectionTitle}>LEGACY CLASSIC ANALYSES · FALLBACK</Text> : null}
       {history.map((item) => (
         <Pressable
           accessibilityLabel={`Open classic ${item.ticker} analysis`}
@@ -84,7 +84,7 @@ export function HistoryScreen({
         >
           <View style={styles.historyCopy}>
             <Text style={styles.stockTicker}>{item.ticker}</Text>
-            <Text style={styles.historyTitle}>Bull, Bear, and Judge synthesis</Text>
+            <Text style={styles.historyTitle}>Legacy Bull, Bear, and Judge synthesis</Text>
             <Text style={styles.historyTimestamp}>{new Date(item.created_at).toLocaleString()}</Text>
           </View>
           <Text style={styles.examineLink}>Review →</Text>

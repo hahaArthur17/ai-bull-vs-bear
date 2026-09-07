@@ -8,9 +8,9 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
   const [showTechnicalDetails, setShowTechnicalDetails] = useState(false);
 
   return (
-    <ScrollView contentContainerStyle={styles.page}>
+    <ScrollView contentContainerStyle={[styles.page, styles.readingPage]}>
       <Text style={styles.eyebrow}>ABOUT THIS RESEARCH DEMO</Text>
-      <Text style={styles.detailTitle}>AI Bull vs Bear</Text>
+      <Text accessibilityRole="header" style={styles.detailTitle}>AI Bull vs Bear</Text>
       <Text style={styles.heroBody}>An educational research workspace that puts technical signals, filing and news evidence, and competing Bull and Bear arguments side by side.</Text>
       <View style={styles.aboutCard}>
         <Text accessibilityRole="header" style={styles.cardTitle}>Start with the evidence</Text>
@@ -18,7 +18,7 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
       </View>
       <View style={styles.aboutCard}>
         <Text accessibilityRole="header" style={styles.cardTitle}>A structured disagreement</Text>
-        <Text style={styles.mutedText}>Bull and Bear claims are separate from the neutral Judge. A canonical Debate can pause after its interim Judge so you can make an evidence-grounded challenge before the final assessment.</Text>
+        <Text style={styles.mutedText}>Bull and Bear claims are separate from the neutral Judge. A canonical V2 Debate can pause after its interim Judge so you can make an evidence-grounded challenge before the final assessment.</Text>
       </View>
       <View style={styles.aboutCard}>
         <Text accessibilityRole="header" style={styles.cardTitle}>Safety boundary</Text>
@@ -38,7 +38,8 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
         {showTechnicalDetails ? (
           <View style={styles.diagnosticPanel}>
             <Text style={styles.traceLine}>The default demo uses deterministic cached data and needs no API key.</Text>
-            <Text style={styles.traceLine}>Optional authentication and model providers are configured outside the app; explanations remain read-only and the V2 Debate interface is off by default.</Text>
+            <Text style={styles.traceLine}>Optional authentication and model providers are configured outside the app; explanations remain read-only and V2 Debate is the target experience when explicitly enabled.</Text>
+            <Text style={styles.traceLine}>The older synchronous Debate screen is retained as a clearly labelled legacy fallback for saved classic analyses.</Text>
           </View>
         ) : null}
       </View>
