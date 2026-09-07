@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   ActivityIndicator,
   Platform,
-  Pressable,
   SafeAreaView,
   ScrollView,
   StyleSheet,
@@ -15,6 +14,7 @@ import {
 import { supabase } from "./supabase";
 import { colors, interaction, layout, palette, radii, spacing, typography } from "./theme";
 import { isAuthenticationButtonSubmitting } from "./authState";
+import { FocusablePressable } from "./components/common";
 import type { AuthenticationMode } from "./authState";
 
 function validEmail(value: string): boolean {
@@ -135,7 +135,7 @@ export function AuthScreen() {
             </View>
             {error ? <Text accessibilityLiveRegion="assertive" nativeID="auth-form-error" style={styles.error}>{error}</Text> : null}
             {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
-            <Pressable
+            <FocusablePressable
               accessibilityHint="Signs in with the email address and password above."
               accessibilityRole="button"
               accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-in") }}
@@ -144,8 +144,8 @@ export function AuthScreen() {
               style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
             >
               {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color={colors.content.onSignal} /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
-            </Pressable>
-            <Pressable
+            </FocusablePressable>
+            <FocusablePressable
               accessibilityHint="Creates an account with the email address and password above."
               accessibilityRole="button"
               accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-up") }}
@@ -154,7 +154,7 @@ export function AuthScreen() {
               style={[styles.secondaryButton, !canSubmit && styles.secondaryButtonDisabled]}
             >
               {isAuthenticationButtonSubmitting(submittingMode, "sign-up") ? <ActivityIndicator color={palette.accent} /> : <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>Create an account</Text>}
-            </Pressable>
+            </FocusablePressable>
             <Text style={styles.note}>
               Authentication is handled by Supabase. Never paste passwords, API keys, or tokens into a research prompt.
             </Text>

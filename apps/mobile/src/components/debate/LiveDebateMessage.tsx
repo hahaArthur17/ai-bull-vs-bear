@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { type DimensionValue, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { type DimensionValue, Linking, StyleSheet, Text, View } from "react-native";
 
+import { FocusablePressable } from "../common";
 import type { DebateDraft } from "../../debateStream";
 import { getDebateMessagePlacement } from "../../debateChatView";
 import { debateMessageSections } from "../../liveDebateView";
@@ -87,7 +88,7 @@ export function CanonicalDebateMessage({
         {record.message.terms.length > 0 ? (
           <View style={messageStyles.termRow}>
             {record.message.terms.map((term) => (
-              <Pressable
+              <FocusablePressable
                 key={`${record.message.id}:${term}`}
                 disabled={exactExplanationTerm(record, term) === null}
                 onPress={() => onExplainTerm(term)}
@@ -97,14 +98,14 @@ export function CanonicalDebateMessage({
                 accessibilityState={{ disabled: exactExplanationTerm(record, term) === null }}
               >
                 <Text style={messageStyles.termText}>Explain “{term}”</Text>
-              </Pressable>
+              </FocusablePressable>
             ))}
           </View>
         ) : null}
 
         {showsEvidenceDisclosure ? (
           <>
-            <Pressable
+            <FocusablePressable
               onPress={() => setFactsExpanded((current) => !current)}
               style={messageStyles.disclosureButton}
               accessibilityRole="button"
@@ -115,7 +116,7 @@ export function CanonicalDebateMessage({
                 {factsExpanded ? "Hide facts" : `Facts & evidence (${sections.factsUsed.length})`}
               </Text>
               <Text style={messageStyles.disclosureIcon}>{factsExpanded ? "−" : "+"}</Text>
-            </Pressable>
+            </FocusablePressable>
 
             {factsExpanded ? (
               <View style={messageStyles.factList}>
@@ -134,7 +135,7 @@ export function CanonicalDebateMessage({
         ) : null}
 
         {canTarget ? (
-          <Pressable
+          <FocusablePressable
             onPress={onChallenge}
             style={messageStyles.messageAction}
             accessibilityLabel={selected ? "Selected for Round 2 challenge" : "Challenge this point in Round 2"}
@@ -144,7 +145,7 @@ export function CanonicalDebateMessage({
             <Text style={messageStyles.messageActionText}>
               {selected ? "Selected for Round 2" : "Challenge this point →"}
             </Text>
-          </Pressable>
+          </FocusablePressable>
         ) : null}
       </View>
     </View>
@@ -177,14 +178,14 @@ function DebateFact({ fact }: { fact: DebateEvidenceView }) {
         </Text>
       ) : null}
       {sourceAvailable ? (
-        <Pressable
+        <FocusablePressable
           onPress={openSource}
           style={messageStyles.sourceLink}
           accessibilityRole="link"
           accessibilityLabel={`Open source for ${fact.evidenceId}`}
         >
           <Text style={messageStyles.sourceLinkText}>Open cited source ↗</Text>
-        </Pressable>
+        </FocusablePressable>
       ) : (
         <Text style={messageStyles.sourceUnavailable}>Source link unavailable</Text>
       )}

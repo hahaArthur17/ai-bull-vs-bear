@@ -1,6 +1,7 @@
 import React from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
+import { FocusablePressable } from "../components/common";
 import { debateHistoryCopy } from "../debateHistoryView";
 import { appStyles as styles } from "../theme";
 import type { AnalysisResponse, DebateSessionSummary } from "../types";
@@ -49,7 +50,7 @@ export function HistoryScreen({
           {debates.map((session) => {
             const copy = debateHistoryCopy(session);
             return (
-              <Pressable
+              <FocusablePressable
                 key={session.id}
                 style={styles.historyRow}
                 onPress={() => onOpenDebate(session)}
@@ -68,14 +69,14 @@ export function HistoryScreen({
                   </Text>
                 </View>
                 <Text style={styles.examineLink}>{copy.action} →</Text>
-              </Pressable>
+              </FocusablePressable>
             );
           })}
         </>
       ) : null}
       {history.length > 0 ? <Text accessibilityRole="header" style={styles.historySectionTitle}>LEGACY CLASSIC ANALYSES · FALLBACK</Text> : null}
       {history.map((item) => (
-        <Pressable
+        <FocusablePressable
           accessibilityLabel={`Open classic ${item.ticker} analysis`}
           accessibilityRole="button"
           key={item.analysis_id}
@@ -88,7 +89,7 @@ export function HistoryScreen({
             <Text style={styles.historyTimestamp}>{new Date(item.created_at).toLocaleString()}</Text>
           </View>
           <Text style={styles.examineLink}>Review →</Text>
-        </Pressable>
+        </FocusablePressable>
       ))}
     </ScrollView>
   );

@@ -1,10 +1,10 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ScrollView, StyleSheet, Text, View } from "react-native";
 
 import { AnalysisSnapshotCard } from "../components/debate/AnalysisSnapshotCard";
 import { JudgeSummaryCard } from "../components/debate/JudgeSummaryCard";
 import { LegacyClaimCard } from "../components/debate/LegacyClaimCard";
-import { BackButton, LoadingView } from "../components/common";
+import { BackButton, FocusablePressable, LoadingView } from "../components/common";
 import { appStyles as styles, colors, spacing } from "../theme";
 import type { AnalysisResponse, Claim } from "../types";
 
@@ -65,7 +65,7 @@ export function LegacyDebateScreen({
         <View style={styles.emptyCard}>
           <Text accessibilityRole="header" style={styles.cardTitle}>No legacy analysis run yet</Text>
           <Text style={styles.mutedText}>Run the deterministic fallback workflow to see the Bull, Bear, Judge, and Guardrail agents.</Text>
-          <Pressable accessibilityHint="Runs the deterministic analysis workflow for this security." accessibilityRole="button" style={styles.primaryButton} onPress={onRun}><Text style={styles.primaryButtonText}>Run analysis</Text></Pressable>
+          <FocusablePressable accessibilityHint="Runs the deterministic analysis workflow for this security." accessibilityRole="button" style={styles.primaryButton} onPress={onRun}><Text style={styles.primaryButtonText}>Run analysis</Text></FocusablePressable>
         </View>
       ) : (
         <>
@@ -74,7 +74,7 @@ export function LegacyDebateScreen({
           <LegacyClaimCard claim={analysis.bull} closeDate={analysis.snapshot.price.as_of} evidence={analysis.evidence} onExamine={onExamine} />
           <LegacyClaimCard claim={analysis.bear} closeDate={analysis.snapshot.price.as_of} evidence={analysis.evidence} onExamine={onExamine} />
           <View style={styles.diagnosticDisclosure}>
-            <Pressable
+            <FocusablePressable
               accessibilityLabel={`${showDiagnostics ? "Hide" : "Show"} analysis technical details`}
               accessibilityRole="button"
               accessibilityState={{ expanded: showDiagnostics }}
@@ -83,7 +83,7 @@ export function LegacyDebateScreen({
             >
               <Text style={styles.diagnosticDisclosureTitle}>Analysis technical details</Text>
               <Text style={styles.diagnosticDisclosureAction}>{showDiagnostics ? "Hide" : "Show"}</Text>
-            </Pressable>
+            </FocusablePressable>
             {showDiagnostics ? (
               <View style={styles.diagnosticPanel}>
                 <View style={styles.rowBetween}><Text style={styles.cardLabel}>AGENT TRACE</Text><Text style={styles.mutedText}>{analysis.token_usage.model_name}</Text></View>

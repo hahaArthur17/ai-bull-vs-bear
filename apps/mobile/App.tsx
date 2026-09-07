@@ -3,7 +3,6 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ActivityIndicator,
-  Pressable,
   SafeAreaView,
   Text,
   useWindowDimensions,
@@ -13,6 +12,7 @@ import {
 import { api } from "./src/api";
 import { AuthScreen } from "./src/AuthScreen";
 import {
+  FocusablePressable,
   NavButton,
 } from "./src/components/common";
 import { getResponsiveAppShellLayout } from "./src/appShell";
@@ -403,7 +403,7 @@ export default function App() {
           </View>
         ) : null}
         {error && screen !== "watchlist" && !(screen === "stock" && !selectedBundle) ? (
-          <Pressable
+          <FocusablePressable
             accessibilityHint="Dismisses this error message."
             accessibilityLabel={`Dismiss error: ${error}`}
             accessibilityLiveRegion="assertive"
@@ -412,7 +412,7 @@ export default function App() {
             onPress={() => setError("")}
           >
             <Text style={styles.errorText}>{error}</Text>
-          </Pressable>
+          </FocusablePressable>
         ) : null}
         <View style={[styles.contentFrame, { maxWidth: responsiveShell.contentMaxWidth }]}>
           {renderScreen()}

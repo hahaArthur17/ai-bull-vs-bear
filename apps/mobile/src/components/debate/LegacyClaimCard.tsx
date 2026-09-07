@@ -1,5 +1,6 @@
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { FocusablePressable } from "../common";
 import { EvidenceCitation } from "./EvidenceCitation";
 import { AgentStatusBadge } from "./AgentStatusBadge";
 import { formatMarketDate } from "../../dateFormat";
@@ -27,7 +28,7 @@ export function LegacyClaimCard({
       <View style={styles.claimCitations}>
         {claim.evidence_ids.map((id) => <EvidenceCitation key={id} evidenceId={id} item={evidenceById.get(id)} closeDate={closeDate} />)}
       </View>
-      <Pressable
+      <FocusablePressable
         accessibilityHint="Opens focused questions about this claim."
         accessibilityLabel="Cross-examine this claim"
         accessibilityRole="button"
@@ -35,7 +36,7 @@ export function LegacyClaimCard({
         style={styles.examineButton}
       >
         <Text style={styles.examineLink}>Tap to cross-examine →</Text>
-      </Pressable>
+      </FocusablePressable>
     </View>
   );
 }

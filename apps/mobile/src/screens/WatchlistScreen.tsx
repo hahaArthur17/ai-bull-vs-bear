@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
-import { SectionHeader } from "../components/common";
+import { FocusablePressable, SectionHeader } from "../components/common";
 import { getCoveragePresentation, getDiscoverySummary } from "../discoverySummary";
 import { colors, interaction, layout, palette, radii, spacing, typography } from "../theme";
 import type { Stock } from "../types";
@@ -92,7 +92,7 @@ export function WatchlistScreen({
         <View accessibilityLiveRegion="assertive" style={styles.errorCard}>
           <Text style={styles.errorTitle}>Workspace data could not refresh</Text>
           <Text style={styles.errorText}>{error}</Text>
-          <Pressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></Pressable>
+          <FocusablePressable accessibilityRole="button" onPress={onRetry} style={styles.retryButton}><Text style={styles.retryText}>Retry</Text></FocusablePressable>
         </View>
       ) : null}
       <View style={[styles.workspaceGrid, isWideLayout && styles.workspaceGridWide]}>
@@ -150,7 +150,7 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
   const isCatalogOnly = coverage.tone === "catalog";
   return (
     <View style={styles.stockRow}>
-      <Pressable
+      <FocusablePressable
         accessibilityHint="Opens this security's research workspace."
         accessibilityLabel={`${stock.ticker}, ${stock.company_name}, ${coverage.label}`}
         accessibilityRole="button"
@@ -169,8 +169,8 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
           <Text numberOfLines={1} style={styles.stockCompany}>{stock.company_name}</Text>
           <Text style={styles.stockMeta}>{stock.exchange}{stock.sector ? ` · ${stock.sector}` : ""}</Text>
         </View>
-      </Pressable>
-      <Pressable
+      </FocusablePressable>
+      <FocusablePressable
         accessibilityLabel={watched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
         accessibilityRole="button"
         accessibilityState={{ selected: watched }}
@@ -178,7 +178,7 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
         style={styles.starButton}
       >
         <Text style={[styles.star, watched && styles.starActive]}>{watched ? "Saved" : "Save"}</Text>
-      </Pressable>
+      </FocusablePressable>
     </View>
   );
 }

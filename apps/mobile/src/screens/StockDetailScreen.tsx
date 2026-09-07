@@ -1,8 +1,8 @@
 import { useMemo, useState } from "react";
-import { PanResponder, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { PanResponder, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
-import { BackButton, FailureView, LoadingView, Metric, SectionHeader } from "../components/common";
+import { BackButton, FailureView, FocusablePressable, LoadingView, Metric, SectionHeader } from "../components/common";
 import { formatChartDate, formatMarketDate, formatQuoteTime } from "../dateFormat";
 import {
   calculateRsi,
@@ -70,7 +70,7 @@ export function StockDetailScreen({
             Opening this profile did not request market data, news, evidence retrieval, or an AI model.
           </Text>
         </View>
-        <Pressable
+        <FocusablePressable
           accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
           accessibilityRole="button"
           accessibilityState={{ selected: isWatched }}
@@ -80,7 +80,7 @@ export function StockDetailScreen({
           <Text style={styles.secondaryButtonText}>
             {isWatched ? "Remove from Watchlist" : "Add to Watchlist"}
           </Text>
-        </Pressable>
+        </FocusablePressable>
       </ScrollView>
     );
   }
@@ -170,7 +170,7 @@ function StockResearchHeader({
         <Text style={styles.detailTicker}>{stock.ticker} · {stock.sector || "Classification unavailable"}</Text>
         <Text style={[styles.coverageStatus, isCatalogOnly && styles.coverageStatusCatalog]}>{coverageLabel}</Text>
       </View>
-      <Pressable
+      <FocusablePressable
         accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
         accessibilityRole="button"
         accessibilityState={{ selected: isWatched }}
@@ -178,7 +178,7 @@ function StockResearchHeader({
         style={styles.researchWatchButton}
       >
         <Text style={[styles.star, isWatched && styles.starActive]}>{isWatched ? "★" : "☆"}</Text>
-      </Pressable>
+      </FocusablePressable>
     </View>
   );
 }
@@ -295,12 +295,12 @@ function SignalSnapshot({
 function ResearchActions({ onDebate, onEvidence }: { onDebate: () => void; onEvidence: () => void }) {
   return (
     <View style={styles.actionRow}>
-      <Pressable accessibilityHint="Opens the dated evidence used by the research workflow." accessibilityRole="button" style={styles.secondaryButton} onPress={onEvidence}>
+      <FocusablePressable accessibilityHint="Opens the dated evidence used by the research workflow." accessibilityRole="button" style={styles.secondaryButton} onPress={onEvidence}>
         <Text style={styles.secondaryButtonText}>Evidence board</Text>
-      </Pressable>
-      <Pressable accessibilityHint="Starts Bull vs Bear for this research-ready security." accessibilityRole="button" style={styles.primaryButton} onPress={onDebate}>
+      </FocusablePressable>
+      <FocusablePressable accessibilityHint="Starts Bull vs Bear for this research-ready security." accessibilityRole="button" style={styles.primaryButton} onPress={onDebate}>
         <Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text>
-      </Pressable>
+      </FocusablePressable>
     </View>
   );
 }
@@ -368,7 +368,7 @@ function InteractivePriceChart({
         </View>
         <View accessibilityRole="tablist" style={styles.rangeSelector}>
           {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
-            <Pressable
+            <FocusablePressable
               key={option}
               accessibilityLabel={`Show ${option} price history`}
               accessibilityRole="tab"
@@ -378,7 +378,7 @@ function InteractivePriceChart({
               onPress={() => { setRange(option); setSelectedIndex(-1); }}
             >
               <Text style={[styles.rangeButtonText, option === range && styles.rangeButtonTextActive]}>{option}</Text>
-            </Pressable>
+            </FocusablePressable>
           ))}
         </View>
         <Text accessibilityLiveRegion="polite" style={styles.chartUnavailableText}>No labelled {range === "1M" || range === "3M" ? "daily" : "weekly"} history is available yet. Choose another range when data is available.</Text>
@@ -469,7 +469,7 @@ function InteractivePriceChart({
       <Text style={styles.chartTextSummary}>{trendSummary}</Text>
       <View accessibilityRole="tablist" style={styles.rangeSelector}>
         {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
-          <Pressable
+          <FocusablePressable
             key={option}
             accessibilityLabel={`Show ${option} price history`}
             accessibilityRole="tab"
@@ -479,10 +479,10 @@ function InteractivePriceChart({
             onPress={() => { setRange(option); setSelectedIndex(-1); }}
           >
             <Text style={[styles.rangeButtonText, option === range && styles.rangeButtonTextActive]}>{option}</Text>
-          </Pressable>
+          </FocusablePressable>
         ))}
       </View>
-      <Pressable
+      <FocusablePressable
         accessibilityActions={[
           { name: "decrement", label: "Inspect earlier price point" },
           { name: "increment", label: "Inspect later price point" },
@@ -532,7 +532,7 @@ function InteractivePriceChart({
           <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="5" fill={colors.content.primary} />
           <Circle cx={activeCoordinate.x} cy={activeCoordinate.y} r="2.5" fill={colors.action.primary} />
         </Svg>
-      </Pressable>
+      </FocusablePressable>
       <View style={styles.chartAxis}>
         <Text style={styles.chartAxisText}>${minClose.toFixed(2)}</Text>
         <Text style={styles.chartAxisText}>${maxClose.toFixed(2)}</Text>
@@ -547,7 +547,7 @@ function InteractivePriceChart({
         </Text>
       </View>
       <View style={styles.chartInspector}>
-        <Pressable
+        <FocusablePressable
           accessibilityRole="button"
           accessibilityLabel="Inspect earlier price point"
           disabled={activeIndex === 0}
@@ -555,8 +555,8 @@ function InteractivePriceChart({
           onPress={() => moveSelection(-1)}
         >
           <Text style={styles.chartStepText}>← Earlier</Text>
-        </Pressable>
-        <Pressable
+        </FocusablePressable>
+        <FocusablePressable
           accessibilityRole="button"
           accessibilityLabel="Inspect later price point"
           disabled={activeIndex === points.length - 1}
@@ -564,7 +564,7 @@ function InteractivePriceChart({
           onPress={() => moveSelection(1)}
         >
           <Text style={styles.chartStepText}>Later →</Text>
-        </Pressable>
+        </FocusablePressable>
       </View>
     </View>
   );

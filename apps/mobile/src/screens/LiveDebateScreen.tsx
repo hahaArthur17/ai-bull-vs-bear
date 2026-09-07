@@ -4,7 +4,6 @@ import {
   AccessibilityInfo,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,6 +13,7 @@ import {
 } from "react-native";
 
 import { api, createDebateStreamClient } from "../api";
+import { FocusablePressable } from "../components/common";
 import {
   CanonicalDebateMessage,
   DraftDebateMessage,
@@ -413,7 +413,7 @@ export function LiveDebateScreen({
   );
 
   const cancelControl = canCancel || cancelling ? (
-    <Pressable
+    <FocusablePressable
       disabled={!canCancel}
       style={[screenStyles.cancelButton, !canCancel && screenStyles.disabledButton]}
       onPress={() => void cancelDebate()}
@@ -425,7 +425,7 @@ export function LiveDebateScreen({
       <Text style={screenStyles.cancelText}>
         {cancelling ? "Requesting cancellation…" : "Stop this generation"}
       </Text>
-    </Pressable>
+    </FocusablePressable>
   ) : null;
 
   return (
@@ -444,14 +444,14 @@ export function LiveDebateScreen({
       scrollEventThrottle={32}
       accessibilityLabel={`${ticker} live Bull versus Bear Debate`}
     >
-      <Pressable
+      <FocusablePressable
         onPress={onBack}
         style={screenStyles.backButton}
         accessibilityLabel={`Return to ${ticker} market snapshot`}
         accessibilityRole="button"
       >
         <Text style={screenStyles.backText}>← Market snapshot</Text>
-      </Pressable>
+      </FocusablePressable>
 
       <View style={screenStyles.headerRow}>
         <View style={screenStyles.headerCopy}>
@@ -476,14 +476,14 @@ export function LiveDebateScreen({
       {connectionError ? (
         <View style={screenStyles.warningCard}>
           <Text style={screenStyles.warningText}>{connectionError}</Text>
-          <Pressable
+          <FocusablePressable
             style={screenStyles.inlineButton}
             onPress={() => setStreamEpoch((current) => current + 1)}
             accessibilityLabel="Reconnect to live Debate updates"
             accessibilityRole="button"
           >
             <Text style={screenStyles.inlineButtonText}>Reconnect</Text>
-          </Pressable>
+          </FocusablePressable>
         </View>
       ) : null}
 
@@ -546,14 +546,14 @@ export function LiveDebateScreen({
         <View style={screenStyles.explanationPanel}>
           <View style={screenStyles.rowBetween}>
             <Text style={screenStyles.explanationEyebrow}>TERM EXPLANATION · READ ONLY</Text>
-            <Pressable
+            <FocusablePressable
               onPress={closeExplanation}
               style={screenStyles.dismissButton}
               accessibilityRole="button"
               accessibilityLabel="Close term explanation"
             >
               <Text style={screenStyles.dismissButtonText}>Close</Text>
-            </Pressable>
+            </FocusablePressable>
           </View>
           <Text style={screenStyles.explanationTitle}>Understand the argument</Text>
           <Text style={screenStyles.explanationHelp}>
@@ -581,7 +581,7 @@ export function LiveDebateScreen({
           {explanationError ? (
             <Text style={screenStyles.validationText}>{explanationError}</Text>
           ) : null}
-          <Pressable
+          <FocusablePressable
             disabled={!canSubmitExplanation}
             style={[
               screenStyles.explanationButton,
@@ -596,7 +596,7 @@ export function LiveDebateScreen({
             <Text style={screenStyles.explanationButtonText}>
               {explaining ? "Explaining term…" : "Explain this term"}
             </Text>
-          </Pressable>
+          </FocusablePressable>
           {explanationResult ? (
             <View style={screenStyles.explanationResult}>
               <Text style={screenStyles.explanationResultTitle}>Explanation</Text>
@@ -656,7 +656,7 @@ export function LiveDebateScreen({
                 placeholderTextColor={colors.muted}
                 accessibilityLabel="Question for the Round 2 challenge"
               />
-              <Pressable
+              <FocusablePressable
                 disabled={!canSubmitChallenge}
                 style={[
                   screenStyles.challengeButton,
@@ -671,7 +671,7 @@ export function LiveDebateScreen({
                 <Text style={screenStyles.challengeButtonText}>
                   {challenging ? "Queueing Round 2…" : "Queue Round 2 challenge"}
                 </Text>
-              </Pressable>
+              </FocusablePressable>
             </>
           ) : (
             <Text style={screenStyles.challengeEmpty}>
@@ -706,14 +706,14 @@ export function LiveDebateScreen({
         pointerEvents="box-none"
         style={screenStyles.newMessagesOverlay}
       >
-        <Pressable
+        <FocusablePressable
           onPress={followLatestMessage}
           style={screenStyles.newMessagesButton}
           accessibilityLabel="Jump to new Debate messages"
           accessibilityRole="button"
         >
           <Text style={screenStyles.newMessagesText}>New messages ↓</Text>
-        </Pressable>
+        </FocusablePressable>
       </View>
     ) : null}
     </View>

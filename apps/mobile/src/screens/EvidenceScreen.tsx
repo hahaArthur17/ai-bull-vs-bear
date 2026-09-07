@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { Linking, ScrollView, Text, View } from "react-native";
 
-import { BackButton, FailureView, LoadingView } from "../components/common";
+import { BackButton, FailureView, FocusablePressable, LoadingView } from "../components/common";
 import { isSafeEvidenceDestination, presentEvidence } from "../evidencePresentation";
 import { appStyles as styles, colors, interaction, radii, spacing } from "../theme";
 import type { EvidenceItem } from "../types";
@@ -79,7 +79,7 @@ function EvidenceCard({ item }: { item: EvidenceItem }) {
         ]}>Freshness · {detail.freshness}</Text>
       </View>
       {item.url ? (
-        <Pressable
+        <FocusablePressable
           accessibilityHint="Opens the cited source in the browser."
           accessibilityLabel={`Open source for evidence ${item.id}`}
           accessibilityRole="link"
@@ -87,7 +87,7 @@ function EvidenceCard({ item }: { item: EvidenceItem }) {
           style={[styles.evidenceLink, { borderColor: colors.border.subtle, borderRadius: radii.md, borderWidth: 1, minWidth: interaction.minTargetSize, paddingHorizontal: spacing.md }]}
         >
           <Text style={styles.evidenceLinkText}>Open cited source ↗</Text>
-        </Pressable>
+        </FocusablePressable>
       ) : <Text style={styles.evidenceLinkUnavailable}>Source link unavailable</Text>}
       {linkFeedback ? <Text accessibilityLiveRegion="polite" style={[styles.mutedText, { backgroundColor: colors.surface.subtle, borderColor: colors.border.subtle, borderRadius: radii.sm, borderWidth: 1, marginTop: spacing.sm, padding: spacing.sm }]}>{linkFeedback}</Text> : null}
     </View>

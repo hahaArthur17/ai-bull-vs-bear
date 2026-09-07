@@ -1,6 +1,7 @@
 import React, { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, View } from "react-native";
 
+import { FocusablePressable } from "../components/common";
 import { appStyles as styles } from "../theme";
 
 
@@ -25,7 +26,7 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
         <Text style={styles.mutedText}>This app explains evidence and uncertainty. It does not provide buy, sell, hold, or personalised financial advice.</Text>
       </View>
       <View style={styles.diagnosticDisclosure}>
-        <Pressable
+        <FocusablePressable
           accessibilityLabel={`${showTechnicalDetails ? "Hide" : "Show"} technical and configuration details`}
           accessibilityRole="button"
           accessibilityState={{ expanded: showTechnicalDetails }}
@@ -34,7 +35,7 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
         >
           <Text style={styles.diagnosticDisclosureTitle}>Technical details</Text>
           <Text style={styles.diagnosticDisclosureAction}>{showTechnicalDetails ? "Hide" : "Show"}</Text>
-        </Pressable>
+        </FocusablePressable>
         {showTechnicalDetails ? (
           <View style={styles.diagnosticPanel}>
             <Text style={styles.traceLine}>The default demo uses deterministic cached data and needs no API key.</Text>
@@ -43,7 +44,7 @@ export function AboutScreen({ onSignOut }: { onSignOut?: () => void }) {
           </View>
         ) : null}
       </View>
-      {onSignOut ? <Pressable accessibilityLabel="Sign out" accessibilityRole="button" style={styles.secondaryButton} onPress={onSignOut}><Text style={styles.secondaryButtonText}>Sign out</Text></Pressable> : null}
+      {onSignOut ? <FocusablePressable accessibilityLabel="Sign out" accessibilityRole="button" style={styles.secondaryButton} onPress={onSignOut}><Text style={styles.secondaryButtonText}>Sign out</Text></FocusablePressable> : null}
     </ScrollView>
   );
 }

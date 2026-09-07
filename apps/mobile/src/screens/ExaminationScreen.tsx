@@ -1,7 +1,7 @@
 import { useState } from "react";
-import { ActivityIndicator, Linking, Pressable, ScrollView, Text, View } from "react-native";
+import { ActivityIndicator, Linking, ScrollView, Text, View } from "react-native";
 
-import { BackButton, LoadingView, SectionHeader } from "../components/common";
+import { BackButton, FocusablePressable, LoadingView, SectionHeader } from "../components/common";
 import { isSafeEvidenceDestination, presentEvidence } from "../evidencePresentation";
 import { appStyles as styles, colors, interaction, palette, radii, spacing } from "../theme";
 import type { Claim, EvidenceItem, ExaminationResponse } from "../types";
@@ -40,7 +40,7 @@ export function ExaminationScreen({ claim, error, pendingQuestion, result, onBac
       </View>
       <SectionHeader title="Ask a focused question" meta="explanation agent" />
       {questions.map(([type, label]) => (
-        <Pressable
+        <FocusablePressable
           key={type}
           accessibilityHint="Requests an explanation of the selected claim without changing the Debate."
           accessibilityRole="button"
@@ -50,7 +50,7 @@ export function ExaminationScreen({ claim, error, pendingQuestion, result, onBac
           onPress={() => onAsk(type)}
         >
           {pendingQuestion === type ? <View style={{ alignItems: "center", flexDirection: "row", gap: spacing.sm }}><ActivityIndicator color={palette.accent} /><Text style={styles.questionText}>Checking this question…</Text></View> : <Text style={styles.questionText}>{label}</Text>}
-        </Pressable>
+        </FocusablePressable>
       ))}
       {submitting ? <Text accessibilityLiveRegion="polite" style={styles.examinationStatus}>Checking the selected claim. Other questions are disabled until this request finishes.</Text> : null}
       {error ? (
@@ -105,7 +105,7 @@ function ExaminationEvidence({ item }: { item: EvidenceItem }) {
           detail.tone === "stale" && styles.freshnessStale,
         ]}>Freshness · {detail.freshness}</Text>
       {item.url ? (
-        <Pressable
+        <FocusablePressable
           accessibilityHint="Opens the cited source in the browser."
           accessibilityLabel={`Open source for evidence ${item.id}`}
           accessibilityRole="link"
@@ -113,7 +113,7 @@ function ExaminationEvidence({ item }: { item: EvidenceItem }) {
           style={[styles.evidenceLink, { borderColor: colors.border.subtle, borderRadius: radii.md, borderWidth: 1, minWidth: interaction.minTargetSize, paddingHorizontal: spacing.md }]}
         >
           <Text style={styles.evidenceLinkText}>Open cited source ↗</Text>
-        </Pressable>
+        </FocusablePressable>
       ) : <Text style={styles.evidenceLinkUnavailable}>Source link unavailable</Text>}
       {linkFeedback ? <Text accessibilityLiveRegion="polite" style={[styles.mutedText, { backgroundColor: colors.surface.subtle, borderColor: colors.border.subtle, borderRadius: radii.sm, borderWidth: 1, marginTop: spacing.sm, padding: spacing.sm }]}>{linkFeedback}</Text> : null}
     </View>
