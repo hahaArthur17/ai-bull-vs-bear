@@ -12,7 +12,7 @@ export {
   spacing,
   typography,
 } from "./theme/tokens";
-import { colors, elevation, interaction, palette, radii, spacing, typography } from "./theme/tokens";
+import { colors, elevation, interaction, layout, palette, radii, spacing, typography } from "./theme/tokens";
 
 const appFontFamily = Platform.select({
   web: typography.fontFamily.web,
@@ -24,6 +24,7 @@ export const appStyles = StyleSheet.create({
   appShell: { flex: 1, backgroundColor: palette.paper, minWidth: 0 },
   contentFrame: { alignSelf: "center", flex: 1, minWidth: 0, width: "100%" },
   page: { padding: spacing.xl, paddingBottom: 126 },
+  readingPage: { alignSelf: "center", maxWidth: layout.readingMaxWidth, width: "100%" },
   eyebrow: { color: palette.signal, fontFamily: appFontFamily, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: 1.4, marginBottom: spacing.sm },
   heroTitle: { color: palette.ink, fontFamily: appFontFamily, fontSize: typography.display.fontSize, lineHeight: typography.display.lineHeight, fontWeight: typography.display.fontWeight, marginBottom: 10 },
   heroBody: { color: palette.muted, fontFamily: appFontFamily, fontSize: typography.body.fontSize, lineHeight: typography.body.lineHeight, marginBottom: spacing.xxl },

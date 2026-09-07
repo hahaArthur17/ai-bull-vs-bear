@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { colors, elevation, motion, motionForPreference, palette, radii, spacing, typography } from "./theme/tokens.ts";
+import { colors, elevation, layout, motion, motionForPreference, palette, radii, spacing, typography } from "./theme/tokens.ts";
 
 test("prototype-derived theme foundation uses deep semantic surfaces and role colours", () => {
   assert.equal(colors.surface.canvas, "#09101d");
@@ -23,6 +23,7 @@ test("foundation exposes one typography, spacing, radius, focus, and elevation c
   assert.ok(spacing.xxxl > spacing.xxl);
   assert.equal(radii.pill, 999);
   assert.ok(elevation.floating.elevation > elevation.raised.elevation);
+  assert.ok(layout.readingMaxWidth < layout.contentMaxWidth);
   assert.match(elevation.raised.boxShadow, /12px/);
   assert.match(elevation.floating.boxShadow, /24px/);
 });

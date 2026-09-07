@@ -115,6 +115,7 @@ export const designTokens = {
   },
   layout: {
     contentMaxWidth: 1160,
+    readingMaxWidth: 760,
     navigationMaxWidth: 680,
     floatingNavigationInset: 12,
     breakpoints: { compact: 320, phone: 390, tablet: 768, desktop: 1280 },

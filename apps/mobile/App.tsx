@@ -403,7 +403,14 @@ export default function App() {
           </View>
         ) : null}
         {error && screen !== "watchlist" && !(screen === "stock" && !selectedBundle) ? (
-          <Pressable style={styles.errorBanner} onPress={() => setError("")}>
+          <Pressable
+            accessibilityHint="Dismisses this error message."
+            accessibilityLabel={`Dismiss error: ${error}`}
+            accessibilityLiveRegion="assertive"
+            accessibilityRole="button"
+            style={styles.errorBanner}
+            onPress={() => setError("")}
+          >
             <Text style={styles.errorText}>{error}</Text>
           </Pressable>
         ) : null}
