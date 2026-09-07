@@ -381,6 +381,14 @@ Judge ends the transcript; every prior V2 operational state remains reachable.
 **Suggested agent:** Terra for complex screens; Luna for isolated token adoption,
 snapshot/state-test updates, and other mechanical conversions.
 
+**Status:** Implemented locally on 2026-09-07. Terra migrated Auth/Watchlist
+and Evidence/Examination; Luna migrated History/About/Legacy and shared Legacy
+cards; Root integrated the shared reading/status foundation and performed Web
+browser verification. A Sol final audit found and Root closed public-link,
+Auth-field feedback, and Legacy/V2 copy gaps. The full backend/mobile gates
+pass. Native, 200% zoom, reduced-motion, recovery-state, and product-owner
+acceptance remain WP8/WP9 rather than being inferred from this status.
+
 **File scope:** `AuthScreen.tsx`; Watchlist, Evidence, Examination, History,
 Legacy Debate, and About screen modules; shared common/debate/feedback
 components; `App.tsx`; their focused tests.

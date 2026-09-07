@@ -228,6 +228,53 @@ by the existing mobile/backend automated suites. Native simulator, physical
 device, reduced-motion, zoom, and subjective product-owner approval remain
 WP8/WP9 gates.
 
+## WP7 remaining-surface verification on 2026-09-07
+
+WP7 applies the shared Prototype-derived dark grammar to Authentication,
+Watchlist/Discovery, Evidence, legacy Claim Examination, History, About, and the
+classic Debate fallback. Auth becomes a two-panel desktop surface and a single
+mobile flow. Watchlist and catalog become balanced desktop columns. Evidence,
+Examination, History, About, and Legacy use the shared 760 px reading measure.
+The Legacy route is labelled once at page level, while Bull/Bear/Judge identity
+remains the primary card hierarchy.
+
+Root ran the local review fixture and a separately isolated standard demo
+profile with demo auth, in-memory persistence, deterministic analysis, disabled
+market credentials, and V2 explicitly off. At 320, 390, 768, and 1280 CSS px,
+Auth, Watchlist, Evidence, Examination, About, and Legacy had document scroll
+width equal to viewport width. At 1280, Evidence and History used the 760 px
+reading measure. Browser flows verified catalog-only MSFT search; the three-item
+AAPL Evidence Board; empty and Interim-Judge History; expanded About technical
+details; classic analysis generation; Bull claim examination and its evidence;
+and a reopened Legacy History row.
+
+The evidence action accepts only credential-free public HTTPS destinations. It
+rejects whitespace, local/private/shared/reserved/multicast IPv4, all IPv6
+literals (conservatively, including mapped and 6to4 forms), `.localhost`,
+`.local`, and `.internal`. Auth Web inputs expose independent label,
+description, required, and invalid state for email and password; the browser
+DOM check confirmed a valid email remained valid while a short password linked
+to its own error text. No live market/model/auth request, deployment, or remote
+write was used for this evidence.
+
+After Terra and Luna implementation, Root browser review, and Sol read-only
+audit fixes, the final Sol re-review reported no remaining P1/P2 findings. The
+complete local gates passed:
+
+```sh
+cd backend && .venv/bin/pytest -q  # 369 passing, 1 existing warning
+cd apps/mobile && npm run test:stream  # 65 passing
+cd apps/mobile && npm run typecheck
+cd apps/mobile && npm run build:web
+git diff --check
+```
+
+Not yet closed: live-auth submission outcomes, every discovery/error/retry
+state, all four legacy question types and controlled failure, 200% zoom,
+reduced motion, native screen readers/simulators, one physical device, staging,
+current-data verification, and subjective product-owner approval. These are
+WP8/WP9 gates.
+
 ## Automated baseline
 
 From `apps/mobile`, the following passed at the subject revision:
