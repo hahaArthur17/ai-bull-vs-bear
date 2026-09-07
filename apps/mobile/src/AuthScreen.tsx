@@ -1,6 +1,7 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   SafeAreaView,
   ScrollView,
@@ -62,6 +63,9 @@ export function AuthScreen() {
       : !isPasswordValid
         ? "Use at least six password characters."
         : "Your credentials are ready to submit.";
+  const describedBy = error ? "auth-form-hint auth-form-error" : "auth-form-hint";
+  const emailInvalid = Boolean(error) || Boolean(normalizedEmail && !isEmailValid);
+  const passwordInvalid = Boolean(error) || Boolean(password && !isPasswordValid);
 
   return (
     <SafeAreaView style={styles.safeArea}>
@@ -83,68 +87,74 @@ export function AuthScreen() {
             </View>
           </View>
           <View style={[styles.card, isWideLayout && styles.cardWide]}>
-          <Text style={styles.eyebrow}>PRIVATE RESEARCH ACCESS</Text>
-          <Text style={styles.title}>Welcome back.</Text>
-          <Text style={styles.body}>
-            Sign in or create an account to continue to your research workspace.
-          </Text>
-          <View style={styles.divider} />
-          <View style={styles.fieldGroup}>
-            <Text nativeID="auth-email-label" style={styles.label}>EMAIL ADDRESS</Text>
-            <TextInput
-              accessibilityLabel="Email address"
-              autoCapitalize="none"
-              autoComplete="email"
-              keyboardType="email-address"
-              onChangeText={setEmail}
-              placeholder="you@example.com"
-              placeholderTextColor={palette.muted}
-              style={styles.input}
-              textContentType="emailAddress"
-              value={email}
-            />
-          </View>
-          <View style={styles.fieldGroup}>
-            <Text nativeID="auth-password-label" style={styles.label}>PASSWORD</Text>
-            <TextInput
-              accessibilityLabel="Password"
-              autoCapitalize="none"
-              autoComplete="password"
-              onChangeText={setPassword}
-              placeholder="At least 6 characters"
-              placeholderTextColor={palette.muted}
-              secureTextEntry
-              style={styles.input}
-              textContentType="password"
-              value={password}
-            />
-          </View>
-          <Text accessibilityLiveRegion="polite" style={styles.formHint}>{formHint}</Text>
-          {error ? <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text> : null}
-          {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
-          <Pressable
-            accessibilityHint="Signs in with the email address and password above."
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-in") }}
-            disabled={!canSubmit}
-            onPress={() => void authenticate("sign-in")}
-            style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
-          >
-            {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color={colors.content.onSignal} /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
-          </Pressable>
-          <Pressable
-            accessibilityHint="Creates an account with the email address and password above."
-            accessibilityRole="button"
-            accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-up") }}
-            disabled={!canSubmit}
-            onPress={() => void authenticate("sign-up")}
-            style={[styles.secondaryButton, !canSubmit && styles.secondaryButtonDisabled]}
-          >
-            {isAuthenticationButtonSubmitting(submittingMode, "sign-up") ? <ActivityIndicator color={palette.accent} /> : <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>Create an account</Text>}
-          </Pressable>
-          <Text style={styles.note}>
-            Authentication is handled by Supabase. Never paste passwords, API keys, or tokens into a research prompt.
-          </Text>
+            <Text style={styles.eyebrow}>PRIVATE RESEARCH ACCESS</Text>
+            <Text style={styles.title}>Welcome back.</Text>
+            <Text style={styles.body}>
+              Sign in or create an account to continue to your research workspace.
+            </Text>
+            <View style={styles.divider} />
+            <View style={styles.fieldGroup}>
+              <Text nativeID="auth-email-label" style={styles.label}>EMAIL ADDRESS</Text>
+              <TextInput
+                {...(Platform.OS === "web" ? { "aria-describedby": describedBy, "aria-invalid": emailInvalid, "aria-required": true } : {})}
+                accessibilityHint={error ? `Required. ${error}` : "Required. Enter a valid email address."}
+                accessibilityLabel="Email address"
+                accessibilityLabelledBy="auth-email-label"
+                autoCapitalize="none"
+                autoComplete="email"
+                keyboardType="email-address"
+                onChangeText={setEmail}
+                placeholder="you@example.com"
+                placeholderTextColor={palette.muted}
+                style={styles.input}
+                textContentType="emailAddress"
+                value={email}
+              />
+            </View>
+            <View style={styles.fieldGroup}>
+              <Text nativeID="auth-password-label" style={styles.label}>PASSWORD</Text>
+              <TextInput
+                {...(Platform.OS === "web" ? { "aria-describedby": describedBy, "aria-invalid": passwordInvalid, "aria-required": true } : {})}
+                accessibilityHint={error ? `Required. ${error}` : "Required. Use at least six password characters."}
+                accessibilityLabel="Password"
+                accessibilityLabelledBy="auth-password-label"
+                autoCapitalize="none"
+                autoComplete="password"
+                onChangeText={setPassword}
+                placeholder="At least 6 characters"
+                placeholderTextColor={palette.muted}
+                secureTextEntry
+                style={styles.input}
+                textContentType="password"
+                value={password}
+              />
+            </View>
+            <Text accessibilityLiveRegion="polite" nativeID="auth-form-hint" style={styles.formHint}>{formHint}</Text>
+            {error ? <Text accessibilityLiveRegion="assertive" nativeID="auth-form-error" style={styles.error}>{error}</Text> : null}
+            {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
+            <Pressable
+              accessibilityHint="Signs in with the email address and password above."
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-in") }}
+              disabled={!canSubmit}
+              onPress={() => void authenticate("sign-in")}
+              style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
+            >
+              {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color={colors.content.onSignal} /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
+            </Pressable>
+            <Pressable
+              accessibilityHint="Creates an account with the email address and password above."
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-up") }}
+              disabled={!canSubmit}
+              onPress={() => void authenticate("sign-up")}
+              style={[styles.secondaryButton, !canSubmit && styles.secondaryButtonDisabled]}
+            >
+              {isAuthenticationButtonSubmitting(submittingMode, "sign-up") ? <ActivityIndicator color={palette.accent} /> : <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>Create an account</Text>}
+            </Pressable>
+            <Text style={styles.note}>
+              Authentication is handled by Supabase. Never paste passwords, API keys, or tokens into a research prompt.
+            </Text>
           </View>
         </View>
       </ScrollView>
