@@ -251,9 +251,38 @@ export type DebateMessageEvidence = {
   metadata: Record<string, unknown>;
 };
 
+export type DebateEvidencePresentation = {
+  evidence_id: string;
+  evidence_type: "news" | "filing" | "technical" | null;
+  title: string | null;
+  fact: string | null;
+  source: string | null;
+  date: string | null;
+  freshness: EvidenceItem["freshness"];
+  support_span: string | null;
+  source_destination: string | null;
+  missing_metadata: Array<
+    | "evidence_type"
+    | "title"
+    | "fact"
+    | "source"
+    | "date"
+    | "support_span"
+    | "source_destination"
+  >;
+};
+
+export type DebateMessagePresentation = {
+  argument: string;
+  facts_used: DebateEvidencePresentation[];
+  interpretation: string | null;
+  uncertainty: string | null;
+};
+
 export type DebateMessageRecord = {
   message: DebateMessage;
   citations: DebateMessageEvidence[];
+  presentation?: DebateMessagePresentation | null;
 };
 
 export type DebateSessionSummary = {

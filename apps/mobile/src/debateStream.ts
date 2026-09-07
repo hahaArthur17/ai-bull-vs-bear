@@ -2,6 +2,7 @@ import type {
   DebateEvent,
   DebateMessage,
   DebateMessageEvidence,
+  DebateMessagePresentation,
   DebateMessageRecord,
   DebateSessionDetail,
   DebateSessionStatus,
@@ -273,6 +274,60 @@ function isDebateMessage(value: unknown): value is DebateMessage {
     && message.is_complete === true;
 }
 
+function isFreshness(value: unknown): boolean {
+  if (!value || typeof value !== "object") return false;
+  const freshness = value as Record<string, unknown>;
+  return (freshness.status === "current" || freshness.status === "stale" || freshness.status === "unknown")
+    && (freshness.age_days === undefined || freshness.age_days === null || Number.isInteger(freshness.age_days))
+    && (freshness.max_age_days === undefined || freshness.max_age_days === null || Number.isInteger(freshness.max_age_days))
+    && (freshness.evaluated_at === undefined || freshness.evaluated_at === null || typeof freshness.evaluated_at === "string");
+}
+
+function isNullableString(value: unknown): boolean {
+  return value === null || typeof value === "string";
+}
+
+function isDebateMessagePresentation(value: unknown): value is DebateMessagePresentation {
+  if (!value || typeof value !== "object") return false;
+  const presentation = value as Record<string, unknown>;
+  if (
+    typeof presentation.argument !== "string"
+    || !isNullableString(presentation.interpretation)
+    || !isNullableString(presentation.uncertainty)
+    || !Array.isArray(presentation.facts_used)
+  ) return false;
+  return presentation.facts_used.every((fact) => {
+    if (!fact || typeof fact !== "object") return false;
+    const evidence = fact as Record<string, unknown>;
+    return typeof evidence.evidence_id === "string"
+      && (evidence.evidence_type === "news" || evidence.evidence_type === "filing" || evidence.evidence_type === "technical" || evidence.evidence_type === null)
+      && isNullableString(evidence.title)
+      && isNullableString(evidence.fact)
+      && isNullableString(evidence.source)
+      && isNullableString(evidence.date)
+      && isFreshness(evidence.freshness)
+      && isNullableString(evidence.support_span)
+      && isNullableString(evidence.source_destination)
+      && Array.isArray(evidence.missing_metadata)
+      && evidence.missing_metadata.every((item) => (
+        item === "evidence_type"
+        || item === "title"
+        || item === "fact"
+        || item === "source"
+        || item === "date"
+        || item === "support_span"
+        || item === "source_destination"
+      ));
+  });
+}
+
+function presentationPayload(event: DebateEvent): DebateMessagePresentation | null {
+  const value = event.payload.presentation;
+  if (value === undefined || value === null) return null;
+  if (!isDebateMessagePresentation(value)) throw new DebateProtocolGapError(event.sequence);
+  return value;
+}
+
 function orderedMessages(records: DebateMessageRecord[]): DebateMessageRecord[] {
   return [...records].sort(
     (left, right) => left.message.sequence_number - right.message.sequence_number,
@@ -415,8 +470,15 @@ export function reduceDebateEvent(
     const messageId = stringPayload(event, "message_id");
     const evidenceId = stringPayload(event, "evidence_id");
     const citationOrder = numberPayload(event, "citation_order");
+    const supportSpan = event.payload.support_span;
     const draft = messageId ? drafts[messageId] : null;
-    if (!draft || !messageId || !evidenceId || citationOrder === null) {
+    if (
+      !draft
+      || !messageId
+      || !evidenceId
+      || citationOrder === null
+      || (supportSpan !== undefined && supportSpan !== null && typeof supportSpan !== "string")
+    ) {
       throw new DebateProtocolGapError(event.sequence);
     }
     drafts[messageId] = {
@@ -427,7 +489,7 @@ export function reduceDebateEvent(
           message_id: messageId,
           evidence_id: evidenceId,
           citation_order: citationOrder,
-          support_span: null,
+          support_span: typeof supportSpan === "string" ? supportSpan : null,
           metadata: {},
         },
       ].sort((left, right) => left.citation_order - right.citation_order),
@@ -451,7 +513,17 @@ export function reduceDebateEvent(
     const citations = draft?.citations || (current.canonicalMessages.find(
       (record) => record.message.id === message.id,
     )?.citations || []);
-    canonicalMessages = upsertMessage(canonicalMessages, { message, citations });
+    const existing = current.canonicalMessages.find(
+      (record) => record.message.id === message.id,
+    );
+    canonicalMessages = upsertMessage(canonicalMessages, {
+      message,
+      citations,
+      // A presentation is server-authored. Older retained events omit it, so
+      // retain any detail payload already loaded instead of inferring facts on
+      // the client.
+      presentation: presentationPayload(event) ?? existing?.presentation ?? null,
+    });
     delete drafts[message.id];
   }
 

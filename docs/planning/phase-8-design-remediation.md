@@ -312,6 +312,15 @@ surface before remaining screen migration.
 **Suggested agent:** Sol because this is a high-risk API/domain/UI boundary and
 must not invent evidence details on the client.
 
+**Status:** Implemented locally on 2026-09-07. Canonical detail/message APIs
+and completed SSE events now carry an additive, server-authored presentation
+projection built from the immutable analysis snapshot and persisted citation
+allowlist. It includes argument, cited fact excerpts, interpretation,
+uncertainty, evidence type/title/source/date/freshness, optional
+`support_span`, explicit missing fields, and a public-HTTPS-only source
+destination. Legacy records/events remain readable and the client never
+reconstructs missing evidence metadata. The chat disclosure UI remains WP6.
+
 **File scope:** Debate schemas/domain/provider/orchestrator/repository/API
 assembly as required; `apps/mobile/src/types.ts`, `api.ts`,
 `liveDebateView.ts`, `evidencePresentation.ts`, and their tests.

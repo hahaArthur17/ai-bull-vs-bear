@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { presentEvidence } from "./evidencePresentation.ts";
-import type { EvidenceItem } from "./types.ts";
+import { presentDebateEvidence, presentEvidence } from "./evidencePresentation.ts";
+import type { DebateEvidencePresentation, EvidenceItem } from "./types.ts";
 
 function evidence(overrides: Partial<EvidenceItem> = {}): EvidenceItem {
   return {
@@ -40,4 +40,36 @@ test("evidence presentation makes missing dates and stale data explicit", () => 
   assert.equal(result.date, "Date unavailable");
   assert.equal(result.tone, "stale");
   assert.match(result.freshness, /Stale · 90d old/);
+});
+
+test("Debate evidence presentation preserves server-declared missing metadata without inference", () => {
+  const item: DebateEvidencePresentation = {
+    evidence_id: "retained-old-citation",
+    evidence_type: null,
+    title: null,
+    fact: null,
+    source: null,
+    date: null,
+    freshness: { status: "unknown" },
+    support_span: null,
+    source_destination: null,
+    missing_metadata: [
+      "evidence_type",
+      "title",
+      "fact",
+      "source",
+      "date",
+      "support_span",
+      "source_destination",
+    ],
+  };
+
+  const result = presentDebateEvidence(item);
+
+  assert.equal(result.source, "Source unavailable");
+  assert.equal(result.fact, null);
+  assert.equal(result.date, "Date unavailable");
+  assert.equal(result.freshness, "Freshness unavailable");
+  assert.equal(result.supportSpan, null);
+  assert.deepEqual(result.missingMetadata, item.missing_metadata);
 });

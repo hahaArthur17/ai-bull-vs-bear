@@ -38,6 +38,7 @@ from app.providers.streaming_debate import (
 from app.repositories.debate_repository import DebateConcurrencyError, DebateUnitOfWork
 from app.services.debate_job_state import cancel_job, complete_job, fail_job, start_job
 from app.services.debate_event_broker import DebateEventPublisher
+from app.services.debate_presentation import build_debate_message_presentation
 from app.services.debate_state import (
     attach_judge_message,
     request_session_cancellation,
@@ -825,18 +826,12 @@ class DebateOrchestrator:
                 "stream_mode": stream_mode,
                 "responds_to_message_id": str(target_id) if target_id else None,
                 "rebuttal_point": draft.rebuttal_point,
+                "interpretation": draft.interpretation,
                 "risk_meaning": draft.risk_meaning,
             },
             created_at=self._at_or_after(session.updated_at),
         )
-        citations = tuple(
-            DebateMessageEvidence(
-                message_id=message.id,
-                evidence_id=evidence_id,
-                citation_order=index,
-            )
-            for index, evidence_id in enumerate(evidence_ids, start=1)
-        )
+        citations = self._evidence_citations(message.id, evidence_ids)
         stored_message = self.repository.append_message(message, citations)
         for citation in citations:
             self._emit(
@@ -847,6 +842,7 @@ class DebateOrchestrator:
                     "generation_id": str(session.active_generation_id),
                     "evidence_id": citation.evidence_id,
                     "citation_order": citation.citation_order,
+                    "support_span": citation.support_span,
                 },
             )
         self._emit(
@@ -854,6 +850,11 @@ class DebateOrchestrator:
             "turn.completed",
             {
                 "message": stored_message.model_dump(mode="json"),
+                "presentation": build_debate_message_presentation(
+                    stored_message,
+                    citations,
+                    session.analysis_context,
+                ).model_dump(mode="json"),
                 "generation_id": str(session.active_generation_id),
             },
         )
@@ -933,6 +934,7 @@ class DebateOrchestrator:
                 "provider": self.judge_provider.name,
                 "provider_version": self.judge_provider.version,
                 "phase": phase,
+                "interpretation": draft.interpretation,
                 "agreements": list(draft.agreements),
                 "disagreements": list(draft.disagreements),
                 "missing_evidence": list(draft.missing_evidence),
@@ -942,14 +944,7 @@ class DebateOrchestrator:
             },
             created_at=self._at_or_after(session.updated_at),
         )
-        citations = tuple(
-            DebateMessageEvidence(
-                message_id=message.id,
-                evidence_id=evidence_id,
-                citation_order=index,
-            )
-            for index, evidence_id in enumerate(evidence_ids, start=1)
-        )
+        citations = self._evidence_citations(message.id, evidence_ids)
         stored_message = self.repository.append_message(message, citations)
         for citation in citations:
             self._emit(
@@ -960,6 +955,7 @@ class DebateOrchestrator:
                     "generation_id": str(session.active_generation_id),
                     "evidence_id": citation.evidence_id,
                     "citation_order": citation.citation_order,
+                    "support_span": citation.support_span,
                 },
             )
         self._emit(
@@ -967,6 +963,11 @@ class DebateOrchestrator:
             "judge.completed",
             {
                 "message": stored_message.model_dump(mode="json"),
+                "presentation": build_debate_message_presentation(
+                    stored_message,
+                    citations,
+                    session.analysis_context,
+                ).model_dump(mode="json"),
                 "generation_id": str(session.active_generation_id),
                 "phase": phase,
             },
@@ -1144,6 +1145,20 @@ class DebateOrchestrator:
     @staticmethod
     def _running_status(round_number: int) -> DebateSessionStatus:
         return "running_round_1" if round_number == 1 else "running_round_2"
+
+    @staticmethod
+    def _evidence_citations(
+        message_id: UUID,
+        evidence_ids: tuple[str, ...],
+    ) -> tuple[DebateMessageEvidence, ...]:
+        return tuple(
+            DebateMessageEvidence(
+                message_id=message_id,
+                evidence_id=evidence_id,
+                citation_order=index,
+            )
+            for index, evidence_id in enumerate(evidence_ids, start=1)
+        )
 
     @staticmethod
     def _validated_evidence_ids(

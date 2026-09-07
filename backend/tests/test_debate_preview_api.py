@@ -173,6 +173,20 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
     assert session["interim_judge_message_id"] == messages[-1]["message"]["id"]
     assert all(record["message"]["is_complete"] for record in messages)
     assert any(record["citations"] for record in messages)
+    assert all(record["presentation"] is not None for record in messages)
+    assert all(
+        record["presentation"]["argument"] == record["message"]["content"]
+        for record in messages
+    )
+    assert all(
+        len(record["presentation"]["facts_used"]) == len(record["citations"])
+        for record in messages
+    )
+    assert all(
+        fact["fact"]
+        for record in messages
+        for fact in record["presentation"]["facts_used"]
+    )
 
     session_id = session["id"]
     headers = {"X-User-Id": "preview-user"}

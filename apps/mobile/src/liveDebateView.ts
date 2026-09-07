@@ -1,4 +1,7 @@
 import type { DebateStreamSnapshot } from "./debateStream";
+import { presentDebateEvidence } from "./evidencePresentation.ts";
+import type { DebateEvidenceView } from "./evidencePresentation.ts";
+import type { DebateMessageRecord } from "./types.ts";
 
 export type DebateStatusTone = "neutral" | "active" | "success" | "warning" | "danger";
 
@@ -7,6 +10,36 @@ export type DebateStatusCopy = {
   detail: string;
   tone: DebateStatusTone;
 };
+
+export type DebateMessageSections = {
+  argument: string;
+  factsUsed: DebateEvidenceView[];
+  interpretation: string | null;
+  uncertainty: string | null;
+  hasAuthoritativePresentation: boolean;
+};
+
+export function debateMessageSections(
+  record: DebateMessageRecord,
+): DebateMessageSections {
+  const presentation = record.presentation;
+  if (!presentation) {
+    return {
+      argument: record.message.content,
+      factsUsed: [],
+      interpretation: null,
+      uncertainty: null,
+      hasAuthoritativePresentation: false,
+    };
+  }
+  return {
+    argument: presentation.argument,
+    factsUsed: presentation.facts_used.map(presentDebateEvidence),
+    interpretation: presentation.interpretation,
+    uncertainty: presentation.uncertainty,
+    hasAuthoritativePresentation: true,
+  };
+}
 
 export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCopy {
   if (snapshot.sessionStatus === "cancel_requested") {

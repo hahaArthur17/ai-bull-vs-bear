@@ -47,6 +47,11 @@ class DeterministicDebateProvider:
 
         return DebateTurnDraft(
             content=content,
+            interpretation=(
+                f"The {role_label} view assigns conditional "
+                f"{'supportive' if request.role == 'bull' else 'cautionary'} meaning to the "
+                "frozen evidence and factor snapshot."
+            ),
             evidence_ids=evidence_ids,
             responds_to_message_id=request.rebuttal_target_message_id,
             rebuttal_point=rebuttal_point,
@@ -69,6 +74,10 @@ class DeterministicDebateProvider:
                 f"{phase_label} Judge summary: the active branch contains {bull_count} Bull and "
                 f"{bear_count} Bear messages grounded in one frozen snapshot. The arguments "
                 "remain competing interpretations, not proof of causation or investment advice."
+            ),
+            interpretation=(
+                "The neutral assessment weighs the two competing readings without treating "
+                "either side as proof of a future outcome."
             ),
             agreements=("Both sides rely on the same dated analysis snapshot.",),
             disagreements=("The sides assign different meaning and weight to the same signals.",),

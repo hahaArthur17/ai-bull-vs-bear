@@ -54,6 +54,12 @@ class FailingProvider(RecordingProvider):
         return DeterministicDebateProvider.generate_turn(self, request)
 
 
+class InventedEvidenceProvider(RecordingProvider):
+    def generate_turn(self, request: DebateTurnRequest):
+        draft = super().generate_turn(request)
+        return draft.model_copy(update={"evidence_ids": ("invented-evidence-id",)})
+
+
 def build_queued_round_one() -> tuple[DebateSession, DebateJob]:
     context = build_current_context()
     snapshot = FactorRegistry(
@@ -288,6 +294,30 @@ def test_provider_failure_marks_session_and_job_with_safe_codes() -> None:
     ) == 2
 
 
+def test_presentation_contract_preserves_frozen_evidence_allowlist_rejection() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        InventedEvidenceProvider(),
+        DeterministicDebateProvider(),
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    with pytest.raises(DebateOrchestrationError, match="execution failed"):
+        orchestrator.execute_job(job.id)
+
+    assert repository.list_messages(
+        queued.id,
+        queued.user_id,
+        branch_id=queued.active_branch_id,
+    ) == []
+    assert not any(event.type == "turn.completed" for event in broker.replay(queued.id))
+
+
 def test_round_one_publishes_ordered_reconstructable_preview_events() -> None:
     repository = InMemoryDebateRepository()
     queued, job = build_queued_round_one()
@@ -332,6 +362,22 @@ def test_round_one_publishes_ordered_reconstructable_preview_events() -> None:
             if event.type == "turn.delta"
             and event.payload["message_id"] == message_id
         )
+        presentation = completed_event.payload["presentation"]
+        assert isinstance(presentation, dict)
+        assert presentation["argument"] == message["content"]
+        assert presentation["facts_used"]
+        assert presentation["interpretation"]
+        assert presentation["uncertainty"]
+
+    citation_events = [event for event in events if event.type == "turn.citation"]
+    assert citation_events
+    assert all(event.payload["support_span"] is None for event in citation_events)
+    judge_completed = next(event for event in events if event.type == "judge.completed")
+    judge_presentation = judge_completed.payload["presentation"]
+    assert isinstance(judge_presentation, dict)
+    assert judge_presentation["facts_used"]
+    assert judge_presentation["interpretation"]
+    assert judge_presentation["uncertainty"]
 
 
 def test_provider_failure_publishes_only_a_safe_terminal_event() -> None:

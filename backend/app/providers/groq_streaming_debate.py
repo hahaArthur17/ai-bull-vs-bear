@@ -259,6 +259,11 @@ def _draft_from_content(
     responds_to = request.rebuttal_target_message_id
     return DebateTurnDraft(
         content=content,
+        interpretation=(
+            f"The {request.role.capitalize()} view reads the frozen snapshot as "
+            f"{role_direction} context; this label describes the stated interpretation, "
+            "not an additional fact."
+        ),
         evidence_ids=evidence_ids,
         responds_to_message_id=responds_to,
         rebuttal_point=_first_point(content) if responds_to is not None else None,

@@ -87,6 +87,7 @@ from app.services.debate_event_broker import (
     format_debate_sse,
 )
 from app.services.debate_preview import DebatePreviewService
+from app.services.debate_presentation import build_debate_message_presentation
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
 from app.services.review_fixture_store import ReviewFixtureStore
@@ -429,16 +430,24 @@ def _debate_message_records(
         session.user_id,
         branch_id=session.active_branch_id,
     )
-    return tuple(
-        DebateMessageRecord(
-            message=message,
-            citations=debate_preview_service.repository.list_message_evidence(
-                message.id,
-                session.user_id,
-            ),
+    records: list[DebateMessageRecord] = []
+    for message in messages:
+        citations = debate_preview_service.repository.list_message_evidence(
+            message.id,
+            session.user_id,
         )
-        for message in messages
-    )
+        records.append(
+            DebateMessageRecord(
+                message=message,
+                citations=citations,
+                presentation=build_debate_message_presentation(
+                    message,
+                    citations,
+                    session.analysis_context,
+                ),
+            )
+        )
+    return tuple(records)
 
 
 def _debate_detail(session: DebateSession) -> DebateSessionDetail:

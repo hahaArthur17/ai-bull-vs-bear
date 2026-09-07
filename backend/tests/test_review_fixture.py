@@ -149,6 +149,27 @@ def test_review_fixture_analysis_and_api_never_use_external_clients(
         citation["evidence_id"].startswith("review-aapl-")
         for citation in citations
     )
+    presentations = [message["presentation"] for message in debate_payload["messages"]]
+    assert all(presentation["argument"] for presentation in presentations)
+    assert all(
+        fact["evidence_id"].startswith("review-aapl-")
+        for presentation in presentations
+        for fact in presentation["facts_used"]
+    )
+    assert all(
+        fact["fact"]
+        for presentation in presentations
+        for fact in presentation["facts_used"]
+    )
+    assert all(
+        fact["source_destination"] is None or fact["source_destination"].startswith("https://")
+        for presentation in presentations
+        for fact in presentation["facts_used"]
+    )
+    session_id = debate_payload["session"]["id"]
+    headers = {"X-User-Id": "fixture-v2-test"}
+    assert client.get(f"/debates/{session_id}", headers=headers).json()["messages"] == debate_payload["messages"]
+    assert client.get(f"/debates/{session_id}/messages", headers=headers).json() == debate_payload["messages"]
 
     assert client.get("/stocks/MSFT/bundle").status_code == 409
     goog = client.get("/stocks/GOOG/bundle").json()

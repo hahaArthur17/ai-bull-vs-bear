@@ -122,6 +122,7 @@ test("reducer keeps deltas temporary and replaces them with canonical completion
     generation_id: "generation-1",
     evidence_id: "news-1",
     citation_order: 1,
+    support_span: "Persisted evidence span.",
   })).snapshot;
 
   assert.equal(snapshot.drafts["message-1"].content, "Grounded argument.");
@@ -130,11 +131,66 @@ test("reducer keeps deltas temporary and replaces them with canonical completion
   snapshot = reduceDebateEvent(snapshot, event(5, "turn.completed", {
     generation_id: "generation-1",
     message: message("Grounded argument."),
+    presentation: {
+      argument: "Grounded argument.",
+      facts_used: [
+        {
+          evidence_id: "news-1",
+          evidence_type: "news",
+          title: "Dated evidence",
+          fact: "A frozen evidence excerpt.",
+          source: "Review fixture news",
+          date: "2026-08-28T00:00:00Z",
+          freshness: { status: "current", age_days: 0 },
+          support_span: "Persisted evidence span.",
+          source_destination: "https://example.com/evidence",
+          missing_metadata: [],
+        },
+      ],
+      interpretation: "A bounded reading of the snapshot.",
+      uncertainty: "Future evidence can change this reading.",
+    },
   })).snapshot;
 
   assert.deepEqual(snapshot.drafts, {});
   assert.equal(snapshot.canonicalMessages[0].message.content, "Grounded argument.");
   assert.equal(snapshot.canonicalMessages[0].citations[0].evidence_id, "news-1");
+  assert.equal(snapshot.canonicalMessages[0].citations[0].support_span, "Persisted evidence span.");
+  assert.equal(snapshot.canonicalMessages[0].presentation?.facts_used[0].evidence_id, "news-1");
+});
+
+
+test("reducer retains loaded presentation when a compatible retained event omits it", () => {
+  const loadedPresentation = {
+    argument: "Already loaded canonical argument.",
+    facts_used: [],
+    interpretation: null,
+    uncertainty: null,
+  };
+  const snapshot: DebateStreamSnapshot = {
+    status: "live",
+    sessionStatus: "running_round_1",
+    canonicalMessages: [{
+      message: message("Already loaded canonical argument."),
+      citations: [],
+      presentation: loadedPresentation,
+    }],
+    drafts: {},
+    lastSequence: 0,
+    activeGenerationId: "generation-1",
+    jobId: null,
+    jobStatus: "none",
+    jobAttemptCount: 0,
+    retryDelaySeconds: null,
+    safeError: null,
+  };
+
+  const reduced = reduceDebateEvent(snapshot, event(1, "turn.completed", {
+    generation_id: "generation-1",
+    message: message("Already loaded canonical argument."),
+  }));
+
+  assert.deepEqual(reduced.snapshot.canonicalMessages[0].presentation, loadedPresentation);
 });
 
 

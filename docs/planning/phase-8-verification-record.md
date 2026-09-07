@@ -133,6 +133,44 @@ The final entry-path check also distinguishes NVDA and TSLA as “Limited
 coverage” while retaining “Watchlist only” for the MSFT catalog-only boundary,
 so partial and unavailable research states remain discoverable during review.
 
+## WP5 Debate fact/evidence contract verification on 2026-09-07
+
+WP5 adds a backward-compatible `presentation` projection to each canonical
+Debate message record. The server builds it from the immutable Session analysis
+context and the persisted, allowlisted citations; the client does not infer
+source metadata from an evidence ID. The projection exposes the canonical
+argument, cited fact excerpt, interpretation, uncertainty, evidence ID/type,
+title, source, date, freshness, optional `support_span`, explicit missing-field
+list, and a safe source destination. A destination is exposed only when it is
+an absolute public HTTPS URL without embedded credentials; local, private,
+relative, non-HTTPS, or malformed destinations become unavailable.
+
+New providers do not yet author an exact claim-to-source `support_span`, so new
+citations correctly retain `null`; the evidence excerpt remains a separate
+authoritative `fact` field. Existing persisted messages and retained event
+payloads remain compatible because presentation is additive and optional. Both
+`turn.completed` and `judge.completed` SSE events now include the same
+server-authored projection as the detail/message APIs, while an older event
+that omits it cannot overwrite an already loaded presentation.
+
+Root verification after integration and review fixes passed:
+
+```sh
+cd backend && .venv/bin/pytest -q  # 369 passing, 1 existing Starlette warning
+cd apps/mobile && npm run test:stream  # 60 passing
+cd apps/mobile && npm run typecheck
+cd apps/mobile && EXPO_PUBLIC_AUTH_MODE=demo npm run build:web
+```
+
+The focused backend subset passed 99 tests across presentation, orchestrator,
+preview API, review fixture, streaming/provider, and memory/Supabase repository
+contracts. Tests cover citation order, exact frozen fact content, explicit
+missing metadata, source safety, unknown-ID rejection, detail/messages parity,
+review-fixture isolation, SSE presentation parity, persisted support spans,
+and the client rule that legacy citations never become invented fact details.
+WP5 changes the data contract only; expandable fact presentation and the
+chronological chat layout remain the separately committed WP6 deliverable.
+
 ## Automated baseline
 
 From `apps/mobile`, the following passed at the subject revision:

@@ -71,6 +71,7 @@ class DebateTurnRequest(ImmutableDomainModel):
 
 class DebateTurnDraft(ImmutableDomainModel):
     content: str = Field(min_length=1, max_length=4000)
+    interpretation: str | None = Field(default=None, min_length=1, max_length=1200)
     evidence_ids: tuple[str, ...] = Field(default=(), max_length=12)
     responds_to_message_id: UUID | None = None
     rebuttal_point: str | None = Field(default=None, max_length=500)
@@ -166,6 +167,7 @@ class DebateJudgeRequest(ImmutableDomainModel):
 
 class DebateJudgeDraft(ImmutableDomainModel):
     summary: str = Field(min_length=1, max_length=4000)
+    interpretation: str | None = Field(default=None, min_length=1, max_length=1200)
     agreements: tuple[BoundedPoint, ...] = Field(default=(), max_length=12)
     disagreements: tuple[BoundedPoint, ...] = Field(default=(), max_length=12)
     missing_evidence: tuple[BoundedPoint, ...] = Field(default=(), max_length=12)

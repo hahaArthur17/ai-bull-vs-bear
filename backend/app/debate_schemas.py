@@ -11,6 +11,7 @@ from app.domain.debate import (
     DebateSession,
     DebateSide,
 )
+from app.domain.factors import FactorFreshness
 from app.domain.jobs import DebateJob
 
 
@@ -80,9 +81,35 @@ class DebateCancelRequest(BaseModel):
     generation_id: UUID
 
 
+class DebateEvidencePresentation(BaseModel):
+    evidence_id: str
+    evidence_type: Literal["news", "filing", "technical"] | None = None
+    title: str | None = None
+    fact: str | None = None
+    source: str | None = None
+    date: str | None = None
+    freshness: FactorFreshness = Field(default_factory=FactorFreshness)
+    support_span: str | None = None
+    source_destination: str | None = None
+    missing_metadata: tuple[
+        Literal["evidence_type", "title", "fact", "source", "date", "support_span", "source_destination"],
+        ...,
+    ] = ()
+
+
+class DebateMessagePresentation(BaseModel):
+    argument: str
+    facts_used: tuple[DebateEvidencePresentation, ...] = ()
+    interpretation: str | None = None
+    uncertainty: str | None = None
+
+
 class DebateMessageRecord(BaseModel):
     message: DebateMessage
     citations: tuple[DebateMessageEvidence, ...] = ()
+    # Optional keeps old serialized records and event payloads parseable. The
+    # canonical detail/message APIs always populate this server-side.
+    presentation: DebateMessagePresentation | None = None
 
 
 class DebateSessionDetail(BaseModel):
