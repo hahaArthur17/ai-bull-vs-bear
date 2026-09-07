@@ -18,29 +18,49 @@ export type DebateEvidenceView = EvidencePresentation & {
   missingMetadata: DebateEvidencePresentation["missing_metadata"];
 };
 
+function isPublicIpv4Address(hostname: string): boolean {
+  const octets = hostname.split(".").map(Number);
+  if (octets.length !== 4 || !octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)) return true;
+
+  const [first, second, third] = octets;
+  return !(
+    first === 0
+    || first === 10
+    || first === 127
+    || (first === 100 && second >= 64 && second <= 127)
+    || (first === 169 && second === 254)
+    || (first === 172 && second >= 16 && second <= 31)
+    || (first === 192 && second === 0 && third === 0)
+    || (first === 192 && second === 0 && third === 2)
+    || (first === 192 && second === 168)
+    || (first === 198 && (second === 18 || second === 19))
+    || (first === 198 && second === 51 && third === 100)
+    || (first === 203 && second === 0 && third === 113)
+    || first >= 224
+  );
+}
+
+function isPublicIpv6Address(hostname: string): boolean {
+  if (!hostname.includes(":")) return true;
+  const normalized = hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  const [first = "", second = ""] = normalized.split(":");
+  const firstValue = Number.parseInt(first, 16);
+  const secondValue = Number.parseInt(second || "0", 16);
+
+  if (!Number.isFinite(firstValue) || firstValue < 0x2000 || firstValue > 0x3fff) return false;
+  if (firstValue === 0x2001 && (secondValue <= 0x01ff || secondValue === 0x0db8)) return false;
+  return firstValue !== 0x3ffe;
+}
+
 export function isSafeEvidenceDestination(value: string | null | undefined): value is string {
-  if (!value) return false;
+  if (!value || value !== value.trim() || /\s/.test(value)) return false;
   try {
     const destination = new URL(value);
     if (destination.protocol !== "https:" || destination.username || destination.password) return false;
 
     const hostname = destination.hostname.toLowerCase().replace(/^\[|\]$/g, "");
-    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local")) return false;
-    if (hostname === "::1" || /^(?:fc|fd|fe8|fe9|fea|feb)/i.test(hostname)) return false;
-
-    const octets = hostname.split(".").map(Number);
-    if (octets.length === 4 && octets.every((octet) => Number.isInteger(octet) && octet >= 0 && octet <= 255)) {
-      const [first, second] = octets;
-      if (
-        first === 0
-        || first === 10
-        || first === 127
-        || (first === 169 && second === 254)
-        || (first === 172 && second >= 16 && second <= 31)
-        || (first === 192 && second === 168)
-      ) return false;
-    }
-    return true;
+    if (!hostname || hostname === "localhost" || hostname.endsWith(".localhost") || hostname.endsWith(".local") || hostname.endsWith(".internal")) return false;
+    return isPublicIpv4Address(hostname) && isPublicIpv6Address(hostname);
   } catch {
     return false;
   }
