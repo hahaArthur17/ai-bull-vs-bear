@@ -2,7 +2,7 @@
 
 **Status:** Active for Phase 8  
 **Owner:** Mobile application  
-**Last updated:** 2026-09-06
+**Last updated:** 2026-09-08
 
 This matrix is the visual and interaction acceptance contract for the
 financial-research UI redesign. It supplements executable checks; it does not
@@ -45,7 +45,8 @@ Every redesign slice must preserve these product invariants:
 - Source, evidence date, freshness, coverage, and warnings remain visible
   wherever analysis is presented.
 - V2 Debate and the Groq Explanation provider stay default-off. Explanation is
-  read-only and cannot mutate Debate state.
+  read-only and cannot mutate Debate state. A controlled Live Acceptance run
+  may opt into V2/Queue/Groq explicitly without changing the safe default.
 - Challenge is available only during the durable `awaiting_user` pause; it is
   not a general transcript branching affordance.
 - Diagnostic/provider implementation detail is progressively disclosed and is
@@ -57,11 +58,11 @@ Every redesign slice must preserve these product invariants:
 | --- | --- | --- |
 | Authentication | initial form, invalid input, submit disabled, submitting, authentication failure, sign-up confirmation | Inputs are labelled; errors are announced and tied to the affected field; submit cannot duplicate a request. |
 | Discovery and Watchlist | saved list, empty list, search in progress, search results, no results, search failure, `catalog_only`, `debate_ready` | Search and watchlist controls retain clear names; coverage labels have text as well as visual treatment; empty and failure states provide a recovery action. |
-| Stock research workspace | bundle loading, bundle failure, normal quote, stale/warning evidence, review fixture, watchlist add/remove, `catalog_only` | Quote time, source, evidence date, freshness, and all warnings remain readable; an identity-only security has no analysis CTA. |
+| Stock research workspace | bundle loading, bundle failure, latest provider quote, latest completed close, stale/warning evidence, review fixture, watchlist add/remove, `catalog_only` | Quote and completed close have distinct labels/source/timestamps; evidence date, freshness, and all warnings remain readable; an identity-only security has no analysis CTA. |
 | Charts and technical signals | fresh verified history, stale history, `review_fixture`, unavailable/no data, partial history, narrow layout, pointer/touch/keyboard interaction where controls exist | Price and every eligible indicator trend render with a textual summary; legends and trends do not depend on colour alone; layout does not horizontally overflow; unavailable data never becomes a plausible fake market chart. |
 | Evidence and Examination | evidence list, missing/partial evidence, claim selected, examination loading, result, request failure | Each evidence item retains source, date, freshness, and link/identifier; loading and error copy do not imply a completed answer. |
 | Legacy Debate | idle/start, active stream, completed transcript, error | Existing start and transcript behavior remains available until shared presentation is adopted; evidence provenance remains legible. |
-| V2 Debate | queued, running, retry delay, failed, cancelled, `awaiting_user`, final; connection recovery; point-question modal closed/loading/result/error; Round 2 confirmation | The transcript is a chronological chat timeline: Bull messages align left, Bear messages align right, and interim/final neutral Judge summaries are horizontally centred. On mobile it remains chronological with readable offset bubbles, not narrow two columns. Only canonical messages read as durable; drafts are visually and textually temporary; cancel and retry availability match state. “Ask about this point” opens a current-viewport educational modal and does not alter Debate state; Round 2 requires a separate explicit confirmation. Close, Cancel, backdrop tap, Android Back, and keyboard access remain usable. |
+| V2 Debate | queued, running, provider deltas, paced reveal, immediate interruption/interjection, retry delay, failed, cancelled, `awaiting_user`, final; connection recovery; point-question modal closed/loading/result/error; Round 2 confirmation | The transcript is a chronological chat timeline: Bull messages align left, Bear messages align right, and interim/final neutral Judge summaries are horizontally centred. On mobile it remains chronological with readable offset bubbles, not narrow two columns. Only canonical messages read as durable; drafts and interrupted prefixes are explicitly temporary/incomplete. A fast provider cannot cause full text to jump into view before the reveal scheduler drains. `Stop here` freezes already revealed text immediately, discards undisplayed text, prevents later agents, and opens a user interjection path without implicit continuation. “Ask about this point” remains a separate read-only educational modal; Round 2 requires a separate explicit confirmation. Close, Cancel, backdrop tap, Android Back, and keyboard access remain usable. |
 | History | empty, analysis item, V2 active item, interim Judge, final Judge, load failure | Final and interim Judge states remain distinct; reopening a saved session restores its matching ticker bundle. |
 | About and diagnostics | normal content, sign-out available, diagnostic disclosure expanded | Product guidance precedes technical detail; any disclosure has an accessible name and state. |
 
@@ -76,6 +77,8 @@ MARKET PRICE”.
 
 | Data state | Required display |
 | --- | --- |
+| latest provider quote | Current provider value with source timestamp, retrieval/freshness state, and no claim that it is a completed daily close. |
+| latest completed close | Newest validated daily OHLCV close used by charts/indicators, with trading date and source; never labelled as an intraday quote. |
 | `live/fresh` | Full price and eligible technical trends with source, observation time, and freshness. |
 | `live/stale` | Historical curves remain inspectable; stale/historical status and date are prominent. |
 | `review_fixture` | Full deterministic curves and interactions with the persistent simulated-data label. |
@@ -92,6 +95,23 @@ For every rendered indicator, range changes, hover/focus/touch inspection,
 date/value tooltip or textual equivalent, and visible selected point must use
 the same underlying value. Frontend and backend calculations for displayed RSI
 and volatility must be checked for one shared definition before final closure.
+
+## Live Data and Live AI acceptance
+
+The controlled live run supplements fixture-based UI review. It is not a public
+release and must use a dedicated non-production account, bounded provider quota,
+standard data mode, V2 Queue admission, and a genuinely streaming provider.
+
+| Gate | Required evidence |
+| --- | --- |
+| Data preflight | No simulated banner or fixture IDs; AAPL quote, completed close, chart history, indicator sufficiency, evidence, and macro context expose non-conflicting source/date/freshness. |
+| Frozen snapshot | Debate displays its capture time and all Bull/Bear/Judge requests use the same immutable inputs even if a newer quote arrives. |
+| Queue admission | `POST /debates` returns `202` before completion; queued/running state is visible before model text. |
+| Provider truth | Every completed message exposes provider/model/stream-mode metadata in diagnostics; deterministic Judge or Explanation output is labelled until replaced by its own live contract. |
+| Reveal pacing | Only one active bubble reveals at a time; English words and CJK graphemes remain ordered; canonical completion cannot force an early full-text jump; `Show full response` is explicit. |
+| Immediate interruption | Visible prefix freezes before network acknowledgement, undisplayed buffer is removed, no later role starts, the prefix remains explicitly incomplete after reload, and the user can interject without automatically restarting. |
+| Recovery | App background/foreground, SSE reconnect, retry, terminal failure, cancellation, and History reopen preserve durable state without replaying completed text as new typing. |
+| Cost boundary | Provider request count, per-turn cap, total token use, retry count, and one-live-session concurrency are recorded without prompts or secrets. |
 
 ## Debate facts and citation acceptance
 

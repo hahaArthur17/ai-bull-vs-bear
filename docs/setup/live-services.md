@@ -1,6 +1,6 @@
 # Live Services Setup
 
-Last reviewed: 2026-08-29
+Last reviewed: 2026-09-08
 
 This document records the non-secret configuration needed to move AI Bull vs
 Bear from deterministic demo mode to real services.
@@ -344,6 +344,113 @@ account has daily-candle permission; otherwise Alpha Vantage is the supported
 free source for the curve. Apify is an automation platform rather than a single
 financial dataset, so an Actor or saved task and its expected output schema must
 be selected before an ingestion adapter can be implemented.
+
+## Controlled Expo Go Live Acceptance profile
+
+Status: planned, not executed by the 2026-09-08 planning update. The canonical
+scope and acceptance gates are WP8L in
+[`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
+
+This profile is deliberately separate from `review_fixture`. A safe
+presence-only audit confirms that the ignored local `.env` has Supabase, Groq,
+Alpha Vantage, Finnhub, and SEC settings, but the V2/Queue/live-provider/Expo V2
+flags are unset and therefore use safe disabled/deterministic defaults. Never
+record or print the credential values.
+
+### 1. Confirm provider truth before any write or model call
+
+- Recheck the active Groq model through the Models API and current provider
+  limits. A model ID that worked in an earlier report is not permanent evidence.
+- Treat Finnhub `/quote` as a latest provider quote with its own timestamp. It
+  is not a historical completed close.
+- Treat the newest Alpha Vantage daily row as the latest completed OHLCV close
+  for chart/indicator calculations. `TIME_SERIES_DAILY` is a daily-history
+  source, not the app's real-time quote channel.
+- Confirm the intended request budget before each live test. The existing Round
+  1 verifier makes at most six non-retried Bull/Bear requests; Judge and
+  Explanation have separate provider contracts and budgets.
+
+### 2. Refresh real AAPL inputs, one bounded source at a time
+
+These commands write provider data into the configured Supabase project. Run
+them only after explicit authorization and no more frequently than their source
+budgets require:
+
+```shell
+PYTHONPATH=backend backend/.venv/bin/python scripts/ingest_live_prices.py
+PYTHONPATH=backend backend/.venv/bin/python scripts/ingest_live_evidence.py
+PYTHONPATH=backend backend/.venv/bin/python scripts/ingest_macro_context.py
+PYTHONPATH=backend backend/.venv/bin/python scripts/ingest_aapl_weekly_history.py
+```
+
+The weekly command is conditional on the cache being due. After each write,
+read back the source, observation/publication time, retrieval time, record count,
+stale state, and data mode. Stop before model use if the daily cache failed to
+advance when expected, fewer than 50 valid closes remain, or simulated/fallback
+provenance appears.
+
+### 3. Run the quota-bounded provider verifier
+
+After revalidating the model and accepting six provider requests:
+
+```shell
+DEBATE_STREAMING_PROVIDER=groq PYTHONPATH=backend \
+  backend/.venv/bin/python scripts/verify_groq_debate_streaming.py \
+  --confirm-live-quota
+```
+
+Require ordered deltas, six complete Bull/Bear Turns, valid citation IDs,
+nonzero token accounting, reconnect, and cleanup. The present verifier uses a
+deterministic local Judge; it is not proof that every visible agent is live.
+
+### 4. Start one controlled standard-mode session
+
+Use a dedicated non-production Supabase user. Keep API, Worker, and event broker
+in one process because live deltas are currently process-local. Do not use
+`--reload` during a quota-bearing Session.
+
+```shell
+cd backend
+ENVIRONMENT=development APP_DATA_MODE=standard \
+DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
+DEBATE_STREAMING_PROVIDER=groq \
+.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+For the iOS Simulator:
+
+```shell
+cd apps/mobile
+EXPO_PUBLIC_AUTH_MODE=supabase \
+EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
+npx expo start --localhost --clear
+```
+
+A physical device uses the workstation LAN address instead of loopback. Before
+starting Debate, read `/health`, `/stocks/AAPL/quote`,
+`/stocks/AAPL/bundle`, `/stocks/AAPL/evidence`, and the current Debate list.
+Confirm standard mode, fresh/dated provenance, no fixture IDs, no unfinished
+Session conflict, and one declared model-call budget.
+
+### 5. Know what still blocks final Live Acceptance
+
+- Bull/Bear can stream through Groq today; Interim/Final Judge remain
+  deterministic and non-streaming until an asynchronous Judge contract is
+  implemented.
+- Provider chunks do not guarantee one word or character per event. A client
+  reveal scheduler must buffer deltas and release words/graphemes at a controlled
+  pace without letting canonical completion jump to full text.
+- Current terminal Cancel clears incomplete drafts. The accepted `Stop here`
+  behavior instead freezes the visible prefix, discards undisplayed text,
+  prevents every later agent, persists an explicitly incomplete prefix, and
+  opens a user-interjection decision before any continuation.
+- A separate Worker or multiple API instances cannot deliver reliable live
+  deltas/interruption through the current process-local broker. Add a shared or
+  durable delta/checkpoint layer before changing topology.
+
+Do not enable hosted or public V2/Queue/Groq flags until the local Expo pass,
+same-SHA staging smoke, rollback, quota, and provenance gates are recorded.
 
 ## Verification checklist
 

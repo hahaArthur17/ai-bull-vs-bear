@@ -74,6 +74,28 @@ changes them and the parent plan is updated in the same change.
   with a production-provider failure. Compatibility may remain internally, but
   the user-facing provenance states must be explicit.
 
+### 2.4 Controlled Live Acceptance
+
+- The approved UI is tested first with deterministic fixtures, then with a
+  bounded `standard`-mode AAPL session using real provider data and model calls.
+  Live acceptance is a separate gate; switching configuration flags is not
+  evidence that it passed.
+- “Latest price” has two explicit meanings: a latest provider quote with a
+  timestamp, and the latest completed daily close used by historical charts and
+  technical indicators. Never insert an intraday quote into the daily-close
+  series or label a completed close as real-time.
+- Every Debate freezes one immutable, displayed snapshot. A quote, close,
+  evidence item, filing fact, or macro observation that arrives later belongs to
+  a new Session rather than silently changing an active transcript.
+- Provider deltas and visual pacing are separate concerns. The client buffers
+  ordered deltas and reveals English by word or CJK text by grapheme at a
+  controlled pace; a fast provider must not cause a completed message to appear
+  all at once.
+- `Stop here` means immediate visual and generation interruption, no later
+  agent Turn, preservation of only the validated revealed prefix as explicitly
+  incomplete, and a user interjection before any optional continuation. It does
+  not mean “finish the current response first.”
+
 ## 3. Functional preservation contract
 
 Before redesign work begins, record characterization evidence for this list.
@@ -143,6 +165,14 @@ cannot compensate for ambiguous or inconsistent input data.
    path, verify the newest completed trading close and record count, and confirm
    that stale warning/refresh recovery behaviour is visible without exposing
    credentials.
+6. **Quote/close separation.** Verify the Finnhub quote timestamp/source and the
+   newest Alpha Vantage completed-close date independently. Market-closed,
+   weekend, holiday, delayed, stale, and provider-unavailable cases must retain
+   honest labels; “today” is never inferred from the workstation date alone.
+7. **Debate snapshot parity.** Record exactly which quote, close, evidence,
+   filing facts, macro observations, and indicator values enter the model
+   snapshot. The stock page and Debate header must expose the same frozen as-of
+   boundary, while individual observations retain their own dates.
 
 ## 5. Ordered work packages
 
@@ -444,7 +474,7 @@ this does not claim Xcode, physical-device, or final visual acceptance.
 **Tests:** complete backend suite; `npm run test:stream`; `npm run typecheck`;
 `npm run build:web`; focused proxy/API coverage for the active-Debate conflict
 and recovery entry point; recorded manual accessibility/device matrix. The
-latest local gate has 370 passing backend and 78 passing mobile tests, with
+latest local gate has 370 passing backend and 80 passing mobile tests, with
 typecheck and Web export also passing. Commit `8c9278c` adds the V2 transient
 proxy coverage for reconnect, retry, cancel, and failure (15 passing tests).
 
@@ -452,15 +482,182 @@ proxy coverage for reconnect, retry, cancel, and failure (15 passing tests).
 state, all automated gates pass, and limitations are recorded rather than
 silently waived.
 
+### WP8L — Controlled local Live Data and Live AI acceptance
+
+**Depends on:** WP1, WP4, WP5, WP6, and the WP8 automated baseline
+**Status:** Planned; accepted as the next bounded implementation lane on
+2026-09-08. No live provider call or hosted configuration change is authorized
+by this planning update.
+**Owner:** Root controls quota-bearing calls and final acceptance; Sol owns
+data/provenance, Queue, provider, and interruption contracts; Terra owns the
+client reveal scheduler after those contracts are fixed; Luna may execute only
+credential-free matrices and evidence collection.
+
+**Current readiness:** a safe presence-only local configuration audit confirms
+that Supabase, Groq, Alpha Vantage, Finnhub, and SEC settings are available in
+the ignored `.env`. The V2 workflow, Queue, Debate streaming provider, and Expo
+V2 flags are unset and therefore retain safe false/deterministic defaults. The
+current `review_fixture` server cannot be used as Live Acceptance evidence.
+
+#### WP8L.1 — Freeze the meaning of “current”
+
+- Treat `GET /stocks/AAPL/quote` as the latest provider quote. Preserve its
+  source timestamp, retrieval time, age, session/market context when available,
+  and unavailable/stale state. Do not promise exchange-grade real-time service
+  beyond the provider contract.
+- Treat the newest validated Alpha Vantage daily row as the latest completed
+  close for charts and indicators. Require chronological unique positive OHLCV,
+  at least 50 valid closes for the complete technical view, and an advancing
+  refresh result.
+- Do not splice the latest quote into historical closes. Display both values
+  when available, with labels such as `Latest provider quote` and
+  `Latest completed close`.
+- Define a `MarketQuoteFactor` or equivalent immutable observation so a Debate
+  can use the latest accepted quote without changing technical-indicator math.
+  Record the snapshot capture time and retain the observation date/source of
+  every close, quote, filing fact, evidence item, and macro series.
+- Fail closed: if required AAPL history or snapshot provenance is stale,
+  inconsistent, or unavailable, allow research viewing with a warning but do
+  not start a Live AI Debate that implies current inputs.
+
+#### WP8L.2 — Refresh and preflight real AAPL inputs
+
+Run external writes only after explicit quota/write authorization and never
+print secrets. Execute one bounded source at a time:
+
+1. refresh AAPL daily closes once with `scripts/ingest_live_prices.py`;
+2. refresh recent Apple/SEC evidence and structured filing facts with
+   `scripts/ingest_live_evidence.py`;
+3. refresh the seven macro series with `scripts/ingest_macro_context.py`;
+4. refresh weekly AAPL history only if the weekly cache is due; and
+5. read back `/stocks/AAPL/quote`, `/stocks/AAPL/bundle`, indicators, evidence,
+   and coverage before spending model quota.
+
+Record, without secret values: source, newest observation/publication time,
+retrieval time, stale flag, row count, sufficiency, and data mode. Stop the lane
+if the daily cache does not advance when it should, if fewer than 50 valid
+closes remain, if `review_fixture`/`demo_fallback` appears, or if page and
+snapshot values disagree.
+
+#### WP8L.3 — Prove the provider and Queue boundary before opening Expo
+
+- Revalidate the configured Groq model through the provider's current model
+  listing and rate-limit documentation; do not assume a historical model ID or
+  quota remains valid.
+- Run the existing quota-confirmed Groq streaming verifier once. Require six
+  ordered Bull/Bear Turn streams, nonzero token accounting, valid citations,
+  canonical reload, and safe cleanup. Do not print generated text or prompts.
+- Document the present limitation: `DEBATE_STREAMING_PROVIDER=groq` applies to
+  Bull/Bear Turns, while Interim/Final Judge still use the deterministic Judge
+  provider and do not emit `judge.delta`. This may be used as an explicitly
+  labelled intermediate smoke test, but it is not a fully Live AI Debate.
+- Add a bounded asynchronous Judge provider and `judge.delta` contract before
+  claiming every visible agent is model-generated. Apply the same evidence
+  allowlist, output bound, guardrails, token ledger, retry classification,
+  completion validation, cancellation, and reconnect rules used for Bull/Bear.
+- Keep Explanation as a separately metered provider choice. A Live Debate test
+  must not silently enable paid/live Explanation calls.
+
+#### WP8L.4 — Separate network streaming from human-visible pacing
+
+- Maintain two ordered states per active message: provider-received content and
+  user-revealed content. Append SSE deltas to a bounded buffer; reveal English
+  by word and CJK text by Unicode grapheme using a configurable cadence.
+- Receiving `turn.completed` or `judge.completed` stores the canonical record
+  but must not replace a partially revealed bubble with the full message. The
+  final card becomes canonical only after the reveal buffer drains or the user
+  explicitly chooses `Show full response`.
+- Only one agent bubble streams at a time. The next role cannot become visibly
+  active before the prior message is canonical and its reveal policy is
+  settled.
+- Bound memory and latency when Groq produces faster than the display cadence.
+  Preserve order, whitespace, punctuation, and grapheme integrity; never drop
+  text during normal playback.
+- Reduced-motion, screen-reader, app-background, reconnect, and saved-History
+  paths must not replay decorative typing. Screen readers announce logical
+  chunks or the completed message, not every character. Historical completed
+  messages load immediately.
+
+#### WP8L.5 — Implement immediate interruption and interjection
+
+- `Stop here` freezes the displayed prefix and clears undisplayed buffered text
+  immediately on the client, before network acknowledgement.
+- The backend atomically invalidates the expected generation against Turn
+  completion/next-Turn admission. No subsequent Bull, Bear, or Judge provider
+  request may start; late events are ignored.
+- Persist only a server-validated prefix as an explicitly incomplete,
+  interrupted record. The existing `DebateMessage` schema permits
+  `is_complete=false` with `cancelled_at`; repository/API/event behavior and a
+  bounded durable draft checkpoint still need implementation. Do not attach
+  unverified citations or present the prefix as a completed claim.
+- Show a user composer at that point. A read-only explanation, a user opinion
+  that influences later discussion, ending the Debate, and continuing from a
+  new generation are four distinct actions.
+- If the user continues, create one new generation from the last complete
+  canonical prefix plus the explicitly recorded interjection. Never revive the
+  cancelled generation, reveal previously buffered text, or duplicate Messages,
+  citations, Queue jobs, or token entries.
+
+#### WP8L.6 — Run the Expo Go acceptance session
+
+Use a dedicated non-production Supabase test user and the standard data mode.
+For the first controlled pass, keep API, in-process Worker, and SSE broker in
+one FastAPI process and one instance. This is required because transient events
+are currently process-local. Start without `--reload` so a code watcher cannot
+interrupt a quota-bearing Session. Mount Expo with Supabase auth and the V2
+flag, using loopback for the iOS Simulator or the workstation LAN address for a
+physical device.
+
+The recorded pass must prove:
+
+- the app contains no simulated-data banner or fixture IDs;
+- quote, completed close, chart, indicators, evidence, and Debate snapshot all
+  show their source and date without contradicting one another;
+- `POST /debates` returns `202` before generation completes and the Queue state
+  appears before the first model text;
+- Bull, Bear, and—after its provider slice—Judge reveal incrementally in order,
+  with one active bubble and no full-result jump;
+- rebuttals target the immediately prior opponent and citations stay within the
+  frozen evidence allowlist;
+- Stop freezes the exact visible prefix immediately, prevents later agents,
+  survives reload, and accepts a user interjection without an implicit restart;
+- SSE reconnect, app background/foreground, one provider retry, terminal error,
+  cancellation, and History reopening remain understandable; and
+- provider request counts and token totals stay inside the declared per-session
+  budget. At most one live Session runs concurrently during acceptance.
+
+#### WP8L.7 — Topology and release boundary
+
+The existing single-process Worker in the FastAPI lifespan is the accepted
+local/staging topology for this lane. Do not deploy a separate Render background
+Worker while SSE deltas remain process-local: canonical completion might persist
+but the API process would not receive the live delta stream. Before splitting
+processes or scaling the API, add a durable/shared event stream or draft
+checkpoint and repeat reconnect/interruption tests.
+
+Render free Web services may cold-start and restart. Pre-warm `/health`, record
+cold-start behavior, keep the SSE connection active during the bounded test,
+and rely on Supabase rather than local disk for canonical state. Hosted flags
+remain off until WP10 deploys one immutable SHA with a rollback that can disable
+V2/Queue/live provider independently.
+
+**Definition of done:** one recorded Expo Go session uses verified standard-mode
+AAPL inputs and real streamed model Turns; the UI visibly paces deltas; immediate
+interruption and user interjection meet the contract; every deterministic/live
+role is labelled honestly; the Session reloads from durable state; cost,
+freshness, citation, and topology evidence is recorded; no public or production
+flag is changed.
+
 ### WP9 — Product-owner visual and interaction acceptance
 
-**Depends on:** WP4, WP6, WP7, WP8  
+**Depends on:** WP4, WP6, WP7, WP8, and WP8L
 **Owner:** Root prepares evidence; product owner decides acceptance. No agent may
 self-approve subjective design quality.
 
-**Review set:** AAPL workspace and complete V2 Debate at 390px and 1280px,
-plus representative Authentication, Discovery, Watchlist, Evidence, History,
-stale, unavailable, and error states.
+**Review set:** fixture-backed AAPL workspace and complete V2 Debate at 390px
+and 1280px; the controlled WP8L Expo Go session with standard AAPL data and
+Live AI pacing/interruption; plus representative Authentication, Discovery,
+Watchlist, Evidence, History, stale, unavailable, and error states.
 
 For efficient review, the product owner may run a short visual/page checklist
 and report observations rather than reproduce the full engineering matrix:
@@ -489,7 +686,7 @@ Debate pacing, Judge hierarchy, and responsive behaviour.
 
 ### WP10 — Same-SHA staging release gate
 
-**Depends on:** WP9  
+**Depends on:** WP8L and WP9
 **Suggested agent:** Sol prepares and verifies the cross-layer release; Root
 authorizes any external deployment and public-demo change.
 
@@ -537,7 +734,10 @@ Recommended execution waves:
    product owner reviews the second reference surface.
 5. Terra and Luna divide WP7 by complexity with non-overlapping files.
 6. Luna executes WP8; Root reproduces and adjudicates results.
-7. Root conducts WP9; Sol supports WP10 only after approval.
+7. Root coordinates WP8L in bounded slices: Sol fixes live data/provider and
+   interruption contracts, Terra implements reveal pacing, and Root performs
+   the quota-bearing Expo Go acceptance.
+8. Root conducts WP9; Sol supports WP10 only after approval.
 
 ## 7. Local terminal acceptance target
 
@@ -568,14 +768,44 @@ if configuration conventions require it, but one explicit command pair must:
 - make loading, stale, insufficient, unavailable, retry, cancel, reconnect, and
   error states directly reviewable.
 
+WP8L adds a separate credentialed command pair; it must never replace the safe
+fixture default or be copied into CI. After real-data preflight and explicit
+quota authorization, the intended local shape is:
+
+```sh
+cd backend
+ENVIRONMENT=development APP_DATA_MODE=standard \
+DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
+DEBATE_STREAMING_PROVIDER=groq \
+.venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
+```
+
+In a second terminal for the iOS Simulator:
+
+```sh
+cd apps/mobile
+EXPO_PUBLIC_AUTH_MODE=supabase \
+EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
+npx expo start --localhost --clear
+```
+
+The credential values remain only in the ignored root `.env`; command output,
+screenshots, verification records, and Git history must not contain them. A
+physical device uses the workstation LAN address and requires a separate
+reachability check.
+
 ## 8. Phase closure and boundary with Phase 9
 
-Phase 8 closes only after WP0–WP10 meet their definitions of done and the parent
-plan checklist is updated with recorded evidence. In particular:
+Phase 8 closes only after WP0–WP10, including WP8L, meet their definitions of
+done and the parent plan checklist is updated with recorded evidence. In
+particular:
 
 - automated tests do not substitute for product-owner visual approval;
 - screenshots do not substitute for keyboard, accessibility, or device proof;
 - `review_fixture` does not substitute for production data-integrity tests;
+- a provider key or enabled flag does not substitute for recorded Live AAPL,
+  streaming, pacing, interruption, token, and persistence evidence;
 - staging does not pass unless frontend and backend use the same SHA; and
 - the public demo is not changed without explicit authorization after staging.
 

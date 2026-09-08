@@ -1234,6 +1234,66 @@ introducing a full transcript DAG.
 - [ ] Add arbitrary Web text selection after the existing exact-term panel has
   a dedicated Web interaction and accessibility design.
 
+#### Deferred Backlog — immediate interruption and user interjection
+
+Status: Planned (product requirement clarified on 2026-09-08)
+
+The accepted interaction is not “finish the current response, then pause.” A
+user selecting `Stop here` during a visibly streaming Bull, Bear, or Judge
+message must freeze the transcript immediately at the already revealed prefix,
+discard buffered-but-unrevealed text, invalidate the active generation, and
+prevent every later agent Turn. The user can then enter a question or opinion at
+that exact interruption point. No model continues until the user explicitly
+chooses whether to end the Debate or continue with that interjection.
+
+This is distinct from the existing terminal `Stop this generation` behavior,
+which rotates the generation and clears an incomplete draft. It is also
+distinct from read-only Explanation and the formal post-Interim-Judge Round 2
+Challenge.
+
+- [ ] Define durable `interrupt_requested` and `interrupted_awaiting_user`
+  Session states, the interrupted message identifier, the last complete-message
+  prefix, and the active generation/Turn/reveal cursor at the interruption.
+- [ ] Make visual interruption client-immediate: stop the reveal scheduler and
+  clear its undisplayed buffer before waiting for the network response. Send an
+  owner-scoped, idempotent interruption request containing the expected
+  generation and a verifiable revealed cursor, never arbitrary trusted text.
+- [ ] Serialize interruption atomically against delta publication, Turn
+  completion, and starting the next planned Turn. After acceptance, no new
+  `turn.started`, `judge.started`, or provider request is admitted for the old
+  generation; late deltas are ignored.
+- [ ] Persist the server-validated revealed prefix as an incomplete cancelled
+  `DebateMessage` (`is_complete=false`, `cancelled_at` set) or an equivalent
+  explicitly non-canonical interrupted record. It must never be presented as a
+  completed evidence-validated claim, and it receives no unverified citations.
+- [ ] Define a bounded draft checkpoint/replay mechanism so the server can prove
+  that the client-reported reveal cursor is a prefix of generated output. The
+  current process-local event broker is insufficient for crash/reconnect or a
+  separate Worker.
+- [ ] Publish ordered `session.interrupt_requested`, `turn.interrupted`, and
+  `session.interrupted_awaiting_user` events. Reload and SSE reconnect restore
+  the interruption point without replaying undisplayed text.
+- [ ] Add an explicit user `interject` intervention for a question or opinion
+  about the interrupted content. Keep read-only Explanation and the formal
+  Round 2 Challenge as separate operations with different labels and state
+  effects.
+- [ ] Offer `End debate` and `Continue with my point` only after the interjection.
+  Continue creates a new generation from the last complete-message prefix plus
+  the interrupted non-canonical context and user intervention; it must not
+  revive the invalidated generation or duplicate token/citation records.
+- [ ] Specify repeated/stale interruption, queued-before-first-delta,
+  completion-versus-interruption, network loss, retry, Worker crash, app
+  backgrounding, and two-Worker conflict behavior. Terminal Cancel wins any
+  conflict with Continue.
+- [ ] Verify immediate visual freeze, zero subsequent agent starts, durable
+  interrupted-prefix recovery, user interjection, explicit continuation, and
+  token/accounting idempotency with a genuinely streaming provider.
+
+Until a durable/shared delta checkpoint exists, controlled Live AI acceptance
+must keep the API, Worker, and SSE broker in one process and one instance. A
+standalone Worker or multi-instance API cannot claim reliable immediate
+interruption because its transient deltas are not shared.
+
 Progress evidence: the first backend slice adds immutable Explanation
 request/draft/result contracts, a provider boundary, a deterministic provider,
 and a read-only service. Exact selected text must occur in a complete message
@@ -1299,6 +1359,12 @@ this portfolio plan and does not create a parallel product plan.
   device review; record evidence in the Phase 8 verification record.
 - [ ] Obtain explicit product-owner approval of the AAPL research workspace and
   V2 Debate at phone and desktop widths before staging release.
+- [ ] Complete the controlled local Live Acceptance lane: refresh and verify
+  real AAPL data, distinguish the latest provider quote from the latest
+  completed daily close, freeze one dated factor snapshot, run Queue-backed
+  Groq Bull/Bear streaming in Expo Go, disclose the still-deterministic Judge
+  until its live streaming contract exists, and verify paced reveal plus
+  immediate interruption before calling the experience fully live.
 - [ ] Deploy frontend and backend from the same commit SHA to staging and pass
   the phase-specific smoke and rollback gates before changing the public demo.
 
@@ -1335,10 +1401,14 @@ bounded Live AI path when quota is available.
 | Factor extension | Mock provider appears without orchestrator modification. |
 | Stock search | Catalog query uses no market/provider client. |
 | Coverage | Catalog-only stock saves but cannot start Debate. |
+| Latest AAPL data | Provider quote and completed daily close expose distinct source/timestamp/freshness semantics; neither is relabelled as the other. |
+| Frozen live snapshot | Every Turn in one Session receives the same recorded quote/close/evidence/factor snapshot and the UI exposes its as-of boundary. |
 | Debate rebuttal | Every rebuttal input includes the immediately prior opponent message. |
 | Evidence safety | Invented citation IDs are removed/rejected per turn. |
 | State machine | Invalid state transitions fail deterministically. |
 | SSE | Ordered events, heartbeat, terminal event, reconnect, and error parsing. |
+| Reveal pacing | Provider deltas may arrive at any size/speed; the client reveals ordered graphemes/words at a controlled pace without replacing a draft with full canonical text early. |
+| Immediate interruption | Visible text freezes immediately, undisplayed buffered text is discarded, no later agent starts, and the interrupted prefix remains explicitly incomplete. |
 | Cancellation | Late generation events are ignored and no cancelled message becomes complete. |
 | Queue | Backpressure, retry, redelivery, terminal failure, restart survival. |
 | Idempotency | Duplicate HTTP submissions and queue deliveries create one canonical result. |
@@ -1401,12 +1471,13 @@ checks. Phase 7 is complete: Explanation has a read-only mobile/API path,
 deterministic default, and a bounded explicit Groq provider with a one-request
 opt-in verifier; Challenge/Round 2/Final Judge remain linear. The current coding
 entry point is WP1 of the re-baselined Phase 8 remediation in
-[`phase-8-design-remediation.md`](phase-8-design-remediation.md). WP0 has frozen
-the preservation contract; next normalize data/indicator integrity, then add
-`review_fixture`, migrate the shared deep theme and stock workspace, implement
-the V2 chronological chat experience, migrate remaining surfaces, and close
-user/device/same-SHA staging acceptance. Earlier warm-theme completion marks
-are not release evidence.
+  [`phase-8-design-remediation.md`](phase-8-design-remediation.md). The visual
+  foundation, stock workspace, V2 chronological chat, remaining core surfaces,
+  direct chart-point interaction, and responsive History repair are implemented
+  locally. The next bounded entry point is WP8L: controlled Live AAPL data and
+  Live AI acceptance, including display pacing and immediate interruption,
+  followed by remaining device/product-owner evidence and same-SHA staging.
+  Earlier warm-theme completion marks are not release evidence.
 
 Phase 9 remains Planned and starts only after Phase 8 closes. Its Replay,
 observability, resilience, and release-proof scope must not be duplicated inside
