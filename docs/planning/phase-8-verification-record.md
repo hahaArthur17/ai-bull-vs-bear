@@ -42,6 +42,29 @@ closed to non-animated movement until the preference is known. A separate Luna
 review found and Root fixed a stale-closure race before that commit, then the
 reviewer reported no remaining P1/P2 finding in the slice.
 
+### WP8 newly observed recovery issue: active Debate admission conflict
+
+During local review on 2026-09-08, tapping Debate from the stock page sent the
+request, but repeated `POST /debates` calls returned `409 Conflict`. The test
+user already owned an unfinished Debate in `awaiting_user`. This confirms the
+backend's one-active-Debate protection is operating as designed; it is not a
+failure of Debate generation or the V2 state proxy.
+
+The user-visible failure is an open frontend interaction problem. The error is
+currently rendered only in the stock page's top-level feedback area, while the
+Debate action is at the bottom of the page. At the point of interaction the
+button therefore appears not to respond, and there is no nearby action to open
+the existing Debate or navigate to History. No frontend fix or acceptance is
+claimed by this record.
+
+This case is added to the WP8 recovery matrix. The required follow-up is to
+make the conflict explicit near the Debate action, prevent repeated submissions
+while the request is pending, and provide an open-current-Debate or History
+action. The eventual implementation should be exercised through the
+deterministic recovery proxy/API fixture and browser evidence, then included in
+the final automated gate. Restarting `review_fixture` or opening the existing
+item from History remains a temporary review workaround, not a product fix.
+
 ## WP3 prototype-derived design foundation verification on 2026-09-07
 
 WP3 replaces the shared warm-paper shell with one semantic deep-theme contract

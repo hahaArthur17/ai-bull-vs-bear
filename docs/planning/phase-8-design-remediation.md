@@ -1,7 +1,7 @@
 # Phase 8 Design Remediation Execution Plan
 
 **Status:** In progress  
-**Last updated:** 2026-09-07
+**Last updated:** 2026-09-08
 **Parent plan:** [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md)  
 **Visual reference:** [`../../prototype.html`](../../prototype.html)
 
@@ -418,8 +418,23 @@ owns fixes according to the failing layer.
 screen reader labels/status, 200% zoom, reduced motion, iOS simulator, Android
 simulator, and one physical device. Exercise every fixture and recovery state.
 
+The recovery set must include an active-Debate admission conflict. The backend
+one-active-Debate rule is expected and valid: when the test user already has an
+unfinished Debate in `awaiting_user`, a second `POST /debates` returns `409
+Conflict`. The current frontend exposes that error only in the stock page's
+top-level feedback area, while the Debate action is at the bottom of the page;
+the action area therefore appears unresponsive and offers no way to open the
+existing Debate or go to History. This is an open frontend recovery-interaction
+issue, not a V2 state-proxy issue.
+
+WP8 must verify the eventual recovery flow for this case: a clear message near
+the Debate action, protection against repeated submissions, and an explicit
+action to open the active Debate or navigate to History. Until that flow is
+implemented and verified, the active-Debate conflict remains an open WP8 item.
+
 **Tests:** complete backend suite; `npm run test:stream`; `npm run typecheck`;
-`npm run build:web`; recorded manual accessibility/device matrix.
+`npm run build:web`; focused proxy/API coverage for the active-Debate conflict
+and recovery entry point; recorded manual accessibility/device matrix.
 
 **Definition of done:** no preservation regression, no unreviewed required
 state, all automated gates pass, and limitations are recorded rather than
@@ -434,6 +449,23 @@ self-approve subjective design quality.
 **Review set:** AAPL workspace and complete V2 Debate at 390px and 1280px,
 plus representative Authentication, Discovery, Watchlist, Evidence, History,
 stale, unavailable, and error states.
+
+For efficient review, the product owner may run a short visual/page checklist
+and report observations rather than reproduce the full engineering matrix:
+
+- Can the primary action, current state, error, and recovery action be found at
+  the point of interaction without scrolling to another page region?
+- When an active Debate already exists, is the `409` explanation clear and is
+  there an obvious action to open that Debate or go to History?
+- At 390px and 1280px, are hierarchy, density, charts, evidence, and Debate
+  pacing understandable without clipped content or horizontal overflow?
+- Do loading, empty, stale, unavailable, retry, cancel, and reduced-motion
+  states communicate what happened and what the user can do next?
+
+The product owner reports observations, screenshots, and requested severity to
+engineering. Engineering owns the reproducible entry point, code changes,
+focused automated checks, and recorded acceptance evidence; a product-owner
+review is not evidence that an unimplemented fix is complete.
 
 **Decision:** record approved elements, requested revisions, severity, and the
 commit SHA reviewed. Revisions return to the owning work package and repeat its

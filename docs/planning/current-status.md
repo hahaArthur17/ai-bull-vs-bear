@@ -122,9 +122,15 @@ interaction scope. Phase 8 is not complete: the active work is the
 Prototype-based dark UI migration, chart and technical-indicator review,
 chat-style V2 Debate transcript with visible facts/citations, deterministic
 review fixtures, data/release integrity, staging proof, and native/physical
-device acceptance. Replay, observability, resilience, and release proof follow
-this remediation; message branching and arbitrary Web selection remain
-deferred backlog items. See the phase-specific work register in
+device acceptance. WP8 also has an open active-Debate recovery interaction:
+the backend correctly returns `409` when the test user already has an
+`awaiting_user` Debate, but the frontend feedback is distant from the Debate
+action and offers no open-existing-Debate/History action. Product-owner page
+checks can be performed from a concise checklist and fed back to engineering;
+engineering owns reproduction, code changes, and automated evidence. Replay,
+observability, resilience, and release proof follow this remediation; message
+branching and arbitrary Web selection remain deferred backlog items. See the
+phase-specific work register in
 [`phase-8-design-remediation.md`](phase-8-design-remediation.md).
 
 ### Phase 8 design-remediation baseline (2026-09-06)

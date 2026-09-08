@@ -21,6 +21,42 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-08 — Active Debate conflict has no local recovery affordance
+
+**Status:** Open; WP8 frontend recovery remediation required.
+
+**Scope and verified evidence**
+
+- From the stock page, tapping Debate does send the request. The local backend
+  records repeated `POST /debates` responses as `409 Conflict` because the test
+  user already has an unfinished Debate in `awaiting_user`.
+- The one-active-Debate admission rule is functioning as intended. This is not
+  a Debate-generation failure and is unrelated to the V2 state proxy.
+- The frontend currently places the error only in the stock page's top-level
+  feedback area. Because the Debate action is at the bottom of the page, the
+  user can be looking at the action while missing the error; there is also no
+  nearby action to open the existing Debate or navigate to History.
+
+**Impact**
+
+The Debate action appears unresponsive when an active Debate exists, even
+though the backend is correctly preventing a second unfinished Debate.
+
+**Required follow-up and owner**
+
+WP8 must add and verify a recovery interaction near the Debate action: clear
+active-Debate-specific feedback, protection against repeated submissions, and
+an explicit open-current-Debate or History action. Engineering owns a
+deterministic reproduction entry point, code changes, focused automated
+evidence, and the final verification record. The product owner can perform
+the remaining visual/page checks from a short checklist and report findings
+back to engineering; those checks do not count as complete until recorded.
+
+Restarting the local `review_fixture` to clear in-memory state or opening the
+existing Debate from History are temporary review workarounds only.
+
+---
+
 ## 2026-09-06 — Data and release integrity gaps block current UI acceptance
 
 **Status:** Open; release and Phase 8 remediation required.
