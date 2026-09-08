@@ -607,3 +607,13 @@ macro admission, client snapshot display, streaming Judge, reveal integration,
 Stop/interjection, provider quota checks, native-device and staging acceptance
 remain open. Uncommitted work for later slices is intentionally excluded from
 this checkpoint; validate it before using the shared working tree as a runtime.
+
+## 2026-09-09 — Offline capture audit checkpoint
+
+Added eight offline tests for valid capture, page/history/indicator disagreement,
+missing quote provenance, stale/future evidence, malformed dates, duplicate
+macro codes, capture-time close validation, and redacted nonzero CLI failures.
+The staged snapshot was exported to a clean temporary directory, excluding
+unfinished Judge/reveal work. Full backend suite: **382 passed**, one existing
+Starlette/httpx deprecation warning. `git diff --cached --check` passed. No
+external data refresh, model call, database write, or deployment occurred.

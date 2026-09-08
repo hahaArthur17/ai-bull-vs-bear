@@ -553,3 +553,30 @@ conservative New York 16:15/weekend cutoff. Holidays and early closes still
 require an authoritative calendar. Evidence/filing/macro admission and the
 full live preflight are pending. No data refresh, model call, or hosted flag
 change was performed for this checkpoint.
+
+### Offline capture consistency audit
+
+`scripts/verify_live_snapshot.py` checks a saved JSON object containing `session`
+(with `analysis_context` and `factor_snapshot`) and `bundle` from the same
+research capture. Keep exports outside Git: they may include user questions.
+Run without service credentials or a running API:
+
+```shell
+PYTHONPATH=backend backend/.venv/bin/python scripts/verify_live_snapshot.py \
+  --input /absolute/path/to/capture.json
+```
+
+The command emits check names, booleans, and row counts only; exit code 0 means
+all offline checks passed, 1 means invalid or inconsistent input. Input is
+limited to 4 MB. It compares daily rows and indicator values, distinct quote
+value/date/retrieval provenance, evidence identities/dates, and macro
+observations against the frozen context. Completed-close and quote-age checks
+use the capture instant, not today's date. Seven distinct macro codes are
+required; this does not establish that all seven intended economic series were
+selected. Evidence freshness labels are checked, not independently refreshed.
+
+This is an offline diagnostic, not an API admission gate or an authenticated
+proof of source truth. A later page capture can legitimately contain newer
+values and fail equality. It does not prove current provider availability,
+filing completeness, per-series freshness budgets, real-model execution, or
+native-device acceptance. Those gates remain separate follow-up work.

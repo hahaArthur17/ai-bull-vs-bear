@@ -832,3 +832,13 @@ load evidence, final release proof, classroom script, and portfolio claims begin
 only after this remediation phase is accepted. Phase 8 fixtures exist to expose
 UI states deterministically; they must not be presented as the Phase 9 Replay
 deliverable.
+
+### WP8L engineering checkpoint — 2026-09-09 offline capture audit
+
+Added the credential-free `scripts/verify_live_snapshot.py` diagnostic for
+Session/bundle exports. It fails on inconsistent market inputs, page indicators,
+missing/different quote retrieval times, invalid evidence dates, insufficient
+or duplicate macro series, and failed factor providers. This is a bounded WP8L.2
+prerequisite only: it does not close live refresh or API evidence/macro admission.
+Next slice: implement server-side evidence/filing/macro eligibility with
+source-specific freshness rules before running model acceptance.

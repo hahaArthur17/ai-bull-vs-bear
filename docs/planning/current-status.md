@@ -558,3 +558,11 @@ EXPLANATION_PROVIDER=groq PYTHONPATH=backend \
   backend/.venv/bin/python scripts/verify_groq_explanation.py \
   --confirm-live-quota
 ```
+
+### 2026-09-09 incremental checkpoint
+
+Offline Session/bundle consistency checking is implemented in
+`scripts/verify_live_snapshot.py`; see the setup guide for input and limitations.
+This does not complete server-side evidence/macro admission or live acceptance.
+Reveal and streaming Judge work remains uncommitted and requires separate
+integration and verification.
