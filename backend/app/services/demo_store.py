@@ -312,6 +312,10 @@ class DemoStore:
 
         return {"enabled": False, "scenario": None, "notice": None}
 
+    def get_financial_facts(self, ticker: str) -> list[dict[str, object]]:
+        """No fabricated financial facts in the deterministic store."""
+        return []
+
     def get_macro_series(self) -> list[dict[str, object]]:
         return []
 

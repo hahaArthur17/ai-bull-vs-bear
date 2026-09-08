@@ -83,6 +83,7 @@ from app.services.debate_admission import (
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_evidence_admission import LiveEvidenceUnavailable, select_live_evidence
 from app.services.debate_macro_admission import LiveMacroUnavailable, require_live_macro_context
+from app.services.debate_financial_admission import LiveFinancialFactsUnavailable, select_live_financial_facts
 from app.services.debate_snapshot_provenance import quote_session, require_live_debate_history
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
@@ -429,6 +430,14 @@ def _debate_context(ticker: str, question: str | None):
                 macro_context, captured_at=captured_at, completed_through=as_of)
         except LiveMacroUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+    financial_facts = []
+    if live_ai:
+        try:
+            financial_facts = select_live_financial_facts(
+                ticker, store.get_financial_facts(ticker), captured_at=captured_at,
+                cik=_require_stock(ticker).sec_cik)
+        except (LiveFinancialFactsUnavailable, RepositoryError) as exc:
+            raise HTTPException(status_code=409, detail="Live Debate financial snapshot unavailable") from exc
     market_quote: dict[str, object] | None = None
     if live_ai:
         quote = get_quote(ticker)
@@ -482,6 +491,7 @@ def _debate_context(ticker: str, question: str | None):
         market_quote=market_quote,
         prices=prices,
         evidence=evidence,
+        financial_facts=financial_facts,
         macro_context=macro_context,
         question=question,
     )

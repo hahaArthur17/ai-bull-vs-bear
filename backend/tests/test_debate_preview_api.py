@@ -1254,6 +1254,11 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
                      metadata={"storage": "supabase", "document_id": kind})
                 for kind in ("news", "filing")]
     monkeypatch.setattr(main.store, "get_evidence", lambda ticker: evidence)
+    from test_debate_financial_admission import fact
+    monkeypatch.setattr(main.store, "get_financial_facts", lambda ticker: [fact(
+        period_start=(now-timedelta(days=90)).date().isoformat(),
+        period_end=(now-timedelta(days=30)).date().isoformat(),
+        filed_at=(now-timedelta(days=5)).date().isoformat())])
     quote = MarketQuote(ticker="AAPL", close=105, open=104, high=106, low=103,
                         previous_close=101, as_of=(now-timedelta(seconds=5)).isoformat(),
                         retrieved_at=now.isoformat(), source="finnhub_quote")
@@ -1265,6 +1270,7 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
     assert context.captured_at >= now
     assert any(item.factor_key == "market.latest-provider-quote" for item in factors.observations)
     assert context.allowed_evidence_ids == {"news", "filing"}
+    assert len(context.financial_facts) == 1
     assert len(context.macro_context) == 7
     monkeypatch.setattr(main.store, "get_macro_series", lambda: [])
     with pytest.raises(HTTPException) as no_macro:

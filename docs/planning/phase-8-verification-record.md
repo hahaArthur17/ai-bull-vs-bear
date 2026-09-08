@@ -639,3 +639,11 @@ stale dates, timezone requirements, non-finite values, missing/duplicate series,
 ordering, immutability, and the inclusive age boundary; snapshot integration
 also checks missing-macro 409 behavior. `git diff --cached --check` passed.
 No provider refresh, model call, database write or deployment occurred.
+
+## 2026-09-09 — Structured financial inputs
+
+Isolated staged snapshot: **418 backend tests passed**, one existing warning.
+New tests cover ticker-scoped public REST query bounds, SEC lookalike-host
+rejection, periods, stale/future values, duplicate conflicts, revision selection
+and live-context integration. Full regression caught and resolved an accidental
+bundle reference before commit. No model calls or database writes in this slice.

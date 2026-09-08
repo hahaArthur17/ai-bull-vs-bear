@@ -615,3 +615,13 @@ eligibility limits, not provider SLAs or proof of the newest released vintage;
 calibrate against publication delays during controlled live preflight. Research
 viewing and deterministic previews retain optional macro behavior. No new
 provider requests or cache refreshes are performed by the validator.
+
+### Structured financial snapshot selection
+
+The existing public-read `financial_facts` table now supplies Live Debate via a
+bounded ticker-scoped REST read (200 rows). No new database grant/migration is
+needed. Live admission requires at least one eligible 10-K/10-Q fact with SEC
+URL/CIK/accession provenance, ordered periods, filing age at most 120 days and
+period-end age at most 450 days. Up to 32 facts are frozen with original periods
+and units. Missing facts/read failures yield 409. These local eligibility limits
+do not prove financial-statement completeness or latest-vintage availability.

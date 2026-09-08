@@ -256,6 +256,21 @@ class SupabaseStore(DemoStore):
             for point in super().get_prices(ticker)
         ]
 
+    def get_financial_facts(self, ticker: str) -> list[dict[str, object]]:
+        stocks = self._public_request("stocks", params={
+            "select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1",
+        }).json()
+        if not stocks:
+            return []
+        response = self._public_request("financial_facts", params={
+            "select": "id,taxonomy,concept,label,unit,value,period_start,period_end,filed_at,form,accession_number,source_url,fiscal_year,fiscal_period,metadata",
+            "stock_id": f"eq.{stocks[0]['id']}",
+            "order": "filed_at.desc,period_end.desc,id.desc", "limit": "200",
+        })
+        return [{**row, "id": f"financial-fact:{row['id']}", "ticker": ticker.upper(),
+                 "metadata": {**(row.get("metadata") or {}), "storage": "supabase"}}
+                for row in response.json()]
+
     def get_macro_series(self) -> list[dict[str, object]]:
         response = self._public_request(
             "macro_series",

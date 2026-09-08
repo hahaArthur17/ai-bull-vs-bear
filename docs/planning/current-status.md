@@ -581,3 +581,12 @@ Live Turn snapshots now require the seven configured daily macro series with
 validated identity, provenance, chronology and age. Unavailable or inconsistent
 macro context returns 409 before quote lookup and Session/Job creation.
 Structured financial facts and live provider/device verification remain open.
+
+### 2026-09-09 structured financial snapshot checkpoint
+
+Live snapshots now load up to 200 ticker-scoped cached financial facts and freeze
+up to 32 eligible SEC 10-K/10-Q observations. Selection checks SEC host/CIK/
+accession path, typed periods, filing age (120 days), period age (450 days), and
+storage provenance. Same-period revisions use the latest filing; conflicting
+same-date values fail. Units/periods remain separate, and no ratio is inferred.
+This establishes eligible context, not complete financial statement coverage.
