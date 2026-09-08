@@ -485,9 +485,11 @@ silently waived.
 ### WP8L — Controlled local Live Data and Live AI acceptance
 
 **Depends on:** WP1, WP4, WP5, WP6, and the WP8 automated baseline
-**Status:** Planned; accepted as the next bounded implementation lane on
-2026-09-08. No live provider call or hosted configuration change is authorized
-by this planning update.
+**Status:** In progress; implementation authorized on 2026-09-08 after plan
+review. Each independently verified code slice includes documentation and its
+own commit. Local implementation is not evidence of live/device acceptance.
+The initial engineering slices use offline tests; quota-bearing refreshes and
+model acceptance follow the data gates below.
 **Owner:** Root controls quota-bearing calls and final acceptance; Sol owns
 data/provenance, Queue, provider, and interruption contracts; Terra owns the
 client reveal scheduler after those contracts are fixed; Luna may execute only
@@ -498,6 +500,13 @@ that Supabase, Groq, Alpha Vantage, Finnhub, and SEC settings are available in
 the ignored `.env`. The V2 workflow, Queue, Debate streaming provider, and Expo
 V2 flags are unset and therefore retain safe false/deterministic defaults. The
 current `review_fixture` server cannot be used as Live Acceptance evidence.
+
+Implementation review: the dependency order is accepted. The reveal scheduler
+can be developed against synthetic ordered events alongside the data contract;
+live execution still waits for preflight. Review must include exchange-local
+close timing, quote-aware snapshot cache identity, and completion/Stop races.
+Sol owns the backend contract, Terra the mobile scheduler, Luna independent
+verification discovery, and root integration, regression checks, and commits.
 
 #### WP8L.1 — Freeze the meaning of “current”
 
