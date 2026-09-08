@@ -137,6 +137,25 @@ export function chartBarScaleMaximum(values: number[]): number {
   return Math.max(...values, 1);
 }
 
+/**
+ * Maps a horizontal gesture inside a chart to its closest rendered data point.
+ * Values outside the plot are intentionally clamped to the first or last point
+ * so a tap on the chart gutter still has a predictable selection.
+ */
+export function nearestChartPointIndex(
+  locationX: number,
+  chartWidth: number,
+  pointCount: number,
+  paddingLeft = 0,
+  paddingRight = 0,
+): number {
+  if (pointCount <= 1) return 0;
+  const usableWidth = Math.max(chartWidth - paddingLeft - paddingRight, 1);
+  const relativePosition = (locationX - paddingLeft) / usableWidth;
+  const clampedPosition = Math.min(1, Math.max(0, relativePosition));
+  return Math.round(clampedPosition * (pointCount - 1));
+}
+
 export function seriesTrend(points: SeriesPoint[]): SeriesTrend | null {
   const values = points.filter((point): point is { date: string; value: number } => point.value !== null);
   if (values.length < 2) return null;

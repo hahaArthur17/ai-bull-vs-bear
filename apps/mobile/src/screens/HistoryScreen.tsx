@@ -1,8 +1,9 @@
 import React from "react";
-import { ScrollView, Text, View } from "react-native";
+import { ScrollView, Text, useWindowDimensions, View } from "react-native";
 
 import { FocusablePressable } from "../components/common";
 import { debateHistoryCopy } from "../debateHistoryView";
+import { isWideHistoryLayout } from "../historyLayout";
 import { appStyles as styles } from "../theme";
 import type { AnalysisResponse, DebateSessionSummary } from "../types";
 
@@ -29,6 +30,8 @@ export function HistoryScreen({
   onOpenDebate,
 }: HistoryScreenProps) {
   const hasHistory = history.length > 0 || debates.length > 0;
+  const { width: viewportWidth } = useWindowDimensions();
+  const isWideLayout = isWideHistoryLayout(viewportWidth);
   return (
     <ScrollView contentContainerStyle={[styles.page, styles.readingPage]}>
       <Text style={styles.eyebrow}>SAVED RESEARCH · REOPENABLE</Text>
@@ -52,12 +55,12 @@ export function HistoryScreen({
             return (
               <FocusablePressable
                 key={session.id}
-                style={styles.historyRow}
+                style={[styles.historyRow, !isWideLayout && styles.historyRowStacked]}
                 onPress={() => onOpenDebate(session)}
                 accessibilityRole="button"
                 accessibilityLabel={`Open ${session.ticker} Debate: ${copy.label}`}
               >
-                <View style={styles.historyCopy}>
+                <View style={[styles.historyCopy, isWideLayout && styles.historyCopyWide]}>
                   <View style={styles.historyRowHeader}>
                     <Text style={styles.stockTicker}>{session.ticker}</Text>
                     <Text style={[styles.historyStatus, historyStatusStyle[copy.kind]]}>{copy.label}</Text>
@@ -68,7 +71,9 @@ export function HistoryScreen({
                     {new Date(session.updated_at).toLocaleString()}
                   </Text>
                 </View>
-                <Text style={styles.examineLink}>{copy.action} →</Text>
+                <View style={[styles.historyAction, isWideLayout && styles.historyActionWide]}>
+                  <Text style={styles.examineLink}>{copy.action} →</Text>
+                </View>
               </FocusablePressable>
             );
           })}
@@ -80,15 +85,17 @@ export function HistoryScreen({
           accessibilityLabel={`Open classic ${item.ticker} analysis`}
           accessibilityRole="button"
           key={item.analysis_id}
-          style={styles.historyRow}
+          style={[styles.historyRow, !isWideLayout && styles.historyRowStacked]}
           onPress={() => onOpen(item)}
         >
-          <View style={styles.historyCopy}>
+          <View style={[styles.historyCopy, isWideLayout && styles.historyCopyWide]}>
             <Text style={styles.stockTicker}>{item.ticker}</Text>
             <Text style={styles.historyTitle}>Legacy Bull, Bear, and Judge synthesis</Text>
             <Text style={styles.historyTimestamp}>{new Date(item.created_at).toLocaleString()}</Text>
           </View>
-          <Text style={styles.examineLink}>Review →</Text>
+          <View style={[styles.historyAction, isWideLayout && styles.historyActionWide]}>
+            <Text style={styles.examineLink}>Review →</Text>
+          </View>
         </FocusablePressable>
       ))}
     </ScrollView>

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { PanResponder, ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
+import { ScrollView, StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import Svg, { Circle, Defs, Line, LinearGradient, Path, Rect, Stop } from "react-native-svg";
 
 import { BackButton, FailureView, FocusablePressable, LoadingView, Metric, SectionHeader } from "../components/common";
@@ -12,6 +12,7 @@ import {
   chartScale,
   formatMacroValue,
   macroChart,
+  nearestChartPointIndex,
   seriesTrend,
   simpleMovingAverage,
   technicalPath,
@@ -506,16 +507,14 @@ function InteractivePriceChart({
   const activeCoordinate = coordinates[activeIndex];
   const movingAverageUnit = activePoint.frequency === "daily" ? "d" : "w";
   const setPointFromLocation = (locationX: number) => {
-    const svgX = (locationX / Math.max(chartWidth, 1)) * width;
-    const ratio = Math.min(1, Math.max(0, (svgX - padding.left) / plotWidth));
-    setSelectedIndex(Math.round(ratio * (points.length - 1)));
+    setSelectedIndex(nearestChartPointIndex(
+      locationX,
+      chartWidth,
+      points.length,
+      padding.left,
+      padding.right,
+    ));
   };
-  const panResponder = PanResponder.create({
-    onMoveShouldSetPanResponder: () => true,
-    onStartShouldSetPanResponder: () => true,
-    onPanResponderGrant: (event) => setPointFromLocation(event.nativeEvent.locationX),
-    onPanResponderMove: (event) => setPointFromLocation(event.nativeEvent.locationX),
-  });
   const moveSelection = (direction: -1 | 1) => {
     setSelectedIndex((current) => {
       const resolved = current < 0 ? points.length - 1 : current;
@@ -569,7 +568,7 @@ function InteractivePriceChart({
           { name: "decrement", label: "Inspect earlier price point" },
           { name: "increment", label: "Inspect later price point" },
         ]}
-        accessibilityHint="Use the Earlier and Later buttons, or an assistive technology increment and decrement action, to inspect a selected price point."
+        accessibilityHint="Touch, click, or drag horizontally across the chart to inspect the nearest price point. Earlier and Later remain available for keyboard and assistive technology use."
         accessibilityLabel={`${ticker} ${range} price chart. ${trendSummary}`}
         accessibilityRole="adjustable"
         accessibilityValue={{ max: points.length, min: 1, now: activeIndex + 1, text: `${formatMarketDate(activePoint.date)}, $${activePoint.close.toFixed(2)}` }}
@@ -577,7 +576,10 @@ function InteractivePriceChart({
           if (event.nativeEvent.actionName === "decrement") moveSelection(-1);
           if (event.nativeEvent.actionName === "increment") moveSelection(1);
         }}
-        onPress={() => setSelectedIndex(activeIndex)}
+        // The shared control owns responder handlers, so use its press lifecycle
+        // for direct taps and the non-competing touch stream for horizontal drags.
+        onPressIn={(event) => setPointFromLocation(event.nativeEvent.locationX)}
+        onTouchMove={(event) => setPointFromLocation(event.nativeEvent.locationX)}
         onPointerMove={(event) => {
           if (event.nativeEvent.pointerType === "mouse") {
             setPointFromLocation(event.nativeEvent.offsetX);
@@ -585,7 +587,6 @@ function InteractivePriceChart({
         }}
         style={styles.chartTouchArea}
         onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}
-        {...panResponder.panHandlers}
       >
         <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image">
           <Defs>
@@ -619,9 +620,15 @@ function InteractivePriceChart({
         <Text style={styles.chartAxisText}>${minClose.toFixed(2)}</Text>
         <Text style={styles.chartAxisText}>${maxClose.toFixed(2)}</Text>
       </View>
-      <View accessibilityLiveRegion="polite" style={styles.chartTooltip}>
-        <Text style={styles.chartTooltipPrice}>${activePoint.close.toFixed(2)}</Text>
-        <Text style={styles.chartTooltipMeta}>Selected point {activeIndex + 1} of {points.length} · {formatMarketDate(activePoint.date)} · {frequencyLabel}</Text>
+      <View
+        accessible
+        accessibilityLabel={`Selected price details: Date ${formatMarketDate(activePoint.date)}. Close $${activePoint.close.toFixed(2)}. MA20${movingAverageUnit} ${activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}. MA50${movingAverageUnit} ${activePoint.ma50 === null ? "not enough history" : `$${activePoint.ma50.toFixed(2)}`}.`}
+        accessibilityLiveRegion="polite"
+        style={styles.chartTooltip}
+      >
+        <Text style={styles.chartTooltipPrice}>Close · ${activePoint.close.toFixed(2)}</Text>
+        <Text style={styles.chartTooltipMeta}>Date · {formatMarketDate(activePoint.date)} · Selected point {activeIndex + 1} of {points.length}</Text>
+        <Text style={styles.chartTooltipMeta}>{frequencyLabel}</Text>
         <Text style={styles.chartTooltipMeta}>
           MA20{movingAverageUnit} {activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}
           {" · "}
