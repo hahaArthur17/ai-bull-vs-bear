@@ -421,20 +421,24 @@ simulator, and one physical device. Exercise every fixture and recovery state.
 The recovery set must include an active-Debate admission conflict. The backend
 one-active-Debate rule is expected and valid: when the test user already has an
 unfinished Debate in `awaiting_user`, a second `POST /debates` returns `409
-Conflict`. The current frontend exposes that error only in the stock page's
-top-level feedback area, while the Debate action is at the bottom of the page;
-the action area therefore appears unresponsive and offers no way to open the
-existing Debate or go to History. This is an open frontend recovery-interaction
+Conflict`. The original frontend exposed that error only in the stock page's
+top-level feedback area, while the Debate action was at the bottom of the page;
+the action area therefore appeared unresponsive and offered no way to open the
+existing Debate or go to History. This was an open frontend recovery-interaction
 issue, not a V2 state-proxy issue.
 
-WP8 must verify the eventual recovery flow for this case: a clear message near
-the Debate action, protection against repeated submissions, and an explicit
-action to open the active Debate or navigate to History. Until that flow is
-implemented and verified, the active-Debate conflict remains an open WP8 item.
+Commit `0e7c813` implements the recovery interaction locally: API status is
+preserved, synchronous duplicate submissions are protected, a recovery card is
+shown near the Debate action, and the user can open the current Debate or go to
+History. The implementation is awaiting product-owner visual confirmation;
+this does not claim Xcode, physical-device, or final visual acceptance.
 
 **Tests:** complete backend suite; `npm run test:stream`; `npm run typecheck`;
 `npm run build:web`; focused proxy/API coverage for the active-Debate conflict
-and recovery entry point; recorded manual accessibility/device matrix.
+and recovery entry point; recorded manual accessibility/device matrix. The
+latest local mobile gate has 72 passing tests, with typecheck and Web export
+also passing. Commit `8c9278c` adds the V2 transient proxy coverage for
+reconnect, retry, cancel, and failure (15 passing tests).
 
 **Definition of done:** no preservation regression, no unreviewed required
 state, all automated gates pass, and limitations are recorded rather than

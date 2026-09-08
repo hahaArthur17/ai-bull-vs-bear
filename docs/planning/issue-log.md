@@ -23,7 +23,7 @@ duplicating implementation detail.
 
 ## 2026-09-08 — Active Debate conflict has no local recovery affordance
 
-**Status:** Open; WP8 frontend recovery remediation required.
+**Status:** Implemented locally / awaiting product-owner visual confirmation.
 
 **Scope and verified evidence**
 
@@ -32,10 +32,10 @@ duplicating implementation detail.
   user already has an unfinished Debate in `awaiting_user`.
 - The one-active-Debate admission rule is functioning as intended. This is not
   a Debate-generation failure and is unrelated to the V2 state proxy.
-- The frontend currently places the error only in the stock page's top-level
-  feedback area. Because the Debate action is at the bottom of the page, the
-  user can be looking at the action while missing the error; there is also no
-  nearby action to open the existing Debate or navigate to History.
+- At discovery, the frontend placed the error only in the stock page's
+  top-level feedback area. Because the Debate action is at the bottom of the
+  page, the user could be looking at the action while missing the error; there
+  was also no nearby action to open the existing Debate or navigate to History.
 
 **Impact**
 
@@ -44,13 +44,19 @@ though the backend is correctly preventing a second unfinished Debate.
 
 **Required follow-up and owner**
 
-WP8 must add and verify a recovery interaction near the Debate action: clear
-active-Debate-specific feedback, protection against repeated submissions, and
-an explicit open-current-Debate or History action. Engineering owns a
-deterministic reproduction entry point, code changes, focused automated
-evidence, and the final verification record. The product owner can perform
-the remaining visual/page checks from a short checklist and report findings
-back to engineering; those checks do not count as complete until recorded.
+Commit `0e7c813` implements the recovery interaction locally: it preserves the
+API conflict status, protects against synchronous duplicate submissions, adds a
+recovery card near the Debate action, and provides an action to open the current
+Debate or navigate to History. The latest local mobile gate reports 72 passing
+tests, with typecheck and Web export passing. Commit `8c9278c` adds the V2
+transient proxy for reconnect, retry, cancel, and failure; its focused suite
+reports 15 passing tests.
+
+The remaining follow-up is product-owner visual/page confirmation. Engineering
+owns the reproducible entry point, code changes, focused automated evidence,
+and verification record; the product owner can use the concise checklist and
+report observations back to engineering. Xcode/native simulator, physical
+device, and final visual acceptance remain outstanding.
 
 Restarting the local `review_fixture` to clear in-memory state or opening the
 existing Debate from History are temporary review workarounds only.

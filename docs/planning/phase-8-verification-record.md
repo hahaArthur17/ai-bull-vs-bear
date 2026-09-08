@@ -50,12 +50,12 @@ user already owned an unfinished Debate in `awaiting_user`. This confirms the
 backend's one-active-Debate protection is operating as designed; it is not a
 failure of Debate generation or the V2 state proxy.
 
-The user-visible failure is an open frontend interaction problem. The error is
-currently rendered only in the stock page's top-level feedback area, while the
-Debate action is at the bottom of the page. At the point of interaction the
-button therefore appears not to respond, and there is no nearby action to open
-the existing Debate or navigate to History. No frontend fix or acceptance is
-claimed by this record.
+At discovery, the user-visible failure was an open frontend interaction
+problem. The error was rendered only in the stock page's top-level feedback
+area, while the Debate action was at the bottom of the page. At the point of
+interaction the button therefore appeared not to respond, and there was no
+nearby action to open the existing Debate or navigate to History. No frontend
+fix or acceptance was claimed by this initial observation.
 
 This case is added to the WP8 recovery matrix. The required follow-up is to
 make the conflict explicit near the Debate action, prevent repeated submissions
@@ -64,6 +64,23 @@ action. The eventual implementation should be exercised through the
 deterministic recovery proxy/API fixture and browser evidence, then included in
 the final automated gate. Restarting `review_fixture` or opening the existing
 item from History remains a temporary review workaround, not a product fix.
+
+### WP8 recovery implementation update on 2026-09-08
+
+Commit `0e7c813` implements the active-Debate recovery interaction locally. It
+preserves the API conflict status, protects against synchronous duplicate
+submissions, displays a recovery card near the Debate action, and provides
+actions to open the current Debate or navigate to History. The local mobile
+gate now reports 72 passing tests; TypeScript typecheck and Web export also
+pass.
+
+Commit `8c9278c` adds the V2 transient proxy coverage for reconnect, retry,
+cancel, and failure; its focused suite reports 15 passing tests.
+
+Current status for this recovery issue: **Implemented locally / awaiting
+product-owner visual confirmation**. Xcode/native simulator review, physical
+device review, and final visual acceptance remain outstanding and are not
+claimed by these local results.
 
 ## WP3 prototype-derived design foundation verification on 2026-09-07
 
