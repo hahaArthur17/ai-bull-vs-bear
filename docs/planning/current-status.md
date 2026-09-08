@@ -25,7 +25,7 @@ remains an active product/UI remediation phase.
 | Technical and macro exploration | In progress | WP4 now renders the 1M/3M daily and 6M/1Y weekly workspace with responsive measured charts, MA overlays, RSI, MACD, volume, volatility, seven dated macro series, per-series unavailable states, and explicit provenance. The deterministic `review_fixture` passes the 320/390/768/1280 Web state matrix; native-device and product-owner visual acceptance remain required. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic, but the hosted frontend/backend are not yet proven to be the same release: the public API does not expose the current `/bundle` contract, and a staging deployment from one shared SHA plus smoke-test/rollback evidence is still required. |
-| Automated verification | In progress | The 2026-09-08 WP8 baseline has 369 passing backend tests and the latest local mobile gate has 72 passing tests; TypeScript, Expo Web export, and `git diff --check` also pass. Commit `8c9278c` adds 15 passing V2 transient-proxy tests for reconnect, retry, cancel, and failure. WP4 browser evidence covers 320/390/768/1280 research charts and the data-state matrix; WP5/WP6 cover authoritative facts and the full V2 conversation; WP7 adds responsive Auth, Watchlist, Evidence, Examination, History, About, and Legacy verification. Reduced-motion transcript scrolling is implemented and unit-verified; browser preference, native simulator, physical-device, 200% zoom, staging, and current-data acceptance remain open. |
+| Automated verification | In progress | The latest 2026-09-08 local gate has 370 passing backend tests and 78 passing mobile tests; TypeScript, Expo Web export, and `git diff --check` also pass. Commit `8c9278c` adds 15 passing V2 transient-proxy tests for reconnect, retry, cancel, and failure. WP4 browser evidence covers 320/390/768/1280 research charts and the data-state matrix; WP5/WP6 cover authoritative facts and the full V2 conversation; WP7 adds responsive Auth, Watchlist, Evidence, Examination, History, About, and Legacy verification. Reduced-motion transcript scrolling and the ask-first point-question state contract are unit-verified; browser preference, native simulator, physical-device, 200% zoom, staging, and current-data acceptance remain open. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive single/two-panel Auth surface is implemented. Four-width Web inspection found no horizontal overflow; required/invalid state and label/description relationships are present in the Web DOM. Live-provider submission, native keyboard/screen-reader, simulator, and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search and the loaded-stock “Ready to review” summary now use the shared dark system and a responsive single/two-column layout. A local catalog-only MSFT search and four-width no-overflow check passed; persistence/reload, recovery-state, native, and product-owner acceptance remain open. |
@@ -117,7 +117,9 @@ Documentation Phase 0, modular-boundary Phase 1, hosted Catalog Phase 2, Debate
 persistence Phase 3, Queue/Worker Phase 5, and Redis/local Phase 6 are complete
 in their recorded scopes. Phase 4 also passed its quota-controlled local Groq
 streaming completion gate. Explanation now has a stable read-only mobile/API
-path plus a bounded optional Groq provider. Phase 7 is complete in its linear
+path plus a bounded optional Groq provider. At the Interim Judge pause,
+“Ask about this point” opens that educational path in a dismissible modal; only
+a separate confirmation can queue Round 2. Phase 7 is complete in its linear
 interaction scope. Phase 8 is not complete: the active work is the
 Prototype-based dark UI migration, chart and technical-indicator review,
 chat-style V2 Debate transcript with visible facts/citations, deterministic
@@ -125,8 +127,8 @@ review fixtures, data/release integrity, staging proof, and native/physical
 device acceptance. WP8 has locally implemented the active-Debate recovery
 interaction in `0e7c813`: the backend `409` is preserved, duplicate submissions
 are protected, a nearby recovery card is shown, and the current Debate/History
-actions are available. The mobile gate reports 72 passing tests, with
-typecheck and Web export passing. V2 transient proxy coverage for
+actions are available. The local gate reports 370 backend and 78 mobile tests,
+with typecheck and Web export passing. V2 transient proxy coverage for
 reconnect/retry/cancel/failure is recorded in `8c9278c` with 15 passing tests.
 Product-owner visual confirmation remains pending; Xcode/native simulator,
 physical-device, and final visual acceptance are not complete. Product-owner

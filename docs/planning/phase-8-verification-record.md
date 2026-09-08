@@ -82,6 +82,34 @@ product-owner visual confirmation**. Xcode/native simulator review, physical
 device review, and final visual acceptance remain outstanding and are not
 claimed by these local results.
 
+### WP8 newly observed point-question interaction issue and implementation
+
+Product-owner review found that the former “Challenge this point” action opened
+a large composer at the bottom of the transcript and implied that entering a
+question would immediately start Round 2. The panel was easy to miss at the
+current scroll position and offered no visible Cancel, Back, or backdrop
+dismissal. This conflated an educational question with a durable Debate
+intervention.
+
+Commit `425104c` makes the deterministic Explanation provider support exact
+passages up to the existing 500-character request limit without violating the
+100-character term schema, and broadens the Groq prompt from a term to a term,
+claim, or passage. Commit `87408ba` changes the message action to “Ask about
+this point”, opens a current-viewport read-only Explanation modal by default,
+and requires a separate explicit confirmation before calling the Challenge
+endpoint. The modal includes Close, Cancel, backdrop dismissal, Android Back,
+keyboard avoidance, stale-request protection, and disabled duplicate submit
+states. A Terra review found no P0/P1 issue; its Android Back and keyboard
+findings were corrected before the final local gate.
+
+The post-fix deterministic gate reports 370 passing backend tests and 78
+passing mobile tests; TypeScript typecheck, Expo Web export, and
+`git diff --check` pass. Current status: **Implemented locally / awaiting
+product-owner simulator interaction confirmation**. The product owner will
+perform the page-level visual checks from a concise checklist and report any
+failure; engineering will reproduce and modify code. This does not claim iOS,
+Android, physical-device, 200% zoom, screen-reader, or final WP9 acceptance.
+
 ## WP3 prototype-derived design foundation verification on 2026-09-07
 
 WP3 replaces the shared warm-paper shell with one semantic deep-theme contract

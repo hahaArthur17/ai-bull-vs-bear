@@ -31,11 +31,11 @@ baseline is maintained in
   deterministic chunks, not live model tokens. A default-off async per-Turn
   contract and Groq adapter validate true provider streams before persistence.
   The V2 mobile screen mounts the resumable SSE client, Queue state, Round 2,
-  generation-scoped cancellation, and a read-only exact-term Explanation panel
-  behind its own disabled flag. Explanation defaults to deterministic and has a
-  separately configured, bounded Groq option. Cancellation rotates the active
-  generation and prevents late provider completion from becoming a canonical
-  message.
+  generation-scoped cancellation, and a read-only point-question modal before
+  an explicit Round 2 confirmation. Explanation defaults to deterministic and
+  has a separately configured, bounded Groq option. Cancellation rotates the
+  active generation and prevents late provider completion from becoming a
+  canonical message.
 - Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
   required for the first run.
 - RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.

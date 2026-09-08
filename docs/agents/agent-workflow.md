@@ -168,11 +168,13 @@ evidence, and uncertainty without choosing a trade. The session moves to
 ### Step 5: Explain or challenge
 
 - Explanation Agent: explains a selected term/passage with minimal context and
-  does not alter the Debate state.
+  does not alter the Debate state. The client opens this educational path by
+  default when the user asks about a completed point.
 - User challenge: is available only at the durable `awaiting_user` pause,
-  records a free-form intervention against one selected complete message, and
-  queues Round 2 on the active linear branch. General message branching remains
-  deferred; cancellation independently rejects late chunks by `generation_id`.
+  requires a separate explicit Round 2 confirmation, records a free-form
+  intervention against one selected complete message, and queues Round 2 on the
+  active linear branch. General message branching remains deferred;
+  cancellation independently rejects late chunks by `generation_id`.
 
 ### Step 6: Produce round two
 
