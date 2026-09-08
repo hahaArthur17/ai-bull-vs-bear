@@ -617,3 +617,14 @@ The staged snapshot was exported to a clean temporary directory, excluding
 unfinished Judge/reveal work. Full backend suite: **382 passed**, one existing
 Starlette/httpx deprecation warning. `git diff --cached --check` passed. No
 external data refresh, model call, database write, or deployment occurred.
+
+## 2026-09-09 — Live evidence eligibility checkpoint
+
+The staged snapshot was exported with `git checkout-index` to a clean temporary
+directory, excluding all unfinished Judge/reveal work. Full backend suite:
+**393 passed**, one existing Starlette/httpx deprecation warning. Coverage adds
+source-window boundaries, forged freshness labels, future/malformed dates,
+ticker/source provenance, invalid URLs, duplicate IDs, immutable selection,
+and integration with live snapshot creation/409 rejection. `git diff --cached
+--check` passed. No provider refresh, model call, database write, or deployment
+occurred. Macro and structured financial-fact admission remain open.

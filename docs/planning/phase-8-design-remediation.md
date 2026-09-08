@@ -842,3 +842,19 @@ or duplicate macro series, and failed factor providers. This is a bounded WP8L.2
 prerequisite only: it does not close live refresh or API evidence/macro admission.
 Next slice: implement server-side evidence/filing/macro eligibility with
 source-specific freshness rules before running model acceptance.
+
+### WP8L engineering checkpoint — 2026-09-09 live evidence admission
+
+Live Turn admission now selects news and filing documents before quote lookup
+and Session/Job creation. It recalculates the existing 7-day news and 120-day
+filing policy at capture time; future/malformed dates, other tickers, missing
+Supabase document provenance, and invalid source URLs are excluded. At least
+one eligible document of each category is required, otherwise admission returns
+409. Conflicting duplicate IDs also fail; exact duplicates are deduplicated.
+Only selected IDs enter the immutable citation allowlist. Technical context is
+provided by validated price factors, not inherited demo technical evidence.
+
+This is filing-document eligibility, not structured financial-fact completeness
+or SEC-origin authentication. Macro per-series freshness/admission and structured
+financial-fact selection remain the next slices. Deterministic/review research
+paths retain their existing behavior; no external refresh or live call was run.

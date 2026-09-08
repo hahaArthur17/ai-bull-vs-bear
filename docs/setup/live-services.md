@@ -580,3 +580,19 @@ proof of source truth. A later page capture can legitimately contain newer
 values and fail equality. It does not prove current provider availability,
 filing completeness, per-series freshness budgets, real-model execution, or
 native-device acceptance. Those gates remain separate follow-up work.
+
+### Live evidence admission checkpoint
+
+With the live Turn provider selected in standard mode, Debate requires at least
+one eligible cached news document (7 days) and filing document (120 days).
+Eligibility is recalculated at capture time, ignoring stored freshness labels.
+Rows must match the ticker, have Supabase storage/document metadata, and a valid
+HTTP(S) source URL without embedded credentials. Future or malformed publication
+times are ineligible. Old/ineligible rows remain available in research but are
+excluded from the new Debate citation allowlist. Missing eligible categories or
+conflicting duplicate document IDs produce 409 before quote lookup and queue
+admission. Existing sessions retain their original frozen inputs.
+
+These are application eligibility windows, not guarantees of completeness or
+source authenticity. Structured financial facts and macro series still need
+separate admission rules before full Live Acceptance.

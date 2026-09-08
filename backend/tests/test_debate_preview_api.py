@@ -1240,7 +1240,12 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
     monkeypatch.setattr(main.settings, "debate_streaming_provider", "groq")
     monkeypatch.setattr(main.store, "get_prices", lambda ticker: prices)
     monkeypatch.setattr(main.store, "get_macro_series", lambda: [])
-    monkeypatch.setattr(main.store, "get_evidence", lambda ticker: [])
+    evidence = [dict(id=kind, ticker="AAPL", source_type=kind,
+                     title="Current document", excerpt="Source observation",
+                     url="https://example.com/document", published_at=now.isoformat(),
+                     metadata={"storage": "supabase", "document_id": kind})
+                for kind in ("news", "filing")]
+    monkeypatch.setattr(main.store, "get_evidence", lambda ticker: evidence)
     quote = MarketQuote(ticker="AAPL", close=105, open=104, high=106, low=103,
                         previous_close=101, as_of=(now-timedelta(seconds=5)).isoformat(),
                         retrieved_at=now.isoformat(), source="finnhub_quote")
@@ -1251,6 +1256,12 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
     assert context.market_quote.retrieved_at == now
     assert context.captured_at >= now
     assert any(item.factor_key == "market.latest-provider-quote" for item in factors.observations)
+    assert context.allowed_evidence_ids == {"news", "filing"}
+    monkeypatch.setattr(main.store, "get_evidence", lambda ticker: [])
+    with pytest.raises(HTTPException) as missing:
+        main._debate_context("AAPL", None)
+    assert missing.value.status_code == 409
+    monkeypatch.setattr(main.store, "get_evidence", lambda ticker: evidence)
     quote.retrieved_at = None
     with pytest.raises(HTTPException) as error:
         main._debate_context("AAPL", None)

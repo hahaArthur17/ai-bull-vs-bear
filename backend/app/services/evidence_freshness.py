@@ -47,7 +47,14 @@ def classify_evidence_freshness(
         }
     if published.tzinfo is None:
         published = published.replace(tzinfo=timezone.utc)
-    age_days = max((evaluated_at.date() - published.date()).days, 0)
+    if published > evaluated_at:
+        return {
+            "status": "unknown",
+            "age_days": None,
+            "max_age_days": window_days,
+            "evaluated_at": evaluated_at.isoformat(),
+        }
+    age_days = (evaluated_at.date() - published.date()).days
     return {
         "status": "current" if age_days <= window_days else "stale",
         "age_days": age_days,

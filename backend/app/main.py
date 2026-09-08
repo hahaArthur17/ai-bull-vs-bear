@@ -81,6 +81,7 @@ from app.services.debate_admission import (
     DebateRateLimitExceeded,
 )
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
+from app.services.debate_evidence_admission import LiveEvidenceUnavailable, select_live_evidence
 from app.services.debate_snapshot_provenance import quote_session, require_live_debate_history
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
@@ -384,6 +385,12 @@ def _debate_context(ticker: str, question: str | None):
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Live Debate snapshot rejected: {exc}",
             ) from exc
+    evidence = store.get_evidence(ticker)
+    if live_ai:
+        try:
+            evidence = select_live_evidence(ticker, evidence, captured_at=captured_at)
+        except LiveEvidenceUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     as_of = str(prices[-1]["date"])
     macro_context: list[dict[str, object]] = []
     try:
@@ -463,7 +470,7 @@ def _debate_context(ticker: str, question: str | None):
         captured_at=captured_at,
         market_quote=market_quote,
         prices=prices,
-        evidence=store.get_evidence(ticker),
+        evidence=evidence,
         macro_context=macro_context,
         question=question,
     )

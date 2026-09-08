@@ -566,3 +566,11 @@ Offline Session/bundle consistency checking is implemented in
 This does not complete server-side evidence/macro admission or live acceptance.
 Reveal and streaming Judge work remains uncommitted and requires separate
 integration and verification.
+
+### 2026-09-09 live evidence admission checkpoint
+
+Server-side live Turn admission now requires current, traceable news and filing
+documents, recomputes freshness, rejects future dates, and freezes only eligible
+citation IDs. Missing categories return 409 before quote lookup and Session/Job
+creation. Structured financial facts and macro admission remain unfinished;
+this checkpoint does not authorize or prove full Live Acceptance.
