@@ -590,3 +590,20 @@ banner in the successful demo run.
   responsive flows there before any public-demo release.
 - Re-run the complete backend suite and all Phase 8 acceptance checks after
   implementation; only then may the phase be evaluated for Done.
+
+## 2026-09-09 — WP8L quote/completed-close snapshot checkpoint
+
+Root reviewed the Sol snapshot slice and corrected quote retrieval provenance
+on cache hits and freshness evaluation against the capture-time market session.
+The staged files were exported with `git checkout-index` into a temporary clean
+directory, excluding unfinished reveal/Judge/offline-preflight work. Running
+`backend/.venv/bin/python -m pytest backend/tests -q` against that exact staged
+snapshot passed **374 tests**, with one existing Starlette/httpx deprecation
+warning. `git diff --cached --check` passed.
+
+The passing scope is immutable market inputs and fail-closed market admission,
+not complete Live Acceptance. Holiday/early-close calendars, evidence/filing/
+macro admission, client snapshot display, streaming Judge, reveal integration,
+Stop/interjection, provider quota checks, native-device and staging acceptance
+remain open. Uncommitted work for later slices is intentionally excluded from
+this checkpoint; validate it before using the shared working tree as a runtime.

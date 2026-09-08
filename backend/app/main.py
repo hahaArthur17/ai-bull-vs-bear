@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 import logging
 from collections.abc import Iterator
 from typing import Annotated
@@ -80,6 +81,7 @@ from app.services.debate_admission import (
     DebateRateLimitExceeded,
 )
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
+from app.services.debate_snapshot_provenance import quote_session, require_live_debate_history
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
     DebateEventCursorExpired,
@@ -369,6 +371,19 @@ def _debate_context(ticker: str, question: str | None):
             status_code=status.HTTP_409_CONFLICT,
             detail="Debate requires a cached price snapshot",
         )
+    captured_at = datetime.now(timezone.utc)
+    live_ai = (
+        settings.app_data_mode == "standard"
+        and settings.debate_streaming_provider != "deterministic"
+    )
+    if live_ai:
+        try:
+            require_live_debate_history(prices, captured_at=captured_at)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Live Debate snapshot rejected: {exc}",
+            ) from exc
     as_of = str(prices[-1]["date"])
     macro_context: list[dict[str, object]] = []
     try:
@@ -396,9 +411,57 @@ def _debate_context(ticker: str, question: str | None):
             )
     except Exception:
         logger.warning("Optional macro snapshot unavailable for Debate %s", ticker)
+    market_quote: dict[str, object] | None = None
+    if live_ai:
+        quote = get_quote(ticker)
+        if quote is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Live Debate snapshot rejected: latest provider quote unavailable",
+            )
+        captured_at = datetime.now(timezone.utc)
+        try:
+            quote_time = datetime.fromisoformat(quote.as_of)
+            retrieved_at = datetime.fromisoformat(quote.retrieved_at or "")
+        except ValueError as exc:
+            raise HTTPException(status_code=409, detail="Live Debate snapshot rejected: missing quote provenance") from exc
+        if (quote_time.tzinfo is None or retrieved_at.tzinfo is None
+                or not quote_time <= retrieved_at <= captured_at):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Live Debate snapshot rejected: provider quote timestamp is inconsistent",
+            )
+        age_seconds = max(0, int((captured_at - quote_time).total_seconds()))
+        session = quote_session(quote_time)
+        # A regular-session quote older than 15 minutes cannot imply current
+        # inputs. Closed-session quotes may retain the last print through a
+        # weekend, but never indefinitely.
+        stale = age_seconds > (900 if quote_session(captured_at) == "regular" else 259_200)
+        if stale:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Live Debate snapshot rejected: latest provider quote is stale",
+            )
+        market_quote = {
+            **quote.model_dump(mode="python"),
+            "retrieved_at": retrieved_at,
+            "freshness": {
+                "status": "stale" if stale else "current",
+                "evaluated_at": captured_at.isoformat(),
+            },
+            "market_session": session,
+        }
+    try:
+        if market_quote is not None:
+            from app.domain.factors import AnalysisMarketQuote
+            AnalysisMarketQuote.model_validate(market_quote)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail="Live Debate snapshot rejected: invalid quote") from exc
     context = build_analysis_context(
         ticker,
         as_of=as_of,
+        captured_at=captured_at,
+        market_quote=market_quote,
         prices=prices,
         evidence=store.get_evidence(ticker),
         macro_context=macro_context,

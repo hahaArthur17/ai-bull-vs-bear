@@ -213,8 +213,10 @@ def test_quote_cache_avoids_repeat_provider_calls_until_expiry() -> None:
     provider = FakeProvider()
     cache = QuoteCache(provider, ttl_seconds=60, clock=lambda: now[0])  # type: ignore[arg-type]
 
-    assert cache.get("aapl")["close"] == 316.83
-    assert cache.get("AAPL")["close"] == 316.83
+    first = cache.get("aapl")
+    assert first["close"] == 316.83
+    assert first["retrieved_at"]
+    assert cache.get("AAPL")["retrieved_at"] == first["retrieved_at"]
     now[0] = 60.0
     cache.get("AAPL")
 

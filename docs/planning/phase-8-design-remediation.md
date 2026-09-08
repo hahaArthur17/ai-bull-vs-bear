@@ -510,6 +510,15 @@ verification discovery, and root integration, regression checks, and commits.
 
 #### WP8L.1 — Freeze the meaning of “current”
 
+2026-09-09: quote/completed-close backend slice implemented. Immutable context
+includes capture time, latest completed-close date, and a separate Finnhub quote
+factor with original retrieval time retained across cache hits. Live Turn
+admission rejects invalid/insufficient/stale daily history and unavailable,
+stale, future, or inconsistent quotes. NY 16:15/weekend cutoff is conservative;
+an authoritative holiday/early-close calendar and evidence/filing/macro admission
+gates remain pending. This does not close WP8L.1 or live/device acceptance.
+
+
 - Treat `GET /stocks/AAPL/quote` as the latest provider quote. Preserve its
   source timestamp, retrieval time, age, session/market context when available,
   and unavailable/stale state. Do not promise exchange-grade real-time service

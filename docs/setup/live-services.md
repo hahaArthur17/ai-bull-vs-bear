@@ -540,3 +540,16 @@ keys rather than that password.
 If a credential is exposed in chat, logs, screenshots, or Git history, revoke
 it immediately in the provider console and create a replacement. Removing a
 secret from the current file is not enough once it has entered Git history.
+
+
+### 2026-09-09 snapshot engineering checkpoint
+
+The backend snapshot now records separate quote/close observations and capture
+time. Finnhub retrieval time survives cache hits. Live Turn admission uses a
+15-minute quote age limit during the current regular session and 72 hours
+otherwise; these are application limits, not provider guarantees. Daily rows
+must be ordered, unique, positive, fresh, and at least 50 in number, with a
+conservative New York 16:15/weekend cutoff. Holidays and early closes still
+require an authoritative calendar. Evidence/filing/macro admission and the
+full live preflight are pending. No data refresh, model call, or hosted flag
+change was performed for this checkpoint.

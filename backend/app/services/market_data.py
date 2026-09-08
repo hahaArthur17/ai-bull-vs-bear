@@ -350,6 +350,7 @@ class QuoteCache:
             if cached and cached[0] > now:
                 return cached[1].copy()
         quote = self.provider.fetch_quote(normalized)
+        quote["retrieved_at"] = datetime.now(timezone.utc).isoformat()
         with self._lock:
             self._cache[normalized] = (self.clock() + self.ttl_seconds, quote.copy())
         return quote

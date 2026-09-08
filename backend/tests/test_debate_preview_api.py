@@ -516,7 +516,7 @@ def test_debate_rate_limit_allows_terminal_sessions_then_returns_retry_after(
     }
 
 
-def test_standard_debate_reuses_only_factor_snapshot_across_users(
+def test_standard_debate_does_not_reuse_a_prior_capture_across_users(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     enable_preview(monkeypatch)
@@ -554,8 +554,8 @@ def test_standard_debate_reuses_only_factor_snapshot_across_users(
 
     assert first.status_code == second.status_code == 201
     assert first.headers["x-cache-status"] == "MISS"
-    assert second.headers["x-cache-status"] == "HIT"
-    assert collect_calls == 1
+    assert second.headers["x-cache-status"] == "MISS"
+    assert collect_calls == 2
     assert first.json()["session"]["user_id"] != second.json()["session"]["user_id"]
     assert first.json()["session"]["id"] != second.json()["session"]["id"]
     assert first.json()["messages"][0]["message"]["id"] != (
@@ -1223,3 +1223,35 @@ def test_enabled_preview_does_not_change_legacy_analysis_contract(
     assert response.status_code == 201
     assert response.json()["ticker"] == "GOOG"
     assert client.get("/analysis", headers={"X-User-Id": "legacy-user"}).status_code == 200
+
+
+def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+    from fastapi import HTTPException
+    from app.schemas import MarketQuote
+    from app.services.debate_snapshot_provenance import completed_close_cutoff
+
+    now = datetime.now(timezone.utc)
+    end = completed_close_cutoff(now)
+    prices = [dict(date=(end - timedelta(days=49-i)).isoformat(), open=100,
+                   high=102, low=99, close=101, volume=100,
+                   source="daily_market_cache", is_stale=False) for i in range(50)]
+    monkeypatch.setattr(main.settings, "app_data_mode", "standard")
+    monkeypatch.setattr(main.settings, "debate_streaming_provider", "groq")
+    monkeypatch.setattr(main.store, "get_prices", lambda ticker: prices)
+    monkeypatch.setattr(main.store, "get_macro_series", lambda: [])
+    monkeypatch.setattr(main.store, "get_evidence", lambda ticker: [])
+    quote = MarketQuote(ticker="AAPL", close=105, open=104, high=106, low=103,
+                        previous_close=101, as_of=(now-timedelta(seconds=5)).isoformat(),
+                        retrieved_at=now.isoformat(), source="finnhub_quote")
+    monkeypatch.setattr(main, "get_quote", lambda ticker: quote)
+    context, factors, _ = main._debate_context("AAPL", None)
+    assert context.prices[-1].close == 101
+    assert context.market_quote.close == 105
+    assert context.market_quote.retrieved_at == now
+    assert context.captured_at >= now
+    assert any(item.factor_key == "market.latest-provider-quote" for item in factors.observations)
+    quote.retrieved_at = None
+    with pytest.raises(HTTPException) as error:
+        main._debate_context("AAPL", None)
+    assert error.value.status_code == 409

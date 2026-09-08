@@ -95,6 +95,7 @@ def test_current_registry_collects_every_existing_factor_category() -> None:
     snapshot = registry.collect(build_current_context())
 
     assert registry.provider_names == (
+        "market-quote",
         "technical-indicators",
         "macro-context",
         "news-evidence",
@@ -164,3 +165,41 @@ def test_absent_optional_sources_are_visible_as_missing_categories_not_failures(
     assert snapshot.missing_categories == ("macro", "company", "fundamental")
     assert snapshot.provider_failures == ()
 
+
+def test_quote_factor_is_frozen_and_does_not_change_completed_close_math() -> None:
+    context = build_current_context()
+    with_quote = build_analysis_context(
+        context.ticker,
+        as_of=context.as_of,
+        captured_at="2026-08-26T20:05:00+00:00",
+        prices=context.prices,
+        evidence=context.evidence,
+        macro_context=context.macro_context,
+        financial_facts=context.financial_facts,
+        market_quote={
+            "ticker": "AAPL",
+            "close": 110,
+            "open": 108,
+            "high": 111,
+            "low": 107,
+            "previous_close": 107,
+            "as_of": "2026-08-26T20:00:00+00:00",
+            "retrieved_at": "2026-08-26T20:04:00+00:00",
+            "source": "finnhub_quote",
+            "freshness": {"status": "current"},
+            "market_session": "after_hours",
+        },
+    )
+
+    snapshot = build_current_factor_registry().collect(with_quote)
+    quote = next(item for item in snapshot.observations if item.provider == "market-quote")
+    moving_averages = next(
+        item for item in snapshot.observations if item.factor_key == "technical.moving-averages"
+    )
+
+    assert quote.value["price"] == 110
+    assert quote.source_refs[0].source_type == "quote"
+    assert quote.metadata["retrieved_at"] == "2026-08-26T20:04:00+00:00"
+    assert quote.metadata["latest_completed_close_date"] == "2026-08-26"
+    assert moving_averages.value["close"] == 104
+    assert with_quote.model_dump(mode="json")["captured_at"] == "2026-08-26T20:05:00Z"

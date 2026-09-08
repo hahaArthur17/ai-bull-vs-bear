@@ -58,6 +58,7 @@ class PriceHistoryPoint(BaseModel):
 
 
 class MarketQuote(BaseModel):
+    retrieved_at: str | None = None
     ticker: str
     close: float
     open: float

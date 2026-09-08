@@ -4,7 +4,7 @@ from typing import Literal, Protocol, runtime_checkable
 
 from pydantic import Field, JsonValue, field_serializer, field_validator, model_validator
 
-from app.domain.base import ImmutableDomainModel
+from app.domain.base import AwareDatetime, ImmutableDomainModel
 
 
 FactorCategory = Literal["technical", "macro", "company", "fundamental", "other"]
@@ -16,6 +16,7 @@ FactorSourceType = Literal[
     "macro",
     "financial_fact",
     "other",
+    "quote",
 ]
 
 
@@ -35,6 +36,35 @@ class AnalysisPricePoint(ImmutableDomainModel):
     volume: int = Field(ge=0)
     source: str | None = Field(default=None, max_length=80)
     is_stale: bool | None = None
+
+
+class AnalysisMarketQuote(ImmutableDomainModel):
+    """One accepted provider quote, kept separate from completed closes."""
+
+    ticker: str = Field(min_length=1, max_length=16)
+    close: float = Field(gt=0)
+    open: float = Field(gt=0)
+    high: float = Field(gt=0)
+    low: float = Field(gt=0)
+    previous_close: float = Field(gt=0)
+    as_of: AwareDatetime
+    retrieved_at: AwareDatetime
+    source: Literal["finnhub_quote"]
+    freshness: FactorFreshness = Field(default_factory=FactorFreshness)
+    market_session: Literal["pre_market", "regular", "after_hours", "closed", "unknown"] = "unknown"
+
+    @field_validator("ticker")
+    @classmethod
+    def normalize_ticker(cls, value: str) -> str:
+        return value.upper()
+
+    @model_validator(mode="after")
+    def validate_quote(self) -> AnalysisMarketQuote:
+        if self.high < max(self.open, self.close) or self.low > min(self.open, self.close):
+            raise ValueError("Quote contains an inconsistent OHLC range")
+        if self.retrieved_at < self.as_of:
+            raise ValueError("Quote retrieval cannot precede its provider timestamp")
+        return self
 
 
 class AnalysisEvidenceItem(ImmutableDomainModel):
@@ -93,6 +123,9 @@ class AnalysisContext(ImmutableDomainModel):
 
     ticker: str = Field(min_length=1, max_length=16)
     as_of: str = Field(min_length=1, max_length=40)
+    captured_at: AwareDatetime | None = None
+    latest_completed_close_date: str | None = Field(default=None, max_length=40)
+    market_quote: AnalysisMarketQuote | None = None
     prices: tuple[AnalysisPricePoint, ...] = ()
     evidence: tuple[AnalysisEvidenceItem, ...] = ()
     macro_context: tuple[AnalysisMacroObservation, ...] = ()
@@ -116,6 +149,14 @@ class AnalysisContext(ImmutableDomainModel):
             raise ValueError("Evidence ticker does not match the analysis context")
         if any(item.ticker != self.ticker for item in self.financial_facts):
             raise ValueError("Financial-fact ticker does not match the analysis context")
+        if self.market_quote is not None and self.market_quote.ticker != self.ticker:
+            raise ValueError("Market quote ticker does not match the analysis context")
+        if (
+            self.latest_completed_close_date is not None
+            and self.prices
+            and self.latest_completed_close_date != self.prices[-1].date
+        ):
+            raise ValueError("Latest completed close date must match the final price row")
         evidence_ids = {item.id for item in self.evidence}
         if evidence_ids and not self.allowed_evidence_ids <= evidence_ids:
             raise ValueError("Allowed evidence IDs must exist in the context snapshot")
