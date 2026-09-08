@@ -1239,7 +1239,15 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
     monkeypatch.setattr(main.settings, "app_data_mode", "standard")
     monkeypatch.setattr(main.settings, "debate_streaming_provider", "groq")
     monkeypatch.setattr(main.store, "get_prices", lambda ticker: prices)
-    monkeypatch.setattr(main.store, "get_macro_series", lambda: [])
+    from app.services.macro_data import DEFAULT_MACRO_SERIES
+    definitions = {item.code: item for item in DEFAULT_MACRO_SERIES}
+    series_rows = [dict(code=item.code, name=item.name, source=item.source,
+                        unit=item.unit, frequency=item.frequency) for item in definitions.values()]
+    monkeypatch.setattr(main.store, "get_macro_series", lambda: series_rows)
+    monkeypatch.setattr(main.store, "get_macro_observations", lambda code, limit: [dict(
+        series_code=code, observation_date=end.isoformat(), value=1,
+        retrieved_at=now.isoformat(), metadata={"provider": definitions[code].source,
+        "provider_series_id": definitions[code].provider_series_id})])
     evidence = [dict(id=kind, ticker="AAPL", source_type=kind,
                      title="Current document", excerpt="Source observation",
                      url="https://example.com/document", published_at=now.isoformat(),
@@ -1257,6 +1265,12 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
     assert context.captured_at >= now
     assert any(item.factor_key == "market.latest-provider-quote" for item in factors.observations)
     assert context.allowed_evidence_ids == {"news", "filing"}
+    assert len(context.macro_context) == 7
+    monkeypatch.setattr(main.store, "get_macro_series", lambda: [])
+    with pytest.raises(HTTPException) as no_macro:
+        main._debate_context("AAPL", None)
+    assert no_macro.value.status_code == 409
+    monkeypatch.setattr(main.store, "get_macro_series", lambda: series_rows)
     monkeypatch.setattr(main.store, "get_evidence", lambda ticker: [])
     with pytest.raises(HTTPException) as missing:
         main._debate_context("AAPL", None)

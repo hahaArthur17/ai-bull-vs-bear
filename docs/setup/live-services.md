@@ -596,3 +596,22 @@ admission. Existing sessions retain their original frozen inputs.
 These are application eligibility windows, not guarantees of completeness or
 source authenticity. Structured financial facts and macro series still need
 separate admission rules before full Live Acceptance.
+
+### Live macro admission checkpoint
+
+Standard-mode live Turn admission now requires the exact seven configured daily
+series: `sp500`, `vix`, `effective_fed_funds_rate`, `treasury_2y_yield`,
+`treasury_10y_yield`, `treasury_30y_yield`, and `wti_spot`. Each selected latest
+observation must match its configured source, unit, provider metadata and
+upstream series ID. Dates must be valid, the observation cannot exceed the
+completed-close date, and retrieval requires a timezone and cannot be in the
+future or precede the observation date. Non-finite values, duplicate required
+codes, missing series and retrieval failures reject admission with 409 before
+quote lookup or Session/Job creation.
+
+The initial application policy allows observation age up to 7 calendar days and
+retrieval age up to 7 elapsed days for each series. These are conservative local
+eligibility limits, not provider SLAs or proof of the newest released vintage;
+calibrate against publication delays during controlled live preflight. Research
+viewing and deterministic previews retain optional macro behavior. No new
+provider requests or cache refreshes are performed by the validator.

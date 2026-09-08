@@ -82,6 +82,7 @@ from app.services.debate_admission import (
 )
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
 from app.services.debate_evidence_admission import LiveEvidenceUnavailable, select_live_evidence
+from app.services.debate_macro_admission import LiveMacroUnavailable, require_live_macro_context
 from app.services.debate_snapshot_provenance import quote_session, require_live_debate_history
 from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
@@ -396,6 +397,8 @@ def _debate_context(ticker: str, question: str | None):
     try:
         for raw_series in store.get_macro_series():
             series = MacroSeries.model_validate(raw_series)
+            if live_ai and series.frequency != "daily":
+                raise LiveMacroUnavailable("Live Debate macro frequency is inconsistent")
             candidates = [
                 MacroObservation.model_validate(row)
                 for row in store.get_macro_observations(series.code, limit=10)
@@ -416,8 +419,16 @@ def _debate_context(ticker: str, question: str | None):
                     "metadata": latest.metadata,
                 }
             )
-    except Exception:
+    except Exception as exc:
+        if live_ai:
+            raise HTTPException(status_code=409, detail="Live Debate macro snapshot unavailable") from exc
         logger.warning("Optional macro snapshot unavailable for Debate %s", ticker)
+    if live_ai:
+        try:
+            macro_context = require_live_macro_context(
+                macro_context, captured_at=captured_at, completed_through=as_of)
+        except LiveMacroUnavailable as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
     market_quote: dict[str, object] | None = None
     if live_ai:
         quote = get_quote(ticker)

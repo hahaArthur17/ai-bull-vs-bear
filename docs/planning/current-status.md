@@ -574,3 +574,10 @@ documents, recomputes freshness, rejects future dates, and freezes only eligible
 citation IDs. Missing categories return 409 before quote lookup and Session/Job
 creation. Structured financial facts and macro admission remain unfinished;
 this checkpoint does not authorize or prove full Live Acceptance.
+
+### 2026-09-09 macro admission checkpoint
+
+Live Turn snapshots now require the seven configured daily macro series with
+validated identity, provenance, chronology and age. Unavailable or inconsistent
+macro context returns 409 before quote lookup and Session/Job creation.
+Structured financial facts and live provider/device verification remain open.

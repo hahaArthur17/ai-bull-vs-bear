@@ -858,3 +858,13 @@ This is filing-document eligibility, not structured financial-fact completeness
 or SEC-origin authentication. Macro per-series freshness/admission and structured
 financial-fact selection remain the next slices. Deterministic/review research
 paths retain their existing behavior; no external refresh or live call was run.
+
+### WP8L engineering checkpoint — 2026-09-09 macro admission
+
+Live Turn admission now requires all seven named macro series from the existing
+configuration and validates source/unit/provider ID, finite values, unique
+codes, observation/retrieval chronology and age. Missing/invalid macro context
+returns 409 rather than silently admitting partial context. The initial policy
+uses 7-day age limits for these daily series; provider publication/vintage
+verification remains part of live preflight. Next bounded slice: structured
+financial-fact selection/provenance. This does not close Live Acceptance.

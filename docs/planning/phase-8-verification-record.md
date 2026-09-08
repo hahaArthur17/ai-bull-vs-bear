@@ -628,3 +628,14 @@ ticker/source provenance, invalid URLs, duplicate IDs, immutable selection,
 and integration with live snapshot creation/409 rejection. `git diff --cached
 --check` passed. No provider refresh, model call, database write, or deployment
 occurred. Macro and structured financial-fact admission remain open.
+
+## 2026-09-09 — Live macro eligibility checkpoint
+
+The staged snapshot was exported with `git checkout-index` into a clean
+temporary directory, excluding unfinished Judge/reveal changes. Full backend
+suite: **406 passed**, one existing Starlette/httpx deprecation warning.
+Thirteen new validator cases cover identity, units, metadata, invalid/future/
+stale dates, timezone requirements, non-finite values, missing/duplicate series,
+ordering, immutability, and the inclusive age boundary; snapshot integration
+also checks missing-macro 409 behavior. `git diff --cached --check` passed.
+No provider refresh, model call, database write or deployment occurred.
