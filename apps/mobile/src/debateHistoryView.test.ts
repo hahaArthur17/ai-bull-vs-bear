@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { debateHistoryCopy } from "./debateHistoryView.ts";
+import {
+  debateHistoryCopy,
+  findActiveDebate,
+  isActiveDebateConflict,
+} from "./debateHistoryView.ts";
 import type { DebateSessionSummary } from "./types";
 
 
@@ -48,4 +52,25 @@ test("History distinguishes the durable final Judge from interim and active sess
       kind: "active",
     },
   );
+});
+
+test("active Debate recovery recognises only the admission conflict", () => {
+  const activeConflict = Object.assign(
+    new Error("Finish or cancel the active Debate before starting another"),
+    {
+      detail: "Finish or cancel the active Debate before starting another",
+      status: 409,
+    },
+  );
+  assert.equal(isActiveDebateConflict(activeConflict), true);
+  assert.equal(isActiveDebateConflict(Object.assign(new Error("Other conflict"), { status: 409 })), false);
+  assert.equal(isActiveDebateConflict(Object.assign(new Error(activeConflict.message), { status: 503 })), false);
+});
+
+test("active Debate recovery selects a canonical unfinished session", () => {
+  const completed = { ...baseSession, id: "completed", status: "completed" as const };
+  const paused = { ...baseSession, id: "paused", status: "awaiting_user" as const };
+  const failed = { ...baseSession, id: "failed", status: "failed" as const };
+  assert.equal(findActiveDebate([completed, paused, failed])?.id, "paused");
+  assert.equal(findActiveDebate([completed, failed]), null);
 });

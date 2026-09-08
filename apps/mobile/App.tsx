@@ -17,6 +17,7 @@ import {
 } from "./src/components/common";
 import { getResponsiveAppShellLayout } from "./src/appShell";
 import { canSubmitExamination } from "./src/examinationState";
+import { findActiveDebate, isActiveDebateConflict } from "./src/debateHistoryView";
 import { AboutScreen } from "./src/screens/AboutScreen";
 import { LegacyDebateScreen } from "./src/screens/LegacyDebateScreen";
 import { HistoryScreen } from "./src/screens/HistoryScreen";
@@ -40,6 +41,7 @@ import type {
 
 type Screen = "watchlist" | "stock" | "debate" | "evidence" | "examine" | "history" | "about";
 type DebateExperience = "legacy" | "v2";
+type ActiveDebateRecovery = { session: DebateSessionSummary | null };
 
 const DEBATE_V2_UI_ENABLED = process.env.EXPO_PUBLIC_DEBATE_V2_ENABLED === "true";
 
@@ -75,8 +77,11 @@ export default function App() {
   const [history, setHistory] = useState<AnalysisResponse[]>([]);
   const [debateHistory, setDebateHistory] = useState<DebateSessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
+  const [debateStarting, setDebateStarting] = useState(false);
+  const [activeDebateRecovery, setActiveDebateRecovery] = useState<ActiveDebateRecovery | null>(null);
   const [error, setError] = useState("");
   const debateAdmissionKey = useRef<string | null>(null);
+  const debateStartInFlight = useRef(false);
   const stockLoadEpoch = useRef(0);
 
   const loadHome = async () => {
@@ -156,6 +161,7 @@ export default function App() {
     const requestEpoch = stockLoadEpoch.current + 1;
     stockLoadEpoch.current = requestEpoch;
     debateAdmissionKey.current = null;
+    setActiveDebateRecovery(null);
     setSelectedTicker(ticker);
     setSelectedStock(null);
     setSelectedBundle(null);
@@ -199,10 +205,15 @@ export default function App() {
       setError("Bull vs Bear is available only for Debate-ready stocks.");
       return;
     }
-    setLoading(true);
+    if (debateStartInFlight.current) return;
+    debateStartInFlight.current = true;
+    const startingV2 = debateV2Enabled;
+    setDebateStarting(startingV2);
+    if (!startingV2) setLoading(true);
+    setActiveDebateRecovery(null);
     setError("");
     try {
-      if (debateV2Enabled) {
+      if (startingV2) {
         debateAdmissionKey.current ||= newDebateIdempotencyKey(selectedTicker);
         const nextDebate = await api.createDebate(selectedTicker, {
           idempotencyKey: debateAdmissionKey.current,
@@ -223,9 +234,20 @@ export default function App() {
       setHistory((current) => [nextAnalysis, ...current.filter((item) => item.analysis_id !== nextAnalysis.analysis_id)]);
       setScreen("debate");
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not run the analysis.");
+      if (startingV2 && isActiveDebateConflict(requestError)) {
+        const knownSessions = [
+          ...(liveDebate ? [liveDebate.session] : []),
+          ...debateHistory,
+        ];
+        debateAdmissionKey.current = null;
+        setActiveDebateRecovery({ session: findActiveDebate(knownSessions) });
+      } else {
+        setError(requestError instanceof Error ? requestError.message : "Could not run the analysis.");
+      }
     } finally {
-      setLoading(false);
+      debateStartInFlight.current = false;
+      setDebateStarting(false);
+      if (!startingV2) setLoading(false);
     }
   };
 
@@ -264,6 +286,7 @@ export default function App() {
 
   const openSavedDebate = async (sessionSummary: DebateSessionSummary) => {
     let stockLoadStarted = false;
+    setActiveDebateRecovery(null);
     setLoading(true);
     setError("");
     try {
@@ -282,16 +305,27 @@ export default function App() {
 
   const renderScreen = () => {
     if (screen === "stock") {
+      const recoverableDebate = activeDebateRecovery?.session ?? null;
       return (
         <StockDetailScreen
           stock={selectedStock}
           bundle={selectedBundle}
           loading={loading}
           error={error}
+          debateStarting={debateStarting}
+          activeDebate={recoverableDebate}
           onBack={() => { setError(""); setScreen("watchlist"); }}
           onRetry={() => void openStock(selectedTicker)}
           onEvidence={() => setScreen("evidence")}
           onDebate={startDebate}
+          onOpenActiveDebate={recoverableDebate
+            ? () => void openSavedDebate(recoverableDebate)
+            : undefined}
+          onOpenDebateHistory={() => {
+            setScreen("history");
+            void refreshDebateHistory();
+          }}
+          showActiveDebateRecovery={activeDebateRecovery !== null}
           isWatched={watchlist.includes(selectedTicker)}
           onToggleWatchlist={() => void toggleWatchlist(selectedTicker)}
         />

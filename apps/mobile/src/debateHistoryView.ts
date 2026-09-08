@@ -1,5 +1,12 @@
 import type { DebateSessionSummary } from "./types";
 
+const ACTIVE_DEBATE_CONFLICT_DETAIL = "Finish or cancel the active Debate before starting another";
+const TERMINAL_DEBATE_STATUSES = new Set<DebateSessionSummary["status"]>([
+  "completed",
+  "cancelled",
+  "failed",
+]);
+
 
 export type DebateHistoryCopy = {
   label: string;
@@ -8,6 +15,21 @@ export type DebateHistoryCopy = {
   action: string;
   kind: "final" | "interim" | "active" | "cancelled" | "failed";
 };
+
+export function isActiveDebateConflict(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const responseError = error as Error & { detail?: unknown; status?: unknown };
+  const detail = typeof responseError.detail === "string"
+    ? responseError.detail
+    : responseError.message;
+  return responseError.status === 409 && detail === ACTIVE_DEBATE_CONFLICT_DETAIL;
+}
+
+export function findActiveDebate(
+  sessions: DebateSessionSummary[],
+): DebateSessionSummary | null {
+  return sessions.find((session) => !TERMINAL_DEBATE_STATUSES.has(session.status)) ?? null;
+}
 
 
 export function debateHistoryCopy(session: DebateSessionSummary): DebateHistoryCopy {

@@ -21,28 +21,38 @@ import { getResearchWorkspaceLayout } from "../research/workspaceLayout";
 import { getQuoteProvenance } from "../stockResearchSummary";
 import type { QuoteProvenance } from "../stockResearchSummary";
 import { appStyles as styles, colors, palette, radii, spacing } from "../theme";
-import type { Stock, StockBundle, TechnicalIndicators } from "../types";
+import type { DebateSessionSummary, Stock, StockBundle, TechnicalIndicators } from "../types";
 
 export function StockDetailScreen({
   stock,
   bundle,
   loading,
+  debateStarting,
+  activeDebate,
   error,
   onBack,
   onRetry,
   onEvidence,
   onDebate,
+  onOpenActiveDebate,
+  onOpenDebateHistory,
+  showActiveDebateRecovery,
   isWatched,
   onToggleWatchlist,
 }: {
   stock: Stock | null;
   bundle: StockBundle | null;
   loading: boolean;
+  debateStarting: boolean;
+  activeDebate: DebateSessionSummary | null;
   error: string;
   onBack: () => void;
   onRetry: () => void;
   onEvidence: () => void;
   onDebate: () => void;
+  onOpenActiveDebate?: () => void;
+  onOpenDebateHistory: () => void;
+  showActiveDebateRecovery: boolean;
   isWatched: boolean;
   onToggleWatchlist: () => void;
 }) {
@@ -117,7 +127,17 @@ export function StockDetailScreen({
       isSimulated={isSimulated}
     />
   );
-  const actions = <ResearchActions onDebate={onDebate} onEvidence={onEvidence} />;
+  const actions = (
+    <ResearchActions
+      activeDebate={activeDebate}
+      debateStarting={debateStarting}
+      onDebate={onDebate}
+      onEvidence={onEvidence}
+      onOpenActiveDebate={onOpenActiveDebate}
+      onOpenDebateHistory={onOpenDebateHistory}
+      showActiveDebateRecovery={showActiveDebateRecovery}
+    />
+  );
   return (
     <ScrollView contentContainerStyle={styles.page}>
       <BackButton onPress={onBack} />
@@ -292,15 +312,77 @@ function SignalSnapshot({
   );
 }
 
-function ResearchActions({ onDebate, onEvidence }: { onDebate: () => void; onEvidence: () => void }) {
+function ResearchActions({
+  activeDebate,
+  debateStarting,
+  onDebate,
+  onEvidence,
+  onOpenActiveDebate,
+  onOpenDebateHistory,
+  showActiveDebateRecovery,
+}: {
+  activeDebate: DebateSessionSummary | null;
+  debateStarting: boolean;
+  onDebate: () => void;
+  onEvidence: () => void;
+  onOpenActiveDebate?: () => void;
+  onOpenDebateHistory: () => void;
+  showActiveDebateRecovery: boolean;
+}) {
+  const debateBlocked = debateStarting || showActiveDebateRecovery;
   return (
     <View style={styles.actionRow}>
       <FocusablePressable accessibilityHint="Opens the dated evidence used by the research workflow." accessibilityRole="button" style={styles.secondaryButton} onPress={onEvidence}>
         <Text style={styles.secondaryButtonText}>Evidence board</Text>
       </FocusablePressable>
-      <FocusablePressable accessibilityHint="Starts Bull vs Bear for this research-ready security." accessibilityRole="button" style={styles.primaryButton} onPress={onDebate}>
-        <Text style={styles.primaryButtonText}>Start Bull vs Bear →</Text>
+      <FocusablePressable
+        accessibilityHint={showActiveDebateRecovery
+          ? "Open the existing Debate or History before starting another."
+          : "Starts Bull vs Bear for this research-ready security."}
+        accessibilityRole="button"
+        accessibilityState={{ busy: debateStarting, disabled: debateBlocked }}
+        disabled={debateBlocked}
+        style={[styles.primaryButton, debateBlocked && workspaceStyles.disabledAction]}
+        onPress={onDebate}
+      >
+        <Text style={styles.primaryButtonText}>
+          {debateStarting
+            ? "Starting Debate…"
+            : showActiveDebateRecovery
+              ? "An unfinished Debate is active"
+              : "Start Bull vs Bear →"}
+        </Text>
       </FocusablePressable>
+      {showActiveDebateRecovery ? (
+        <View accessibilityLiveRegion="assertive" accessibilityRole="alert" style={workspaceStyles.debateRecovery}>
+          <Text style={workspaceStyles.debateRecoveryTitle}>You already have an unfinished Debate</Text>
+          <Text style={workspaceStyles.debateRecoveryText}>
+            {activeDebate
+              ? `${activeDebate.ticker} is ${activeDebate.status.replaceAll("_", " ")}. Open that session or review your Debate History before starting another.`
+              : "Open Debate History to find the active session before starting another."}
+          </Text>
+          <View style={workspaceStyles.debateRecoveryActions}>
+            {activeDebate && onOpenActiveDebate ? (
+              <FocusablePressable
+                accessibilityLabel={`Open current ${activeDebate.ticker} Debate`}
+                accessibilityRole="button"
+                style={styles.smallButton}
+                onPress={onOpenActiveDebate}
+              >
+                <Text style={styles.smallButtonText}>Open current Debate</Text>
+              </FocusablePressable>
+            ) : null}
+            <FocusablePressable
+              accessibilityLabel="Open Debate History"
+              accessibilityRole="button"
+              style={workspaceStyles.historyAction}
+              onPress={onOpenDebateHistory}
+            >
+              <Text style={styles.secondaryButtonText}>Go to History</Text>
+            </FocusablePressable>
+          </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -923,4 +1005,27 @@ const workspaceStyles = StyleSheet.create({
   chartGridWide: { flexDirection: "row", flexWrap: "wrap", gap: spacing.md },
   chartGridItem: { minWidth: 0 },
   chartGridItemWide: { flexBasis: "48%", flexGrow: 1, minWidth: 0 },
+  disabledAction: { opacity: 0.55 },
+  debateRecovery: {
+    backgroundColor: colors.surface.warning,
+    borderColor: colors.border.warning,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    marginTop: spacing.sm,
+    padding: spacing.md,
+  },
+  debateRecoveryTitle: { color: palette.ink, fontSize: 14, fontWeight: "800", marginBottom: spacing.xs },
+  debateRecoveryText: { color: palette.muted, fontSize: 12, lineHeight: 18 },
+  debateRecoveryActions: { alignItems: "flex-start", flexDirection: "row", flexWrap: "wrap", gap: spacing.sm },
+  historyAction: {
+    alignItems: "center",
+    borderColor: palette.accent,
+    borderRadius: radii.sm,
+    borderWidth: 1,
+    justifyContent: "center",
+    marginTop: spacing.sm,
+    minHeight: 44,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
 });

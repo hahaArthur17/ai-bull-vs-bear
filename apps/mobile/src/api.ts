@@ -13,6 +13,7 @@ import type {
 } from "./types";
 import { DebateStreamClient } from "./debateStream";
 import type { DebateStreamSnapshot } from "./debateStream";
+import { apiRequestError } from "./apiRequestError";
 import { serializeExplanationRequest } from "./explanationRequest";
 import { supabase } from "./supabase";
 
@@ -30,13 +31,7 @@ async function responseError(response: Response): Promise<Error> {
   } catch {
     // Non-JSON provider and proxy errors use the safe status-specific message below.
   }
-  if (response.status === 401) {
-    return new Error("Your session is missing or expired. Sign in again and retry.");
-  }
-  if (response.status === 503) {
-    return new Error(detail || "A live service is temporarily unavailable. Retry shortly.");
-  }
-  return new Error(detail || `The API request failed (${response.status}).`);
+  return apiRequestError(response.status, detail);
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
