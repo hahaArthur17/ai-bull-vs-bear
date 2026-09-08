@@ -200,6 +200,7 @@ def test_live_provider_configuration_and_factory_are_explicit() -> None:
 def test_prompt_never_includes_unlinked_evidence_identifiers() -> None:
     prompt = build_groq_explanation_prompt(grounded_request())
 
+    assert "term, claim, or passage" in prompt
     assert "[E1]" in prompt
     assert "linked-evidence" not in prompt
     assert "unlinked-evidence" not in prompt

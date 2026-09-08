@@ -48,5 +48,5 @@ class DeterministicExplanationProvider:
                 f"{evidence_note} The user's question was: {request.question}"
             ),
             evidence_ids=tuple(sorted(request.allowed_evidence_ids)),
-            terms=(request.selected_text,),
+            terms=(request.selected_text,) if len(request.selected_text) <= 100 else (),
         )

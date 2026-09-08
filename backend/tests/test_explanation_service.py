@@ -87,6 +87,28 @@ def test_explanation_is_grounded_without_mutating_debate_state() -> None:
     ) == messages_before
 
 
+def test_deterministic_explanation_accepts_a_long_exact_passage() -> None:
+    repository, session, _, messages = build_completed_round_one()
+    target = messages[0]
+    selected_text = target.content[:140]
+    assert len(selected_text) > 100
+
+    result = ExplanationService(
+        repository,
+        DeterministicExplanationProvider(),
+    ).explain(
+        session_id=session.id,
+        user_id=USER_ID,
+        source_message_id=target.id,
+        selected_text=selected_text,
+        question="Can you explain this point in plain language?",
+    )
+
+    assert result.selected_text == selected_text
+    assert result.terms == ()
+    assert "Can you explain this point" in result.content
+
+
 def test_explanation_requires_owned_active_branch_message_and_exact_text() -> None:
     repository, session, _, messages = build_completed_round_one()
     service = ExplanationService(repository, DeterministicExplanationProvider())

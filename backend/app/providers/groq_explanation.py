@@ -78,7 +78,7 @@ def build_groq_explanation_prompt(request: ExplanationAgentRequest) -> str:
         else "No linked evidence is available. State that limitation instead of inventing support."
     )
     return (
-        "Explain the selected finance term as it is used in the one source message. "
+        "Explain the selected finance term, claim, or passage as it is used in the one source message. "
         "Answer the user question directly in 80 to 180 words of plain educational prose. "
         "Do not give personalised investment advice, trading instructions, price targets, "
         "guaranteed outcomes, or claim that dated context proves causation. "
