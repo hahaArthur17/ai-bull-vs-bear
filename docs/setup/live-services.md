@@ -625,3 +625,22 @@ URL/CIK/accession provenance, ordered periods, filing age at most 120 days and
 period-end age at most 450 days. Up to 32 facts are frozen with original periods
 and units. Missing facts/read failures yield 409. These local eligibility limits
 do not prove financial-statement completeness or latest-vintage availability.
+
+### Independently metered streaming Judge
+
+Queued V2 supports `DEBATE_STREAMING_JUDGE_PROVIDER=groq` with
+`DEBATE_JUDGE_GROQ_MODEL`; both are separate from the Bull/Bear choice, and Judge
+defaults to deterministic. Review fixture forces deterministic selection. Every
+async Judge stream emits ordered deltas and is checked for output limits,
+citation allowlist, matching completion text and normal stop before persistence.
+Canonical Judge metadata records model and token use. Old synchronous preview
+remains deterministic; enabling live Judge alone invokes live snapshot gates.
+
+The 2026-09-09 synthetic transport probe used three non-retried generation
+requests: caps 200, 200 and 400 completion tokens. The first two did not complete
+normally and were rejected; their token totals were not captured and are not
+zero. The third passed with 472 prompt + 140 completion = 612 tokens and 92
+ordered deltas. No prompts or generated text were logged. No full AAPL Debate
+was run. One EIA WTI refresh wrote/read 10 rows but still returned latest date
+2026-09-01; it does not close current-data acceptance. Alpha Vantage and Finnhub
+were not refreshed in this execution.

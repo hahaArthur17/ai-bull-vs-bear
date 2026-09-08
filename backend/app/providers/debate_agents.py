@@ -6,6 +6,7 @@ from typing import Protocol, runtime_checkable
 from app.domain.agents import (
     DebateJudgeDraft,
     DebateJudgeRequest,
+    DebateJudgeStreamEvent,
     DebateTurnDraft,
     DebateTurnRequest,
     DebateTurnStreamEvent,
@@ -43,4 +44,18 @@ class DebateJudgeProvider(Protocol):
     version: str
 
     def generate_judgement(self, request: DebateJudgeRequest) -> DebateJudgeDraft:
+        ...
+
+
+@runtime_checkable
+class DebateStreamingJudgeProvider(Protocol):
+    name: str
+    version: str
+
+    def stream_judgement(
+        self,
+        request: DebateJudgeRequest,
+    ) -> AsyncIterator[DebateJudgeStreamEvent]:
+        """Yield ordered Judge deltas followed by one validated completion."""
+
         ...

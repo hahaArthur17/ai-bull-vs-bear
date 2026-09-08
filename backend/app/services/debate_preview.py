@@ -12,6 +12,7 @@ from app.domain.factors import AnalysisContext, FactorSnapshot
 from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.providers.debate_agents import (
     DebateJudgeProvider,
+    DebateStreamingJudgeProvider,
     DebateStreamingTurnProvider,
     DebateTurnProvider,
 )
@@ -36,6 +37,7 @@ class DebatePreviewService:
         judge_provider: DebateJudgeProvider,
         *,
         streaming_turn_provider: DebateStreamingTurnProvider | None = None,
+        streaming_judge_provider: DebateStreamingJudgeProvider | None = None,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
@@ -48,6 +50,7 @@ class DebatePreviewService:
             turn_provider,
             judge_provider,
             streaming_turn_provider=streaming_turn_provider,
+            streaming_judge_provider=streaming_judge_provider,
             event_publisher=event_publisher,
             clock=self.clock,
         )

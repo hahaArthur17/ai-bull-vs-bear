@@ -6,6 +6,9 @@ from collections.abc import AsyncIterator
 import pytest
 
 from app.domain.agents import (
+    DebateJudgeRequest,
+    DebateJudgeStreamCompleted,
+    DebateJudgeStreamEvent,
     DebateTurnRequest,
     DebateTurnStreamCompleted,
     DebateTurnStreamDelta,
@@ -13,7 +16,10 @@ from app.domain.agents import (
     DebateTurnStreamUsage,
 )
 from app.providers.deterministic_debate import DeterministicDebateProvider
-from app.providers.streaming_debate import DeterministicStreamingDebateProvider
+from app.providers.streaming_debate import (
+    DeterministicStreamingDebateProvider,
+    DeterministicStreamingJudgeProvider,
+)
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
@@ -35,6 +41,26 @@ class TokenRecordingStreamProvider(DeterministicStreamingDebateProvider):
                         prompt_tokens=3,
                         completion_tokens=2,
                         total_tokens=5,
+                    ),
+                )
+            else:
+                yield event
+
+
+class TokenRecordingJudgeProvider(DeterministicStreamingJudgeProvider):
+    async def stream_judgement(
+        self,
+        request: DebateJudgeRequest,
+    ) -> AsyncIterator[DebateJudgeStreamEvent]:
+        async for event in super().stream_judgement(request):
+            if event.kind == "completed":
+                yield DebateJudgeStreamCompleted(
+                    draft=event.draft,
+                    usage=DebateTurnStreamUsage(
+                        model_name="judge-token-stream-test",
+                        prompt_tokens=7,
+                        completion_tokens=4,
+                        total_tokens=11,
                     ),
                 )
             else:
@@ -112,17 +138,42 @@ class CancellationBoundaryStreamProvider(DeterministicStreamingDebateProvider):
                 await self.release_late_output.wait()
 
 
+class CancellationBoundaryJudgeProvider(DeterministicStreamingJudgeProvider):
+    def __init__(self) -> None:
+        super().__init__(max_chunk_characters=16)
+        self.first_delta_sent = asyncio.Event()
+        self.release_late_output = asyncio.Event()
+        self.stream_closed = asyncio.Event()
+
+    async def stream_judgement(
+        self,
+        request: DebateJudgeRequest,
+    ) -> AsyncIterator[DebateJudgeStreamEvent]:
+        first_delta = True
+        try:
+            async for event in super().stream_judgement(request):
+                yield event
+                if first_delta and event.kind == "delta":
+                    first_delta = False
+                    self.first_delta_sent.set()
+                    await self.release_late_output.wait()
+        finally:
+            self.stream_closed.set()
+
+
 def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() -> None:
     repository = InMemoryDebateRepository()
     queued, job = build_queued_round_one()
     repository.create_session_with_job(queued, job)
     provider = TokenRecordingStreamProvider(max_chunk_characters=32)
+    judge_provider = TokenRecordingJudgeProvider(max_chunk_characters=32)
     broker = InMemoryDebateEventBroker()
     orchestrator = DebateOrchestrator(
         repository,
         provider,
         provider,
         streaming_turn_provider=provider,
+        streaming_judge_provider=judge_provider,
         event_publisher=broker,
         clock=StepClock(),
     )
@@ -145,6 +196,11 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
         if message.role in {"bull", "bear"}
     )
     assert sum(event.type == "turn.completed" for event in events) == 6
+    assert any(event.type == "judge.delta" for event in events)
+    assert messages[-1].metadata["stream_mode"] == "async_provider"
+    assert messages[-1].metadata["usage"]["total_tokens"] == 11
+    assert messages[-1].metadata["model_name"] == "judge-token-stream-test"
+    assert messages[-1].metadata["provider"] == judge_provider.name
     assert all(
         event.payload["source"] == "deterministic"
         for event in events
@@ -153,9 +209,9 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
     assert events[-1].payload["execution_mode"] == "async_stream"
     assert stored_job is not None
     assert stored_job.provider_request_count == 7
-    assert stored_job.prompt_tokens == 18
-    assert stored_job.completion_tokens == 12
-    assert stored_job.total_tokens == 30
+    assert stored_job.prompt_tokens == 25
+    assert stored_job.completion_tokens == 16
+    assert stored_job.total_tokens == 41
 
     event_count = len(events)
     assert asyncio.run(orchestrator.execute_job_streaming(job.id)) == session
@@ -326,6 +382,51 @@ def test_cancellation_drops_late_stream_output_and_never_marks_failure() -> None
         assert any(event.type == "session.cancel_requested" for event in events)
         assert events[-1].type == "session.cancelled"
         assert not any(event.type == "turn.completed" for event in events)
+        assert not any(event.type == "session.failed" for event in events)
+
+    asyncio.run(run_scenario())
+
+
+def test_cancellation_during_judge_closes_stream_and_does_not_persist_summary() -> None:
+    async def run_scenario() -> None:
+        repository = InMemoryDebateRepository()
+        queued, job = build_queued_round_one()
+        repository.create_session_with_job(queued, job)
+        turn_provider = DeterministicStreamingDebateProvider(max_chunk_characters=64)
+        judge_provider = CancellationBoundaryJudgeProvider()
+        broker = InMemoryDebateEventBroker()
+        orchestrator = DebateOrchestrator(
+            repository,
+            turn_provider,
+            turn_provider,
+            streaming_turn_provider=turn_provider,
+            streaming_judge_provider=judge_provider,
+            event_publisher=broker,
+            clock=StepClock(),
+        )
+
+        execution = asyncio.create_task(orchestrator.execute_job_streaming(job.id))
+        await asyncio.wait_for(judge_provider.first_delta_sent.wait(), timeout=1)
+        orchestrator.request_cancellation(
+            queued.id,
+            queued.user_id,
+            queued.active_generation_id,
+        )
+        judge_provider.release_late_output.set()
+        cancelled = await asyncio.wait_for(execution, timeout=1)
+        await asyncio.wait_for(judge_provider.stream_closed.wait(), timeout=1)
+
+        messages = repository.list_messages(
+            queued.id,
+            queued.user_id,
+            branch_id=queued.active_branch_id,
+        )
+        events = broker.replay(queued.id)
+        assert cancelled.status == "cancelled"
+        assert len(messages) == 6
+        assert not any(message.role == "judge" for message in messages)
+        assert any(event.type == "judge.delta" for event in events)
+        assert not any(event.type == "judge.completed" for event in events)
         assert not any(event.type == "session.failed" for event in events)
 
     asyncio.run(run_scenario())

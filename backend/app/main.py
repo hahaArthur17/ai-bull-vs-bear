@@ -35,7 +35,7 @@ from app.domain.debate import DebateSession
 from app.domain.explanations import ExplanationResult
 from app.domain.events import DebateEvent
 from app.providers.current_factors import build_current_factor_registry
-from app.providers.debate_factory import build_debate_streaming_turn_provider
+from app.providers.debate_factory import build_debate_streaming_turn_provider, build_debate_streaming_judge_provider
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.explanation_factory import (
     ExplanationProviderConfigurationError,
@@ -140,6 +140,9 @@ debate_streaming_turn_provider = (
     if settings.debate_queue_enabled
     else None
 )
+debate_streaming_judge_provider = (
+    build_debate_streaming_judge_provider(settings) if settings.debate_queue_enabled else None
+)
 debate_preview_service: DebatePreviewService | None
 if settings.persistence_mode.lower().strip() == "supabase":
     if settings.supabase_url and settings.supabase_secret_key:
@@ -153,6 +156,7 @@ if settings.persistence_mode.lower().strip() == "supabase":
             debate_provider,
             debate_provider,
             streaming_turn_provider=debate_streaming_turn_provider,
+            streaming_judge_provider=debate_streaming_judge_provider,
             event_publisher=debate_event_broker,
         )
     else:
@@ -165,6 +169,7 @@ else:
         debate_provider,
         debate_provider,
         streaming_turn_provider=debate_streaming_turn_provider,
+        streaming_judge_provider=debate_streaming_judge_provider,
         event_publisher=debate_event_broker,
     )
 quote_cache = (
@@ -377,7 +382,8 @@ def _debate_context(ticker: str, question: str | None):
     captured_at = datetime.now(timezone.utc)
     live_ai = (
         settings.app_data_mode == "standard"
-        and settings.debate_streaming_provider != "deterministic"
+        and (settings.debate_streaming_provider.strip().lower() != "deterministic"
+             or settings.debate_streaming_judge_provider.strip().lower() != "deterministic")
     )
     if live_ai:
         try:

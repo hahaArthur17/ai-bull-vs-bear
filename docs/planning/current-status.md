@@ -598,3 +598,13 @@ active bubble and prevents canonical completion from immediately replacing a
 partial reveal. Explicit Show full, history/reconnect and accessibility/lifecycle
 settlement are implemented. 91 mobile tests, typecheck and Web export pass.
 Native verification and durable Stop/interjection remain open.
+
+### 2026-09-09 streaming Judge checkpoint
+
+V2 queued Interim/Final Judge now supports a separately selected asynchronous
+provider and ordered `judge.delta`, validated completion, stored model/usage
+metadata and job token aggregation. `DEBATE_STREAMING_JUDGE_PROVIDER` defaults
+to deterministic independently of Bull/Bear. Groq Judge prose is model-generated;
+structural risk/uncertainty labels remain server-authored. 424 backend tests pass.
+One synthetic real-Groq probe succeeded (92 deltas, 612 tokens); it does not
+establish standard AAPL or device acceptance. Durable interruption is next.

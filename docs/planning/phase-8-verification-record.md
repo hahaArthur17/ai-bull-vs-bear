@@ -660,3 +660,21 @@ exceptions restricted to the existing non-streaming Judge. Terra reviewed
 canonical ordering and durable-record precedence. **91 mobile tests**, typecheck
 and Web export passed. Native accessibility/device review remains outstanding;
 this slice does not implement the new Stop/interjection contract.
+
+## 2026-09-09 — Streaming Judge integration and controlled probes
+
+**424 backend tests passed**, one existing warning. Mocked Groq Judge coverage
+checks ordered text, citations, output bounds, usage, separate safe defaults and
+completion cap. Orchestration coverage checks Judge deltas, model/usage metadata,
+job totals, and cancellation with no persisted summary or false failure.
+Provider streams close on error/cancellation. Review removed unsupported
+first/second-sentence categorization into agreement/disagreement fields.
+
+Live evidence: Models API confirmed configured model availability; synthetic
+Judge attempts capped 200/200 tokens failed normal-completion validation.
+After a tighter prose budget, one cap-400 attempt succeeded: 92 deltas, one
+citation, 472 prompt/140 completion tokens. Earlier failed-attempt usage is
+unknown and excluded from the successful total. No full Live AAPL session ran.
+One EIA request refreshed 10 WTI rows; readback latest remained 2026-09-01.
+Supabase read-only financial check found 155 cached facts, newest filed
+2026-07-31. No deployment flags or schema were changed.

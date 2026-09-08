@@ -138,6 +138,7 @@ class DebateJudgeRequest(ImmutableDomainModel):
     factor_snapshot: FactorSnapshot
     transcript: tuple[DebateMessage, ...] = Field(min_length=1)
     allowed_evidence_ids: frozenset[str] = frozenset()
+    max_output_chars: int = Field(default=2400, ge=300, le=4000)
 
     @model_validator(mode="after")
     def validate_transcript(self) -> DebateJudgeRequest:
@@ -175,3 +176,29 @@ class DebateJudgeDraft(ImmutableDomainModel):
     evidence_strength: Literal["weak", "medium", "strong"]
     uncertainty: str = Field(min_length=1, max_length=1200)
     risk_level: Literal["low", "medium", "high"]
+
+
+class DebateJudgeStreamDelta(BaseModel):
+    """One Judge summary fragment with provider whitespace preserved."""
+
+    model_config = ConfigDict(
+        extra="forbid",
+        frozen=True,
+        str_strip_whitespace=False,
+        allow_inf_nan=False,
+    )
+
+    kind: Literal["delta"] = "delta"
+    chunk_index: int = Field(ge=1)
+    delta: str = Field(min_length=1, max_length=1200)
+    source: Literal["live_provider", "buffered_compatibility", "deterministic"]
+
+
+class DebateJudgeStreamCompleted(ImmutableDomainModel):
+    kind: Literal["completed"] = "completed"
+    draft: DebateJudgeDraft
+    finish_reason: Literal["stop", "length", "content_filter"] = "stop"
+    usage: DebateTurnStreamUsage
+
+
+DebateJudgeStreamEvent: TypeAlias = DebateJudgeStreamDelta | DebateJudgeStreamCompleted

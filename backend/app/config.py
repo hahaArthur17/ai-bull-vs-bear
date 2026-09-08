@@ -52,6 +52,9 @@ class Settings(BaseSettings):
     # The async Debate provider is an independent, explicit opt-in. Keeping it
     # deterministic prevents a feature-flag change from spending model quota.
     debate_streaming_provider: str = "deterministic"
+    # Judge generation is a separate default-off quota boundary. Enabling live
+    # Bull/Bear streaming must never silently enable another model request.
+    debate_streaming_judge_provider: str = "deterministic"
     supabase_url: str | None = Field(default=None, repr=False)
     supabase_anon_key: str | None = Field(default=None, repr=False)
     supabase_secret_key: str | None = Field(default=None, repr=False)
@@ -78,6 +81,7 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = Field(default=None, repr=False)
     groq_model: str = "openai/gpt-oss-20b"
     debate_groq_model: str = "openai/gpt-oss-20b"
+    debate_judge_groq_model: str = "openai/gpt-oss-20b"
     debate_provider_timeout_seconds: float = Field(default=45, ge=5, le=120)
     explanation_groq_model: str = "openai/gpt-oss-20b"
     explanation_provider_timeout_seconds: float = Field(default=20, ge=5, le=120)
@@ -112,6 +116,7 @@ class Settings(BaseSettings):
             self.analysis_provider = "demo"
             self.explanation_provider = "deterministic"
             self.debate_streaming_provider = "deterministic"
+            self.debate_streaming_judge_provider = "deterministic"
             self.debate_workflow_v2 = True
             self.debate_queue_enabled = False
             self.redis_enabled = False

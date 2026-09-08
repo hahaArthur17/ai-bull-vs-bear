@@ -9,7 +9,9 @@ from uuid import UUID, uuid5
 from pydantic import JsonValue
 
 from app.domain.agents import (
+    DebateJudgeDraft,
     DebateJudgeRequest,
+    DebateJudgeStreamDelta,
     DebateTurnDraft,
     DebateTurnRequest,
     DebateTurnStreamDelta,
@@ -28,10 +30,12 @@ from app.domain.events import DebateEventType
 from app.domain.jobs import DebateJob
 from app.providers.debate_agents import (
     DebateJudgeProvider,
+    DebateStreamingJudgeProvider,
     DebateStreamingTurnProvider,
     DebateTurnProvider,
 )
 from app.providers.streaming_debate import (
+    WholeDraftJudgeStreamAdapter,
     WholeDraftTurnStreamAdapter,
     preview_text_chunks,
 )
@@ -44,7 +48,11 @@ from app.services.debate_state import (
     request_session_cancellation,
     transition_session,
 )
-from app.services.debate_streaming import DebateTurnStreamError, collect_debate_turn_stream
+from app.services.debate_streaming import (
+    DebateTurnStreamError,
+    collect_debate_judge_stream,
+    collect_debate_turn_stream,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -84,6 +92,7 @@ class DebateOrchestrator:
         judge_provider: DebateJudgeProvider,
         *,
         streaming_turn_provider: DebateStreamingTurnProvider | None = None,
+        streaming_judge_provider: DebateStreamingJudgeProvider | None = None,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
@@ -92,6 +101,9 @@ class DebateOrchestrator:
         self.judge_provider = judge_provider
         self.streaming_turn_provider = streaming_turn_provider or WholeDraftTurnStreamAdapter(
             turn_provider
+        )
+        self.streaming_judge_provider = streaming_judge_provider or WholeDraftJudgeStreamAdapter(
+            judge_provider
         )
         self.event_publisher = event_publisher
         self.clock = clock or (lambda: datetime.now(timezone.utc))
@@ -290,13 +302,14 @@ class DebateOrchestrator:
                 self._assert_generation_active(running_session, running_status)
                 provider_request_count += 1
                 if turn.role == "judge":
-                    running_session = await asyncio.to_thread(
-                        self._append_judge,
+                    running_session, usage = await self._append_streaming_judge(
                         running_session,
                         transcript,
                         phase=turn.judge_phase or "final",
                         round_number=round_number,
                     )
+                    prompt_tokens += usage.prompt_tokens
+                    completion_tokens += usage.completion_tokens
                 else:
                     _, usage = await self._append_streaming_turn(
                         running_session,
@@ -915,6 +928,99 @@ class DebateOrchestrator:
         )
         draft = self.judge_provider.generate_judgement(request)
         self._assert_generation_active(session, self._running_status(round_number))
+        return self._persist_judge_draft(
+            session,
+            phase=phase,
+            round_number=round_number,
+            sequence_number=sequence_number,
+            message_id=message_id,
+            draft=draft,
+            provider_name=self.judge_provider.name,
+            provider_version=self.judge_provider.version,
+            stream_mode="buffered_compatibility",
+        )
+
+    async def _append_streaming_judge(
+        self,
+        session: DebateSession,
+        transcript: list[DebateMessage],
+        *,
+        phase: str,
+        round_number: int,
+    ) -> tuple[DebateSession, DebateTurnStreamUsage]:
+        self._assert_generation_active(session, self._running_status(round_number))
+        request = DebateJudgeRequest(
+            session_id=session.id,
+            branch_id=session.active_branch_id,
+            phase=phase,
+            analysis_context=session.analysis_context,
+            factor_snapshot=session.factor_snapshot,
+            transcript=tuple(transcript),
+            allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
+        )
+        sequence_number = self._next_sequence(transcript)
+        message_id = self._message_id(session, sequence_number)
+        self._emit(
+            session.id,
+            "judge.started",
+            {
+                "message_id": str(message_id),
+                "generation_id": str(session.active_generation_id),
+                "round_number": round_number,
+                "phase": phase,
+            },
+        )
+
+        async def publish_delta(event: DebateJudgeStreamDelta) -> None:
+            self._assert_generation_active(session, self._running_status(round_number))
+            self._emit(
+                session.id,
+                "judge.delta",
+                {
+                    "message_id": str(message_id),
+                    "generation_id": str(session.active_generation_id),
+                    "round_number": round_number,
+                    "phase": phase,
+                    "delta_index": event.chunk_index,
+                    "delta": event.delta,
+                    "source": event.source,
+                },
+            )
+
+        collected = await collect_debate_judge_stream(
+            self.streaming_judge_provider,
+            request,
+            on_delta=publish_delta,
+        )
+        self._assert_generation_active(session, self._running_status(round_number))
+        attached = self._persist_judge_draft(
+            session,
+            phase=phase,
+            round_number=round_number,
+            sequence_number=sequence_number,
+            message_id=message_id,
+            draft=collected.draft,
+            provider_name=self.streaming_judge_provider.name,
+            provider_version=self.streaming_judge_provider.version,
+            stream_mode="async_provider",
+            usage=collected.usage,
+        )
+        return attached, collected.usage
+
+    def _persist_judge_draft(
+        self,
+        session: DebateSession,
+        *,
+        phase: str,
+        round_number: int,
+        sequence_number: int,
+        message_id: UUID,
+        draft: DebateJudgeDraft,
+        provider_name: str,
+        provider_version: str,
+        stream_mode: str,
+        usage: DebateTurnStreamUsage | None = None,
+    ) -> DebateSession:
         evidence_ids = self._validated_evidence_ids(
             draft.evidence_ids,
             session.analysis_context.allowed_evidence_ids,
@@ -931,8 +1037,11 @@ class DebateOrchestrator:
             message_kind="summary",
             content=draft.summary,
             metadata={
-                "provider": self.judge_provider.name,
-                "provider_version": self.judge_provider.version,
+                "provider": provider_name,
+                "provider_version": provider_version,
+                "stream_mode": stream_mode,
+                "usage": usage.model_dump(mode="json") if usage else None,
+                "model_name": usage.model_name if usage else None,
                 "phase": phase,
                 "interpretation": draft.interpretation,
                 "agreements": list(draft.agreements),

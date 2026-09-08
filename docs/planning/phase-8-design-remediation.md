@@ -877,3 +877,12 @@ completion waits for reveal, next visible agent waits for prior display,
 and Unicode segmentation uses a pinned Hermes-compatible implementation.
 Native/device and screen-reader behavior still require acceptance. WP8L.5 Stop
 must consume this visible prefix; the existing terminal Cancel is unchanged.
+
+### WP8L.3 implementation checkpoint — 2026-09-09
+
+Asynchronous Judge provider, factory, collector, SSE, cancellation boundary and
+per-message model/token metadata are implemented and verified with 424 backend
+tests plus one successful bounded synthetic Groq probe. Selection is separately
+default-off. This supersedes the earlier non-streaming Judge limitation for
+queued V2 only. Current-data, durable immediate interruption and device gates
+remain open; server-authored structural labels are not model-extracted findings.
