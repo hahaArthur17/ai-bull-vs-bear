@@ -72,8 +72,8 @@ export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCo
   }
   if (snapshot.sessionStatus === "awaiting_user") {
     return {
-      label: "Waiting for your challenge",
-      detail: "Round 1 is complete. Choose a message and ask the next question.",
+      label: "Waiting for your question",
+      detail: "Round 1 is complete. Ask about a point before deciding whether to continue to Round 2.",
       tone: "success",
     };
   }

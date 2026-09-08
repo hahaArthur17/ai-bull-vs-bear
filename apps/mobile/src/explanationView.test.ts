@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   createExplanationRequestGate,
   defaultExplanationQuestion,
+  defaultPointPassage,
   exactExplanationTerm,
 } from "./explanationView.ts";
 import type { DebateMessageRecord } from "./types";
@@ -56,4 +57,12 @@ test("Explanation requests become stale when the panel context changes", () => {
   const secondRequest = gate.start();
   assert.equal(gate.isCurrent(firstRequest), false);
   assert.equal(gate.isCurrent(secondRequest), true);
+});
+
+test("point questions begin with a bounded exact passage instead of the whole message", () => {
+  const content = "Evidence should be interpreted in context. ".repeat(12).trim();
+  const passage = defaultPointPassage(content);
+  assert.ok(passage.length <= 240);
+  assert.equal(content.includes(passage), true);
+  assert.equal(defaultPointPassage("  A short exact point.  "), "A short exact point.");
 });

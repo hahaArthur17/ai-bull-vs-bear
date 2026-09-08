@@ -40,3 +40,12 @@ export function exactExplanationTerm(
 export function defaultExplanationQuestion(term: string): string {
   return `What does "${term}" mean in this message?`;
 }
+
+export function defaultPointPassage(content: string, maxLength = 240): string {
+  const normalized = content.trim();
+  if (normalized.length <= maxLength) return normalized;
+  const candidate = normalized.slice(0, maxLength);
+  const lastSpace = candidate.lastIndexOf(" ");
+  const end = lastSpace >= Math.floor(maxLength * 0.6) ? lastSpace : maxLength;
+  return candidate.slice(0, end).trimEnd();
+}

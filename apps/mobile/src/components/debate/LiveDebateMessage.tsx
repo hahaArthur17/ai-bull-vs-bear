@@ -22,9 +22,9 @@ type CanonicalMessageProps = {
   record: DebateMessageRecord;
   bubbleWidth: DimensionValue;
   judgeWidth: DimensionValue;
-  challengeEnabled: boolean;
+  pointQuestionsEnabled: boolean;
   selected: boolean;
-  onChallenge: () => void;
+  onAskAbout: () => void;
   onExplainTerm: (term: string) => void;
 };
 
@@ -32,9 +32,9 @@ export function CanonicalDebateMessage({
   record,
   bubbleWidth,
   judgeWidth,
-  challengeEnabled,
+  pointQuestionsEnabled,
   selected,
-  onChallenge,
+  onAskAbout,
   onExplainTerm,
 }: CanonicalMessageProps) {
   const [factsExpanded, setFactsExpanded] = useState(false);
@@ -43,7 +43,7 @@ export function CanonicalDebateMessage({
   const accent = roleColors[placement.kind];
   const isJudge = placement.kind === "judge";
   const showsEvidenceDisclosure = placement.kind !== "user" && placement.kind !== "system";
-  const canTarget = challengeEnabled
+  const canTarget = pointQuestionsEnabled
     && record.message.role !== "user"
     && record.message.role !== "system"
     && record.message.role !== "explainer";
@@ -136,14 +136,14 @@ export function CanonicalDebateMessage({
 
         {canTarget ? (
           <FocusablePressable
-            onPress={onChallenge}
+            onPress={onAskAbout}
             style={messageStyles.messageAction}
-            accessibilityLabel={selected ? "Selected for Round 2 challenge" : "Challenge this point in Round 2"}
+            accessibilityLabel={selected ? "Selected point dialog is open" : "Ask about this point"}
             accessibilityRole="button"
             accessibilityState={{ selected }}
           >
             <Text style={messageStyles.messageActionText}>
-              {selected ? "Selected for Round 2" : "Challenge this point →"}
+              {selected ? "Question open" : "Ask about this point →"}
             </Text>
           </FocusablePressable>
         ) : null}

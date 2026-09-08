@@ -36,8 +36,8 @@ test("History distinguishes the durable final Judge from interim and active sess
     debateHistoryCopy({ ...baseSession, status: "awaiting_user" }),
     {
       label: "INTERIM JUDGE",
-      title: "Round 1 is ready for your challenge",
-      detail: "The interim Judge has paused the Debate. You may ask one evidence-grounded follow-up before Round 2.",
+      title: "Round 1 is ready for your question",
+      detail: "The interim Judge has paused the Debate. Ask for an explanation, then decide whether to continue to Round 2.",
       action: "Open interim assessment",
       kind: "interim",
     },

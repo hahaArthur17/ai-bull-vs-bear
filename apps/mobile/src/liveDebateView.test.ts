@@ -108,6 +108,16 @@ test("terminal states use explicit cancelled and final labels", () => {
   assert.equal(debateStatusCopy(snapshot({ sessionStatus: "completed", jobStatus: "stage_completed" })).label, "Final");
 });
 
+test("interim pause invites a question before an optional Round 2 challenge", () => {
+  const copy = debateStatusCopy(snapshot({
+    sessionStatus: "awaiting_user",
+    jobStatus: "stage_completed",
+  }));
+
+  assert.equal(copy.label, "Waiting for your question");
+  assert.match(copy.detail, /before deciding whether to continue to Round 2/i);
+});
+
 test("only the durable interim pause enables a round two challenge", () => {
   assert.equal(canChallengeDebate(snapshot()), false);
   assert.equal(canChallengeDebate(snapshot({

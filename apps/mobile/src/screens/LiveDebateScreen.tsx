@@ -2,12 +2,16 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AccessibilityInfo,
+  KeyboardAvoidingView,
+  Modal,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
+  TouchableWithoutFeedback,
   useWindowDimensions,
   View,
 } from "react-native";
@@ -39,8 +43,16 @@ import {
   debateStatusCopy,
 } from "../liveDebateView";
 import {
+  canDismissPointInquiry,
+  canPrepareRoundTwoChallenge,
+  canSubmitRoundTwoChallenge,
+  INITIAL_POINT_INQUIRY_MODE,
+} from "../pointInquiryView";
+import type { PointInquiryMode } from "../pointInquiryView";
+import {
   createExplanationRequestGate,
   defaultExplanationQuestion,
+  defaultPointPassage,
   exactExplanationTerm,
 } from "../explanationView";
 import { colors as themeColors, interaction } from "../theme";
@@ -117,12 +129,10 @@ export function LiveDebateScreen({
   const [actionError, setActionError] = useState("");
   const [cancelling, setCancelling] = useState(false);
   const [challenging, setChallenging] = useState(false);
-  const [challengeTarget, setChallengeTarget] = useState<DebateMessageRecord | null>(null);
+  const [pointTarget, setPointTarget] = useState<DebateMessageRecord | null>(null);
+  const [pointDialogMode, setPointDialogMode] = useState<PointInquiryMode>(INITIAL_POINT_INQUIRY_MODE);
   const [selectedText, setSelectedText] = useState("");
   const [question, setQuestion] = useState("");
-  const [explanationTarget, setExplanationTarget] = useState<DebateMessageRecord | null>(null);
-  const [explanationTerm, setExplanationTerm] = useState("");
-  const [explanationQuestion, setExplanationQuestion] = useState("");
   const [explanationResult, setExplanationResult] = useState<ExplanationResult | null>(null);
   const [explanationError, setExplanationError] = useState("");
   const [explaining, setExplaining] = useState(false);
@@ -147,12 +157,10 @@ export function LiveDebateScreen({
     setSnapshot(createCanonicalDebateSnapshot(initialDetail));
     setConnectionError("");
     setActionError("");
-    setChallengeTarget(null);
+    setPointTarget(null);
+    setPointDialogMode(INITIAL_POINT_INQUIRY_MODE);
     setSelectedText("");
     setQuestion("");
-    setExplanationTarget(null);
-    setExplanationTerm("");
-    setExplanationQuestion("");
     setExplanationResult(null);
     setExplanationError("");
     setHasNewMessages(false);
@@ -237,18 +245,21 @@ export function LiveDebateScreen({
     : 1;
   const canCancel = canCancelDebate(snapshot) && !cancelling;
   const canChallenge = canChallengeDebate(snapshot);
-  const selectedTextIsValid = challengeTarget !== null
+  const selectedTextIsValid = pointTarget !== null
     && selectedText.trim().length > 0
-    && challengeTarget.message.content.includes(selectedText.trim());
-  const canSubmitChallenge = canChallenge
-    && selectedTextIsValid
-    && question.trim().length > 0
-    && !challenging;
-  const selectedExplanationTerm = explanationTarget
-    ? exactExplanationTerm(explanationTarget, explanationTerm)
+    && pointTarget.message.content.includes(selectedText.trim());
+  const canSubmitChallenge = canSubmitRoundTwoChallenge({
+    mode: pointDialogMode,
+    canChallenge,
+    selectedTextIsValid,
+    question,
+    challenging,
+  });
+  const selectedExplanationTerm = pointTarget
+    ? exactExplanationTerm(pointTarget, selectedText)
     : null;
   const canSubmitExplanation = selectedExplanationTerm !== null
-    && explanationQuestion.trim().length > 0
+    && question.trim().length > 0
     && !explaining;
   const activeAction = debateActionStatus({ cancelling, challenging, explaining });
 
@@ -283,9 +294,14 @@ export function LiveDebateScreen({
     });
   }
 
-  const selectChallengeTarget = (record: DebateMessageRecord) => {
-    setChallengeTarget(record);
-    setSelectedText(record.message.content.slice(0, 500));
+  const openPointQuestion = (record: DebateMessageRecord) => {
+    invalidateExplanationRequest();
+    setPointTarget(record);
+    setPointDialogMode(INITIAL_POINT_INQUIRY_MODE);
+    setSelectedText(defaultPointPassage(record.message.content));
+    setQuestion("");
+    setExplanationResult(null);
+    setExplanationError("");
     setActionError("");
     challengeKey.current = null;
   };
@@ -297,20 +313,35 @@ export function LiveDebateScreen({
       return;
     }
     invalidateExplanationRequest();
-    setExplanationTarget(record);
-    setExplanationTerm(selectedTerm);
-    setExplanationQuestion(defaultExplanationQuestion(selectedTerm));
+    setPointTarget(record);
+    setPointDialogMode(INITIAL_POINT_INQUIRY_MODE);
+    setSelectedText(selectedTerm);
+    setQuestion(defaultExplanationQuestion(selectedTerm));
     setExplanationResult(null);
     setExplanationError("");
   };
 
-  const closeExplanation = () => {
+  const closePointDialog = () => {
     invalidateExplanationRequest();
-    setExplanationTarget(null);
-    setExplanationTerm("");
-    setExplanationQuestion("");
+    setPointTarget(null);
+    setPointDialogMode(INITIAL_POINT_INQUIRY_MODE);
+    setSelectedText("");
+    setQuestion("");
     setExplanationResult(null);
     setExplanationError("");
+    challengeKey.current = null;
+  };
+
+  const prepareRoundTwoChallenge = () => {
+    invalidateExplanationRequest();
+    setPointDialogMode("challenge");
+    setExplanationError("");
+    setActionError("");
+  };
+
+  const returnToExplanation = () => {
+    setPointDialogMode("explain");
+    challengeKey.current = null;
   };
 
   const cancelDebate = async () => {
@@ -332,22 +363,19 @@ export function LiveDebateScreen({
   };
 
   const submitChallenge = async () => {
-    if (!challengeTarget || !canSubmitChallenge) return;
+    if (!pointTarget || !canSubmitChallenge) return;
     setChallenging(true);
     setActionError("");
     challengeKey.current ||= newIdempotencyKey("round2");
     try {
       const detail = await api.challengeDebate(sessionId, {
-        selectedMessageId: challengeTarget.message.id,
+        selectedMessageId: pointTarget.message.id,
         selectedText: selectedText.trim(),
         question: question.trim(),
         idempotencyKey: challengeKey.current,
       });
       setSnapshot(createCanonicalDebateSnapshot(detail));
-      setChallengeTarget(null);
-      setSelectedText("");
-      setQuestion("");
-      challengeKey.current = null;
+      closePointDialog();
       setStreamEpoch((current) => current + 1);
     } catch (error) {
       setActionError(
@@ -359,15 +387,15 @@ export function LiveDebateScreen({
   };
 
   const submitExplanation = async () => {
-    if (!explanationTarget || !selectedExplanationTerm || !canSubmitExplanation) return;
+    if (!pointTarget || !selectedExplanationTerm || !canSubmitExplanation) return;
     const requestId = explanationRequests.current.start();
     setExplaining(true);
     setExplanationError("");
     try {
       const result = await api.explainDebate(sessionId, {
-        messageId: explanationTarget.message.id,
+        messageId: pointTarget.message.id,
         selectedText: selectedExplanationTerm,
-        question: explanationQuestion.trim(),
+        question: question.trim(),
       });
       if (explanationRequests.current.isCurrent(requestId)) {
         setExplanationResult(result);
@@ -524,9 +552,9 @@ export function LiveDebateScreen({
           record={record}
           bubbleWidth={chatLayout.bubbleWidth}
           judgeWidth={chatLayout.judgeWidth}
-          challengeEnabled={canChallenge}
-          selected={challengeTarget?.message.id === record.message.id}
-          onChallenge={() => selectChallengeTarget(record)}
+          pointQuestionsEnabled={canChallenge}
+          selected={pointTarget?.message.id === record.message.id}
+          onAskAbout={() => openPointQuestion(record)}
           onExplainTerm={(term) => selectExplanationTerm(record, term)}
         />
       ))}
@@ -542,142 +570,12 @@ export function LiveDebateScreen({
       ))}
       </View>
 
-      {explanationTarget ? (
-        <View style={screenStyles.explanationPanel}>
-          <View style={screenStyles.rowBetween}>
-            <Text style={screenStyles.explanationEyebrow}>TERM EXPLANATION · READ ONLY</Text>
-            <FocusablePressable
-              onPress={closeExplanation}
-              style={screenStyles.dismissButton}
-              accessibilityRole="button"
-              accessibilityLabel="Close term explanation"
-            >
-              <Text style={screenStyles.dismissButtonText}>Close</Text>
-            </FocusablePressable>
-          </View>
-          <Text style={screenStyles.explanationTitle}>Understand the argument</Text>
-          <Text style={screenStyles.explanationHelp}>
-            This explains the selected term using only this complete message and its linked,
-            dated evidence. It does not change the Debate or start another round.
-          </Text>
-          <Text style={screenStyles.inputLabel}>EXACT TERM · {rolePresentation(explanationTarget.message.role).label}</Text>
-          <Text style={screenStyles.selectedTerm}>{selectedExplanationTerm || explanationTerm}</Text>
-          <Text style={screenStyles.inputLabel}>YOUR QUESTION</Text>
-          <TextInput
-            value={explanationQuestion}
-            onChangeText={(value) => {
-              invalidateExplanationRequest();
-              setExplanationQuestion(value);
-              setExplanationResult(null);
-            }}
-            maxLength={500}
-            multiline
-            style={screenStyles.textArea}
-            placeholder="What does this mean in the argument?"
-            placeholderTextColor={colors.muted}
-            accessibilityLabel="Question about the selected term"
-            accessibilityHint="Ask for a read-only explanation of the selected term."
-          />
-          {explanationError ? (
-            <Text style={screenStyles.validationText}>{explanationError}</Text>
-          ) : null}
-          <FocusablePressable
-            disabled={!canSubmitExplanation}
-            style={[
-              screenStyles.explanationButton,
-              !canSubmitExplanation && screenStyles.disabledButton,
-            ]}
-            onPress={() => void submitExplanation()}
-            accessibilityLabel="Explain the selected term"
-            accessibilityRole="button"
-            accessibilityState={{ busy: explaining, disabled: !canSubmitExplanation }}
-          >
-            {explaining ? <ActivityIndicator color={colors.background} size="small" /> : null}
-            <Text style={screenStyles.explanationButtonText}>
-              {explaining ? "Explaining term…" : "Explain this term"}
-            </Text>
-          </FocusablePressable>
-          {explanationResult ? (
-            <View style={screenStyles.explanationResult}>
-              <Text style={screenStyles.explanationResultTitle}>Explanation</Text>
-              <Text style={screenStyles.explanationContent}>{explanationResult.content}</Text>
-              {explanationResult.evidence_ids.length > 0 ? (
-                <Text style={screenStyles.citations}>
-                  EVIDENCE {explanationResult.evidence_ids.join(" · ")}
-                </Text>
-              ) : null}
-              {explanationResult.guardrail_status === "rewritten" ? (
-                <Text style={screenStyles.explanationSafetyNote}>
-                  Safety language was adjusted to keep this educational.
-                </Text>
-              ) : null}
-            </View>
-          ) : null}
-        </View>
-      ) : null}
-
       {canChallenge ? (
-        <View style={screenStyles.challengePanel}>
+        <View style={screenStyles.roundPauseCard}>
           <Text style={screenStyles.challengeEyebrow}>INTERIM JUDGE PAUSE</Text>
-          <Text style={screenStyles.challengeTitle}>Direct the second round</Text>
-          <Text style={screenStyles.challengeHelp}>
-            Choose a completed Bull, Bear, or Judge message, keep an exact quoted passage, and ask
-            a question. The question and Round 2 job are committed atomically.
+          <Text style={screenStyles.roundPauseText}>
+            Ask about any completed point first. Explanations are educational and read-only; Round 2 starts only after a separate confirmation.
           </Text>
-          {challengeTarget ? (
-            <>
-              <Text style={screenStyles.inputLabel}>
-                QUOTED PASSAGE · {rolePresentation(challengeTarget.message.role).label}
-              </Text>
-              <TextInput
-                value={selectedText}
-                onChangeText={setSelectedText}
-                maxLength={500}
-                multiline
-                style={screenStyles.textArea}
-                placeholder="Exact text from the selected message"
-                placeholderTextColor={colors.muted}
-                accessibilityLabel="Exact quoted passage for the Round 2 challenge"
-                accessibilityHint="Enter text copied exactly from the selected Debate message."
-              />
-              {!selectedTextIsValid ? (
-                <Text style={screenStyles.validationText}>
-                  Keep an exact passage that occurs in the selected message.
-                </Text>
-              ) : null}
-              <Text style={screenStyles.inputLabel}>YOUR QUESTION</Text>
-              <TextInput
-                value={question}
-                onChangeText={setQuestion}
-                maxLength={500}
-                multiline
-                style={screenStyles.textArea}
-                placeholder="Which evidence should both sides reconsider?"
-                placeholderTextColor={colors.muted}
-                accessibilityLabel="Question for the Round 2 challenge"
-              />
-              <FocusablePressable
-                disabled={!canSubmitChallenge}
-                style={[
-                  screenStyles.challengeButton,
-                  !canSubmitChallenge && screenStyles.disabledButton,
-                ]}
-                onPress={() => void submitChallenge()}
-                accessibilityLabel="Queue Round 2 challenge"
-                accessibilityRole="button"
-                accessibilityState={{ busy: challenging, disabled: !canSubmitChallenge }}
-              >
-                {challenging ? <ActivityIndicator color={colors.background} size="small" /> : null}
-                <Text style={screenStyles.challengeButtonText}>
-                  {challenging ? "Queueing Round 2…" : "Queue Round 2 challenge"}
-                </Text>
-              </FocusablePressable>
-            </>
-          ) : (
-            <Text style={screenStyles.challengeEmpty}>
-              Use the challenge action on a transcript card to select its argument.
-            </Text>
-          )}
         </View>
       ) : null}
 
@@ -700,6 +598,41 @@ export function LiveDebateScreen({
         trading instructions or predictions.
       </Text>
     </ScrollView>
+    {pointTarget ? (
+      <PointInquiryModal
+        target={pointTarget}
+        mode={pointDialogMode}
+        selectedText={selectedText}
+        question={question}
+        selectedTextIsValid={selectedTextIsValid}
+        canChallenge={canChallenge}
+        canSubmitChallenge={canSubmitChallenge}
+        canSubmitExplanation={canSubmitExplanation}
+        challenging={challenging}
+        explaining={explaining}
+        explanationError={explanationError}
+        explanationResult={explanationResult}
+        onClose={closePointDialog}
+        onSelectedTextChange={(value) => {
+          invalidateExplanationRequest();
+          setSelectedText(value);
+          setExplanationResult(null);
+          setExplanationError("");
+          challengeKey.current = null;
+        }}
+        onQuestionChange={(value) => {
+          invalidateExplanationRequest();
+          setQuestion(value);
+          setExplanationResult(null);
+          setExplanationError("");
+          challengeKey.current = null;
+        }}
+        onExplain={() => void submitExplanation()}
+        onPrepareChallenge={prepareRoundTwoChallenge}
+        onReturnToExplanation={returnToExplanation}
+        onSubmitChallenge={() => void submitChallenge()}
+      />
+    ) : null}
     {hasNewMessages ? (
       <View
         accessibilityLiveRegion="polite"
@@ -717,6 +650,262 @@ export function LiveDebateScreen({
       </View>
     ) : null}
     </View>
+  );
+}
+
+function PointInquiryModal({
+  target,
+  mode,
+  selectedText,
+  question,
+  selectedTextIsValid,
+  canChallenge,
+  canSubmitExplanation,
+  canSubmitChallenge,
+  explaining,
+  challenging,
+  explanationResult,
+  explanationError,
+  onClose,
+  onSelectedTextChange,
+  onQuestionChange,
+  onExplain,
+  onPrepareChallenge,
+  onReturnToExplanation,
+  onSubmitChallenge,
+}: {
+  target: DebateMessageRecord;
+  mode: PointInquiryMode;
+  selectedText: string;
+  question: string;
+  selectedTextIsValid: boolean;
+  canChallenge: boolean;
+  canSubmitExplanation: boolean;
+  canSubmitChallenge: boolean;
+  explaining: boolean;
+  challenging: boolean;
+  explanationResult: ExplanationResult | null;
+  explanationError: string;
+  onClose: () => void;
+  onSelectedTextChange: (value: string) => void;
+  onQuestionChange: (value: string) => void;
+  onExplain: () => void;
+  onPrepareChallenge: () => void;
+  onReturnToExplanation: () => void;
+  onSubmitChallenge: () => void;
+}) {
+  const isChallengeConfirmation = mode === "challenge";
+  const canDismiss = canDismissPointInquiry(challenging);
+  const canPrepareChallenge = canPrepareRoundTwoChallenge({
+    canChallenge,
+    selectedTextIsValid,
+    question,
+    explaining,
+  });
+  return (
+    <Modal
+      animationType="fade"
+      onRequestClose={() => {
+        if (canDismiss) onClose();
+      }}
+      presentationStyle="overFullScreen"
+      statusBarTranslucent
+      transparent
+      visible
+    >
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={screenStyles.modalRoot}
+      >
+        <TouchableWithoutFeedback
+          accessible={false}
+          disabled={!canDismiss}
+          onPress={onClose}
+        >
+          <View style={screenStyles.modalBackdrop} />
+        </TouchableWithoutFeedback>
+        <View
+          accessibilityLabel={isChallengeConfirmation
+            ? "Confirm Round 2 challenge"
+            : "Ask about this Debate point"}
+          accessibilityViewIsModal
+          style={screenStyles.modalCard}
+        >
+          <ScrollView
+            contentContainerStyle={screenStyles.modalContent}
+            keyboardShouldPersistTaps="handled"
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={screenStyles.rowBetween}>
+              <Text
+                style={[
+                  screenStyles.modalEyebrow,
+                  { color: isChallengeConfirmation ? colors.judge : colors.bull },
+                ]}
+              >
+                {isChallengeConfirmation
+                  ? "ROUND 2 · EXPLICIT CONFIRMATION"
+                  : "EDUCATIONAL EXPLAINER · READ ONLY"}
+              </Text>
+              <FocusablePressable
+                disabled={!canDismiss}
+                onPress={onClose}
+                style={[screenStyles.modalCloseButton, !canDismiss && screenStyles.disabledButton]}
+                accessibilityRole="button"
+                accessibilityLabel="Close this point dialog"
+                accessibilityState={{ disabled: !canDismiss }}
+              >
+                <Text style={screenStyles.modalCloseText}>Close ×</Text>
+              </FocusablePressable>
+            </View>
+            <Text style={screenStyles.modalTitle}>
+              {isChallengeConfirmation ? "Start a second debate round?" : "Ask before you challenge"}
+            </Text>
+            <Text style={screenStyles.modalHelp}>
+              {isChallengeConfirmation
+                ? "This will commit your exact question and start Round 2. It is a Debate intervention, not an explanation."
+                : "Ask the Explainer about this passage first. Its answer is educational, grounded in the completed message and linked evidence, and does not change the Debate."}
+            </Text>
+
+            <Text style={screenStyles.inputLabel}>
+              EXACT PASSAGE · {rolePresentation(target.message.role).label}
+            </Text>
+            <TextInput
+              value={selectedText}
+              onChangeText={onSelectedTextChange}
+              maxLength={500}
+              multiline
+              style={screenStyles.pointPassageInput}
+              placeholder="Keep an exact passage from this message"
+              placeholderTextColor={colors.muted}
+              accessibilityLabel="Exact passage from the selected Debate message"
+              accessibilityHint="Edit this only to another exact passage from the same completed message."
+            />
+            {!selectedTextIsValid ? (
+              <Text style={screenStyles.validationText}>
+                Keep an exact passage that occurs in the selected message.
+              </Text>
+            ) : null}
+
+            <Text style={screenStyles.inputLabel}>YOUR QUESTION</Text>
+            <TextInput
+              autoFocus
+              value={question}
+              onChangeText={onQuestionChange}
+              maxLength={500}
+              multiline
+              style={screenStyles.textArea}
+              placeholder={isChallengeConfirmation
+                ? "What should both sides reconsider in Round 2?"
+                : "What is unclear, or what would you like explained?"}
+              placeholderTextColor={colors.muted}
+              accessibilityLabel={isChallengeConfirmation
+                ? "Question proposed for Round 2"
+                : "Educational question about the selected point"}
+            />
+
+            {explanationError && !isChallengeConfirmation ? (
+              <Text accessibilityLiveRegion="assertive" style={screenStyles.validationText}>
+                {explanationError}
+              </Text>
+            ) : null}
+
+            {isChallengeConfirmation ? (
+              <>
+                <FocusablePressable
+                  disabled={!canSubmitChallenge}
+                  style={[
+                    screenStyles.challengeButton,
+                    !canSubmitChallenge && screenStyles.disabledButton,
+                  ]}
+                  onPress={onSubmitChallenge}
+                  accessibilityLabel="Confirm and start Round 2 with this challenge"
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: challenging, disabled: !canSubmitChallenge }}
+                >
+                  {challenging ? <ActivityIndicator color={colors.background} size="small" /> : null}
+                  <Text style={screenStyles.challengeButtonText}>
+                    {challenging ? "Starting Round 2…" : "Start Round 2 with this challenge"}
+                  </Text>
+                </FocusablePressable>
+                <FocusablePressable
+                  disabled={challenging}
+                  style={[screenStyles.modalSecondaryButton, challenging && screenStyles.disabledButton]}
+                  onPress={onReturnToExplanation}
+                  accessibilityLabel="Return to educational explanation"
+                  accessibilityRole="button"
+                  accessibilityState={{ disabled: challenging }}
+                >
+                  <Text style={screenStyles.modalSecondaryText}>← Back to explanation</Text>
+                </FocusablePressable>
+              </>
+            ) : (
+              <>
+                <FocusablePressable
+                  disabled={!canSubmitExplanation}
+                  style={[
+                    screenStyles.explanationButton,
+                    !canSubmitExplanation && screenStyles.disabledButton,
+                  ]}
+                  onPress={onExplain}
+                  accessibilityLabel="Ask the educational Explainer"
+                  accessibilityRole="button"
+                  accessibilityState={{ busy: explaining, disabled: !canSubmitExplanation }}
+                >
+                  {explaining ? <ActivityIndicator color={colors.background} size="small" /> : null}
+                  <Text style={screenStyles.explanationButtonText}>
+                    {explaining ? "Asking Explainer…" : "Ask Explainer"}
+                  </Text>
+                </FocusablePressable>
+                {canChallenge ? (
+                  <FocusablePressable
+                    disabled={!canPrepareChallenge}
+                    style={[
+                      screenStyles.modalSecondaryButton,
+                      !canPrepareChallenge && screenStyles.disabledButton,
+                    ]}
+                    onPress={onPrepareChallenge}
+                    accessibilityLabel="Prepare this question as a Round 2 challenge"
+                    accessibilityRole="button"
+                    accessibilityState={{ disabled: !canPrepareChallenge }}
+                  >
+                    <Text style={screenStyles.modalSecondaryText}>Prepare a Round 2 challenge →</Text>
+                  </FocusablePressable>
+                ) : null}
+              </>
+            )}
+
+            {explanationResult && !isChallengeConfirmation ? (
+              <View accessibilityLiveRegion="polite" style={screenStyles.explanationResult}>
+                <Text style={screenStyles.explanationResultTitle}>EXPLAINER ANSWER</Text>
+                <Text style={screenStyles.explanationContent}>{explanationResult.content}</Text>
+                {explanationResult.evidence_ids.length > 0 ? (
+                  <Text style={screenStyles.citations}>
+                    EVIDENCE {explanationResult.evidence_ids.join(" · ")}
+                  </Text>
+                ) : null}
+                {explanationResult.guardrail_status === "rewritten" ? (
+                  <Text style={screenStyles.explanationSafetyNote}>
+                    Safety language was adjusted to keep this educational.
+                  </Text>
+                ) : null}
+              </View>
+            ) : null}
+
+            <FocusablePressable
+              disabled={!canDismiss}
+              style={[screenStyles.modalCancelButton, !canDismiss && screenStyles.disabledButton]}
+              onPress={onClose}
+              accessibilityLabel="Cancel and close this dialog"
+              accessibilityRole="button"
+              accessibilityState={{ disabled: !canDismiss }}
+            >
+              <Text style={screenStyles.modalCancelText}>Cancel</Text>
+            </FocusablePressable>
+          </ScrollView>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   );
 }
 
@@ -762,29 +951,34 @@ const screenStyles = StyleSheet.create({
   emptyTitle: { color: colors.text, fontSize: 14, fontWeight: "800", marginBottom: 7 },
   emptyText: { color: colors.muted, fontSize: 12, lineHeight: 19 },
   citations: { color: colors.cyan, fontSize: 9, lineHeight: 15, fontWeight: "700", marginTop: 12 },
-  explanationPanel: { backgroundColor: themeColors.surface.positive, borderColor: colors.bull, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
-  explanationEyebrow: { color: colors.bull, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
-  explanationTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
-  explanationHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 7 },
-  dismissButton: { alignItems: "center", borderBottomColor: colors.muted, borderBottomWidth: 1, justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
-  dismissButtonText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
-  selectedTerm: { color: colors.bull, backgroundColor: colors.background, borderColor: colors.line, borderWidth: 1, borderRadius: 10, paddingHorizontal: 11, paddingVertical: 9, fontSize: 13, fontWeight: "800" },
   explanationButton: { minHeight: 46, backgroundColor: colors.bull, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   explanationButtonText: { color: colors.background, fontSize: 13, fontWeight: "900" },
   explanationResult: { backgroundColor: colors.surface, borderColor: colors.line, borderWidth: 1, borderRadius: 11, padding: 13, marginTop: 14 },
   explanationResultTitle: { color: colors.bull, fontSize: 11, fontWeight: "900", letterSpacing: 0.8 },
   explanationContent: { color: colors.text, fontSize: 13, lineHeight: 20, marginTop: 8 },
   explanationSafetyNote: { color: colors.warning, fontSize: 10, lineHeight: 16, marginTop: 10 },
-  challengePanel: { backgroundColor: themeColors.surface.information, borderColor: colors.judge, borderWidth: 1, borderRadius: 16, padding: 16, marginTop: 8, marginBottom: 14 },
+  roundPauseCard: { backgroundColor: themeColors.surface.information, borderColor: colors.judge, borderWidth: 1, borderRadius: 14, padding: 13, marginTop: 8, marginBottom: 14 },
   challengeEyebrow: { color: colors.judge, fontSize: 10, fontWeight: "900", letterSpacing: 1.2 },
-  challengeTitle: { color: colors.text, fontSize: 19, fontWeight: "900", marginTop: 6 },
-  challengeHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginTop: 7, marginBottom: 14 },
-  challengeEmpty: { color: colors.muted, fontSize: 12, lineHeight: 18, fontStyle: "italic" },
+  roundPauseText: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 6 },
   inputLabel: { color: colors.muted, fontSize: 9, fontWeight: "900", letterSpacing: 1, marginTop: 7, marginBottom: 6 },
   textArea: { minHeight: 78, backgroundColor: colors.background, borderColor: colors.line, borderWidth: 1, borderRadius: 11, color: colors.text, padding: 12, fontSize: 13, lineHeight: 19, textAlignVertical: "top" },
+  pointPassageInput: { maxHeight: 126, minHeight: 68, backgroundColor: colors.background, borderColor: colors.line, borderWidth: 1, borderRadius: 11, color: colors.text, padding: 12, fontSize: 12, lineHeight: 18, textAlignVertical: "top" },
   validationText: { color: colors.warning, fontSize: 10, marginTop: 5 },
   challengeButton: { minHeight: 46, backgroundColor: colors.cyan, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 12, marginTop: 14, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8 },
   challengeButtonText: { color: colors.background, fontSize: 13, fontWeight: "900" },
+  modalRoot: { alignItems: "center", flex: 1, justifyContent: "center", padding: 20 },
+  modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(2, 8, 23, 0.78)" },
+  modalCard: { backgroundColor: colors.elevated, borderColor: colors.line, borderRadius: 20, borderWidth: 1, maxHeight: "88%", maxWidth: 620, overflow: "hidden", width: "100%" },
+  modalContent: { padding: 18 },
+  modalEyebrow: { flex: 1, fontSize: 10, fontWeight: "900", letterSpacing: 1.1 },
+  modalCloseButton: { alignItems: "center", justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },
+  modalCloseText: { color: colors.muted, fontSize: 11, fontWeight: "800" },
+  modalTitle: { color: colors.text, fontSize: 21, fontWeight: "900", lineHeight: 27, marginTop: 8 },
+  modalHelp: { color: colors.muted, fontSize: 12, lineHeight: 19, marginBottom: 9, marginTop: 7 },
+  modalSecondaryButton: { alignItems: "center", borderColor: colors.cyan, borderRadius: 11, borderWidth: 1, justifyContent: "center", marginTop: 10, minHeight: interaction.minTargetSize, paddingHorizontal: 14, paddingVertical: 10 },
+  modalSecondaryText: { color: colors.cyan, fontSize: 12, fontWeight: "900" },
+  modalCancelButton: { alignItems: "center", justifyContent: "center", marginTop: 10, minHeight: interaction.minTargetSize, paddingHorizontal: 12 },
+  modalCancelText: { color: colors.muted, fontSize: 12, fontWeight: "800" },
   cancelButton: { minHeight: 44, borderColor: colors.bear, borderWidth: 1, borderRadius: 11, paddingHorizontal: 14, paddingVertical: 11, flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 4 },
   cancelText: { color: colors.bear, fontSize: 13, fontWeight: "800" },
   disabledButton: { opacity: 0.42 },
