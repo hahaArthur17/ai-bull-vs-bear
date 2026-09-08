@@ -353,6 +353,7 @@ export type DebateEventType =
   | "turn.citation"
   | "turn.completed"
   | "judge.started"
+  | "judge.delta"
   | "judge.completed"
   | "session.awaiting_user"
   | "explanation.started"

@@ -193,6 +193,33 @@ test("reducer retains loaded presentation when a compatible retained event omits
   assert.deepEqual(reduced.snapshot.canonicalMessages[0].presentation, loadedPresentation);
 });
 
+test("deterministic Judge completion and future ordered Judge deltas both preserve the draft contract", () => {
+  let snapshot: DebateStreamSnapshot = {
+    status: "live", sessionStatus: "running_round_1", canonicalMessages: [], drafts: {}, lastSequence: 0,
+    activeGenerationId: "generation-1", jobId: null, jobStatus: "running", jobAttemptCount: 1,
+    retryDelaySeconds: null, safeError: null,
+  };
+  snapshot = reduceDebateEvent(snapshot, event(1, "judge.started", {
+    message_id: "message-1", generation_id: "generation-1",
+  })).snapshot;
+  snapshot = reduceDebateEvent(snapshot, event(2, "judge.completed", {
+    generation_id: "generation-1", message: { ...message("Deterministic Judge."), role: "judge" },
+  })).snapshot;
+  assert.equal(snapshot.canonicalMessages[0].message.content, "Deterministic Judge.");
+
+  snapshot = { ...snapshot, canonicalMessages: [], drafts: {}, lastSequence: 0 };
+  snapshot = reduceDebateEvent(snapshot, event(1, "judge.started", {
+    message_id: "message-1", generation_id: "generation-1",
+  })).snapshot;
+  snapshot = reduceDebateEvent(snapshot, event(2, "judge.delta", {
+    message_id: "message-1", generation_id: "generation-1", delta_index: 1, delta: "Streaming Judge.",
+  })).snapshot;
+  snapshot = reduceDebateEvent(snapshot, event(3, "judge.completed", {
+    generation_id: "generation-1", message: { ...message("Streaming Judge."), role: "judge" },
+  })).snapshot;
+  assert.equal(snapshot.canonicalMessages[0].message.content, "Streaming Judge.");
+});
+
 
 test("reducer rejects a missing event or provider delta", () => {
   const snapshot: DebateStreamSnapshot = {

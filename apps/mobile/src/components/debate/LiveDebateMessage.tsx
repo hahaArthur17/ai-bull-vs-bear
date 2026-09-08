@@ -54,7 +54,10 @@ export function CanonicalDebateMessage({
       : messageStyles.alignLeft;
 
   return (
-    <View style={[messageStyles.messageWrap, alignStyle, { width: isJudge ? judgeWidth : bubbleWidth }]}>
+    <View
+      accessibilityLiveRegion="polite"
+      style={[messageStyles.messageWrap, alignStyle, { width: isJudge ? judgeWidth : bubbleWidth }]}
+    >
       <View style={[
         messageStyles.messageCard,
         { borderColor: accent },
@@ -207,11 +210,13 @@ export function DraftDebateMessage({
   roundNumber,
   bubbleWidth,
   judgeWidth,
+  onShowFull,
 }: {
   draft: DebateDraft;
   roundNumber: number;
   bubbleWidth: DimensionValue;
   judgeWidth: DimensionValue;
+  onShowFull: () => void;
 }) {
   const placement = getDebateMessagePlacement(draft.role, roundNumber);
   const accent = roleColors[placement.kind];
@@ -222,8 +227,8 @@ export function DraftDebateMessage({
       : messageStyles.alignLeft;
   return (
     <View
-      accessibilityLabel={`${placement.label} streaming draft. Temporary output, not yet canonical.`}
-      accessibilityLiveRegion="polite"
+      accessible
+      accessibilityLabel={`${placement.label} response is revealing. Temporary output, not yet canonical.`}
       style={[
         messageStyles.messageWrap,
         alignStyle,
@@ -238,6 +243,14 @@ export function DraftDebateMessage({
         </View>
         <Text style={messageStyles.messageText}>{draft.content || "The agent has started this turn…"}</Text>
         <Text style={messageStyles.draftNote}>Temporary output · not yet canonical</Text>
+        <FocusablePressable
+          onPress={onShowFull}
+          style={messageStyles.showFullButton}
+          accessibilityLabel={`Show the full ${placement.label} response`}
+          accessibilityRole="button"
+        >
+          <Text style={messageStyles.showFullText}>Show full response</Text>
+        </FocusablePressable>
       </View>
     </View>
   );
@@ -286,4 +299,6 @@ const messageStyles = StyleSheet.create({
   draftCard: { backgroundColor: colors.surface.elevated, borderStyle: "dashed" },
   streamingText: { color: colors.agent.user, fontSize: 9, fontWeight: "900", letterSpacing: 0.7 },
   draftNote: { color: colors.content.secondary, fontSize: 10, fontStyle: "italic", marginTop: 9 },
+  showFullButton: { alignSelf: "flex-start", justifyContent: "center", minHeight: interaction.minTargetSize, marginTop: 5, paddingHorizontal: 2 },
+  showFullText: { color: colors.action.primary, fontSize: 11, fontWeight: "900" },
 });

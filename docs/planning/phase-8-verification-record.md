@@ -647,3 +647,16 @@ New tests cover ticker-scoped public REST query bounds, SEC lookalike-host
 rejection, periods, stale/future values, duplicate conflicts, revision selection
 and live-context integration. Full regression caught and resolved an accidental
 bundle reference before commit. No model calls or database writes in this slice.
+
+## 2026-09-09 — Human-visible reveal pacing
+
+Mobile scheduler separates received/revealed content, retains word/grapheme
+boundaries with pinned `unicode-segmenter`, delays canonical display until
+reveal drains, and serializes visible agent bubbles. Long backlogs accelerate
+in bounded increments rather than jumping to the full response. History,
+reconnect, reduced-motion, screen-reader and background settlement bypass typing.
+Root corrected timer starvation under rapid SSE updates and kept missing-delta
+exceptions restricted to the existing non-streaming Judge. Terra reviewed
+canonical ordering and durable-record precedence. **91 mobile tests**, typecheck
+and Web export passed. Native accessibility/device review remains outstanding;
+this slice does not implement the new Stop/interjection contract.

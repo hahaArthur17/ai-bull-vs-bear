@@ -868,3 +868,12 @@ returns 409 rather than silently admitting partial context. The initial policy
 uses 7-day age limits for these daily series; provider publication/vintage
 verification remains part of live preflight. Next bounded slice: structured
 financial-fact selection/provenance. This does not close Live Acceptance.
+
+### WP8L.4 implementation checkpoint — 2026-09-09
+
+Reveal scheduler is implemented and offline-verified (91 mobile tests,
+typecheck, Web export). Provider-received text and visible prefix are separate;
+completion waits for reveal, next visible agent waits for prior display,
+and Unicode segmentation uses a pinned Hermes-compatible implementation.
+Native/device and screen-reader behavior still require acceptance. WP8L.5 Stop
+must consume this visible prefix; the existing terminal Cancel is unchanged.

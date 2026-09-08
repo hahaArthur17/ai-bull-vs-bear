@@ -26,7 +26,8 @@
     "react-native": "0.76.9",
     "react-native-svg": "^15.8.0",
     "react-native-url-polyfill": "^4.0.0",
-    "react-native-web": "~0.19.13"
+    "react-native-web": "~0.19.13",
+    "unicode-segmenter": "0.17.3"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",

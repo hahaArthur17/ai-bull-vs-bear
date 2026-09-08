@@ -590,3 +590,11 @@ accession path, typed periods, filing age (120 days), period age (450 days), and
 storage provenance. Same-period revisions use the latest filing; conflicting
 same-date values fail. Units/periods remain separate, and no ratio is inferred.
 This establishes eligible context, not complete financial statement coverage.
+
+### 2026-09-09 reveal scheduler checkpoint
+
+The V2 client now paces English words and Unicode graphemes, keeps one visible
+active bubble and prevents canonical completion from immediately replacing a
+partial reveal. Explicit Show full, history/reconnect and accessibility/lifecycle
+settlement are implemented. 91 mobile tests, typecheck and Web export pass.
+Native verification and durable Stop/interjection remain open.

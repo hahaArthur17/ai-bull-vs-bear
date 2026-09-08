@@ -451,7 +451,11 @@ export function reduceDebateEvent(
     };
   }
 
-  if (event.type === "turn.delta" || event.type === "explanation.delta") {
+  if (
+    event.type === "turn.delta"
+    || event.type === "judge.delta"
+    || event.type === "explanation.delta"
+  ) {
     const messageId = stringPayload(event, "message_id");
     const delta = stringPayload(event, "delta");
     const deltaIndex = numberPayload(event, "delta_index");
@@ -506,7 +510,11 @@ export function reduceDebateEvent(
     const draft = drafts[message.id];
     if (
       message.generation_id !== (generationId || activeGenerationId)
-      || (draft && draft.content !== message.content)
+      // The current deterministic Judge sends judge.started followed directly
+      // by judge.completed. A future streaming Judge supplies ordered deltas,
+      // which retain the stricter exact-content check used for Turn streams.
+      || (draft && draft.content !== message.content
+        && !(event.type === "judge.completed" && draft.nextDeltaIndex === 1 && draft.content === ""))
     ) {
       throw new DebateProtocolGapError(event.sequence);
     }

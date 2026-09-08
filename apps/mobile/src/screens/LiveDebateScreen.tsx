@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
   AccessibilityInfo,
+  AppState,
   KeyboardAvoidingView,
   Modal,
   type NativeScrollEvent,
@@ -37,6 +38,7 @@ import type {
   DebateStreamClient,
   DebateStreamSnapshot,
 } from "../debateStream";
+import { REVEAL_CADENCE_MS, RevealScheduler } from "../revealScheduler";
 import {
   canCancelDebate,
   canChallengeDebate,
@@ -137,7 +139,11 @@ export function LiveDebateScreen({
   const [explanationError, setExplanationError] = useState("");
   const [explaining, setExplaining] = useState(false);
   const [hasNewMessages, setHasNewMessages] = useState(false);
+  const [, setRevealVersion] = useState(0);
   const reduceMotionEnabled = useRef<boolean | null>(null);
+  const screenReaderEnabled = useRef<boolean | null>(null);
+  const appIsActive = useRef(AppState.currentState === "active");
+  const revealScheduler = useRef(new RevealScheduler());
   const challengeKey = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
@@ -164,6 +170,7 @@ export function LiveDebateScreen({
     setExplanationResult(null);
     setExplanationError("");
     setHasNewMessages(false);
+    revealScheduler.current = new RevealScheduler();
     followsTranscript.current = true;
     if (scrollFrame.current !== null) {
       cancelAnimationFrame(scrollFrame.current);
@@ -182,7 +189,9 @@ export function LiveDebateScreen({
     let preferenceEventReceived = false;
     const handleReduceMotionChanged = (enabled: boolean) => {
       preferenceEventReceived = true;
-      if (mounted) reduceMotionEnabled.current = enabled;
+      reduceMotionEnabled.current = enabled;
+      if (enabled) revealScheduler.current.settleAll();
+      if (mounted) setRevealVersion((version) => version + 1);
     };
     const subscription = AccessibilityInfo.addEventListener(
       "reduceMotionChanged",
@@ -191,7 +200,7 @@ export function LiveDebateScreen({
 
     void AccessibilityInfo.isReduceMotionEnabled()
       .then((enabled) => {
-        if (mounted && !preferenceEventReceived) reduceMotionEnabled.current = enabled;
+        if (!preferenceEventReceived) handleReduceMotionChanged(enabled);
       })
       .catch(() => {
         // Keep the conservative no-animation default when this platform cannot report a preference.
@@ -201,6 +210,54 @@ export function LiveDebateScreen({
       mounted = false;
       subscription.remove();
     };
+  }, []);
+
+  useEffect(() => {
+    let mounted = true;
+    const applyScreenReader = (enabled: boolean) => {
+      screenReaderEnabled.current = enabled;
+      if (enabled) {
+        revealScheduler.current.settleAll();
+        if (mounted) setRevealVersion((version) => version + 1);
+      }
+    };
+    const subscription = AccessibilityInfo.addEventListener("screenReaderChanged", applyScreenReader);
+    void AccessibilityInfo.isScreenReaderEnabled().then(applyScreenReader).catch(() => {
+      // The visible scheduler remains usable when this native preference is unavailable.
+    });
+    return () => {
+      mounted = false;
+      subscription.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      appIsActive.current = nextState === "active";
+      if (!appIsActive.current) {
+        revealScheduler.current.settleAll();
+        setRevealVersion((version) => version + 1);
+      }
+    });
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    revealScheduler.current.sync(snapshot.canonicalMessages, snapshot.drafts, {
+      immediate: reduceMotionEnabled.current === true
+        || screenReaderEnabled.current === true
+        || !appIsActive.current
+        || snapshot.status === "reconnecting",
+    });
+    setRevealVersion((version) => version + 1);
+  }, [snapshot]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (reduceMotionEnabled.current === true || screenReaderEnabled.current === true || !appIsActive.current) return;
+      if (revealScheduler.current.advance()) setRevealVersion((version) => version + 1);
+    }, REVEAL_CADENCE_MS);
+    return () => clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -238,7 +295,8 @@ export function LiveDebateScreen({
   }, []);
 
   const status = debateStatusCopy(snapshot);
-  const drafts = Object.values(snapshot.drafts);
+  const revealDisplay = revealScheduler.current.display();
+  const drafts = revealDisplay.drafts;
   const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
     || snapshot.sessionStatus === "running_round_2"
     ? 2
@@ -531,11 +589,11 @@ export function LiveDebateScreen({
       <View style={screenStyles.sectionHeader}>
         <Text style={screenStyles.sectionTitle}>Debate transcript</Text>
         <Text style={screenStyles.sectionMeta}>
-          {snapshot.canonicalMessages.length} canonical · {drafts.length} draft
+          {revealDisplay.canonicalMessages.length} canonical · {drafts.length} draft
         </Text>
       </View>
 
-      {snapshot.canonicalMessages.length === 0 && drafts.length === 0 ? (
+      {revealDisplay.canonicalMessages.length === 0 && drafts.length === 0 ? (
         <View style={screenStyles.emptyCard}>
           <Text style={screenStyles.emptyTitle}>The transcript is intentionally empty</Text>
           <Text style={screenStyles.emptyText}>
@@ -546,7 +604,7 @@ export function LiveDebateScreen({
       ) : null}
 
       <View style={screenStyles.transcript}>
-      {snapshot.canonicalMessages.map((record) => (
+      {revealDisplay.canonicalMessages.map((record) => (
         <CanonicalDebateMessage
           key={record.message.id}
           record={record}
@@ -566,6 +624,10 @@ export function LiveDebateScreen({
           roundNumber={activeRoundNumber}
           bubbleWidth={chatLayout.bubbleWidth}
           judgeWidth={chatLayout.judgeWidth}
+          onShowFull={() => {
+            revealScheduler.current.showFull(draft.messageId);
+            setRevealVersion((version) => version + 1);
+          }}
         />
       ))}
       </View>
