@@ -19,7 +19,15 @@ def select_live_evidence(ticker: str, rows: list[dict[str, object]], *, captured
         if row.get("source_type") not in {"news", "filing"}:
             continue
         try:
-            item = AnalysisEvidenceItem.model_validate(row)
+            normalized = dict(row)
+            excerpt = row.get("excerpt")
+            if isinstance(excerpt, str) and len(excerpt) > 6000:
+                normalized["excerpt"] = excerpt[:6000]
+                normalized["metadata"] = {
+                    **(row.get("metadata") or {}), "excerpt_truncated": True,
+                    "original_excerpt_char_count": len(excerpt),
+                }
+            item = AnalysisEvidenceItem.model_validate(normalized)
             location = urlsplit(item.url or "")
             if (item.ticker != ticker.upper()
                     or item.metadata.get("storage") != "supabase"

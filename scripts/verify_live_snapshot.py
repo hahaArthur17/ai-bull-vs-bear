@@ -89,8 +89,11 @@ def audit_capture(payload: object) -> dict[str, object]:
             _dated_before(item.published_at, capture) and item.url
             and item.url.startswith(("https://", "http://")) and item.freshness.status == "current"
             for item in context.evidence),
-        "page_evidence": {(item.id, item.source_type, item.published_at) for item in context.evidence}
-        == {(item.id, item.source_type, item.published_at) for item in bundle.evidence},
+        "page_evidence": bool(context.evidence) and all(any(
+            (item.id, item.source_type, item.published_at, item.url)
+            == (page.id, page.source_type, page.published_at, page.url)
+            and page.excerpt.startswith(item.excerpt)
+            for page in bundle.evidence) for item in context.evidence),
         "page_macro": all(any(
             series.series.code == item.code and any(
                 row.observation_date == item.observation_date and row.value == item.value

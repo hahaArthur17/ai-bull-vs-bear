@@ -43,3 +43,13 @@ def test_conflicting_ids_fail_and_exact_duplicates_are_deduplicated():
 
 def test_future_date_is_unknown_even_with_same_calendar_day():
     assert classify_evidence_freshness("news", (NOW+timedelta(seconds=1)).isoformat(), now=NOW)["status"] == "unknown"
+
+
+def test_long_filing_retains_source_with_explicit_bounded_excerpt():
+    filing = document("filing", excerpt="x" * 16071)
+    result = select_live_evidence("AAPL", [document("news"), filing], captured_at=NOW)
+    bounded = next(item for item in result if item.source_type == "filing")
+    assert len(bounded.excerpt) == 6000
+    assert bounded.metadata["excerpt_truncated"] is True
+    assert bounded.metadata["original_excerpt_char_count"] == 16071
+    assert len(filing["excerpt"]) == 16071

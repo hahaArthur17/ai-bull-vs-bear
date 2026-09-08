@@ -678,3 +678,22 @@ unknown and excluded from the successful total. No full Live AAPL session ran.
 One EIA request refreshed 10 WTI rows; readback latest remained 2026-09-01.
 Supabase read-only financial check found 155 cached facts, newest filed
 2026-07-31. No deployment flags or schema were changed.
+
+## 2026-09-09 — Live evidence recovery and matching AAPL capture
+
+Read-only diagnostics found stale news and a current 16,071-character filing
+rejected by the 6,000-character context bound. Admission now creates an explicitly
+marked bounded excerpt without modifying the original document. One Apple
+Newsroom RSS request wrote four documents (latest 2026-09-08T13:59:40.685Z).
+Offline comparison now permits the research page's larger evidence set while
+requiring every selected document's source/date/URL and excerpt prefix to match.
+20 focused tests pass, including original-text preservation.
+
+One Finnhub quote request produced a standard AAPL input capture that passed all
+16 offline checks: 100 daily rows, two eligible evidence documents, seven macro
+series, close date 2026-09-04 and quote as-of 2026-09-08T20:00:00Z. No Session/Job
+or model generation was created. Capture JSON stays in ignored `.pytest_cache`.
+The earlier expectation that WTI would necessarily fail was corrected: evaluated
+at actual UTC capture time, its September 1 observation is within the inclusive
+seven-day policy. The EIA refresh did not advance it. This does not prove an
+authoritative holiday calendar or newest upstream daily-close availability.

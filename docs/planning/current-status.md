@@ -608,3 +608,13 @@ to deterministic independently of Bull/Bear. Groq Judge prose is model-generated
 structural risk/uncertainty labels remain server-authored. 424 backend tests pass.
 One synthetic real-Groq probe succeeded (92 deltas, 612 tokens); it does not
 establish standard AAPL or device acceptance. Durable interruption is next.
+
+### 2026-09-09 real AAPL capture checkpoint
+
+A controlled standard-mode capture passed all offline consistency checks using
+100 cached daily rows, two eligible evidence documents and seven macro series.
+Close date 2026-09-04 and quote timestamp 2026-09-08T20:00:00Z remain distinct.
+One Apple RSS refresh wrote four documents; one Finnhub quote request supplied
+the capture. Full filing text remains stored; the snapshot explicitly marks its
+6,000-character bounded excerpt. This is input evidence, not a full model/device
+session. Immediate interruption/interjection remains incomplete.
