@@ -73,12 +73,24 @@ export function revealUnits(content: string, complete: boolean): string[] {
 export class RevealScheduler {
   private readonly items = new Map<string, RevealItem>();
   private initialized = false;
+  private frozenDisplay: RevealDisplay | null = null;
+
+  /** Freeze the last rendered display, not the newest received provider text. */
+  freeze(display: RevealDisplay): void {
+    this.frozenDisplay = display;
+  }
+
+  releaseFreeze(): void {
+    this.frozenDisplay = null;
+  }
+
 
   sync(
     canonicalMessages: DebateMessageRecord[],
     drafts: Record<string, DebateDraft>,
     options: { immediate?: boolean } = {},
   ): void {
+    if (this.frozenDisplay) return;
     const orderedCanonicalMessages = [...canonicalMessages].sort(
       (left, right) => left.message.sequence_number - right.message.sequence_number,
     );
@@ -121,6 +133,7 @@ export class RevealScheduler {
   }
 
   advance(): boolean {
+    if (this.frozenDisplay) return false;
     const item = this.firstUnsettled();
     if (!item) return false;
     const remaining = item.units.length - item.revealedUnits;
@@ -135,6 +148,7 @@ export class RevealScheduler {
   }
 
   showFull(messageId: string): void {
+    if (this.frozenDisplay) return;
     const item = this.items.get(messageId);
     if (item) {
       item.revealedUnits = item.units.length;
@@ -143,6 +157,7 @@ export class RevealScheduler {
   }
 
   settleAll(): void {
+    if (this.frozenDisplay) return;
     for (const item of this.items.values()) {
       item.revealedUnits = item.units.length;
       item.forceVisible = true;
@@ -150,6 +165,7 @@ export class RevealScheduler {
   }
 
   display(): RevealDisplay {
+    if (this.frozenDisplay) return this.frozenDisplay;
     const canonicalMessages: DebateMessageRecord[] = [];
     const drafts: DebateDraft[] = [];
     let activeMessageId: string | null = null;

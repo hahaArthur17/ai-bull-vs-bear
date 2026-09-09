@@ -70,6 +70,8 @@ type LiveDebateScreenProps = {
   onBack: () => void;
 };
 
+const interruptionsEnabled = process.env.EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED === "true";
+
 const colors = {
   background: themeColors.surface.canvas,
   surface: themeColors.surface.raised,
@@ -144,6 +146,7 @@ export function LiveDebateScreen({
   const screenReaderEnabled = useRef<boolean | null>(null);
   const appIsActive = useRef(AppState.currentState === "active");
   const revealScheduler = useRef(new RevealScheduler());
+  const pendingInterruption = useRef<DebateDraft | null>(null);
   const challengeKey = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
@@ -171,6 +174,7 @@ export function LiveDebateScreen({
     setExplanationError("");
     setHasNewMessages(false);
     revealScheduler.current = new RevealScheduler();
+    pendingInterruption.current = null;
     followsTranscript.current = true;
     if (scrollFrame.current !== null) {
       cancelAnimationFrame(scrollFrame.current);
@@ -301,8 +305,10 @@ export function LiveDebateScreen({
     || snapshot.sessionStatus === "running_round_2"
     ? 2
     : 1;
-  const canCancel = canCancelDebate(snapshot) && !cancelling;
-  const canChallenge = canChallengeDebate(snapshot);
+  const canCancel = (interruptionsEnabled
+    ? Boolean(pendingInterruption.current || drafts[0])
+    : canCancelDebate(snapshot)) && !cancelling;
+  const canChallenge = !pendingInterruption.current && canChallengeDebate(snapshot);
   const selectedTextIsValid = pointTarget !== null
     && selectedText.trim().length > 0
     && pointTarget.message.content.includes(selectedText.trim());
@@ -407,14 +413,34 @@ export function LiveDebateScreen({
     setCancelling(true);
     setActionError("");
     try {
-      const detail = await api.cancelDebate(sessionId, snapshot.activeGenerationId);
+      let detail: DebateSessionDetail;
+      if (interruptionsEnabled) {
+        const target = pendingInterruption.current || drafts[0];
+        if (!target) return;
+        pendingInterruption.current = target;
+        revealScheduler.current.freeze(revealDisplay);
+        streamClient.current?.stop();
+        setRevealVersion((version) => version + 1);
+        detail = await api.interruptDebate(sessionId, target);
+        const saved = detail.messages.find((record) => record.message.id === target.messageId);
+        if (!saved || saved.message.is_complete || saved.message.content !== target.content) {
+          throw new Error("Stop was not confirmed. Text remains frozen; retry Stop here.");
+        }
+        pendingInterruption.current = null;
+        revealScheduler.current.releaseFreeze();
+        revealScheduler.current.sync(detail.messages, {}, { immediate: true });
+      } else {
+        detail = await api.cancelDebate(sessionId, snapshot.activeGenerationId);
+      }
       setSnapshot((current) => createCanonicalDebateSnapshot(
         detail,
         current.lastSequence,
         current.status,
       ));
     } catch (error) {
-      setActionError(error instanceof Error ? error.message : "Could not cancel this Debate.");
+      setActionError(interruptionsEnabled
+        ? "Stop was not confirmed. Text remains frozen; retry Stop here."
+        : error instanceof Error ? error.message : "Could not cancel this Debate.");
     } finally {
       setCancelling(false);
     }
@@ -509,7 +535,7 @@ export function LiveDebateScreen({
     >
       {cancelling ? <ActivityIndicator color={colors.bear} size="small" /> : null}
       <Text style={screenStyles.cancelText}>
-        {cancelling ? "Requesting cancellation…" : "Stop this generation"}
+        {cancelling ? "Confirming stop…" : interruptionsEnabled ? "Stop here" : "Stop this generation"}
       </Text>
     </FocusablePressable>
   ) : null;

@@ -125,3 +125,22 @@ test("scheduler keeps canonical sequence order and gives a durable completion pr
   );
   assert.equal(scheduler.display().drafts.length, 0);
 });
+
+test("freeze retains rendered prefix through late output, reconnect and accessibility settlement", () => {
+  const scheduler = new RevealScheduler();
+  scheduler.sync([], { 'bull-1': draft('One two three ') });
+  scheduler.advance();
+  const rendered = scheduler.display();
+  scheduler.advance(); // Timer may run between render and click.
+  scheduler.freeze(rendered);
+  scheduler.sync([canonical('One two three completed.')], {}, { immediate: true });
+  scheduler.settleAll();
+  scheduler.showFull('bull-1');
+  assert.equal(scheduler.advance(), false);
+  assert.deepEqual(scheduler.display(), rendered);
+  scheduler.releaseFreeze();
+  const stopped = canonical(rendered.drafts[0].content);
+  stopped.message.is_complete = false;
+  scheduler.sync([stopped], {}, { immediate: true });
+  assert.equal(scheduler.display().canonicalMessages[0].message.content, rendered.drafts[0].content);
+});

@@ -157,3 +157,12 @@ test("legacy records preserve their argument without inferring fact metadata fro
   assert.equal(sections.interpretation, null);
   assert.equal(sections.uncertainty, null);
 });
+
+test("incomplete messages use the exact prefix and never expand an older presentation", () => {
+  const stopped = { ...record, message: { ...record.message, content: 'A server ', is_complete: false } };
+  const sections = debateMessageSections(stopped);
+  assert.equal(sections.argument, 'A server ');
+  assert.equal(sections.interpretation, null);
+  assert.equal(sections.uncertainty, null);
+  assert.deepEqual(sections.factsUsed, []);
+});

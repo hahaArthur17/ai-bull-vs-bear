@@ -653,3 +653,12 @@ Implemented default-off `DEBATE_INTERRUPTIONS_ENABLED`: checkpoint generated tex
 Validation: backend suite 434 passed (one existing Starlette/httpx deprecation warning); regression coverage includes API flag/ownership, exact prefix, late provider output, canonical completion before interruption, and repeat requests. No market or model calls in this step.
 
 Limitations: SQL migration `20260909_debate_draft_interruption.sql` is authored but NOT applied or PostgreSQL-runtime validated. Checkpointing currently performs one synchronous persistence write per delta and needs hosted latency measurement. Client Stop here, user interjection and explicit continuation remain pending; this is not WP8L.5 acceptance. Feature stays disabled until migration and end-to-end checks pass.
+
+
+### 2026-09-09 — WP8L client Stop here integration
+
+Added default-off `EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED`. While a message is revealing, Stop here freezes the last rendered prefix immediately, stops the local stream and submits that exact prefix to `/interrupt`. Failure keeps the display frozen and permits an identical retry; only a matching incomplete canonical response releases the local freeze. Reconnect, accessibility settlement, Show full and late provider completion cannot expand frozen text. Incomplete records explicitly say “Stopped here · Incomplete response” and render raw retained content without old full-text presentation sections.
+
+Validation: mobile TypeScript check passed; 93 Node tests passed, including rendered-vs-received prefix and stale presentation regression; Expo Web export with the interruption flag enabled passed. This is build/unit verification, not browser or Expo Go device acceptance. No market/model calls or persisted environment changes.
+
+Remaining: hosted migration/runtime verification, persistence latency, interruption before the first draft arrives, recovery of an unconfirmed stop after app termination, and user interjection/explicit continuation. The flag remains false in `.env.example`; do not claim the entire Stop here contract is complete.

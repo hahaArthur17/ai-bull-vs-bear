@@ -144,6 +144,16 @@ export const api = {
       },
     ),
 
+  interruptDebate: (sessionId: string, target: {
+    generationId: string; messageId: string; content: string;
+  }): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
+    "/debates/" + encodeURIComponent(sessionId) + "/interrupt", {
+      method: "POST",
+      body: JSON.stringify({ generation_id: target.generationId,
+        message_id: target.messageId, visible_prefix: target.content }),
+    },
+  ),
+
   cancelDebate: (sessionId: string, generationId: string): Promise<DebateSessionDetail> =>
     request<DebateSessionDetail>(
       "/debates/" + encodeURIComponent(sessionId) + "/cancel",

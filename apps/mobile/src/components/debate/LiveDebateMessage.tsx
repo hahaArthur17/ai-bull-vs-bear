@@ -43,7 +43,7 @@ export function CanonicalDebateMessage({
   const accent = roleColors[placement.kind];
   const isJudge = placement.kind === "judge";
   const showsEvidenceDisclosure = placement.kind !== "user" && placement.kind !== "system";
-  const canTarget = pointQuestionsEnabled
+  const canTarget = record.message.is_complete && pointQuestionsEnabled
     && record.message.role !== "user"
     && record.message.role !== "system"
     && record.message.role !== "explainer";
@@ -71,6 +71,9 @@ export function CanonicalDebateMessage({
             R{record.message.round_number} · E{record.message.exchange_number} · #{record.message.sequence_number}
           </Text>
         </View>
+        {!record.message.is_complete ? (
+          <Text style={messageStyles.messageMeta}>Stopped here · Incomplete response</Text>
+        ) : null}
         <Text selectable style={[messageStyles.messageText, isJudge && messageStyles.judgeText]}>
           {sections.argument}
         </Text>

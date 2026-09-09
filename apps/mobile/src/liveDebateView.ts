@@ -23,7 +23,7 @@ export function debateMessageSections(
   record: DebateMessageRecord,
 ): DebateMessageSections {
   const presentation = record.presentation;
-  if (!presentation) {
+  if (!presentation || !record.message.is_complete) {
     return {
       argument: record.message.content,
       factsUsed: [],
