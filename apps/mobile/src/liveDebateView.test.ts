@@ -166,3 +166,9 @@ test("incomplete messages use the exact prefix and never expand an older present
   assert.equal(sections.uncertainty, null);
   assert.deepEqual(sections.factsUsed, []);
 });
+
+test("interruption waiting is distinct from terminal cancellation and formal Round 2", () => {
+  const paused = snapshot({ sessionStatus: "interrupted_awaiting_user", jobStatus: "cancelled" });
+  assert.equal(debateStatusCopy(paused).label, "Stopped here");
+  assert.equal(canChallengeDebate(paused), false);
+});

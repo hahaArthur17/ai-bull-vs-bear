@@ -42,6 +42,9 @@ export function debateMessageSections(
 }
 
 export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCopy {
+  if (snapshot.sessionStatus === "interrupted_awaiting_user") {
+    return { label: "Stopped here", detail: "Your visible text is saved. No generation resumes automatically.", tone: "neutral" };
+  }
   if (snapshot.sessionStatus === "cancel_requested") {
     return {
       label: "Cancelling",

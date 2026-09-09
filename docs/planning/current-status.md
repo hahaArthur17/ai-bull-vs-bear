@@ -636,3 +636,14 @@ Added default-off `EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED`. While a message is
 Validation: mobile TypeScript check passed; 93 Node tests passed, including rendered-vs-received prefix and stale presentation regression; Expo Web export with the interruption flag enabled passed. This is build/unit verification, not browser or Expo Go device acceptance. No market/model calls or persisted environment changes.
 
 Remaining: hosted migration/runtime verification, persistence latency, interruption before the first draft arrives, recovery of an unconfirmed stop after app termination, and user interjection/explicit continuation. The flag remains false in `.env.example`; do not claim the entire Stop here contract is complete.
+
+
+### 2026-09-09 — interruption waiting state
+
+Stop now persists `interrupted_awaiting_user` with no terminal timestamp and
+publishes its own event. Terminal Cancel stays distinct and can explicitly end
+the paused session. API/SSE/client types and labels recognize the waiting state;
+Worker cancellation/recovery preserves it rather than treating it as a failed or
+completed round. This state does not itself enable interjection or Continue.
+Backend 435 tests and mobile typecheck pass; SQL runtime validation is ongoing
+in isolation and the feature remains off. No live data/model calls.

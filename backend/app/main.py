@@ -593,6 +593,7 @@ def _debate_sse_frames(
     pending = initial_events
     terminal_types = {
         "session.awaiting_user",
+        "session.interrupted_awaiting_user",
         "session.completed",
         "session.cancelled",
         "session.failed",
@@ -620,6 +621,7 @@ def _debate_sse_frames(
         current = debate_preview_service.repository.get_session(session.id, session.user_id)
         if current is None or current.status in {
             "awaiting_user",
+            "interrupted_awaiting_user",
             "completed",
             "cancelled",
             "failed",
@@ -1129,8 +1131,8 @@ def interrupt_debate(session_id: UUID, request: DebateInterruptRequest,
     cancelled = debate_preview_service.repository.interrupt_generation(
         session_id, user_id, request.generation_id, request.message_id,
         request.visible_prefix, datetime.now(timezone.utc))
-    debate_event_broker.publish(session_id, "session.cancelled", payload={
-        "status": "cancelled", "generation_id": str(cancelled.active_generation_id),
+    debate_event_broker.publish(session_id, "session.interrupted_awaiting_user", payload={
+        "status": "interrupted_awaiting_user", "generation_id": str(cancelled.active_generation_id),
         "cancelled_generation_id": str(request.generation_id), "interrupted": True,
     })
     return _debate_detail(cancelled)

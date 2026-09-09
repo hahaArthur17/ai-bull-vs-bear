@@ -25,7 +25,7 @@ def stop(repo, session, message, prefix='Hello 世界 '):
 def test_stop_preserves_exact_visible_prefix_and_is_idempotent():
     repo, session, message = setup_draft()
     result = stop(repo, session, message)
-    assert result.status == 'cancelled'
+    assert result.status == 'interrupted_awaiting_user'
     assert result.active_generation_id != session.active_generation_id
     saved, = repo.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
     assert saved.content == 'Hello 世界 '

@@ -1,3 +1,11 @@
+-- Distinguish a resumable interruption from terminal cancellation.
+alter table public.debate_sessions drop constraint if exists debate_sessions_status_check;
+alter table public.debate_sessions add constraint debate_sessions_status_check check (status in (
+  'created','queued_round_1','running_round_1','awaiting_user','queued_round_2',
+  'running_round_2','completed','cancel_requested','cancelled','failed',
+  'interrupted_awaiting_user'
+));
+
 -- Default-off Stop foundation. Apply before DEBATE_INTERRUPTIONS_ENABLED.
 -- Server-only checkpoints are written before deltas become visible to clients.
 create table if not exists public.debate_draft_checkpoints (
@@ -68,13 +76,13 @@ begin
       or (target ->> 'branch_id')::uuid is distinct from s.active_branch_id then
     raise exception using errcode='40001', message='Interruption target unavailable';
   end if;
-  if s.status='cancelled' and target ->> 'is_complete'='false'
+  if s.status='interrupted_awaiting_user' and target ->> 'is_complete'='false'
       and target #>> '{metadata,interrupted}'='true'
       and (target ->> 'generation_id')::uuid=requested_generation_id
       and target ->> 'content'=visible_prefix then
     return to_jsonb(s);
   end if;
-  if s.status in ('cancelled','cancel_requested','failed')
+  if s.status in ('cancelled','cancel_requested','failed','interrupted_awaiting_user')
       or s.active_generation_id is distinct from requested_generation_id
       or (target ->> 'generation_id')::uuid is distinct from requested_generation_id
       or target ->> 'role' not in ('bull','bear','judge')
@@ -97,8 +105,8 @@ begin
   -- Running worker acknowledges cancellation and records its observed usage.
   update public.debate_jobs set status='cancelled',finished_at=greatest(interrupted_at,updated_at),
     updated_at=greatest(interrupted_at,updated_at) where session_id=s.id and status='queued';
-  update public.debate_sessions set status='cancelled',active_generation_id=gen_random_uuid(),
-    updated_at=interrupted_at,completed_at=interrupted_at,final_judge_message_id=null,
+  update public.debate_sessions set status='interrupted_awaiting_user',active_generation_id=gen_random_uuid(),
+    updated_at=interrupted_at,completed_at=null,final_judge_message_id=null,
     interim_judge_message_id=case when exists(select 1 from public.debate_messages
       where id=s.interim_judge_message_id and sequence_number<target_sequence)
       then s.interim_judge_message_id else null end

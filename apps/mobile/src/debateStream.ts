@@ -208,6 +208,7 @@ export class XhrDebateEventTransport implements DebateEventTransport {
 
 const TERMINAL_EVENT_TYPES = new Set<DebateEvent["type"]>([
   "session.awaiting_user",
+  "session.interrupted_awaiting_user",
   "session.completed",
   "session.cancelled",
   "session.failed",
@@ -215,6 +216,7 @@ const TERMINAL_EVENT_TYPES = new Set<DebateEvent["type"]>([
 
 const TERMINAL_SESSION_STATUSES = new Set<DebateSessionDetail["session"]["status"]>([
   "awaiting_user",
+  "interrupted_awaiting_user",
   "completed",
   "cancelled",
   "failed",
@@ -225,6 +227,7 @@ const SESSION_STATUSES = new Set<DebateSessionStatus>([
   "queued_round_1",
   "running_round_1",
   "awaiting_user",
+  "interrupted_awaiting_user",
   "queued_round_2",
   "running_round_2",
   "completed",
@@ -373,7 +376,8 @@ export function reduceDebateEvent(
     drafts = {};
   }
   if (
-    (event.type === "session.cancel_requested" || event.type === "session.cancelled")
+    (event.type === "session.cancel_requested" || event.type === "session.cancelled"
+      || event.type === "session.interrupted_awaiting_user")
     && generationId
   ) {
     activeGenerationId = generationId;
@@ -410,6 +414,11 @@ export function reduceDebateEvent(
   if (event.type === "job.failed" || event.type === "session.failed") {
     jobStatus = "failed";
     jobAttemptCount = numberPayload(event, "attempt_count") || jobAttemptCount;
+    retryDelaySeconds = null;
+  }
+  if (event.type === "session.interrupted_awaiting_user") {
+    jobStatus = "cancelled";
+    sessionStatus = "interrupted_awaiting_user";
     retryDelaySeconds = null;
   }
   if (event.type === "session.cancelled") {

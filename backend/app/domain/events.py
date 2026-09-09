@@ -23,6 +23,7 @@ DebateEventType = Literal[
     "judge.delta",
     "judge.completed",
     "session.awaiting_user",
+    "session.interrupted_awaiting_user",
     "explanation.started",
     "explanation.delta",
     "explanation.completed",

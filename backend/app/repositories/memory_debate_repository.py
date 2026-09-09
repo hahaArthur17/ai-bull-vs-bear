@@ -150,12 +150,12 @@ class InMemoryDebateRepository:
                 raise DebateConcurrencyError("Interruption target unavailable")
             if target.session_id != session_id or target.branch_id != session.active_branch_id:
                 raise DebateConcurrencyError("Interruption target unavailable")
-            if (session.status == "cancelled" and target.generation_id == generation_id
+            if (session.status == "interrupted_awaiting_user" and target.generation_id == generation_id
                     and not target.is_complete and target.metadata.get("interrupted") is True
                     and target.content == visible_prefix):
                 return _clone(session)
             if (session.active_generation_id != generation_id or target.generation_id != generation_id
-                    or session.status in {"cancelled", "cancel_requested", "failed"}
+                    or session.status in {"cancelled", "cancel_requested", "failed", "interrupted_awaiting_user"}
                     or target.role not in {"bull", "bear", "judge"}
                     or not target.content.startswith(visible_prefix)):
                 raise DebateConcurrencyError("Interruption prefix or generation is invalid")
@@ -180,8 +180,8 @@ class InMemoryDebateRepository:
                     stamp = max(at, job.updated_at)
                     self._jobs[key] = _clone(job.model_copy(update={"status": "cancelled", "finished_at": stamp, "updated_at": stamp}))
             retained = {key for key in self._messages if key != message_id}
-            cancelled = DebateSession.model_validate({**session.model_dump(), "status": "cancelled",
-                "active_generation_id": uuid4(), "updated_at": at, "completed_at": at,
+            cancelled = DebateSession.model_validate({**session.model_dump(), "status": "interrupted_awaiting_user",
+                "active_generation_id": uuid4(), "updated_at": at, "completed_at": None,
                 "interim_judge_message_id": session.interim_judge_message_id if session.interim_judge_message_id in retained else None,
                 "final_judge_message_id": None})
             self._sessions[session_id] = cancelled

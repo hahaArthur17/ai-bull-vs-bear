@@ -141,7 +141,7 @@ class DebateWorker:
                     job_id=job.id,
                     read_count=claimed.read_count,
                 )
-            if session.status == "cancel_requested":
+            if session.status in {"cancel_requested", "interrupted_awaiting_user"}:
                 cancelled_job = cancel_job(
                     job,
                     at=max(job.updated_at, session.updated_at),
@@ -151,12 +151,13 @@ class DebateWorker:
                     cancelled_job,
                     expected_status="running",
                 )
-                await asyncio.to_thread(
-                    self.orchestrator.request_cancellation,
-                    session.id,
-                    session.user_id,
-                    session.active_generation_id,
-                )
+                if session.status == "cancel_requested":
+                    await asyncio.to_thread(
+                        self.orchestrator.request_cancellation,
+                        session.id,
+                        session.user_id,
+                        session.active_generation_id,
+                    )
                 await self._archive(queue_message_id)
                 return DebateWorkerResult(
                     outcome="cancelled",
@@ -250,7 +251,7 @@ class DebateWorker:
             raise DebateRepositoryError("Worker stage did not reach a durable terminal Job state")
         await self._archive(queue_message_id)
         outcome: DebateWorkerOutcome = (
-            "cancelled" if finished_session.status == "cancelled" else "completed"
+            "cancelled" if current_job.status == "cancelled" else "completed"
         )
         return DebateWorkerResult(
             outcome=outcome,

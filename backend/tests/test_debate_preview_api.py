@@ -1304,9 +1304,26 @@ def test_interrupt_endpoint_freezes_prefix_and_rejects_invalid_requests(monkeypa
                        json={**payload, 'visible_prefix': 'invented prefix'}).status_code == 409
     stopped = client.post(endpoint, headers=headers, json=payload)
     assert stopped.status_code == 200
-    assert stopped.json()['session']['status'] == 'cancelled'
+    assert stopped.json()['session']['status'] == 'interrupted_awaiting_user'
+    assert stopped.json()['session']['completed_at'] is None
     records = stopped.json()['messages']
     assert len(records) == 1
     assert records[0]['message']['content'] == payload['visible_prefix']
     assert records[0]['message']['is_complete'] is False
     assert client.post(endpoint, headers=headers, json=payload).json() == stopped.json()
+
+
+def test_interrupted_session_can_be_explicitly_ended(monkeypatch):
+    first = create_round_one(monkeypatch, user='end-interruption-owner')
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
+    session = first['session']
+    headers = {'X-User-Id': 'end-interruption-owner'}
+    stopped = client.post(f"/debates/{session['id']}/interrupt", headers=headers, json={
+        'generation_id': session['active_generation_id'],
+        'message_id': first['messages'][0]['message']['id'], 'visible_prefix': ''})
+    assert stopped.status_code == 200
+    ended = client.post(f"/debates/{session['id']}/cancel", headers=headers,
+        json={'generation_id': stopped.json()['session']['active_generation_id']})
+    assert ended.status_code == 202
+    assert ended.json()['session']['status'] == 'cancelled'
+    assert ended.json()['messages'][0]['message']['is_complete'] is False

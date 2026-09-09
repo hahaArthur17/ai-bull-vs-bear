@@ -88,6 +88,7 @@ export function debatePhaseBadge(
   sessionStatus: DebateSessionStatus | null,
   connectionStatus: string,
 ): string {
+  if (sessionStatus === "interrupted_awaiting_user") return "STOPPED HERE";
   if (sessionStatus === "awaiting_user") return "ROUND 1 PAUSED";
   if (sessionStatus === "completed") return "FINAL";
   if (sessionStatus === "cancelled") return "CANCELLED";

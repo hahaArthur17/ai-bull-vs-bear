@@ -26,6 +26,7 @@ ALLOWED_SESSION_TRANSITIONS: Mapping[
     "running_round_2": frozenset(
         {"queued_round_2", "completed", "cancel_requested", "failed"}
     ),
+    "interrupted_awaiting_user": frozenset({"cancel_requested", "failed"}),
     "cancel_requested": frozenset({"cancelled", "failed"}),
     "completed": frozenset(),
     "cancelled": frozenset(),

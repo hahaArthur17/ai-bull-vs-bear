@@ -16,6 +16,7 @@ DebateSessionStatus = Literal[
     "queued_round_1",
     "running_round_1",
     "awaiting_user",
+    "interrupted_awaiting_user",
     "queued_round_2",
     "running_round_2",
     "completed",

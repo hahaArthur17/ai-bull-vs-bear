@@ -468,7 +468,7 @@ def test_interruption_preserves_prefix_and_cancels_worker_without_failure() -> N
         stored_job = repository.get_job(job.id)
         events = broker.replay(queued.id)
 
-        assert cancelled.status == "cancelled"
+        assert cancelled.status == "interrupted_awaiting_user"
         assert len(messages) == 1
         assert messages[0].content == prefix
         assert not messages[0].is_complete

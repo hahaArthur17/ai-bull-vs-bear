@@ -729,3 +729,14 @@ and shared event delivery beyond durable checkpoints. No live provider, database
 mutation, deployment or business-code change. Local document links and
 `git diff --check` verified; existing test totals are recorded evidence from the
 code baseline, not a new test run for documentation edits.
+
+
+### 2026-09-09 — interruption waiting state
+
+Stop now persists `interrupted_awaiting_user` with no terminal timestamp and
+publishes its own event. Terminal Cancel stays distinct and can explicitly end
+the paused session. API/SSE/client types and labels recognize the waiting state;
+Worker cancellation/recovery preserves it rather than treating it as a failed or
+completed round. This state does not itself enable interjection or Continue.
+Backend 435 tests and mobile typecheck pass; SQL runtime validation is ongoing
+in isolation and the feature remains off. No live data/model calls.
