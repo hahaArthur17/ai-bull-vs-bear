@@ -508,6 +508,11 @@ close timing, quote-aware snapshot cache identity, and completion/Stop races.
 Sol owns the backend contract, Terra the mobile scheduler, Luna independent
 verification discovery, and root integration, regression checks, and commits.
 
+Current code baseline and remaining execution order (2026-09-09):
+[`wp8l-next-steps.md`](wp8l-next-steps.md). We are implementing WP8L.5;
+WP8L.1–4 have code/individual checks but their integrated live/native gates
+remain open. `568a3c2` and `50d9885` are default-off Stop foundations.
+
 #### WP8L.1 — Freeze the meaning of “current”
 
 2026-09-09: quote/completed-close backend slice implemented. Immutable context
@@ -515,8 +520,8 @@ includes capture time, latest completed-close date, and a separate Finnhub quote
 factor with original retrieval time retained across cache hits. Live Turn
 admission rejects invalid/insufficient/stale daily history and unavailable,
 stale, future, or inconsistent quotes. NY 16:15/weekend cutoff is conservative;
-an authoritative holiday/early-close calendar and evidence/filing/macro admission
-gates remain pending. This does not close WP8L.1 or live/device acceptance.
+an authoritative holiday/early-close calendar remains pending. Evidence, SEC
+financial-fact and macro admission were subsequently implemented and tested. This does not close WP8L.1 or live/device acceptance.
 
 
 - Treat `GET /stocks/AAPL/quote` as the latest provider quote. Preserve its
@@ -540,8 +545,10 @@ gates remain pending. This does not close WP8L.1 or live/device acceptance.
 
 #### WP8L.2 — Refresh and preflight real AAPL inputs
 
-Run external writes only after explicit quota/write authorization and never
-print secrets. Execute one bounded source at a time:
+The user has authorized bounded data refreshes and small model checks within
+daily quotas. Read cache freshness and the known usage ledger first; refresh
+only missing/stale sources and never print secrets. The list below is a source
+order, not an instruction to call every provider on every run:
 
 1. refresh AAPL daily closes once with `scripts/ingest_live_prices.py`;
 2. refresh recent Apple/SEC evidence and structured filing facts with
@@ -565,14 +572,15 @@ snapshot values disagree.
 - Run the existing quota-confirmed Groq streaming verifier once. Require six
   ordered Bull/Bear Turn streams, nonzero token accounting, valid citations,
   canonical reload, and safe cleanup. Do not print generated text or prompts.
-- Document the present limitation: `DEBATE_STREAMING_PROVIDER=groq` applies to
-  Bull/Bear Turns, while Interim/Final Judge still use the deterministic Judge
-  provider and do not emit `judge.delta`. This may be used as an explicitly
-  labelled intermediate smoke test, but it is not a fully Live AI Debate.
-- Add a bounded asynchronous Judge provider and `judge.delta` contract before
-  claiming every visible agent is model-generated. Apply the same evidence
-  allowlist, output bound, guardrails, token ledger, retry classification,
-  completion validation, cancellation, and reconnect rules used for Bull/Bear.
+- Streamed Interim/Final Judge is implemented through independently configured
+  `DEBATE_STREAMING_JUDGE_PROVIDER` (default deterministic), including
+  `judge.delta`, model/usage metadata and bounded completion. Verify both Judges
+  and both rounds against one standard AAPL snapshot on the current SHA before
+  claiming all roles passed Live Acceptance. The successful synthetic Judge
+  probe is transport evidence only; structural risk labels remain server-owned.
+- Include retries, failures and interrupted calls in the request ledger; unknown
+  tokens remain unknown. Do not remove consumed usage when later transcript
+  messages are trimmed by interruption.
 - Keep Explanation as a separately metered provider choice. A Live Debate test
   must not silently enable paid/live Explanation calls.
 
@@ -601,12 +609,17 @@ snapshot values disagree.
 - `Stop here` freezes the displayed prefix and clears undisplayed buffered text
   immediately on the client, before network acknowledgement.
 - The backend atomically invalidates the expected generation against Turn
-  completion/next-Turn admission. No subsequent Bull, Bear, or Judge provider
-  request may start; late events are ignored.
+  completion/next-Turn admission. After server acceptance, no new old-generation
+  admission is permitted; late events are ignored. Client freeze is immediate,
+  but already dispatched requests cannot be retracted and may incur usage.
+  Test the check-to-provider-dispatch race. Display pacing alone does not gate
+  later provider requests; a stronger no-prefetch contract needs client reveal
+  acknowledgement/backpressure and a disconnect policy.
 - Persist only a server-validated prefix as an explicitly incomplete,
   interrupted record. The existing `DebateMessage` schema permits
-  `is_complete=false` with `cancelled_at`; repository/API/event behavior and a
-  bounded durable draft checkpoint still need implementation. Do not attach
+  `is_complete=false` with `cancelled_at`; default-off repository/API and client
+  foundations now exist. The SQL migration is not applied/runtime validated,
+  and durable waiting/interjection state, recovery and continuation remain open. Do not attach
   unverified citations or present the prefix as a completed claim.
 - Show a user composer at that point. A read-only explanation, a user opinion
   that influences later discussion, ending the Debate, and continuing from a
@@ -650,8 +663,9 @@ The existing single-process Worker in the FastAPI lifespan is the accepted
 local/staging topology for this lane. Do not deploy a separate Render background
 Worker while SSE deltas remain process-local: canonical completion might persist
 but the API process would not receive the live delta stream. Before splitting
-processes or scaling the API, add a durable/shared event stream or draft
-checkpoint and repeat reconnect/interruption tests.
+processes or scaling the API, add shared event delivery with durable replay/cursor recovery and repeat
+reconnect/interruption tests. Draft checkpoints alone do not deliver Worker
+deltas to the API.
 
 Render free Web services may cold-start and restart. Pre-warm `/health`, record
 cold-start behavior, keep the SSE connection active during the bounded test,

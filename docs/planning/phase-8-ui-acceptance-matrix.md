@@ -98,6 +98,10 @@ and volatility must be checked for one shared definition before final closure.
 
 ## Live Data and Live AI acceptance
 
+Status at `50d9885` (2026-09-09): data/provider/reveal and default-off Stop
+foundations have implementation evidence; this entire matrix is not yet passed.
+See [`remaining sequence`](wp8l-next-steps.md).
+
 The controlled live run supplements fixture-based UI review. It is not a public
 release and must use a dedicated non-production account, bounded provider quota,
 standard data mode, V2 Queue admission, and a genuinely streaming provider.
@@ -109,7 +113,10 @@ standard data mode, V2 Queue admission, and a genuinely streaming provider.
 | Queue admission | `POST /debates` returns `202` before completion; queued/running state is visible before model text. |
 | Provider truth | Every completed message exposes provider/model/stream-mode metadata in diagnostics; deterministic Judge or Explanation output is labelled until replaced by its own live contract. |
 | Reveal pacing | Only one active bubble reveals at a time; English words and CJK graphemes remain ordered; canonical completion cannot force an early full-text jump; `Show full response` is explicit. |
-| Immediate interruption | Visible prefix freezes before network acknowledgement, undisplayed buffer is removed, no later role starts, the prefix remains explicitly incomplete after reload, and the user can interject without automatically restarting. |
+| Immediate interruption | Visible prefix freezes before network acknowledgement, undisplayed text stays hidden, server-confirmed interruption blocks new old-generation admission, already-dispatched usage is retained, the prefix remains explicitly incomplete after reload, and the user can interject without automatically restarting. |
+| Stop boundaries | Queued/before-first-delta, empty prefix, Judge, completion-before-reveal, timeout, duplicate requests and two-client races have explicit outcomes. |
+| Interjection and Continue | Opinion submission does not call a model; explicit Continue creates one new generation/job, retains frozen inputs, and never revives hidden output or duplicates usage. |
+| Unconfirmed Stop recovery | App termination/reopen restores the pending request or confirmed interruption; no automatic reveal or model restart. |
 | Recovery | App background/foreground, SSE reconnect, retry, terminal failure, cancellation, and History reopen preserve durable state without replaying completed text as new typing. |
 | Cost boundary | Provider request count, per-turn cap, total token use, retry count, and one-live-session concurrency are recorded without prompts or secrets. |
 

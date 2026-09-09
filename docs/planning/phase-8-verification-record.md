@@ -715,3 +715,17 @@ Added default-off `EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED`. While a message is
 Validation: mobile TypeScript check passed; 93 Node tests passed, including rendered-vs-received prefix and stale presentation regression; Expo Web export with the interruption flag enabled passed. This is build/unit verification, not browser or Expo Go device acceptance. No market/model calls or persisted environment changes.
 
 Remaining: hosted migration/runtime verification, persistence latency, interruption before the first draft arrives, recovery of an unconfirmed stop after app termination, and user interjection/explicit continuation. The flag remains false in `.env.example`; do not claim the entire Stop here contract is complete.
+
+
+### 2026-09-09 — roadmap reconciliation at code baseline 50d9885
+
+Documentation-only review reconciled the current-status table and WP8L/setup/
+parent-plan acceptance gates with implemented data, Judge, reveal and Stop
+foundations. Added `wp8l-next-steps.md` as the ordered remaining-work map through
+WP9/WP10 and Phase 9. Explicit additions: server admission versus local freeze,
+already-dispatched usage retention, interrupted waiting state, SQL runtime and
+checkpoint latency, first-delta/app-termination recovery, frozen-input Continue,
+and shared event delivery beyond durable checkpoints. No live provider, database
+mutation, deployment or business-code change. Local document links and
+`git diff --check` verified; existing test totals are recorded evidence from the
+code baseline, not a new test run for documentation edits.

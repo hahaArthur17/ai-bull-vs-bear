@@ -347,7 +347,9 @@ be selected before an ingestion adapter can be implemented.
 
 ## Controlled Expo Go Live Acceptance profile
 
-Status: planned, not executed by the 2026-09-08 planning update. The canonical
+Status (2026-09-09): implementation and bounded data/model probes have progressed;
+full Expo Go acceptance remains unexecuted. See
+[`remaining roadmap`](../planning/wp8l-next-steps.md). The canonical
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
 
@@ -435,24 +437,28 @@ Session conflict, and one declared model-call budget.
 
 ### 5. Know what still blocks final Live Acceptance
 
-- Bull/Bear can stream through Groq today; Interim/Final Judge remain
-  deterministic and non-streaming until an asynchronous Judge contract is
-  implemented.
-- Provider chunks do not guarantee one word or character per event. A client
-  reveal scheduler must buffer deltas and release words/graphemes at a controlled
-  pace without letting canonical completion jump to full text.
-- Current terminal Cancel clears incomplete drafts. The accepted `Stop here`
-  behavior instead freezes the visible prefix, discards undisplayed text,
-  prevents every later agent, persists an explicitly incomplete prefix, and
-  opens a user-interjection decision before any continuation.
-- A separate Worker or multiple API instances cannot deliver reliable live
-  deltas/interruption through the current process-local broker. Add a shared or
-  durable delta/checkpoint layer before changing topology.
+- Bull/Bear and independently configured Interim/Final Judge streaming are
+  implemented. Current-SHA, full standard AAPL two-round acceptance remains open.
+- Client reveal pacing and default-off visible-prefix freeze are implemented;
+  native pacing/accessibility, interruption recovery, interjection and explicit
+  Continue still need verification/implementation.
+- Apply and test the interruption migration in isolation before hosted testing.
+  The current `cancelled` foundation is not yet a durable waiting-for-user state.
+  Benchmark per-delta synchronous checkpoint writes and provider-admission races.
+- The process-local SSE broker still requires a single API/Worker process.
+  Persisted draft checkpoints do not substitute for shared cross-process delta
+  delivery and cursor replay.
+- Cached inputs must pass preflight at the actual acceptance time. Refresh only
+  stale/missing sources under the existing user authorization and source budgets.
 
 Do not enable hosted or public V2/Queue/Groq flags until the local Expo pass,
 same-SHA staging smoke, rollback, quota, and provenance gates are recorded.
 
 ## Verification checklist
+
+Checked items below refer to their historical verification scope. They do not
+include the new `20260909_debate_draft_interruption.sql` migration or certify
+the full current-SHA Live AAPL/Expo Go flow.
 
 - [x] `.env` exists locally and remains ignored by Git.
 - [x] One real model provider is selected.

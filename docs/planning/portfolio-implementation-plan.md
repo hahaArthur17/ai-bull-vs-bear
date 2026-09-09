@@ -1236,13 +1236,21 @@ introducing a full transcript DAG.
 
 #### Deferred Backlog — immediate interruption and user interjection
 
-Status: Planned (product requirement clarified on 2026-09-08)
+Status: In progress (reviewed 2026-09-09, code baseline `50d9885`).
+Default-off prefix persistence and client freeze are implemented and unit/API
+verified. The unchecked items below are complete-contract acceptance gates,
+not claims that every component is absent. Current implementation still uses
+`cancelled`; migration runtime, waiting/interjection state, recovery and Continue
+remain open. Execution order: [`wp8l-next-steps.md`](wp8l-next-steps.md).
 
 The accepted interaction is not “finish the current response, then pause.” A
 user selecting `Stop here` during a visibly streaming Bull, Bear, or Judge
 message must freeze the transcript immediately at the already revealed prefix,
 discard buffered-but-unrevealed text, invalidate the active generation, and
-prevent every later agent Turn. The user can then enter a question or opinion at
+prevent old-generation Turn admission after server acceptance. Already dispatched
+requests may have consumed tokens; immediate local freeze cannot retract them.
+Provider prefetch must be distinguished from visible role progression. The user
+can then enter a question or opinion at
 that exact interruption point. No model continues until the user explicitly
 chooses whether to end the Debate or continue with that interjection.
 
@@ -1280,7 +1288,9 @@ Challenge.
 - [ ] Offer `End debate` and `Continue with my point` only after the interjection.
   Continue creates a new generation from the last complete-message prefix plus
   the interrupted non-canonical context and user intervention; it must not
-  revive the invalidated generation or duplicate token/citation records.
+  revive the invalidated generation or duplicate token/citation records. Preserve
+  the original frozen snapshot; an expired continuation requires a new Session
+  rather than silently refreshing inputs.
 - [ ] Specify repeated/stale interruption, queued-before-first-delta,
   completion-versus-interruption, network loss, retry, Worker crash, app
   backgrounding, and two-Worker conflict behavior. Terminal Cancel wins any
