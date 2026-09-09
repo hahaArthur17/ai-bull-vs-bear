@@ -644,3 +644,12 @@ ordered deltas. No prompts or generated text were logged. No full AAPL Debate
 was run. One EIA WTI refresh wrote/read 10 rows but still returned latest date
 2026-09-01; it does not close current-data acceptance. Alpha Vantage and Finnhub
 were not refreshed in this execution.
+
+
+### 2026-09-09 — WP8L interruption foundation
+
+Implemented default-off `DEBATE_INTERRUPTIONS_ENABLED`: checkpoint generated text before publishing each delta and accept an owner/generation-scoped `/debates/{id}/interrupt` request. The repository atomically rotates the generation, preserves the exact visible prefix as incomplete (including trailing whitespace), removes later messages and cancels queued jobs. Running workers acknowledge cancellation and retain observed request usage. Completed output can also be shortened when display is still catching up. Repeated identical requests are idempotent; invented prefixes and stale generations are rejected.
+
+Validation: backend suite 434 passed (one existing Starlette/httpx deprecation warning); regression coverage includes API flag/ownership, exact prefix, late provider output, canonical completion before interruption, and repeat requests. No market or model calls in this step.
+
+Limitations: SQL migration `20260909_debate_draft_interruption.sql` is authored but NOT applied or PostgreSQL-runtime validated. Checkpointing currently performs one synchronous persistence write per delta and needs hosted latency measurement. Client Stop here, user interjection and explicit continuation remain pending; this is not WP8L.5 acceptance. Feature stays disabled until migration and end-to-end checks pass.

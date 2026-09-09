@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol, runtime_checkable
 from uuid import UUID
 
@@ -170,4 +171,14 @@ class DebateQueueRepository(Protocol):
     ) -> tuple[DebateSession, DebateJob]:
         """Atomically terminalize a running Job whose retry budget is exhausted."""
 
+        ...
+
+
+@runtime_checkable
+class DebateInterruptionRepository(Protocol):
+    def checkpoint_draft(self, message: DebateMessage) -> None:
+        ...
+
+    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
+                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
         ...

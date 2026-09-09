@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import TypeVar
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from app.domain.base import ImmutableDomainModel
 from app.domain.debate import (
@@ -62,6 +62,7 @@ class InMemoryDebateRepository:
     def __init__(self, *, clock: Callable[[], datetime] | None = None) -> None:
         self._sessions: dict[UUID, DebateSession] = {}
         self._messages: dict[UUID, DebateMessage] = {}
+        self._drafts: dict[UUID, DebateMessage] = {}
         self._message_keys: dict[tuple[UUID, UUID, int], UUID] = {}
         self._citations: dict[UUID, tuple[DebateMessageEvidence, ...]] = {}
         self._interventions: dict[UUID, DebateIntervention] = {}
@@ -119,7 +120,72 @@ class InMemoryDebateRepository:
             except DebatePersistenceValidationError as exc:
                 raise DebateRepositoryError(str(exc)) from exc
             self._sessions[session.id] = _clone(session)
+            if session.status in {"completed", "cancelled", "failed"}:
+                self._drafts = {key: value for key, value in self._drafts.items()
+                                if value.session_id != session.id}
             return _clone(session)
+
+    def checkpoint_draft(self, message: DebateMessage) -> None:
+        with self._lock:
+            session = self._sessions.get(message.session_id)
+            if session is None:
+                raise DebateConcurrencyError("Draft session unavailable")
+            if message.role not in {"bull", "bear", "judge"}:
+                raise DebateConcurrencyError("Only agent output can be checkpointed")
+            self._validate_new_message(session, message)
+            previous = self._drafts.get(message.id)
+            if previous and (previous.branch_id != message.branch_id
+                    or previous.generation_id != message.generation_id
+                    or previous.sequence_number != message.sequence_number
+                    or not message.content.startswith(previous.content)):
+                raise DebateConcurrencyError("Draft prefix changed")
+            self._drafts[message.id] = _clone(message)
+
+    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
+                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            target = self._messages.get(message_id) or self._drafts.get(message_id)
+            if session is None or session.user_id != user_id or target is None:
+                raise DebateConcurrencyError("Interruption target unavailable")
+            if target.session_id != session_id or target.branch_id != session.active_branch_id:
+                raise DebateConcurrencyError("Interruption target unavailable")
+            if (session.status == "cancelled" and target.generation_id == generation_id
+                    and not target.is_complete and target.metadata.get("interrupted") is True
+                    and target.content == visible_prefix):
+                return _clone(session)
+            if (session.active_generation_id != generation_id or target.generation_id != generation_id
+                    or session.status in {"cancelled", "cancel_requested", "failed"}
+                    or target.role not in {"bull", "bear", "judge"}
+                    or not target.content.startswith(visible_prefix)):
+                raise DebateConcurrencyError("Interruption prefix or generation is invalid")
+            at = max(at, session.updated_at)
+            partial = DebateMessage.model_validate({**target.model_dump(), "content": visible_prefix,
+                "is_complete": False, "cancelled_at": at, "confidence": None,
+                "signal_strength": None, "terms": [], "metadata": {"interrupted": True}})
+            for key, message in list(self._messages.items()):
+                if (message.session_id == session_id and message.branch_id == session.active_branch_id
+                        and message.sequence_number >= target.sequence_number):
+                    self._messages.pop(key)
+                    self._interventions = {i: value for i, value in self._interventions.items()
+                                           if value.selected_message_id != key}
+                    self._citations.pop(key, None)
+                    self._message_keys.pop((session_id, message.branch_id, message.sequence_number), None)
+            self._messages[message_id] = partial
+            self._message_keys[(session_id, target.branch_id, target.sequence_number)] = message_id
+            self._citations[message_id] = ()
+            self._drafts = {key: value for key, value in self._drafts.items() if value.session_id != session_id}
+            for key, job in list(self._jobs.items()):
+                if job.session_id == session_id and job.status == "queued":
+                    stamp = max(at, job.updated_at)
+                    self._jobs[key] = _clone(job.model_copy(update={"status": "cancelled", "finished_at": stamp, "updated_at": stamp}))
+            retained = {key for key in self._messages if key != message_id}
+            cancelled = DebateSession.model_validate({**session.model_dump(), "status": "cancelled",
+                "active_generation_id": uuid4(), "updated_at": at, "completed_at": at,
+                "interim_judge_message_id": session.interim_judge_message_id if session.interim_judge_message_id in retained else None,
+                "final_judge_message_id": None})
+            self._sessions[session_id] = cancelled
+            return _clone(cancelled)
 
     def append_message(
         self,
@@ -140,6 +206,7 @@ class InMemoryDebateRepository:
             unique_key = (message.session_id, message.branch_id, message.sequence_number)
             if unique_key in self._message_keys:
                 raise DebateConcurrencyError("Debate message sequence already exists")
+            self._drafts.pop(message.id, None)
             self._messages[message.id] = _clone(message)
             self._message_keys[unique_key] = message.id
             self._citations[message.id] = tuple(_clone(citation) for citation in citations)

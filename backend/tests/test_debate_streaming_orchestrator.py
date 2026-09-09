@@ -430,3 +430,53 @@ def test_cancellation_during_judge_closes_stream_and_does_not_persist_summary() 
         assert not any(event.type == "session.failed" for event in events)
 
     asyncio.run(run_scenario())
+
+
+def test_interruption_preserves_prefix_and_cancels_worker_without_failure() -> None:
+    async def run_scenario() -> None:
+        repository = InMemoryDebateRepository()
+        queued, job = build_queued_round_one()
+        repository.create_session_with_job(queued, job)
+        provider = CancellationBoundaryStreamProvider()
+        judge_provider = DeterministicDebateProvider()
+        broker = InMemoryDebateEventBroker()
+        orchestrator = DebateOrchestrator(
+            repository,
+            judge_provider,
+            judge_provider,
+            streaming_turn_provider=provider,
+            checkpoint_drafts=True,
+            event_publisher=broker,
+            clock=StepClock(),
+        )
+
+        execution = asyncio.create_task(orchestrator.execute_job_streaming(job.id))
+        await asyncio.wait_for(provider.first_delta_sent.wait(), timeout=1)
+        delta = next(event for event in broker.replay(queued.id) if event.type == "turn.delta")
+        from uuid import UUID
+        prefix = delta.payload["delta"][:3]
+        repository.interrupt_generation(queued.id, queued.user_id, queued.active_generation_id,
+            UUID(delta.payload["message_id"]), prefix, queued.updated_at)
+
+        provider.release_late_output.set()
+        cancelled = await asyncio.wait_for(execution, timeout=1)
+        messages = repository.list_messages(
+            queued.id,
+            queued.user_id,
+            branch_id=queued.active_branch_id,
+        )
+        stored_job = repository.get_job(job.id)
+        events = broker.replay(queued.id)
+
+        assert cancelled.status == "cancelled"
+        assert len(messages) == 1
+        assert messages[0].content == prefix
+        assert not messages[0].is_complete
+        assert stored_job is not None and stored_job.status == "cancelled"
+        assert stored_job.provider_request_count == 1
+        assert any(event.type == "turn.delta" for event in events)
+        assert sum(event.type == "turn.delta" for event in events) == 1
+        assert not any(event.type == "turn.completed" for event in events)
+        assert not any(event.type == "session.failed" for event in events)
+
+    asyncio.run(run_scenario())

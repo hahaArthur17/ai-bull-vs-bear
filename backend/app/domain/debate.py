@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 from uuid import UUID
 
-from pydantic import Field, JsonValue, field_validator, model_validator
+from pydantic import Field, JsonValue, StringConstraints, field_validator, model_validator
 
 from app.domain.base import AwareDatetime, ImmutableDomainModel
 from app.domain.factors import AnalysisContext, FactorSnapshot
@@ -90,7 +90,7 @@ class DebateMessage(ImmutableDomainModel):
     exchange_number: int = Field(ge=0, le=3)
     role: DebateRole
     message_kind: DebateMessageKind
-    content: str = Field(default="", max_length=6000)
+    content: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(default="", max_length=6000)
     confidence: Literal["low", "medium", "high"] | None = None
     signal_strength: Literal["weak", "medium", "strong"] | None = None
     terms: tuple[str, ...] = Field(default=(), max_length=12)

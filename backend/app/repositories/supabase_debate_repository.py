@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from typing import Any, TypeVar
+from datetime import datetime
 from uuid import UUID
 
 import httpx
@@ -125,6 +126,18 @@ class SupabaseDebateRepository:
         if updated != session:
             raise DebateConcurrencyError("Debate session update was not canonical")
         return updated
+
+    def checkpoint_draft(self, message: DebateMessage) -> None:
+        self._request("POST", "rpc/checkpoint_debate_draft", json={"message_payload": message.model_dump(mode="json")})
+
+    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
+                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
+        response = self._request("POST", "rpc/interrupt_debate_generation", json={
+            "requested_session_id": str(session_id), "requested_user_id": str(user_id),
+            "requested_generation_id": str(generation_id), "requested_message_id": str(message_id),
+            "visible_prefix": visible_prefix, "interrupted_at": at.isoformat(),
+        })
+        return self._model(response.json(), DebateSession, "Interrupted Debate")
 
     def append_message(
         self,

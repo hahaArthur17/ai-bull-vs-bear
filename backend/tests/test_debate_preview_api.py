@@ -1286,3 +1286,27 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
     with pytest.raises(HTTPException) as error:
         main._debate_context("AAPL", None)
     assert error.value.status_code == 409
+
+
+def test_interrupt_endpoint_freezes_prefix_and_rejects_invalid_requests(monkeypatch):
+    first = create_round_one(monkeypatch, user='interrupt-owner')
+    session = first['session']
+    target = first['messages'][0]['message']
+    endpoint = f"/debates/{session['id']}/interrupt"
+    headers = {'X-User-Id': 'interrupt-owner'}
+    payload = {'generation_id': session['active_generation_id'], 'message_id': target['id'],
+               'visible_prefix': target['content'][:8]}
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', False)
+    assert client.post(endpoint, headers=headers, json=payload).status_code == 404
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
+    assert client.post(endpoint, headers={'X-User-Id': 'other'}, json=payload).status_code == 404
+    assert client.post(endpoint, headers=headers,
+                       json={**payload, 'visible_prefix': 'invented prefix'}).status_code == 409
+    stopped = client.post(endpoint, headers=headers, json=payload)
+    assert stopped.status_code == 200
+    assert stopped.json()['session']['status'] == 'cancelled'
+    records = stopped.json()['messages']
+    assert len(records) == 1
+    assert records[0]['message']['content'] == payload['visible_prefix']
+    assert records[0]['message']['is_complete'] is False
+    assert client.post(endpoint, headers=headers, json=payload).json() == stopped.json()

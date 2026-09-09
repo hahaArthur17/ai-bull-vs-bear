@@ -38,6 +38,7 @@ class DebatePreviewService:
         *,
         streaming_turn_provider: DebateStreamingTurnProvider | None = None,
         streaming_judge_provider: DebateStreamingJudgeProvider | None = None,
+        checkpoint_drafts: bool = False,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
@@ -51,6 +52,7 @@ class DebatePreviewService:
             judge_provider,
             streaming_turn_provider=streaming_turn_provider,
             streaming_judge_provider=streaming_judge_provider,
+            checkpoint_drafts=checkpoint_drafts,
             event_publisher=event_publisher,
             clock=self.clock,
         )

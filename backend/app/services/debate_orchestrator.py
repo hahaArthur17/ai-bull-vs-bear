@@ -93,10 +93,12 @@ class DebateOrchestrator:
         *,
         streaming_turn_provider: DebateStreamingTurnProvider | None = None,
         streaming_judge_provider: DebateStreamingJudgeProvider | None = None,
+        checkpoint_drafts: bool = False,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
     ) -> None:
         self.repository = repository
+        self.checkpoint_drafts = checkpoint_drafts
         self.turn_provider = turn_provider
         self.judge_provider = judge_provider
         self.streaming_turn_provider = streaming_turn_provider or WholeDraftTurnStreamAdapter(
@@ -708,7 +710,17 @@ class DebateOrchestrator:
             user_intervention=user_intervention,
         )
 
+        received = ""
+
         async def publish_delta(event: DebateTurnStreamDelta) -> None:
+            nonlocal received
+            received += event.delta
+            if self.checkpoint_drafts:
+                self.repository.checkpoint_draft(DebateMessage(
+                    id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+                    generation_id=session.active_generation_id, sequence_number=sequence_number,
+                    round_number=round_number, exchange_number=exchange_number, role=role,
+                    message_kind=message_kind, content=received, created_at=session.updated_at))
             self._assert_generation_active(session, self._running_status(round_number))
             self._emit_turn_delta(
                 session,
@@ -971,7 +983,17 @@ class DebateOrchestrator:
             },
         )
 
+        received = ""
+
         async def publish_delta(event: DebateJudgeStreamDelta) -> None:
+            nonlocal received
+            received += event.delta
+            if self.checkpoint_drafts:
+                self.repository.checkpoint_draft(DebateMessage(
+                    id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+                    generation_id=session.active_generation_id, sequence_number=sequence_number,
+                    round_number=round_number, exchange_number=0, role="judge",
+                    message_kind="summary", content=received, created_at=session.updated_at))
             self._assert_generation_active(session, self._running_status(round_number))
             self._emit(
                 session.id,

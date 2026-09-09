@@ -31,6 +31,8 @@ class Settings(BaseSettings):
     # Queue admission remains separately default-off. Its hosted migration and
     # Worker lifecycle checks pass, but production enablement is explicit.
     debate_queue_enabled: bool = False
+    # Requires the draft-checkpoint migration; not enabled by provider flags.
+    debate_interruptions_enabled: bool = False
     debate_worker_visibility_timeout_seconds: int = Field(default=900, ge=30, le=3600)
     debate_worker_concurrency: int = Field(default=1, ge=1, le=2)
     debate_worker_poll_seconds: float = Field(default=1.0, ge=0.1, le=10)

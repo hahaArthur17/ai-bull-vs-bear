@@ -24,6 +24,7 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from app.config import get_settings
 from app.debate_schemas import (
     DebateCancelRequest,
+    DebateInterruptRequest,
     DebateChallengeRequest,
     DebateCreateRequest,
     DebateExplanationRequest,
@@ -157,6 +158,7 @@ if settings.persistence_mode.lower().strip() == "supabase":
             debate_provider,
             streaming_turn_provider=debate_streaming_turn_provider,
             streaming_judge_provider=debate_streaming_judge_provider,
+            checkpoint_drafts=settings.debate_interruptions_enabled,
             event_publisher=debate_event_broker,
         )
     else:
@@ -170,6 +172,7 @@ else:
         debate_provider,
         streaming_turn_provider=debate_streaming_turn_provider,
         streaming_judge_provider=debate_streaming_judge_provider,
+        checkpoint_drafts=settings.debate_interruptions_enabled,
         event_publisher=debate_event_broker,
     )
 quote_cache = (
@@ -1111,6 +1114,26 @@ def stream_debate_events(
             "X-Accel-Buffering": "no",
         },
     )
+
+
+@app.post("/debates/{session_id}/interrupt", response_model=DebateSessionDetail,
+          include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
+def interrupt_debate(session_id: UUID, request: DebateInterruptRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    if not settings.debate_interruptions_enabled:
+        raise HTTPException(status_code=404, detail="Interruption is not enabled")
+    assert debate_preview_service is not None
+    user_id = _debate_user_id(auth)
+    _debate_session_or_404(session_id, user_id)
+    cancelled = debate_preview_service.repository.interrupt_generation(
+        session_id, user_id, request.generation_id, request.message_id,
+        request.visible_prefix, datetime.now(timezone.utc))
+    debate_event_broker.publish(session_id, "session.cancelled", payload={
+        "status": "cancelled", "generation_id": str(cancelled.active_generation_id),
+        "cancelled_generation_id": str(request.generation_id), "interrupted": True,
+    })
+    return _debate_detail(cancelled)
 
 
 @app.post(

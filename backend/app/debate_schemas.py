@@ -77,6 +77,12 @@ class DebateExplanationRequest(BaseModel):
         return normalized
 
 
+class DebateInterruptRequest(BaseModel):
+    generation_id: UUID
+    message_id: UUID
+    visible_prefix: str = Field(max_length=6000)
+
+
 class DebateCancelRequest(BaseModel):
     generation_id: UUID
 
