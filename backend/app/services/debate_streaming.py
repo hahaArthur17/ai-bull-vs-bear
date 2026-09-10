@@ -24,10 +24,12 @@ class DebateTurnStreamError(RuntimeError):
         *,
         retryable: bool = False,
         retry_after_seconds: int | None = None,
+        usage: DebateTurnStreamUsage | None = None,
     ) -> None:
         super().__init__(message)
         self.retryable = retryable
         self.retry_after_seconds = retry_after_seconds
+        self.usage = usage if isinstance(usage, DebateTurnStreamUsage) else None
 
 
 @dataclass(frozen=True)
@@ -55,8 +57,9 @@ async def collect_debate_turn_stream(
     deltas: list[str] = []
     expected_chunk_index = 1
     completion = None
+    stream = provider.stream_turn(request)
     try:
-        async for event in provider.stream_turn(request):
+        async for event in stream:
             if completion is not None:
                 raise DebateTurnStreamError("Turn stream emitted data after completion")
             if event.kind == "delta":
@@ -70,7 +73,9 @@ async def collect_debate_turn_stream(
                     await on_delta(event)
             else:
                 completion = event
-    except DebateTurnStreamError:
+    except DebateTurnStreamError as exc:
+        if completion is not None:
+            exc.usage = completion.usage
         raise
     except Exception as exc:
         retryable = bool(getattr(exc, "retryable", False))
@@ -86,26 +91,32 @@ async def collect_debate_turn_stream(
             "Turn provider stream failed",
             retryable=retryable,
             retry_after_seconds=retry_after_seconds,
+            usage=completion.usage if completion is not None else getattr(exc, "usage", None),
         ) from exc
+
+    finally:
+        closer = getattr(stream, "aclose", None)
+        if closer is not None:
+            await closer()
 
     if completion is None:
         raise DebateTurnStreamError("Turn stream ended without a completion")
     if completion.finish_reason != "stop":
-        raise DebateTurnStreamError("Turn stream did not finish normally")
+        raise DebateTurnStreamError("Turn stream did not finish normally", usage=completion.usage)
     if not deltas:
-        raise DebateTurnStreamError("Turn stream completed without text deltas")
+        raise DebateTurnStreamError("Turn stream completed without text deltas", usage=completion.usage)
     streamed_content = "".join(deltas)
     if streamed_content != completion.draft.content:
-        raise DebateTurnStreamError("Turn stream text does not match its completed draft")
+        raise DebateTurnStreamError("Turn stream text does not match its completed draft", usage=completion.usage)
     if len(completion.draft.content) > request.max_output_chars:
-        raise DebateTurnStreamError("Completed turn exceeded its output bound")
+        raise DebateTurnStreamError("Completed turn exceeded its output bound", usage=completion.usage)
     if completion.draft.responds_to_message_id != request.rebuttal_target_message_id:
-        raise DebateTurnStreamError("Completed turn used the wrong rebuttal target")
+        raise DebateTurnStreamError("Completed turn used the wrong rebuttal target", usage=completion.usage)
     if any(
         evidence_id not in request.allowed_evidence_ids
         for evidence_id in completion.draft.evidence_ids
     ):
-        raise DebateTurnStreamError("Completed turn cited evidence outside the snapshot")
+        raise DebateTurnStreamError("Completed turn cited evidence outside the snapshot", usage=completion.usage)
     return CollectedDebateTurn(
         draft=completion.draft,
         usage=completion.usage,
@@ -140,7 +151,9 @@ async def collect_debate_judge_stream(
                     await on_delta(event)
             else:
                 completion = event
-    except DebateTurnStreamError:
+    except DebateTurnStreamError as exc:
+        if completion is not None:
+            exc.usage = completion.usage
         raise
     except Exception as exc:
         retryable = bool(getattr(exc, "retryable", False))
@@ -151,6 +164,7 @@ async def collect_debate_judge_stream(
             "Judge provider stream failed",
             retryable=retryable,
             retry_after_seconds=retry_after_seconds,
+            usage=completion.usage if completion is not None else getattr(exc, "usage", None),
         ) from exc
 
     finally:
@@ -161,13 +175,13 @@ async def collect_debate_judge_stream(
     if completion is None:
         raise DebateTurnStreamError("Judge stream ended without a completion")
     if completion.finish_reason != "stop":
-        raise DebateTurnStreamError("Judge stream did not finish normally")
+        raise DebateTurnStreamError("Judge stream did not finish normally", usage=completion.usage)
     if not deltas:
-        raise DebateTurnStreamError("Judge stream completed without text deltas")
+        raise DebateTurnStreamError("Judge stream completed without text deltas", usage=completion.usage)
     if "".join(deltas) != completion.draft.summary:
-        raise DebateTurnStreamError("Judge stream text does not match its completed draft")
+        raise DebateTurnStreamError("Judge stream text does not match its completed draft", usage=completion.usage)
     if len(completion.draft.summary) > request.max_output_chars:
-        raise DebateTurnStreamError("Completed Judge exceeded its output bound")
+        raise DebateTurnStreamError("Completed Judge exceeded its output bound", usage=completion.usage)
     if any(evidence_id not in request.allowed_evidence_ids for evidence_id in completion.draft.evidence_ids):
-        raise DebateTurnStreamError("Completed Judge cited evidence outside the snapshot")
+        raise DebateTurnStreamError("Completed Judge cited evidence outside the snapshot", usage=completion.usage)
     return CollectedDebateJudge(completion.draft, completion.usage, len(deltas))

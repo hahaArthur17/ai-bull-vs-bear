@@ -677,3 +677,10 @@ full. A remote interruption event reloads the shortened canonical transcript.
 Mobile tests: 105 passed; TypeScript passed; Expo Web export passed before the
 final label-only refinement. Native kill/reopen is still user-operated acceptance.
 No new external data/model calls and no hosted flags changed.
+
+### 2026-09-10 — stream failure accounting
+
+Rejected completed output retains its observed usage; interrupted streams close
+the provider iterator and retain unknown usage when no report arrived. Twelve
+stream contract tests pass. Provider-attempt persistence and explicit continuation
+are being integrated separately; this checkpoint does not certify them.

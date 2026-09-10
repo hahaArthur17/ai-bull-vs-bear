@@ -770,3 +770,12 @@ full. A remote interruption event reloads the shortened canonical transcript.
 Mobile tests: 105 passed; TypeScript passed; Expo Web export passed before the
 final label-only refinement. Native kill/reopen is still user-operated acceptance.
 No new external data/model calls and no hosted flags changed.
+
+### 2026-09-10 — preserve usage on rejected stream output
+
+Stream collection now retains provider-reported usage when a completed response
+fails content/finish validation. A Stop callback closes the provider iterator and
+leaves usage explicitly unknown when no report was received. This enables the
+independent attempt ledger to account for rejected output without inventing zero
+cost. Turn stream contract tests: 12 passed, including reported usage on mismatched
+output and iterator cleanup on interruption. No external provider calls.

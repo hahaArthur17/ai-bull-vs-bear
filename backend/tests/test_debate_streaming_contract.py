@@ -238,3 +238,40 @@ def test_private_provider_failure_is_wrapped_in_a_safe_stream_error() -> None:
 
     assert str(error.value) == "Turn provider stream failed"
     assert "private upstream response" not in str(error.value)
+
+
+def test_invalid_completed_output_keeps_reported_usage_and_closes_stream():
+    closed = []
+
+    class InvalidProvider:
+        async def stream_turn(self, request):
+            try:
+                yield DebateTurnStreamDelta(chunk_index=1, delta='Different output.', source='live_provider')
+                yield DebateTurnStreamCompleted(draft=build_draft(), usage=usage())
+            finally:
+                closed.append(True)
+
+    with pytest.raises(DebateTurnStreamError, match='does not match') as error:
+        collect(InvalidProvider())
+    assert error.value.usage == usage()
+    assert closed == [True]
+
+
+def test_callback_stop_closes_provider_and_keeps_usage_unknown():
+    closed = []
+
+    class WaitingProvider:
+        async def stream_turn(self, request):
+            try:
+                yield DebateTurnStreamDelta(chunk_index=1, delta='Visible', source='live_provider')
+                yield DebateTurnStreamCompleted(draft=build_draft(), usage=usage())
+            finally:
+                closed.append(True)
+
+    async def stop_on_delta(event):
+        raise RuntimeError('generation was stopped')
+
+    with pytest.raises(DebateTurnStreamError) as error:
+        asyncio.run(collect_debate_turn_stream(WaitingProvider(), build_request(), on_delta=stop_on_delta))
+    assert error.value.usage is None
+    assert closed == [True]
