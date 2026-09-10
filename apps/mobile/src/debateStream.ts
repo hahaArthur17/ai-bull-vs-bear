@@ -11,7 +11,7 @@ import type {
 export type DebateDraft = {
   messageId: string;
   generationId: string;
-  role: "bull" | "bear" | "judge" | "explainer";
+  role: "bull" | "bear" | "judge" | "explainer" | "system";
   content: string;
   nextDeltaIndex: number;
   citations: DebateMessageEvidence[];
@@ -612,6 +612,7 @@ export class DebateStreamClient {
     let attempts = 0;
     while (!this.stopped && attempts <= this.maxReconnectAttempts) {
       let terminalEvent = false;
+      let interruptedEvent = false;
       try {
         const accessToken = await this.options.getAccessToken();
         await this.transport.open({
@@ -623,9 +624,11 @@ export class DebateStreamClient {
             const reduced = reduceDebateEvent(this.snapshot, event);
             this.snapshot = reduced.snapshot;
             terminalEvent = terminalEvent || reduced.terminal;
+            interruptedEvent = interruptedEvent || event.type === "session.interrupted_awaiting_user";
             this.emit();
           },
         });
+        if (!this.stopped && interruptedEvent) await this.reloadCanonical(this.snapshot.lastSequence, "closed");
         if (this.stopped || terminalEvent) return;
         attempts += 1;
       } catch (error) {

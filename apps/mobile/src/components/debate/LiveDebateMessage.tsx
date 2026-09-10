@@ -210,12 +210,14 @@ function humanizeMetadataName(value: string): string {
 
 export function DraftDebateMessage({
   draft,
+  frozen = false,
   roundNumber,
   bubbleWidth,
   judgeWidth,
   onShowFull,
 }: {
   draft: DebateDraft;
+  frozen?: boolean;
   roundNumber: number;
   bubbleWidth: DimensionValue;
   judgeWidth: DimensionValue;
@@ -242,18 +244,18 @@ export function DraftDebateMessage({
         <View style={messageStyles.messageHeader}>
           <View style={[messageStyles.roleMark, { backgroundColor: accent }]} />
           <Text style={[messageStyles.roleLabel, { color: accent }]}>{placement.label}</Text>
-          <Text style={messageStyles.streamingText}>● STREAMING DRAFT</Text>
+          <Text style={messageStyles.streamingText}>{frozen ? "FROZEN · STOP UNCONFIRMED" : "● STREAMING DRAFT"}</Text>
         </View>
-        <Text style={messageStyles.messageText}>{draft.content || "The agent has started this turn…"}</Text>
+        <Text style={messageStyles.messageText}>{draft.content || (frozen ? "Stopped before any text was shown." : "The agent has started this turn…")}</Text>
         <Text style={messageStyles.draftNote}>Temporary output · not yet canonical</Text>
-        <FocusablePressable
+        {!frozen ? <FocusablePressable
           onPress={onShowFull}
           style={messageStyles.showFullButton}
           accessibilityLabel={`Show the full ${placement.label} response`}
           accessibilityRole="button"
         >
           <Text style={messageStyles.showFullText}>Show full response</Text>
-        </FocusablePressable>
+        </FocusablePressable> : null}
       </View>
     </View>
   );

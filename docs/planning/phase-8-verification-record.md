@@ -754,3 +754,19 @@ by process crash and lease redelivery; the old job is cancelled while the waitin
 session and incomplete prefix survive. Per-message audit loss was confirmed and
 is being addressed separately by the provider-attempt ledger, not declared fixed
 by this migration test. Hosted PostgREST/Queue validation remains separate.
+
+
+### 2026-09-10 — persisted unconfirmed Stop recovery
+
+The mobile client now persists account/session-scoped pending Stop targets and
+visible-message IDs before sending the network request, after freezing locally.
+Reopening checks storage before starting SSE or displaying received text. It
+restores only the saved visible prefix/history; exact incomplete canonical
+confirmation clears the matching pending request. Logout/account changes clear
+that account's pending records; stale confirmations cannot remove newer keys.
+Empty prefixes, Unicode code-point bounds, corrupt/legacy records and prototype
+keys are covered. Frozen drafts are labelled as unconfirmed Stop and cannot Show
+full. A remote interruption event reloads the shortened canonical transcript.
+Mobile tests: 105 passed; TypeScript passed; Expo Web export passed before the
+final label-only refinement. Native kill/reopen is still user-operated acceptance.
+No new external data/model calls and no hosted flags changed.

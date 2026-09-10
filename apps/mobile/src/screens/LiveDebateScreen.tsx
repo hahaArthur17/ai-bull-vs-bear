@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -17,6 +18,8 @@ import {
   View,
 } from "react-native";
 
+import { createPendingInterruption, savePendingInterruption, loadPendingInterruption,
+  confirmPendingInterruption, type PendingInterruption } from "../pendingInterruption";
 import { api, createDebateStreamClient } from "../api";
 import { FocusablePressable } from "../components/common";
 import {
@@ -65,6 +68,7 @@ import type {
 } from "../types";
 
 type LiveDebateScreenProps = {
+  accountId: string;
   ticker: string;
   initialDetail: DebateSessionDetail;
   onBack: () => void;
@@ -123,11 +127,13 @@ function statusColor(tone: ReturnType<typeof debateStatusCopy>["tone"]): string 
 export function LiveDebateScreen({
   ticker,
   initialDetail,
+  accountId,
   onBack,
 }: LiveDebateScreenProps) {
   const [snapshot, setSnapshot] = useState<DebateStreamSnapshot>(() =>
     createCanonicalDebateSnapshot(initialDetail),
   );
+  const [recoveryReady, setRecoveryReady] = useState(!interruptionsEnabled);
   const [streamEpoch, setStreamEpoch] = useState(0);
   const [connectionError, setConnectionError] = useState("");
   const [actionError, setActionError] = useState("");
@@ -146,7 +152,7 @@ export function LiveDebateScreen({
   const screenReaderEnabled = useRef<boolean | null>(null);
   const appIsActive = useRef(AppState.currentState === "active");
   const revealScheduler = useRef(new RevealScheduler());
-  const pendingInterruption = useRef<DebateDraft | null>(null);
+  const pendingInterruption = useRef<PendingInterruption | null>(null);
   const challengeKey = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
@@ -183,6 +189,37 @@ export function LiveDebateScreen({
     invalidateExplanationRequest();
     challengeKey.current = null;
   }, [sessionId]);
+
+  useEffect(() => {
+    if (!interruptionsEnabled) return;
+    let active = true;
+    setRecoveryReady(false);
+    void loadPendingInterruption(AsyncStorage, accountId, sessionId).then(async (pending) => {
+      if (!active) return;
+      if (pending) {
+        const saved = initialDetail.messages.find((record) => record.message.id === pending.messageId);
+        if (saved && !saved.message.is_complete && saved.message.generation_id === pending.generationId
+            && saved.message.content === pending.visiblePrefix) {
+          await confirmPendingInterruption(AsyncStorage, accountId, sessionId, pending.idempotencyKey);
+          if (!active) return;
+        } else {
+          pendingInterruption.current = pending;
+          const visibleIds = new Set(pending.precedingMessageIds);
+          revealScheduler.current.freeze({
+            canonicalMessages: initialDetail.messages.filter((record) => visibleIds.has(record.message.id)),
+            drafts: [{ messageId: pending.messageId, generationId: pending.generationId,
+              role: pending.role, content: pending.visiblePrefix, citations: [], nextDeltaIndex: 0 }],
+            activeMessageId: pending.messageId,
+          });
+          setActionError("A previous Stop is not confirmed. Text stays frozen; retry Stop here.");
+        }
+      }
+      setRecoveryReady(true);
+    }).catch(() => {
+      if (active) setActionError("Could not check the saved Stop request. Reopen this Debate to retry safely.");
+    });
+    return () => { active = false; };
+  }, [accountId, sessionId]);
 
   useEffect(() => () => {
     explanationRequests.current.invalidate();
@@ -247,6 +284,7 @@ export function LiveDebateScreen({
   }, []);
 
   useEffect(() => {
+    if (!recoveryReady) return;
     revealScheduler.current.sync(snapshot.canonicalMessages, snapshot.drafts, {
       immediate: reduceMotionEnabled.current === true
         || screenReaderEnabled.current === true
@@ -254,7 +292,7 @@ export function LiveDebateScreen({
         || snapshot.status === "reconnecting",
     });
     setRevealVersion((version) => version + 1);
-  }, [snapshot]);
+  }, [snapshot, recoveryReady]);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -265,6 +303,7 @@ export function LiveDebateScreen({
   }, []);
 
   useEffect(() => {
+    if (!recoveryReady || pendingInterruption.current) return;
     let mounted = true;
     const client = createDebateStreamClient(sessionId, (next) => {
       if (mounted) setSnapshot(next);
@@ -283,7 +322,7 @@ export function LiveDebateScreen({
       client.stop();
       if (streamClient.current === client) streamClient.current = null;
     };
-  }, [sessionId, streamEpoch]);
+  }, [sessionId, streamEpoch, recoveryReady]);
 
   useEffect(() => {
     if (snapshot.lastSequence === 0) return;
@@ -299,14 +338,15 @@ export function LiveDebateScreen({
   }, []);
 
   const status = debateStatusCopy(snapshot);
-  const revealDisplay = revealScheduler.current.display();
+  const revealDisplay = recoveryReady ? revealScheduler.current.display()
+    : { canonicalMessages: [], drafts: [], activeMessageId: null };
   const drafts = revealDisplay.drafts;
   const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
     || snapshot.sessionStatus === "running_round_2"
     ? 2
     : 1;
   const canCancel = (interruptionsEnabled
-    ? Boolean(pendingInterruption.current || drafts[0])
+    ? Boolean(pendingInterruption.current || (drafts[0] && ["bull", "bear", "judge"].includes(drafts[0].role)))
     : canCancelDebate(snapshot)) && !cancelling;
   const canChallenge = !pendingInterruption.current && canChallengeDebate(snapshot);
   const selectedTextIsValid = pointTarget !== null
@@ -415,17 +455,27 @@ export function LiveDebateScreen({
     try {
       let detail: DebateSessionDetail;
       if (interruptionsEnabled) {
-        const target = pendingInterruption.current || drafts[0];
-        if (!target) return;
-        pendingInterruption.current = target;
+        const visible = drafts[0];
+        if (!pendingInterruption.current && !visible) return;
         revealScheduler.current.freeze(revealDisplay);
         streamClient.current?.stop();
+        const target = pendingInterruption.current || createPendingInterruption({
+          accountId, sessionId, generationId: visible.generationId,
+          messageId: visible.messageId, visiblePrefix: visible.content, role: visible.role === "explainer" ? "system" : visible.role,
+          precedingMessageIds: revealDisplay.canonicalMessages.map((record) => record.message.id),
+        });
+        pendingInterruption.current = target;
         setRevealVersion((version) => version + 1);
-        detail = await api.interruptDebate(sessionId, target);
+        await savePendingInterruption(AsyncStorage, target);
+        detail = await api.interruptDebate(sessionId, {
+          generationId: target.generationId, messageId: target.messageId, content: target.visiblePrefix,
+        });
         const saved = detail.messages.find((record) => record.message.id === target.messageId);
-        if (!saved || saved.message.is_complete || saved.message.content !== target.content) {
+        if (!saved || saved.message.is_complete || saved.message.generation_id !== target.generationId
+            || saved.message.content !== target.visiblePrefix) {
           throw new Error("Stop was not confirmed. Text remains frozen; retry Stop here.");
         }
+        await confirmPendingInterruption(AsyncStorage, accountId, sessionId, target.idempotencyKey);
         pendingInterruption.current = null;
         revealScheduler.current.releaseFreeze();
         revealScheduler.current.sync(detail.messages, {}, { immediate: true });
@@ -647,6 +697,7 @@ export function LiveDebateScreen({
         <DraftDebateMessage
           key={draft.messageId}
           draft={draft}
+          frozen={pendingInterruption.current !== null}
           roundNumber={activeRoundNumber}
           bubbleWidth={chatLayout.bubbleWidth}
           judgeWidth={chatLayout.judgeWidth}

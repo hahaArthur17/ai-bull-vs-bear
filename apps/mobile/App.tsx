@@ -1,3 +1,5 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearPendingInterruptionsForAccount } from "./src/pendingInterruption";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
@@ -129,13 +131,21 @@ export default function App() {
       return;
     }
     let active = true;
+    let previousAccount: string | null = null;
     void supabase.auth.getSession().then(({ data }) => {
       if (active) {
+        previousAccount = data.session?.user.id || null;
         setSession(data.session);
         setAuthReady(true);
       }
     });
     const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      if (previousAccount && previousAccount !== nextSession?.user.id) {
+        void clearPendingInterruptionsForAccount(AsyncStorage, previousAccount).catch(() => {
+          // Account-scoped records remain inaccessible to the new account.
+        });
+      }
+      previousAccount = nextSession?.user.id || null;
       setSession(nextSession);
       setAuthReady(true);
     });
@@ -335,6 +345,8 @@ export default function App() {
       if (debateExperience === "v2" && liveDebate) {
         return (
           <LiveDebateScreen
+            key={`${session?.user.id || "demo"}:${liveDebate.session.id}`}
+            accountId={session?.user.id || "demo"}
             ticker={selectedTicker}
             initialDetail={liveDebate}
             onBack={() => setScreen("stock")}

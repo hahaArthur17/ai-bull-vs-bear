@@ -434,3 +434,25 @@ test("client reloads canonical state at the server recovery cursor", async () =>
   assert.deepEqual(cursors, [0, 7]);
   assert.equal(snapshots.at(-1), 8);
 });
+
+test("an interruption from another client reloads the shortened canonical transcript", async () => {
+  let loads = 0;
+  const received: DebateStreamSnapshot[] = [];
+  const client = new DebateStreamClient({
+    eventUrl: "https://example.test/events", getAccessToken: async () => "test-token",
+    loadCanonical: async () => {
+      loads += 1;
+      return detail(loads === 1 ? "running_round_1" : "interrupted_awaiting_user");
+    },
+    onSnapshot: (snapshot) => received.push(snapshot),
+    transport: { open: async (options) => {
+      options.onEvent(event(1, "session.interrupted_awaiting_user", {
+        status: "interrupted_awaiting_user", generation_id: "new-generation",
+      }));
+    } },
+  });
+  await client.start();
+  assert.equal(loads, 2);
+  assert.equal(received.at(-1)?.sessionStatus, "interrupted_awaiting_user");
+  assert.deepEqual(received.at(-1)?.drafts, {});
+});
