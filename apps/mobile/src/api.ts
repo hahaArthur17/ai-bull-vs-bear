@@ -154,6 +154,68 @@ export const api = {
     },
   ),
 
+  interruptBeforeOutputDebate: (
+    sessionId: string,
+    generationId: string,
+  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
+    "/debates/" + encodeURIComponent(sessionId) + "/interrupt-before-output",
+    {
+      method: "POST",
+      body: JSON.stringify({ generation_id: generationId }),
+    },
+  ),
+
+  interjectDebate: (
+    sessionId: string,
+    interjection: {
+      /** The session.active_generation_id returned by a confirmed Stop. */
+      generationId: string;
+      content: string;
+      idempotencyKey: string;
+    },
+  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
+    "/debates/" + encodeURIComponent(sessionId) + "/interjections",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        generation_id: interjection.generationId,
+        content: interjection.content,
+        idempotency_key: interjection.idempotencyKey,
+      }),
+    },
+  ),
+
+  continueInterruptedDebate: (
+    sessionId: string,
+    continuation: {
+      /** The same post-Stop active generation used to save the interjection. */
+      generationId: string;
+      interjectionId: string;
+      idempotencyKey: string;
+    },
+  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
+    "/debates/" + encodeURIComponent(sessionId) + "/continue",
+    {
+      method: "POST",
+      body: JSON.stringify({
+        generation_id: continuation.generationId,
+        interjection_id: continuation.interjectionId,
+        idempotency_key: continuation.idempotencyKey,
+      }),
+    },
+  ),
+
+  endInterruptedDebate: (
+    sessionId: string,
+    interruptedMessageId: string,
+  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
+    "/debates/" + encodeURIComponent(sessionId) + "/end-interruption",
+    {
+      method: "POST",
+      body: JSON.stringify({ interrupted_message_id: interruptedMessageId }),
+    },
+  ),
+
   cancelDebate: (sessionId: string, generationId: string): Promise<DebateSessionDetail> =>
     request<DebateSessionDetail>(
       "/debates/" + encodeURIComponent(sessionId) + "/cancel",

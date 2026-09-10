@@ -26,6 +26,10 @@ import {
   CanonicalDebateMessage,
   DraftDebateMessage,
 } from "../components/debate/LiveDebateMessage";
+import {
+  InterruptionComposer,
+  type InterruptionComposerBusy,
+} from "../components/debate/InterruptionComposer";
 import { debateActionStatus } from "../debateActionState";
 import {
   debatePhaseBadge,
@@ -47,6 +51,17 @@ import {
   canChallengeDebate,
   debateStatusCopy,
 } from "../liveDebateView";
+import {
+  activeInterruptionDraft,
+  canStopBeforeOutput,
+  canStopVisibleDraft,
+  findInterruptedMessage,
+  findInterjection,
+  interruptionIdempotencyKey,
+  isInterruptionJobPending,
+  shouldReconnectAfterInterruptionEnd,
+  shouldStopBeforeOutput,
+} from "../interruptionState";
 import {
   canDismissPointInquiry,
   canPrepareRoundTwoChallenge,
@@ -146,6 +161,10 @@ export function LiveDebateScreen({
   const [explanationResult, setExplanationResult] = useState<ExplanationResult | null>(null);
   const [explanationError, setExplanationError] = useState("");
   const [explaining, setExplaining] = useState(false);
+  const [interjection, setInterjection] = useState("");
+  const [interjectionSaved, setInterjectionSaved] = useState(false);
+  const [interruptionBusy, setInterruptionBusy] = useState<InterruptionComposerBusy>(null);
+  const [interruptionError, setInterruptionError] = useState("");
   const [hasNewMessages, setHasNewMessages] = useState(false);
   const [, setRevealVersion] = useState(0);
   const reduceMotionEnabled = useRef<boolean | null>(null);
@@ -154,6 +173,9 @@ export function LiveDebateScreen({
   const revealScheduler = useRef(new RevealScheduler());
   const pendingInterruption = useRef<PendingInterruption | null>(null);
   const challengeKey = useRef<string | null>(null);
+  const interjectionKey = useRef<{ identity: string; key: string } | null>(null);
+  const continuationKey = useRef<{ identity: string; key: string } | null>(null);
+  const interruptionHydration = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
@@ -178,6 +200,10 @@ export function LiveDebateScreen({
     setQuestion("");
     setExplanationResult(null);
     setExplanationError("");
+    setInterjection("");
+    setInterjectionSaved(false);
+    setInterruptionBusy(null);
+    setInterruptionError("");
     setHasNewMessages(false);
     revealScheduler.current = new RevealScheduler();
     pendingInterruption.current = null;
@@ -188,6 +214,9 @@ export function LiveDebateScreen({
     }
     invalidateExplanationRequest();
     challengeKey.current = null;
+    interjectionKey.current = null;
+    continuationKey.current = null;
+    interruptionHydration.current = null;
   }, [sessionId]);
 
   useEffect(() => {
@@ -274,10 +303,15 @@ export function LiveDebateScreen({
 
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
+      const wasActive = appIsActive.current;
       appIsActive.current = nextState === "active";
       if (!appIsActive.current) {
         revealScheduler.current.settleAll();
         setRevealVersion((version) => version + 1);
+      } else if (!wasActive) {
+        // Native backgrounding can tear down XHR without delivering an error.
+        // A fresh client reloads canonical state before resuming SSE.
+        setStreamEpoch((current) => current + 1);
       }
     });
     return () => subscription.remove();
@@ -325,6 +359,72 @@ export function LiveDebateScreen({
   }, [sessionId, streamEpoch, recoveryReady]);
 
   useEffect(() => {
+    if (!interruptionsEnabled
+      || !recoveryReady
+      || snapshot.sessionStatus !== "interrupted_awaiting_user"
+      || !isInterruptionJobPending(snapshot.jobStatus)) return;
+    let active = true;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    const schedule = (delay: number) => {
+      timer = setTimeout(() => { void poll(); }, delay);
+    };
+    const poll = async () => {
+      try {
+        const detail = await api.getDebate(sessionId);
+        if (!active) return;
+        setSnapshot((current) => createCanonicalDebateSnapshot(
+          detail,
+          current.lastSequence,
+          current.status,
+        ));
+        const serverJobPending = detail.session.status === "interrupted_awaiting_user"
+          && (detail.job?.status === "queued" || detail.job?.status === "running");
+        if (serverJobPending) schedule(500);
+      } catch {
+        if (active) schedule(1000);
+      }
+    };
+    void poll();
+    return () => {
+      active = false;
+      if (timer !== null) clearTimeout(timer);
+    };
+  }, [recoveryReady, sessionId, snapshot.jobStatus, snapshot.sessionStatus]);
+
+  useEffect(() => {
+    const target = findInterruptedMessage(snapshot.canonicalMessages);
+    if (snapshot.sessionStatus !== "interrupted_awaiting_user" || !target) {
+      interruptionHydration.current = null;
+      if (interruptionBusy === null) {
+        setInterjection("");
+        setInterjectionSaved(false);
+      }
+      return;
+    }
+    const identity = `${sessionId}:${target.message.id}:${snapshot.activeGenerationId || ""}`;
+    if (interruptionHydration.current === identity) return;
+    interruptionHydration.current = identity;
+    const saved = findInterjection(
+      snapshot.canonicalMessages,
+      target.message.id,
+      snapshot.activeGenerationId || "",
+    );
+    if (saved) {
+      setInterjection(saved.message.content);
+      setInterjectionSaved(true);
+    } else {
+      setInterjection("");
+      setInterjectionSaved(false);
+    }
+  }, [
+    interruptionBusy,
+    sessionId,
+    snapshot.activeGenerationId,
+    snapshot.canonicalMessages,
+    snapshot.sessionStatus,
+  ]);
+
+  useEffect(() => {
     if (snapshot.lastSequence === 0) return;
     if (!followsTranscript.current) {
       setHasNewMessages(true);
@@ -340,13 +440,32 @@ export function LiveDebateScreen({
   const status = debateStatusCopy(snapshot);
   const revealDisplay = recoveryReady ? revealScheduler.current.display()
     : { canonicalMessages: [], drafts: [], activeMessageId: null };
+  const interruptionPoint = findInterruptedMessage(snapshot.canonicalMessages);
+  const savedInterjection = interruptionPoint
+    ? findInterjection(
+      snapshot.canonicalMessages,
+      interruptionPoint.message.id,
+      snapshot.activeGenerationId || "",
+    )
+    : null;
+  const interruptionConfirmed = interruptionsEnabled
+    && recoveryReady
+    && pendingInterruption.current === null
+    && snapshot.sessionStatus === "interrupted_awaiting_user"
+    && snapshot.activeGenerationId !== null
+    && interruptionPoint !== null;
+  const interruptionJobSettled = !isInterruptionJobPending(snapshot.jobStatus);
   const drafts = revealDisplay.drafts;
   const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
     || snapshot.sessionStatus === "running_round_2"
     ? 2
     : 1;
   const canCancel = (interruptionsEnabled
-    ? Boolean(pendingInterruption.current || (drafts[0] && ["bull", "bear", "judge"].includes(drafts[0].role)))
+    ? Boolean(
+      pendingInterruption.current
+      || canStopVisibleDraft(snapshot, drafts[0])
+      || canStopBeforeOutput(snapshot),
+    )
     : canCancelDebate(snapshot)) && !cancelling;
   const canChallenge = !pendingInterruption.current && canChallengeDebate(snapshot);
   const selectedTextIsValid = pointTarget !== null
@@ -456,20 +575,41 @@ export function LiveDebateScreen({
       let detail: DebateSessionDetail;
       if (interruptionsEnabled) {
         const visible = drafts[0];
-        if (!pendingInterruption.current && !visible) return;
+        if (!pendingInterruption.current && !visible && !canStopBeforeOutput(snapshot)) return;
         revealScheduler.current.freeze(revealDisplay);
         streamClient.current?.stop();
-        const target = pendingInterruption.current || createPendingInterruption({
-          accountId, sessionId, generationId: visible.generationId,
-          messageId: visible.messageId, visiblePrefix: visible.content, role: visible.role === "explainer" ? "system" : visible.role,
+        const pending = pendingInterruption.current;
+        const providerDraft = activeInterruptionDraft(snapshot, visible);
+        const beforeOutput = pending
+          ? pending.messageId === pending.generationId
+          : shouldStopBeforeOutput(snapshot, visible);
+        const generationId = pending?.generationId
+          || providerDraft?.generationId
+          || snapshot.activeGenerationId;
+        const draftRole = providerDraft?.role || visible?.role;
+        const target = pending || createPendingInterruption({
+          accountId,
+          sessionId,
+          generationId,
+          // The before-output endpoint creates its stable empty anchor with
+          // the generation ID. A visible draft already has a message ID.
+          messageId: beforeOutput ? generationId : providerDraft!.messageId,
+          visiblePrefix: beforeOutput ? "" : visible?.content || "",
+          role: draftRole === "bull" || draftRole === "bear" || draftRole === "judge"
+            ? draftRole
+            : "system",
           precedingMessageIds: revealDisplay.canonicalMessages.map((record) => record.message.id),
         });
         pendingInterruption.current = target;
         setRevealVersion((version) => version + 1);
         await savePendingInterruption(AsyncStorage, target);
-        detail = await api.interruptDebate(sessionId, {
-          generationId: target.generationId, messageId: target.messageId, content: target.visiblePrefix,
-        });
+        detail = beforeOutput
+          ? await api.interruptBeforeOutputDebate(sessionId, target.generationId)
+          : await api.interruptDebate(sessionId, {
+            generationId: target.generationId,
+            messageId: target.messageId,
+            content: target.visiblePrefix,
+          });
         const saved = detail.messages.find((record) => record.message.id === target.messageId);
         if (!saved || saved.message.is_complete || saved.message.generation_id !== target.generationId
             || saved.message.content !== target.visiblePrefix) {
@@ -493,6 +633,99 @@ export function LiveDebateScreen({
         : error instanceof Error ? error.message : "Could not cancel this Debate.");
     } finally {
       setCancelling(false);
+    }
+  };
+
+  const saveInterjection = async () => {
+    if (!interruptionConfirmed || !interruptionPoint || interruptionBusy !== null) return;
+    const waitingGenerationId = snapshot.activeGenerationId;
+    if (!waitingGenerationId) return;
+    const content = interjection.trim();
+    if (!content) return;
+    // Include the post-Stop generation so a repeated interruption at the same
+    // frozen message cannot reuse the prior generation's message identifier.
+    const identity = `${waitingGenerationId}:${interruptionPoint.message.generation_id}:${interruptionPoint.message.id}:${content}`;
+    if (interjectionKey.current?.identity !== identity) {
+      interjectionKey.current = { identity, key: interruptionIdempotencyKey("interject", identity) };
+    }
+    const key = interjectionKey.current.key;
+    setInterruptionBusy("save");
+    setInterruptionError("");
+    try {
+      const detail = await api.interjectDebate(sessionId, {
+        generationId: waitingGenerationId,
+        content,
+        idempotencyKey: key,
+      });
+      const saved = findInterjection(
+        detail.messages,
+        interruptionPoint.message.id,
+        waitingGenerationId,
+      );
+      if (!saved) throw new Error("The viewpoint was not confirmed. Retry save.");
+      setSnapshot(createCanonicalDebateSnapshot(detail));
+      setInterjection(saved.message.content);
+      setInterjectionSaved(true);
+    } catch (error) {
+      setInterjectionSaved(false);
+      setInterruptionError(error instanceof Error ? error.message : "Could not save your viewpoint.");
+    } finally {
+      setInterruptionBusy(null);
+    }
+  };
+
+  const continueInterruptedDebate = async () => {
+    if (!interruptionConfirmed
+      || !interruptionPoint
+      || !savedInterjection
+      || !interruptionJobSettled
+      || interruptionBusy !== null) return;
+    const waitingGenerationId = snapshot.activeGenerationId;
+    if (!waitingGenerationId) return;
+    // Continue job identifiers are scoped to the waiting generation. A later
+    // stop at the same frozen point needs a fresh job key while retries for
+    // this request keep the same key.
+    const identity = `${waitingGenerationId}:${interruptionPoint.message.generation_id}:${savedInterjection.message.id}`;
+    if (continuationKey.current?.identity !== identity) {
+      continuationKey.current = { identity, key: interruptionIdempotencyKey("continue", identity) };
+    }
+    const key = continuationKey.current.key;
+    setInterruptionBusy("continue");
+    setInterruptionError("");
+    try {
+      const detail = await api.continueInterruptedDebate(sessionId, {
+        generationId: waitingGenerationId,
+        interjectionId: savedInterjection.message.id,
+        idempotencyKey: key,
+      });
+      setSnapshot(createCanonicalDebateSnapshot(detail));
+      setStreamEpoch((current) => current + 1);
+    } catch (error) {
+      setInterruptionError(error instanceof Error ? error.message : "Could not continue the Debate.");
+    } finally {
+      setInterruptionBusy(null);
+    }
+  };
+
+  const endInterruptedDebate = async () => {
+    if (!interruptionConfirmed || !interruptionPoint || interruptionBusy !== null) return;
+    setInterruptionBusy("end");
+    setInterruptionError("");
+    try {
+      const detail = await api.endInterruptedDebate(sessionId, interruptionPoint.message.id);
+      streamClient.current?.stop();
+      setSnapshot(createCanonicalDebateSnapshot(detail));
+      // End can return cancel_requested while a running Worker settles. The
+      // interruption screen has no active stream after Stop, so reconnect to
+      // observe the durable session.cancelled event instead of leaving the
+      // user on a permanent "Cancelling" state.
+      if (shouldReconnectAfterInterruptionEnd(detail.session.status)) {
+        setStreamEpoch((current) => current + 1);
+      }
+    } catch (error) {
+      setInterruptionError(error instanceof Error ? error.message : "Could not end the Debate.");
+    } finally {
+      setInterruptionBusy(null);
     }
   };
 
@@ -716,6 +949,24 @@ export function LiveDebateScreen({
             Ask about any completed point first. Explanations are educational and read-only; Round 2 starts only after a separate confirmation.
           </Text>
         </View>
+      ) : null}
+
+      {interruptionConfirmed ? (
+        <InterruptionComposer
+          value={interjection}
+          onChange={(value) => {
+            setInterjection(value);
+            setInterjectionSaved(false);
+            setInterruptionError("");
+          }}
+          onSave={() => void saveInterjection()}
+          onContinue={() => void continueInterruptedDebate()}
+          onEnd={() => void endInterruptedDebate()}
+          busy={interruptionBusy}
+          saved={interjectionSaved}
+          error={interruptionError || undefined}
+          canContinue={interruptionJobSettled && savedInterjection !== null}
+        />
       ) : null}
 
       {!chatLayout.showStatusRail ? cancelControl : null}
