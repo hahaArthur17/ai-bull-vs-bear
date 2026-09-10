@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,12 @@ class Settings(BaseSettings):
     """
 
     app_name: str = "AI Bull vs Bear API"
+    # Optional release provenance. Deployments may set APP_BUILD_SHA to the
+    # immutable source SHA used to build the running service.
+    app_build_sha: str | None = Field(
+        default=None,
+        pattern=r"^[0-9a-fA-F]{7,64}$",
+    )
     environment: str = "development"
     # This is deliberately independent from persistence/provider configuration.
     # A reviewer opts in explicitly; missing credentials must never select it.
@@ -100,6 +106,13 @@ class Settings(BaseSettings):
         extra="ignore",
         case_sensitive=False,
     )
+
+    @field_validator("app_build_sha", mode="before")
+    @classmethod
+    def empty_build_sha_is_unset(cls, value: object) -> object:
+        if value is None or (isinstance(value, str) and not value.strip()):
+            return None
+        return value
 
     @model_validator(mode="after")
     def validate_redis_configuration(self) -> "Settings":

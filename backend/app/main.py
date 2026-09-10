@@ -324,6 +324,7 @@ def health() -> dict[str, object]:
     return {
         "status": "ok",
         "environment": settings.environment,
+        "build_sha": settings.app_build_sha,
         "provider": settings.analysis_provider,
         "data_mode": settings.app_data_mode,
         "debate_workflow_v2": settings.debate_workflow_v2,
