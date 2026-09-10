@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     debate_worker_visibility_timeout_seconds: int = Field(default=900, ge=30, le=3600)
     debate_worker_concurrency: int = Field(default=1, ge=1, le=2)
     debate_worker_poll_seconds: float = Field(default=1.0, ge=0.1, le=10)
+    # Every Debate stage gets this immutable retry budget. Set to one for a
+    # bounded live acceptance run so a Worker cannot dispatch a stage twice.
+    debate_job_max_attempts: int = Field(default=3, ge=1, le=10)
     # Redis is an optional optimization/coordination layer. Canonical state
     # remains in Supabase and every operation has a bounded local fallback.
     redis_enabled: bool = False

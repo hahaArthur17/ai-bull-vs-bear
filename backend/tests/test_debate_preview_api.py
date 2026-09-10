@@ -685,6 +685,34 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     assert len(completed.json()["messages"]) == 7
 
 
+def test_queued_job_detail_exposes_configured_max_attempts(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    repository = InMemoryDebateRepository()
+    provider = DeterministicDebateProvider()
+    service = DebatePreviewService(
+        repository,
+        provider,
+        provider,
+        max_attempts=1,
+    )
+    monkeypatch.setattr(main, "debate_preview_service", service)
+
+    response = client.post(
+        "/debates",
+        headers={"X-User-Id": "bounded-attempt-owner"},
+        json={
+            "ticker": "AAPL",
+            "idempotency_key": "bounded_attempts_001",
+        },
+    )
+
+    assert response.status_code == 202
+    assert response.json()["job"]["max_attempts"] == 1
+
+
 def test_queued_create_returns_retryable_conflict_while_idempotency_lock_is_held(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

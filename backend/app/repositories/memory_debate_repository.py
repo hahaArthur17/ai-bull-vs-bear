@@ -576,7 +576,8 @@ class InMemoryDebateRepository:
             transcript = self.list_messages(current.id, current.user_id, branch_id=current.active_branch_id)
             expected, expected_job, expected_message = prepare_continuation(current, transcript,
                 expected_generation_id=expected_generation_id, interjection_id=interjection_id,
-                idempotency_key=job.idempotency_key.rsplit(":", 1)[-1], at=session.updated_at)
+                idempotency_key=job.idempotency_key.rsplit(":", 1)[-1], at=session.updated_at,
+                max_attempts=job.max_attempts)
             captured_at = current.created_at
             if current.analysis_context.captured_at:
                 captured_at = min(captured_at, current.analysis_context.captured_at)

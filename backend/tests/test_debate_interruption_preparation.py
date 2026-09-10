@@ -35,6 +35,31 @@ def test_interjection_does_not_restart_and_continue_keeps_snapshot():
     assert job.provider_request_count == 0
 
 
+def test_continue_uses_the_configured_job_attempt_budget():
+    session, transcript = paused()
+    point = prepare_interjection(
+        session,
+        transcript,
+        expected_generation_id=session.active_generation_id,
+        content='What about downside risk?',
+        idempotency_key='point-0002',
+        at=NOW + timedelta(seconds=6),
+    )
+    transcript.append(point)
+
+    _, job, _ = prepare_continuation(
+        session,
+        transcript,
+        expected_generation_id=session.active_generation_id,
+        interjection_id=point.id,
+        idempotency_key='continue-0002',
+        at=NOW + timedelta(seconds=7),
+        max_attempts=1,
+    )
+
+    assert job.max_attempts == 1
+
+
 def test_continue_rejects_expired_snapshot_missing_point_and_wrong_generation():
     session, transcript = paused()
     for generation, stamp in [(uuid4(), NOW), (session.active_generation_id, NOW + timedelta(hours=1)),

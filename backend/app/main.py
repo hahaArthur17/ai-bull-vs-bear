@@ -169,6 +169,7 @@ if settings.persistence_mode.lower().strip() == "supabase":
             streaming_judge_provider=debate_streaming_judge_provider,
             checkpoint_drafts=settings.debate_interruptions_enabled,
             event_publisher=debate_event_broker,
+            max_attempts=settings.debate_job_max_attempts,
         )
     else:
         debate_preview_service = None
@@ -183,6 +184,7 @@ else:
         streaming_judge_provider=debate_streaming_judge_provider,
         checkpoint_drafts=settings.debate_interruptions_enabled,
         event_publisher=debate_event_broker,
+        max_attempts=settings.debate_job_max_attempts,
     )
 quote_cache = (
     QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))
@@ -1223,7 +1225,8 @@ def continue_debate(session_id: UUID, request: DebateContinueRequest,
     transcript = repository.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
     queued, job, envelope = prepare_continuation(session, transcript,
         expected_generation_id=request.generation_id, interjection_id=request.interjection_id,
-        idempotency_key=request.idempotency_key, at=datetime.now(timezone.utc))
+        idempotency_key=request.idempotency_key, at=datetime.now(timezone.utc),
+        max_attempts=settings.debate_job_max_attempts)
     queued, job = repository.continue_interrupted(queued, job, envelope,
         expected_generation_id=request.generation_id, interjection_id=request.interjection_id)
     debate_event_broker.publish(session.id, "job.queued", payload={

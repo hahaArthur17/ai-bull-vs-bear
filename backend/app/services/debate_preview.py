@@ -42,8 +42,12 @@ class DebatePreviewService:
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
+        max_attempts: int = 3,
     ) -> None:
+        if not 1 <= max_attempts <= 10:
+            raise ValueError("Debate job max_attempts must be between 1 and 10")
         self.repository = repository
+        self.max_attempts = max_attempts
         self.clock = clock or (lambda: datetime.now(timezone.utc))
         self.id_factory = id_factory or uuid4
         self.orchestrator = DebateOrchestrator(
@@ -93,6 +97,7 @@ class DebatePreviewService:
             user_id=user_id,
             job_type="round_1",
             idempotency_key=f"round-1:{queued.id}:{branch_id}",
+            max_attempts=self.max_attempts,
             available_at=created_at,
             created_at=created_at,
             updated_at=created_at,
@@ -182,6 +187,7 @@ class DebatePreviewService:
             user_id=user_id,
             job_type="round_1",
             idempotency_key=job_idempotency_key,
+            max_attempts=self.max_attempts,
             available_at=created_at,
             created_at=created_at,
             updated_at=created_at,
@@ -262,6 +268,7 @@ class DebatePreviewService:
             user_id=session.user_id,
             job_type="round_2",
             idempotency_key=f"round-2:{session.id}:{intervention_id}",
+            max_attempts=self.max_attempts,
             available_at=created_at,
             created_at=created_at,
             updated_at=created_at,
@@ -350,6 +357,7 @@ class DebatePreviewService:
             user_id=session.user_id,
             job_type="round_2",
             idempotency_key=job_idempotency_key,
+            max_attempts=self.max_attempts,
             available_at=created_at,
             created_at=created_at,
             updated_at=created_at,

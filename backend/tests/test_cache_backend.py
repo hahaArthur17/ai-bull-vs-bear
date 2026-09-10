@@ -118,6 +118,7 @@ def test_redis_failure_degrades_without_leaking_key_or_exception_message(
 def test_redis_configuration_is_explicit_and_url_scheme_is_validated() -> None:
     defaults = Settings(redis_enabled=False)
     assert defaults.redis_enabled is False
+    assert defaults.debate_job_max_attempts == 3
     assert defaults.debate_rate_limit_per_window == 3
     assert defaults.debate_rate_limit_window_seconds == 3600
     assert defaults.debate_active_ttl_seconds == 1200
@@ -132,7 +133,9 @@ def test_redis_configuration_is_explicit_and_url_scheme_is_validated() -> None:
         _env_file=None,
         redis_enabled=True,
         redis_url="rediss://credential@example.test:6379",
+        debate_job_max_attempts=1,
     )
+    assert configured.debate_job_max_attempts == 1
     represented_fields = {name for name, _value in configured.__repr_args__()}
     assert "redis_url" not in represented_fields
     assert "supabase_secret_key" not in represented_fields

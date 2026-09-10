@@ -50,6 +50,7 @@ def prepare_interjection(session: DebateSession, transcript: list[DebateMessage]
 def prepare_continuation(session: DebateSession, transcript: list[DebateMessage], *,
                          expected_generation_id: UUID, interjection_id: UUID,
                          idempotency_key: str, at: datetime,
+                         max_attempts: int = 3,
                          ) -> tuple[DebateSession, DebateJob, DebateQueueMessage]:
     if session.status != 'interrupted_awaiting_user' or session.active_generation_id != expected_generation_id:
         raise DebateConcurrencyError('Debate is not waiting at this interruption')
@@ -79,6 +80,7 @@ def prepare_continuation(session: DebateSession, transcript: list[DebateMessage]
     job = DebateJob(id=uuid5(session.id, f'continue-job:{idempotency_key}'), session_id=session.id,
         user_id=session.user_id, job_type=f'round_{round_number}',
         idempotency_key=f'continue:{session.id}:{expected_generation_id}:{interjection_id}:{idempotency_key}',
+        max_attempts=max_attempts,
         available_at=stamp, created_at=stamp, updated_at=stamp)
     envelope = DebateQueueMessage(job_id=job.id, session_id=session.id, job_type=job.job_type,
         trace_id=f'trace_{job.id.hex}', enqueued_at=stamp)
