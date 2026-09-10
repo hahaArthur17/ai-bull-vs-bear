@@ -361,9 +361,9 @@ git diff --check
 
 Not yet closed: live-auth submission outcomes, every discovery/error/retry
 state, all four legacy question types and controlled failure, 200% zoom,
-reduced motion, native screen readers/simulators, one physical device, staging,
-current-data verification, and subjective product-owner approval. These are
-WP8/WP9 gates.
+reduced motion, native screen readers/simulators, one physical device,
+current-data verification, existing-Render-backend release checks, and
+subjective product-owner approval. These are WP8/WP9/WP10 gates.
 
 ## Automated baseline
 
@@ -563,6 +563,11 @@ banner in the successful demo run.
 - Public-demo deployment cannot be treated as the first acceptance target:
   frontend and backend must be staged and verified from the same Git SHA.
 
+The final bullet records the 2026-09-06 plan. On 2026-09-11 the product owner
+removed independent staging and static Web frontend testing from scope. The
+replacement gate is Expo Go acceptance from a recorded client commit followed
+by expected-SHA smoke and rollback checks on the existing Render API.
+
 ## Reopened closure gates
 
 - Implement and review the shared Prototype-derived dark design system across
@@ -585,9 +590,11 @@ banner in the successful demo run.
   Android simulators; a browser bundle is supporting evidence only.
 - Run the representative flow on at least one physical device and record its
   OS/device, commit, screenshot, flow, and result.
-- Deploy frontend and backend from the same immutable SHA to staging. Verify
-  the matching `/bundle` contract, data-state labelling, V2 states, and
-  responsive flows there before any public-demo release.
+- Run Expo Go from the accepted immutable SHA, deploy that SHA to the existing
+  Render API, and verify `/health.build_sha`, the matching `/bundle` contract,
+  data-state labelling, V2 states, cold start/restart, and a concrete rollback
+  target. Independent staging and static Web frontend testing are outside the
+  accepted project scope.
 - Re-run the complete backend suite and all Phase 8 acceptance checks after
   implementation; only then may the phase be evaluated for Done.
 
@@ -604,7 +611,7 @@ warning. `git diff --cached --check` passed.
 The passing scope is immutable market inputs and fail-closed market admission,
 not complete Live Acceptance. Holiday/early-close calendars, evidence/filing/
 macro admission, client snapshot display, streaming Judge, reveal integration,
-Stop/interjection, provider quota checks, native-device and staging acceptance
+Stop/interjection, provider quota checks, native-device and hosted-backend acceptance
 remain open. Uncommitted work for later slices is intentionally excluded from
 this checkpoint; validate it before using the shared working tree as a runtime.
 

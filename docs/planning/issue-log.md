@@ -21,6 +21,34 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Independent staging removed from the project release scope
+
+**Status:** Scope decision recorded; active plans synchronized.
+
+**Decision and impact**
+
+The product owner confirmed that this is not a commercial release and does not
+require a separately deployed test frontend. Phase 8/9 will not create a second
+Render environment and will not use the Render static Web frontend as an
+acceptance gate. Expo Go remains the product UI/device acceptance surface.
+
+The replacement release check deploys the accepted commit to the existing
+Render API, verifies `/health.build_sha`, authentication, the stock/Queue/SSE
+smoke path, migration compatibility, cold start/restart behaviour, and a
+concrete rollback target with a dedicated test account. Older issue entries and
+verification notes that require same-SHA staging are historical records and are
+superseded by this decision; they have not been rewritten because this log is
+append-only.
+
+**Remaining follow-up**
+
+Review and commit the paused Live Queue verifier, complete hosted Supabase and
+current-data/model checks, perform Expo Go acceptance, then run the existing
+Render backend release and rollback gate. No extra Render service or staging
+payment decision remains in the active route.
+
+---
+
 ## 2026-09-11 — Live acceptance could not enforce its call budget or prove the running SHA
 
 **Status:** Partially resolved locally; paused before hosted/live verification.

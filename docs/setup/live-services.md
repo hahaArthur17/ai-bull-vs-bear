@@ -451,8 +451,10 @@ Session conflict, and one declared model-call budget.
 - Cached inputs must pass preflight at the actual acceptance time. Refresh only
   stale/missing sources under the existing user authorization and source budgets.
 
-Do not enable hosted or public V2/Queue/Groq flags until the local Expo pass,
-same-SHA staging smoke, rollback, quota, and provenance gates are recorded.
+Do not enable hosted V2/Queue/Groq flags until the local Expo pass, expected-SHA
+smoke checks on the existing Render API, rollback, quota, and provenance gates
+are recorded. Independent staging and the Render static Web frontend are not
+part of this acceptance path.
 
 ## Verification checklist
 

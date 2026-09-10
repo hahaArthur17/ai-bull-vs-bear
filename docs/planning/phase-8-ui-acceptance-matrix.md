@@ -199,16 +199,17 @@ Android simulator, and at least one physical device. Record OS/device, app
 version or commit, executed flow, result, and any limitation. A Web screenshot
 is supporting visual evidence only; it does not substitute for native review.
 
-## Staging-release acceptance
+## Expo Go and hosted-backend acceptance
 
-Local review is not a release substitute. Before a public-demo update, deploy
-frontend and backend from the same immutable Git SHA to a separate staging
-environment. Verify the frontend calls the matching `/bundle` contract, then
-run the fresh, stale, unavailable, V2 Debate, and responsive checks there.
-`review_fixture` remains limited to local or explicitly protected preview
-review and must not leak into the public data path. Record both deployment
-identifiers and SHA in the verification record. A public demo must not be used
-as the first visual acceptance environment.
+Product UI acceptance runs in Expo Go from a recorded immutable Git SHA. The
+project does not require a separate staging environment or testing/deployment
+of the Render static Web frontend. For the hosted pass, deploy the accepted SHA
+to the existing Render API, verify `/health.build_sha` and the matching
+`/bundle` contract, then run the fresh, stale, unavailable, and V2 Debate checks
+with a dedicated test account. `review_fixture` remains local and must not leak
+into the hosted standard-data path. Record the Expo client SHA, Render backend
+SHA, smoke result, previous deploy, and rollback action in the verification
+record.
 
 ## Required checks per UI commit
 

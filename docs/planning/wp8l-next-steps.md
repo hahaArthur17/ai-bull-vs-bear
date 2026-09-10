@@ -1,6 +1,6 @@
 # WP8L 当前进度与剩余路线
 
-复核日期：2026-09-11。已提交代码基线：`cf8b9e7`。当前按用户要求暂停；未提交工作区仅保留 Live Queue 验证器及其测试，review 尚未完成。
+复核日期：2026-09-11。已提交功能代码基线：`cf8b9e7`。开发已按用户要求继续；未提交工作区仅保留 Live Queue 验证器及其测试，review 尚未完成。
 本文汇总当前执行顺序；详细验收仍以 Phase 8 remediation、UI acceptance matrix 和 verification record 为准。历史 checkpoint 描述的是当时状态，不代表当前待办。
 
 ## 当前位置
@@ -15,10 +15,10 @@
 | WP8L.4 显示调度 | 英文按词、中文按字素、单一活动气泡；生成完成不强制全文展开；有自动化测试 | 真机流畅度、屏幕阅读器实际播报、后台/重连及与 Stop 的联合体验 |
 | WP8L.5 停止与插话 | provider-attempt 审计、下一请求原子准入、首字前停止、恢复、插话、明确 Continue/End、冻结快照和稳定重试键均已实现并提交；默认关闭；本地 PostgreSQL 与延迟基准通过 | 托管迁移/PostgREST/Queue、弱网与原生重开、各角色联合流程、不完整前缀 Explanation 和 Expo Go 验收 |
 | WP8L.6–7 | 单 API/Worker/SSE 进程的首轮验收边界已确定 | 专门测试账号的 Expo Go 联合验收；重启、拓扑与发布证据 |
-| WP9 / WP10 | 验收要求已规划 | 产品负责人视觉/交互验收；同 SHA staging、回滚及 staging 复核 |
+| WP9 / WP10 | 验收要求已规划 | 产品负责人完成 Expo Go 视觉/交互验收；现有 Render 后端同 SHA 发布检查与回滚复核。不创建独立 staging，不要求测试或发布静态 Web 前端 |
 | Phase 9 | 保留在后续路线中 | Replay、可观测性、韧性/负载、最终发布证明与演示材料 |
 
-暂停前复核：已提交代码在排除未提交 Live verifier 测试时，后端 **480** 项通过；移动端 **111** 项与 TypeScript 通过。隔离 PostgreSQL migration/replay、启用 interruption flag 的 Web export 及 120 次 checkpoint 延迟预算均通过。这些仍不能替代托管环境或 Expo Go 实机验收。
+最近复核：已提交代码在排除未提交 Live verifier 测试时，后端 **480** 项通过；移动端 **111** 项与 TypeScript 通过。隔离 PostgreSQL migration/replay、启用 interruption flag 的 Web export 及 120 次 checkpoint 延迟预算均通过。这些仍不能替代托管环境或 Expo Go 实机验收。
 
 ## 下一步执行顺序
 
@@ -73,12 +73,13 @@
 - 补齐 Web 四宽度、200% 缩放、键盘、降低动态效果、屏幕阅读器、原生键盘/焦点、iOS/Android 与至少一台物理设备的缺失证据。缺设备明确记录，不以浏览器模拟替代。
 - 用户以实际界面验收视觉层级、图表可读性、Judge 结论及异常恢复；反馈转为小步修复并重新验证。
 
-### 6. 同 SHA staging 与回滚（WP8L.7、WP10）
+### 6. 现有 Render 后端发布与回滚（WP8L.7、WP10）
 
-- 前后端同一 SHA；核对版本、Auth/CORS、数据来源、迁移兼容性、冷启动、SSE/重启和限定 Live 路径。
+- 不创建独立 staging，不测试或发布静态 Web 前端。Expo Go 客户端从待验收提交运行，现有 Render API 部署同一提交，并以 `/health.build_sha` 核对实际后端版本。
+- 核对 Auth/CORS、数据来源、迁移兼容性、冷启动、SSE/重启和限定 Live 路径；使用专门测试账号，避免把验收会话与普通数据混在一起。
 - 写出迁移与应用版本先后关系，以及关闭 V2/Queue/live provider/Stop 的回滚顺序；优先保留审计数据的兼容回滚，不以删除会话数据作为回滚。
-- 单进程可以用于首轮 staging。若以后拆分 Worker 或扩容 API，另行实现共享事件传递、游标/重放、重复/过期事件与跨进程中断测试。当前 draft checkpoint RPC 不能自动把 Worker 的 delta 送到 API。
-- staging 验收后才考虑公开演示/生产更新，并保留单独的公开发布授权边界。
+- 现有 Render API 保持单进程。若以后拆分 Worker 或扩容 API，另行实现共享事件传递、游标/重放、重复/过期事件与跨进程中断测试。当前 draft checkpoint RPC 不能自动把 Worker 的 delta 送到 API。
+- 记录部署前 SHA、目标 SHA、健康检查、关键接口 smoke、冷启动/重启结果和可恢复的旧版本。独立 staging 与静态 Web 前端不再是 Phase 8/9 完成门槛。
 
 ### 7. Phase 9：可靠演示和最终交付
 

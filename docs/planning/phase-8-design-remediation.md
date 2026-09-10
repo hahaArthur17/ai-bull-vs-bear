@@ -660,8 +660,8 @@ The recorded pass must prove:
 #### WP8L.7 — Topology and release boundary
 
 The existing single-process Worker in the FastAPI lifespan is the accepted
-local/staging topology for this lane. Do not deploy a separate Render background
-Worker while SSE deltas remain process-local: canonical completion might persist
+local and existing-Render-API topology for this lane. Do not deploy a separate
+Render background Worker while SSE deltas remain process-local: canonical completion might persist
 but the API process would not receive the live delta stream. Before splitting
 processes or scaling the API, add shared event delivery with durable replay/cursor recovery and repeat
 reconnect/interruption tests. Draft checkpoints alone do not deliver Worker
@@ -716,28 +716,32 @@ tests.
 style, information density, charts, micro-interactions, evidence comprehension,
 Debate pacing, Judge hierarchy, and responsive behaviour.
 
-### WP10 — Same-SHA staging release gate
+### WP10 — Existing Render backend release and rollback gate
 
 **Depends on:** WP8L and WP9
-**Suggested agent:** Sol prepares and verifies the cross-layer release; Root
-authorizes any external deployment and public-demo change.
+**Suggested agent:** Sol prepares and verifies the backend release; Root owns
+the final deployment and rollback evidence.
 
 **File scope:** deployment configuration, safe environment documentation,
-staging smoke scripts/tests, and verification records. Phase 9 Replay,
+backend smoke scripts/tests, and verification records. Phase 9 Replay,
 observability, resilience, and final portfolio proof remain out of scope.
 
-**Work:** deploy the frontend and backend from the exact same commit SHA; verify
-the stock bundle/API contract, data provenance, chart states, V2 feature flags,
-auth/CORS, cold start, rollback target, and a bounded end-to-end path. Never
-publish a frontend that expects an API route absent from its paired backend.
+**Work:** do not create an independent staging environment and do not deploy or
+test the static Web frontend. Run the Expo Go client from the accepted commit,
+deploy that commit to the existing Render API, and verify `/health.build_sha`,
+the stock bundle/API contract, data provenance, V2 feature flags, auth/CORS,
+cold start, restart, rollback target, and a bounded end-to-end path with a
+dedicated test account.
 
-**Tests:** health and version/SHA match, authenticated stock and Debate smoke,
-fresh/stale/unavailable behaviour, responsive browser smoke, no fixture leakage
-into production, and rollback rehearsal or documented reversible target.
+**Tests:** health and expected backend SHA, authenticated stock and Debate
+smoke, fresh/stale/unavailable behaviour, no fixture leakage into the hosted
+path, and rollback rehearsal or a documented reversible target. Expo Go owns
+the product UI acceptance; the Render static site is outside this gate.
 
-**Definition of done:** staging reports one matching SHA, all smoke gates pass,
-the product owner reviews staging, and changing the public demo remains a
-separate explicit authorization.
+**Definition of done:** the existing Render API reports the expected SHA, all
+backend smoke gates pass, rollback is proven or documented against a concrete
+prior revision, and the Expo Go acceptance record identifies the matching
+client commit. No second Render service is required.
 
 ## 6. Agent allocation and review policy
 
@@ -748,7 +752,7 @@ regardless of risk.
 | --- | --- | --- |
 | Luna | Inventory, deterministic test execution, screenshot/state matrices, mechanical token adoption, documentation evidence | Product architecture, provenance semantics, cross-layer contracts, final integration decisions |
 | Terra | Theme/components, responsive screens, chart interactions, fixtures with an established contract, focused UI refactors | Unreviewed changes to financial formulas, evidence trust boundaries, deployment compatibility |
-| Sol | Indicator/provenance contracts, Debate evidence/API changes, workflow failure semantics, cross-layer integration, staging compatibility | Large mechanical sweeps that Luna or Terra can complete from a fixed contract |
+| Sol | Indicator/provenance contracts, Debate evidence/API changes, workflow failure semantics, cross-layer integration, hosted-backend compatibility | Large mechanical sweeps that Luna or Terra can complete from a fixed contract |
 
 The Root agent owns dependency order, conflict resolution, scope control, review,
 integration, final test execution, and all completion checkboxes. Sub-agents
@@ -838,8 +842,11 @@ particular:
 - `review_fixture` does not substitute for production data-integrity tests;
 - a provider key or enabled flag does not substitute for recorded Live AAPL,
   streaming, pacing, interruption, token, and persistence evidence;
-- staging does not pass unless frontend and backend use the same SHA; and
-- the public demo is not changed without explicit authorization after staging.
+- the existing Render API release does not pass unless `/health.build_sha`
+  matches the accepted commit; and
+- Expo Go acceptance records the client commit used with that backend. An
+  independent staging environment and static Web frontend are not Phase 8
+  requirements.
 
 Phase 9 remains Planned. Its sanitized Demo Replay, observability, resilience,
 load evidence, final release proof, classroom script, and portfolio claims begin

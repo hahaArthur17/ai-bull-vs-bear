@@ -100,8 +100,10 @@ done:
 - There is no dedicated end-to-end UI test for authentication, examination,
   About/diagnostics, complete macro-series coverage, or the V2 facts/citation
   presentation contract.
-- Deployment parity is not part of this local matrix: public/demo verification
-  still needs a same-SHA staging run as required by the acceptance matrix.
+- Deployment parity is not part of this local matrix: hosted verification still
+  needs the accepted SHA on the existing Render API, `/health.build_sha`
+  evidence, authenticated smoke checks, and a rollback target. Independent
+  staging and static Web frontend testing are outside the accepted scope.
 
 ## WP0 completion checklist
 

@@ -1368,22 +1368,26 @@ this portfolio plan and does not create a parallel product plan.
   200% zoom, reduced-motion, iOS simulator, Android simulator, and one physical
   device review; record evidence in the Phase 8 verification record.
 - [ ] Obtain explicit product-owner approval of the AAPL research workspace and
-  V2 Debate at phone and desktop widths before staging release.
+  V2 Debate in Expo Go before the existing Render backend release check.
 - [ ] Complete the controlled local Live Acceptance lane: refresh and verify
   real AAPL data, distinguish the latest provider quote from the latest
   completed daily close, freeze one dated factor snapshot, run Queue-backed
   Groq Bull/Bear streaming in Expo Go, disclose the still-deterministic Judge
   until its live streaming contract exists, and verify paced reveal plus
   immediate interruption before calling the experience fully live.
-- [ ] Deploy frontend and backend from the same commit SHA to staging and pass
-  the phase-specific smoke and rollback gates before changing the public demo.
+- [ ] Deploy the accepted commit to the existing Render API, verify its exposed
+  build SHA, authenticated API/Queue/SSE smoke path, cold start/restart, and a
+  concrete rollback target. Do not create independent staging or require a
+  static Web frontend release.
 
 Completion rule: every work package and gate in the Phase 8 remediation plan is
 complete; all existing functions remain available; local terminal startup shows
 the approved deep experience with labelled review data; the product owner has
-approved the two reference surfaces; and same-SHA staging passes automated,
-responsive, accessibility, device, data-integrity, and smoke review. Automated
-tests or a previous warm-theme screenshot alone cannot complete this phase.
+approved the Expo Go reference flow; and the existing Render API passes the
+expected-SHA, data-integrity, authenticated smoke, restart, and rollback checks.
+Automated tests or a previous warm-theme screenshot alone cannot complete this
+phase. Independent staging and static Web frontend testing are not completion
+requirements.
 
 ### Phase 9 — Replay, observability, resilience, and release proof
 
@@ -1486,7 +1490,8 @@ entry point is WP1 of the re-baselined Phase 8 remediation in
   direct chart-point interaction, and responsive History repair are implemented
   locally. The next bounded entry point is WP8L: controlled Live AAPL data and
   Live AI acceptance, including display pacing and immediate interruption,
-  followed by remaining device/product-owner evidence and same-SHA staging.
+  followed by remaining device/product-owner evidence and the existing Render
+  backend release/rollback check.
   Earlier warm-theme completion marks are not release evidence.
 
 Phase 9 remains Planned and starts only after Phase 8 closes. Its Replay,

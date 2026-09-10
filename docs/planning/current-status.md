@@ -1,7 +1,7 @@
 # Current Project Status
 
-Last verified: 2026-09-11 (committed code baseline `cf8b9e7`; Live Queue
-acceptance verifier remains uncommitted and its review is paused)
+Last verified: 2026-09-11 (committed feature-code baseline `cf8b9e7`; Live Queue
+acceptance verifier remains uncommitted and awaits review)
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -17,8 +17,9 @@ remains an active product/UI remediation phase.
 
 ## Current execution position
 
-Phase 8 / WP8L.5 is paused after local integration and before hosted/live/device
-acceptance. Default-off Stop now covers durable provider-attempt accounting,
+Phase 8 / WP8L.5 has resumed after local integration and is before
+hosted/live/device acceptance. Default-off Stop now covers durable
+provider-attempt accounting,
 before-output interruption, an explicit waiting state, persisted unconfirmed
 recovery, interjection without model dispatch, explicit Continue/End and bounded
 job retries. The canonical migration and local latency benchmark are committed.
@@ -39,8 +40,8 @@ progress records, not the current outstanding-work list.
 | Technical and macro exploration | In progress | WP4 now renders the 1M/3M daily and 6M/1Y weekly workspace with responsive measured charts, MA overlays, RSI, MACD, volume, volatility, seven dated macro series, per-series unavailable states, and explicit provenance. The deterministic `review_fixture` passes the 320/390/768/1280 Web state matrix; native-device and product-owner visual acceptance remain required. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
 | Controlled Live Acceptance | In progress | WP8L.5 backend/mobile integration is committed through `2478804`: immediate and before-output Stop, provider-attempt audit, waiting state, recovery, interjection, Continue and End have local coverage. `eba8b33` records a local 120-write checkpoint benchmark; `38495e3` can set one Worker attempt for a strict live-call ceiling; `583610c` can refresh only selected macro series. Hosted migration/runtime, incomplete-prefix Explanation, current-SHA AAPL Live and Expo Go acceptance remain open. |
-| Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic. `cf8b9e7` adds an explicit `APP_BUILD_SHA` value to `/health`, but it has not been deployed or used to prove a shared frontend/backend release. A same-SHA staging deployment plus smoke-test/rollback evidence is still required. |
-| Automated verification | In progress | At committed baseline `cf8b9e7`, the backend suite passes 480 tests when the uncommitted Live verifier test is excluded; mobile passes 111 tests and TypeScript. Isolated PostgreSQL interruption/replay checks, feature-enabled Web export and the local checkpoint budget also pass. These checks do not establish hosted migration/runtime, native/device, full Live AAPL, visual-owner or staging acceptance. |
+| Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic. `cf8b9e7` adds an explicit `APP_BUILD_SHA` value to `/health`, but it has not been deployed or used to prove the running backend revision. The project will not create an independent staging environment or require a static Web frontend release. The remaining release gate deploys the accepted SHA to the existing Render API and records smoke checks plus a reversible rollback target. |
+| Automated verification | In progress | At committed feature-code baseline `cf8b9e7`, the backend suite passes 480 tests when the uncommitted Live verifier test is excluded; mobile passes 111 tests and TypeScript. Isolated PostgreSQL interruption/replay checks, feature-enabled Web export and the local checkpoint budget also pass. These checks do not establish hosted migration/runtime, native/device, full Live AAPL, visual-owner or existing-Render release acceptance. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive single/two-panel Auth surface is implemented. Four-width Web inspection found no horizontal overflow; required/invalid state and label/description relationships are present in the Web DOM. Live-provider submission, native keyboard/screen-reader, simulator, and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search and the loaded-stock “Ready to review” summary now use the shared dark system and a responsive single/two-column layout. A local catalog-only MSFT search and four-width no-overflow check passed; persistence/reload, recovery-state, native, and product-owner acceptance remain open. |
@@ -148,8 +149,8 @@ a separate confirmation can queue Round 2. Phase 7 is complete in its linear
 interaction scope. Phase 8 is not complete: the active work is the
 Prototype-based dark UI migration, chart and technical-indicator review,
 chat-style V2 Debate transcript with visible facts/citations, deterministic
-review fixtures, data/release integrity, staging proof, and native/physical
-device acceptance. WP8 has locally implemented the active-Debate recovery
+review fixtures, data/release integrity, existing-backend release proof, and
+native/physical device acceptance. WP8 has locally implemented the active-Debate recovery
 interaction in `0e7c813`: the backend `409` is preserved, duplicate submissions
 are protected, a nearby recovery card is shown, and the current Debate/History
 actions are available. The local gate reports 370 backend and 80 mobile tests,
@@ -187,9 +188,10 @@ addressing these linked workstreams:
   chart gate;
 - make refresh failures, stale caches, `/bundle` compatibility, and workflow
   exit status observable and release-blocking where appropriate; and
-- deploy frontend and backend from one SHA to staging, then collect visual,
-  responsive, accessibility, native-simulator, physical-device, and rollback
-  evidence before public-demo promotion.
+- run Expo Go from the accepted commit, deploy that commit to the existing
+  Render API, and collect native/device plus backend health, migration, cold
+  start, restart, smoke, and rollback evidence. An independent staging
+  environment and static Web frontend release are outside this project scope.
 
 ### Phase 1 completion evidence
 
