@@ -1,11 +1,11 @@
 # WP8L 当前进度与剩余路线
 
-复核日期：2026-09-10。已提交代码基线：`2298eed`；其后的 WP8L.5 插话、继续、调用审计和首字前停止仍在未提交整合工作区中。
+复核日期：2026-09-11。已提交代码基线：`cf8b9e7`。当前按用户要求暂停；未提交工作区仅保留 Live Queue 验证器及其测试，review 尚未完成。
 本文汇总当前执行顺序；详细验收仍以 Phase 8 remediation、UI acceptance matrix 和 verification record 为准。历史 checkpoint 描述的是当时状态，不代表当前待办。
 
 ## 当前位置
 
-当前处于 **Phase 8 / WP8L.5 开发中段**，尚未进入完整 Expo Go Live 验收，也未完成 Phase 8。
+当前处于 **Phase 8 / WP8L.5 核心停止与插话路径已本地整合、托管与实机验收前**；不完整前缀 Explanation 仍未实现，因此 WP8L.5 和 Phase 8 都尚未完成。
 
 | 工作包 | 已有证据 | 尚未完成 |
 | --- | --- | --- |
@@ -13,29 +13,28 @@
 | WP8L.2 数据预检 | 一次标准 AAPL capture：100 条日线、2 份合格证据、7 项宏观，离线一致性检查通过；有界新闻/宏观刷新与报价读取已有记录 | 正式验收前按当时日期重新检查，仅刷新过期来源；历史 capture 不是永久“最新”证明 |
 | WP8L.3 Queue 与真实模型 | Queue/流式 Bull/Bear 有历史验证；独立流式 Interim/Final Judge 已实现，合成输入的小型 Groq Judge 检测通过 | 当前 SHA、同一真实 AAPL 快照的 Queue 202、两轮及两次 Judge、重载与分角色用量联合验证 |
 | WP8L.4 显示调度 | 英文按词、中文按字素、单一活动气泡；生成完成不强制全文展开；有自动化测试 | 真机流畅度、屏幕阅读器实际播报、后台/重连及与 Stop 的联合体验 |
-| WP8L.5 停止与插话 | 前端立即冻结并持久恢复未确认前缀；后端保存不完整消息并进入独立等待状态；隔离 PostgreSQL、Worker 崩溃恢复和流式用量保留已验证并提交；默认关闭 | 托管迁移/PostgREST/Queue 验证、草稿写入延迟、剩余竞态、首字前停止客户端接线、插话与明确继续的完整整合和验收 |
+| WP8L.5 停止与插话 | provider-attempt 审计、下一请求原子准入、首字前停止、恢复、插话、明确 Continue/End、冻结快照和稳定重试键均已实现并提交；默认关闭；本地 PostgreSQL 与延迟基准通过 | 托管迁移/PostgREST/Queue、弱网与原生重开、各角色联合流程、不完整前缀 Explanation 和 Expo Go 验收 |
 | WP8L.6–7 | 单 API/Worker/SSE 进程的首轮验收边界已确定 | 专门测试账号的 Expo Go 联合验收；重启、拓扑与发布证据 |
 | WP9 / WP10 | 验收要求已规划 | 产品负责人视觉/交互验收；同 SHA staging、回滚及 staging 复核 |
 | Phase 9 | 保留在后续路线中 | Replay、可观测性、韧性/负载、最终发布证明与演示材料 |
 
-已提交 checkpoint 记录了后端 **435** 项完整测试、移动端 **105** 项测试、隔离 PostgreSQL/Worker 专项检查和 **12** 项流式契约测试。2026-09-10 复核时，包含未提交整合代码的工作区为后端 **463** 项、移动端 **105** 项、TypeScript 与隔离 PostgreSQL runner 通过。后一个数字不能作为已提交版本证明，也不能替代托管环境或 Expo Go 实机验收。
+暂停前复核：已提交代码在排除未提交 Live verifier 测试时，后端 **480** 项通过；移动端 **111** 项与 TypeScript 通过。隔离 PostgreSQL migration/replay、启用 interruption flag 的 Web export 及 120 次 checkpoint 延迟预算均通过。这些仍不能替代托管环境或 Expo Go 实机验收。
 
 ## 下一步执行顺序
 
 ### 1. 先补齐停止的状态和数据库契约（WP8L.5a）
 
-- `interrupted_awaiting_user` 与最终 `cancelled` 已在提交中分离；继续保持终止、恢复和新 generation 的转换边界可检查。
-- 隔离 PostgreSQL 已验证迁移重复执行、RPC、RLS/两用户隔离、外键、前缀保留、幂等、checkpoint 清理及 Worker 崩溃恢复。下一步是把新增调用审计、首字前停止和继续 RPC 整理进正式迁移，再验证托管 PostgREST/Queue。
-- 下一角色模型调用的原子 admission 与调用审计正在未提交工作区整合；需补完 Stop、Continue、End 和旧 Worker 之间的竞争证明。
-- `2298eed` 已保留流式校验失败前报告的 Token，并将未报告用量保持为未知。持久 provider-attempt ledger 仍需完成、迁移和验收。
-- 为每 delta 一次同步 checkpoint 写入测量延迟与请求量；必要时合并持久化和发布批次，但必须先持久化再向客户端公布可停止前缀。设定缓冲上限与失败策略。
+- `69368de` 已提交 provider-attempt ledger、Stop 与下一请求的原子 admission、首字前空 anchor、Continue/End 竞争和正式迁移；已报告 Token 保留，未报告用量保持 unknown。
+- 隔离 PostgreSQL 已验证重复迁移、RPC、RLS/两用户隔离、外键、前缀、幂等、checkpoint 清理、Worker 崩溃与 retry draft 清理。下一步是在托管 Supabase 应用并验证 PostgREST/Queue 行为。
+- `eba8b33` 的 120 次本地 checkpoint 基准为每 delta 一次写入，暂停前复跑 p95 0.122 ms、最大 1.954 ms。仍需测量托管网络延迟，再决定是否批量持久化。
+- `38495e3` 增加 `DEBATE_JOB_MAX_ATTEMPTS`；真实限额验收必须设为 1，以防 Worker 重试越过 12 次名义调用预算。
 
 完成证据：真实 PostgreSQL 事务测试、可重现的并发边界测试、数据库写入预算和延迟记录。迁移与功能启用是分开的步骤。
 
 ### 2. 补齐停止的边界与恢复（WP8L.5b）
 
-- queued、`turn.started` 后但首个 delta 前和空前缀的后端实现与测试正在未提交工作区中，尚未接入移动端；Judge 流式中、生成已完成但显示未完成仍需完整联合验收。
-- 未确认 Stop 的账号/会话级本地持久恢复已提交；网络超时、History 重载及原生 App 强制退出/重开的实机证据仍待补齐。
+- queued、`turn.started` 后但首个 delta 前、空前缀及已有 provider 内容但尚未显示文字的客户端路径已实现并测试；Judge 和完成早于显示的完整联合流程仍需托管/实机验收。
+- 未确认 Stop 的账号/会话级本地持久恢复、前台重连和远端确认重载已提交；网络超时、History 重载及原生 App 强制退出/重开的实机证据仍待补齐。
 - 停止确认前不自动恢复显示、不自动 Continue；错误明确区分“本地已冻结”和“服务器已确认”。测试重复点击、两个客户端和终止与继续的冲突。
 - 客户端点击只保证本机立即冻结；服务器接受中断后禁止旧 generation 的新 admission。网络传输期间或此前已发出的请求可能已经消费 Token，需尽力取消并照实计量。
 - 若必须保证“上一角色尚未显示完，下一角色连模型请求都不发”，需增加显示完成确认/背压协议及失联超时策略。当前单气泡显示调度不具备该保证；实现前不能把它写成已完成行为。
@@ -44,10 +43,10 @@
 
 ### 3. 接入插话和明确继续（WP8L.5c）
 
-当前工作区已有 API、内存/Supabase repository、SQL、移动端输入框和部分状态机测试，但整批尚未提交。复核发现移动端保存插话使用被停止消息的旧 generation，而后端当前校验停止后会话的 active generation；该接口边界必须先统一，不能把当前测试通过等同于可用流程。
+`69368de` 与 `2478804` 已提交 API、repository、SQL、移动端输入框和状态机。插话与 Continue 使用 Stop 返回的等待 generation；Continue 原子创建新 generation/job。保存观点不调用模型，End 不要求先保存观点，Continue 要求已保存观点。
 
 - 停止确认后显示输入框，分别提供提问/表达观点、只读解释、结束、明确继续。输入或提交观点本身不触发模型。
-- 定义中断点的解释请求契约：现有 Explanation 只接受完整消息中的精确词语，不能直接复用于不完整前缀。
+- 定义中断点的解释请求契约仍未完成：现有 Explanation 只接受完整消息中的精确词语，不能直接复用于不完整前缀。
 - 持久化 interjection、所有者、目标中断点和幂等键。用户观点属于用户上下文，不能提升为已验证市场证据。
 - 明确从 Bull、Bear、Interim Judge、Final Judge 中断后的恢复位置、剩余角色顺序和有限轮次；空观点是否允许 Continue 也须在契约中定死。
 - Continue 原子创建新 generation 与唯一 Queue job，使用最后完整消息前缀、显式标记的不完整内容及用户插话。保持原冻结市场快照；若已超出继续的有效期，要求创建带新快照的新会话，不能静默替换旧输入。
@@ -56,6 +55,8 @@
 完成证据：各中断位置的完整状态机测试和无隐式模型调用验证。
 
 ### 4. 重做实时数据预检和小额端到端检测（WP8L.1–3 收口）
+
+暂停点：`583610c` 已支持仅刷新过期宏观系列；`38495e3` 可关闭 Worker 重试；`cf8b9e7` 在 `/health` 暴露显式 build SHA。`scripts/verify_current_sha_live_queue.py` 及其测试仍未提交，独立 review 被本次暂停中断，恢复工作时必须先复核再运行任何真实模型请求。
 
 - 先读缓存与调用记录，只补过期/不足数据。用户已授权限额刷新和微小模型检测，不必每次重复请求同一授权。
 - 补交易日历、提前收盘、跨时区/宏观发布日期测试；统一七项宏观的固定年龄阈值需要源级规则复核，避免休市日误挡或把旧数据当新数据。

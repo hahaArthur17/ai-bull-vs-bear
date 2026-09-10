@@ -796,3 +796,34 @@ this review, but is not recorded as completed: before-output Stop is not wired
 to the mobile client, all new SQL is not yet consolidated into the formal
 migration, and the interjection generation boundary is inconsistent between
 client and server. No external data/model calls or hosted changes were made.
+
+### 2026-09-11 — WP8L.5 local integration and requested pause
+
+Committed the durable interruption backend in `69368de`, including atomic
+provider-attempt admission/accounting, before-output Stop, retry cleanup,
+interjection, Continue/End, and consolidated PostgreSQL migration/replay tests.
+Committed the mobile interaction in `2478804`, including post-Stop generation
+handling, buffered-draft Stop selection, stable retry keys, explicit user
+actions and terminal-state reconnect. A saved viewpoint does not dispatch a
+model; Continue is the explicit dispatch action.
+
+`eba8b33` adds an isolated local checkpoint benchmark. A 120-write rerun used
+one RPC per delta and passed its budget with p95 0.122 ms and maximum 1.954 ms.
+`583610c` adds selected-series macro ingestion so a stale WTI observation can be
+refreshed with one EIA request instead of the full seven-source run.
+`38495e3` adds a configurable Debate job attempt cap; bounded Live acceptance
+must set it to one. `cf8b9e7` exposes an explicitly configured immutable build
+SHA through `/health` for release provenance.
+
+At pause, committed code passes 480 backend tests when the uncommitted Live
+verifier test is excluded, 111 mobile tests and TypeScript. The isolated
+PostgreSQL runner and feature-enabled Web export also pass. No hosted migration,
+market-data refresh or model request was made during this sequence.
+
+The only uncommitted files are `scripts/verify_current_sha_live_queue.py` and
+`backend/tests/test_current_sha_live_queue_verifier.py`. Their mocked tests had
+passed, but independent review was interrupted by the requested pause. They
+must be reviewed against the actual API, SHA and `max_attempts=1` contract before
+commit or any external call. Remaining acceptance is hosted migration/runtime,
+incomplete-prefix Explanation, fresh AAPL two-round/two-Judge verification and
+Expo Go/native operation.

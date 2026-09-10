@@ -21,6 +21,81 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Live acceptance could not enforce its call budget or prove the running SHA
+
+**Status:** Partially resolved locally; paused before hosted/live verification.
+
+**Scope and verified evidence**
+
+- The planned two-round Groq run has a nominal cost of twelve provider calls.
+  The Worker owned retry dispatch, so a client verifier could notice a retry
+  only after it happened; a Round 2 retry could exceed the nominal budget.
+- `/health` did not expose an immutable source revision, so a successful Live
+  run could not prove which backend SHA produced it.
+- Macro ingestion refreshed all six FRED series plus WTI together. It could not
+  refresh a single stale WTI series without spending seven upstream calls.
+- No existing verifier covered Queue `202`, resumable SSE, both rounds, both
+  Judges, citations, reload and provider-attempt accounting in one run.
+
+**Local mitigation**
+
+- `38495e3` adds `DEBATE_JOB_MAX_ATTEMPTS`; acceptance can set it to `1` so the
+  Worker cannot automatically repeat a stage.
+- `cf8b9e7` adds validated `APP_BUILD_SHA` and exposes `build_sha` through
+  `/health` without deriving it at runtime.
+- `583610c` adds a validated selected-series macro refresh and proves that
+  `--series wti_spot` constructs only EIA and performs one provider request.
+- A mocked full-flow verifier and test now exist as uncommitted files. Its
+  first test pass is not acceptance evidence, and its independent review was
+  interrupted by the requested pause.
+
+**Remaining follow-up**
+
+Review and commit the verifier, require the expected build SHA and
+`max_attempts=1`, apply/verify the interruption migration in the hosted test
+environment, then perform only the freshness calls required by the current
+AAPL snapshot. Record failed calls and unknown Token usage. No external data or
+model call was made while diagnosing or mitigating this issue.
+
+---
+
+## 2026-09-11 — Interruption contracts diverged across server, stream and mobile UI
+
+**Status:** Resolved locally; hosted and Expo Go confirmation remain open.
+
+**Scope and verified evidence**
+
+- The first mobile interjection/Continue integration sent the interrupted
+  message's old generation while the server correctly required the new
+  waiting `active_generation_id`; normal saves would have returned a conflict.
+- When provider text was received but reveal pacing still displayed an empty
+  prefix, Stop selected the before-output RPC. The server could already have a
+  draft checkpoint and reject that request.
+- End could return `cancel_requested` and then stop the local stream, leaving
+  the screen unable to observe the terminal `cancelled` state.
+- During integration, the backend temporarily required a saved interjection
+  before End while the UI offered End as an independent action.
+
+**Local mitigation and verification**
+
+- `69368de` and `2478804` align Interjection/Continue on the post-Stop waiting
+  generation while retaining the old generation on the frozen message.
+- Stop now distinguishes received provider text from rendered text and uses
+  the regular prefix RPC when a draft exists, including an empty visible
+  prefix. Before-output Stop remains for a generation with no draft.
+- End is available directly after a confirmed Stop; only Continue requires a
+  saved viewpoint. The client reconnects when End returns a nonterminal state.
+- Stable generation-scoped keys cover retry/duplicate actions. Local gates pass
+  480 backend tests, 111 mobile tests, TypeScript and isolated PostgreSQL.
+
+**Remaining follow-up**
+
+Verify weak-network timeout, two-client races, background/foreground,
+kill/reopen, Judge interruption, History reload and the complete
+Stop/interjection/Continue/End flow against hosted Queue state in Expo Go.
+
+---
+
 ## 2026-09-08 — Active Debate conflict has no local recovery affordance
 
 **Status:** Implemented locally / awaiting product-owner visual confirmation.
