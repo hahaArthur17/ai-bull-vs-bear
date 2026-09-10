@@ -5,15 +5,17 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from threading import RLock
 from typing import TypeVar
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 from app.domain.base import ImmutableDomainModel
 from app.domain.debate import (
     DebateIntervention,
+    DebateDraftCheckpoint,
     DebateMessage,
     DebateMessageEvidence,
     DebateSession,
     DebateSessionStatus,
+    ProviderAttempt,
 )
 from app.domain.jobs import (
     ClaimedDebateQueueMessage,
@@ -62,7 +64,8 @@ class InMemoryDebateRepository:
     def __init__(self, *, clock: Callable[[], datetime] | None = None) -> None:
         self._sessions: dict[UUID, DebateSession] = {}
         self._messages: dict[UUID, DebateMessage] = {}
-        self._drafts: dict[UUID, DebateMessage] = {}
+        self._drafts: dict[UUID, DebateDraftCheckpoint] = {}
+        self._provider_attempts: dict[UUID, ProviderAttempt] = {}
         self._message_keys: dict[tuple[UUID, UUID, int], UUID] = {}
         self._citations: dict[UUID, tuple[DebateMessageEvidence, ...]] = {}
         self._interventions: dict[UUID, DebateIntervention] = {}
@@ -108,12 +111,14 @@ class InMemoryDebateRepository:
         session: DebateSession,
         *,
         expected_status: DebateSessionStatus,
+        expected_generation_id: UUID | None = None,
     ) -> DebateSession:
         with self._lock:
             current = self._sessions.get(session.id)
             if current is None:
                 raise DebateRepositoryError("Debate session not found")
-            if current.status != expected_status:
+            if (current.status != expected_status or (expected_generation_id is not None
+                    and current.active_generation_id != expected_generation_id)):
                 raise DebateConcurrencyError("Debate session status changed concurrently")
             try:
                 validate_session_update(current, session)
@@ -125,21 +130,213 @@ class InMemoryDebateRepository:
                                 if value.session_id != session.id}
             return _clone(session)
 
-    def checkpoint_draft(self, message: DebateMessage) -> None:
+    def checkpoint_draft(self, message: DebateDraftCheckpoint | DebateMessage) -> None:
         with self._lock:
+            if isinstance(message, DebateMessage):
+                payload = message.model_dump(mode="python")
+                payload["message_id"] = payload.pop("id")
+                message = DebateDraftCheckpoint.model_validate({
+                    name: value for name, value in payload.items()
+                    if name in DebateDraftCheckpoint.model_fields
+                })
             session = self._sessions.get(message.session_id)
             if session is None:
                 raise DebateConcurrencyError("Draft session unavailable")
             if message.role not in {"bull", "bear", "judge"}:
                 raise DebateConcurrencyError("Only agent output can be checkpointed")
-            self._validate_new_message(session, message)
-            previous = self._drafts.get(message.id)
+            if (message.generation_id != session.active_generation_id
+                    or message.branch_id != session.active_branch_id
+                    or session.status not in {"running_round_1", "running_round_2"}):
+                raise DebateConcurrencyError("Draft generation is no longer active")
+            if any(
+                canonical.session_id == session.id
+                and canonical.branch_id == session.active_branch_id
+                and canonical.sequence_number == message.sequence_number
+                and canonical.id != message.message_id
+                for canonical in self._messages.values()
+            ):
+                raise DebateConcurrencyError("Draft sequence is already canonical")
+            previous = self._drafts.get(message.message_id)
             if previous and (previous.branch_id != message.branch_id
                     or previous.generation_id != message.generation_id
                     or previous.sequence_number != message.sequence_number
                     or not message.content.startswith(previous.content)):
                 raise DebateConcurrencyError("Draft prefix changed")
-            self._drafts[message.id] = _clone(message)
+            self._drafts[message.message_id] = _clone(message)
+
+    def admit_provider_attempt(self, attempt: ProviderAttempt,
+                               checkpoint: DebateDraftCheckpoint) -> ProviderAttempt:
+        with self._lock:
+            session = self._sessions.get(attempt.session_id)
+            previous = self._provider_attempts.get(attempt.id)
+            if previous is not None:
+                # Admission is an idempotent request boundary.  Dispatch and
+                # settlement mutate the ledger after admission, so retries
+                # carry the original immutable identity while the stored row
+                # may already be dispatched or finished.
+                if (
+                    attempt.outcome != "admitted"
+                    or attempt.usage_status != "unknown"
+                    or attempt.dispatched_at is not None
+                    or attempt.finished_at is not None
+                    or any(value is not None for value in (
+                        attempt.prompt_tokens, attempt.completion_tokens, attempt.total_tokens,
+                    ))
+                    or checkpoint.content != ""
+                    or previous.session_id != attempt.session_id
+                    or previous.generation_id != attempt.generation_id
+                    or previous.message_id != attempt.message_id
+                    or previous.role != attempt.role
+                    or previous.provider != attempt.provider
+                    or previous.model != attempt.model
+                    or previous.admitted_at != attempt.admitted_at
+                ):
+                    raise DebateConcurrencyError("Provider attempt already exists")
+                if (
+                    checkpoint.message_id != previous.message_id
+                    or checkpoint.session_id != previous.session_id
+                    or checkpoint.generation_id != previous.generation_id
+                    or checkpoint.role != previous.role
+                    or session is None
+                    or checkpoint.branch_id != session.active_branch_id
+                ):
+                    raise DebateConcurrencyError("Provider checkpoint identifier conflict")
+                # Stop prunes the checkpoint but intentionally retains the
+                # provider ledger.  An exact admission retry can therefore
+                # settle safely after the generation has been rotated.
+                existing_checkpoint = self._drafts.get(checkpoint.message_id)
+                if existing_checkpoint is not None and (
+                    existing_checkpoint.session_id != attempt.session_id
+                    or existing_checkpoint.generation_id != attempt.generation_id
+                    or existing_checkpoint.branch_id != checkpoint.branch_id
+                    or existing_checkpoint.sequence_number != checkpoint.sequence_number
+                ):
+                    raise DebateConcurrencyError("Provider checkpoint identifier conflict")
+                return _clone(previous)
+            expected_round = (
+                1 if session is not None and session.status == "running_round_1"
+                else 2 if session is not None and session.status == "running_round_2"
+                else None
+            )
+            if (session is None or session.active_generation_id != attempt.generation_id
+                    or session.active_branch_id != checkpoint.branch_id
+                    or checkpoint.message_id != attempt.message_id
+                    or checkpoint.session_id != attempt.session_id
+                    or checkpoint.generation_id != attempt.generation_id
+                    or checkpoint.role != attempt.role
+                    or checkpoint.content != ""
+                    or checkpoint.round_number != expected_round
+                    or (
+                        checkpoint.role == "judge"
+                        and (checkpoint.exchange_number != 0 or checkpoint.message_kind != "summary")
+                    )
+                    or (
+                        checkpoint.role in {"bull", "bear"}
+                        and (
+                            checkpoint.exchange_number not in {1, 2, 3}
+                            or checkpoint.message_kind not in {"argument", "rebuttal"}
+                        )
+                    )
+                    or session.status not in {"running_round_1", "running_round_2"}):
+                raise DebateConcurrencyError("Provider attempt generation is no longer active")
+            if any(
+                message.id == attempt.message_id
+                or (
+                    message.session_id == session.id
+                    and message.branch_id == session.active_branch_id
+                    and message.sequence_number == checkpoint.sequence_number
+                )
+                for message in self._messages.values()
+            ) or any(
+                draft.session_id == session.id
+                and draft.branch_id == session.active_branch_id
+                and draft.sequence_number == checkpoint.sequence_number
+                and draft.message_id != checkpoint.message_id
+                for draft in self._drafts.values()
+            ):
+                raise DebateConcurrencyError("Provider attempt message is already reserved")
+            existing_checkpoint = self._drafts.get(checkpoint.message_id)
+            if existing_checkpoint is not None and (
+                existing_checkpoint.session_id != session.id
+                or existing_checkpoint.generation_id != attempt.generation_id
+                or existing_checkpoint.branch_id != checkpoint.branch_id
+                or existing_checkpoint.sequence_number != checkpoint.sequence_number
+                or existing_checkpoint.content != ""
+            ):
+                raise DebateConcurrencyError("Provider checkpoint identifier conflict")
+            self._provider_attempts[attempt.id] = _clone(attempt)
+            self._drafts[checkpoint.message_id] = _clone(checkpoint)
+            return _clone(attempt)
+
+    def mark_provider_attempt_dispatched(self, attempt_id: UUID, at: datetime) -> ProviderAttempt:
+        with self._lock:
+            attempt = self._provider_attempts.get(attempt_id)
+            if attempt is None or attempt.outcome != "admitted":
+                raise DebateConcurrencyError("Provider attempt is not dispatchable")
+            updated = attempt.model_copy(update={"outcome": "dispatched", "dispatched_at": at})
+            self._provider_attempts[attempt_id] = updated
+            return _clone(updated)
+
+    def finish_provider_attempt(self, attempt_id: UUID, *, at: datetime,
+                                prompt_tokens: int | None = None,
+                                completion_tokens: int | None = None,
+                                total_tokens: int | None = None,
+                                failed: bool = False) -> ProviderAttempt:
+        with self._lock:
+            attempt = self._provider_attempts.get(attempt_id)
+            if attempt is None or attempt.outcome not in {"dispatched", "completed", "failed"}:
+                raise DebateConcurrencyError("Provider attempt is not finishable")
+            reported = all(value is not None for value in (prompt_tokens, completion_tokens, total_tokens))
+            # A late usage callback may arrive after the attempt was marked
+            # complete/failed. Preserve the first terminal outcome and any
+            # already reported usage; an absent or partial report remains
+            # unknown instead of becoming synthetic zeroes.
+            if attempt.outcome == "failed":
+                outcome = "failed"
+            elif attempt.outcome == "completed":
+                outcome = "completed"
+            else:
+                outcome = "failed" if failed else "completed"
+            if reported and attempt.usage_status == "unknown":
+                usage_update = {
+                    "usage_status": "reported",
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                }
+            elif attempt.usage_status == "reported":
+                usage_update = {
+                    "usage_status": attempt.usage_status,
+                    "prompt_tokens": attempt.prompt_tokens,
+                    "completion_tokens": attempt.completion_tokens,
+                    "total_tokens": attempt.total_tokens,
+                }
+            else:
+                usage_update = {
+                    "usage_status": "unknown",
+                    "prompt_tokens": None,
+                    "completion_tokens": None,
+                    "total_tokens": None,
+                }
+            # The first terminal callback owns the finish timestamp. A late
+            # usage callback is a settlement update and must be idempotent.
+            finished_at = attempt.finished_at if attempt.finished_at is not None else at
+            updated = attempt.model_copy(update={
+                "outcome": outcome,
+                "finished_at": finished_at,
+                **usage_update,
+            })
+            updated = ProviderAttempt.model_validate(updated)
+            self._provider_attempts[attempt_id] = updated
+            return _clone(updated)
+
+    def list_provider_attempts(self, session_id: UUID, user_id: UUID) -> list[ProviderAttempt]:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None or session.user_id != user_id:
+                return []
+            return [_clone(value) for value in sorted(self._provider_attempts.values(),
+                key=lambda item: (item.admitted_at, str(item.id))) if value.session_id == session_id]
 
     def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
                              message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
@@ -160,7 +357,10 @@ class InMemoryDebateRepository:
                     or not target.content.startswith(visible_prefix)):
                 raise DebateConcurrencyError("Interruption prefix or generation is invalid")
             at = max(at, session.updated_at)
-            partial = DebateMessage.model_validate({**target.model_dump(), "content": visible_prefix,
+            target_payload = target.model_dump()
+            if "message_id" in target_payload:
+                target_payload["id"] = target_payload.pop("message_id")
+            partial = DebateMessage.model_validate({**target_payload, "content": visible_prefix,
                 "is_complete": False, "cancelled_at": at, "confidence": None,
                 "signal_strength": None, "terms": [], "metadata": {"interrupted": True}})
             for key, message in list(self._messages.items()):
@@ -186,6 +386,217 @@ class InMemoryDebateRepository:
                 "final_judge_message_id": None})
             self._sessions[session_id] = cancelled
             return _clone(cancelled)
+
+    def interrupt_before_output_generation(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        generation_id: UUID,
+        at: datetime,
+    ) -> DebateSession:
+        """Freeze a generation before any agent text has become visible.
+
+        This operation deliberately lives under the same repository lock as
+        ``admit_provider_attempt`` and canonical message appends.  A caller
+        therefore observes either an empty provider admission or its first
+        output, never an intermediate state.  The empty canonical anchor uses
+        the requested generation as its stable id so a retry can return the
+        already-frozen session without manufacturing another message.
+        """
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None or session.user_id != user_id:
+                raise DebateConcurrencyError("Before-output interruption target unavailable")
+
+            existing = self._messages.get(generation_id)
+            if existing is not None:
+                if existing.session_id != session_id:
+                    raise DebateConcurrencyError("Before-output anchor identifier collision")
+                if (
+                    session.status == "interrupted_awaiting_user"
+                    and existing.generation_id == generation_id
+                    and existing.branch_id == session.active_branch_id
+                    and existing.role in {"bull", "bear", "judge"}
+                    and existing.content == ""
+                    and not existing.is_complete
+                    and existing.metadata.get("interrupted") is True
+                    and existing.metadata.get("before_output") is True
+                ):
+                    return _clone(session)
+                raise DebateConcurrencyError("Before-output anchor identifier already exists")
+
+            existing_draft = self._drafts.get(generation_id)
+            if existing_draft is not None and (
+                existing_draft.session_id != session_id
+                or existing_draft.generation_id != generation_id
+            ):
+                raise DebateConcurrencyError("Before-output anchor identifier collision")
+
+            allowed_statuses = {
+                "queued_round_1", "queued_round_2",
+                "running_round_1", "running_round_2",
+            }
+            if session.status not in allowed_statuses:
+                raise DebateConcurrencyError("Debate generation is not waiting before output")
+            if session.active_generation_id != generation_id:
+                raise DebateConcurrencyError("Debate generation changed before interruption")
+
+            if any(
+                message.session_id == session_id
+                and message.branch_id == session.active_branch_id
+                and message.generation_id == generation_id
+                and message.role in {"bull", "bear", "judge"}
+                and message.content != ""
+                for message in self._messages.values()
+            ):
+                raise DebateConcurrencyError("Debate generation has already produced output")
+            if any(
+                draft.session_id == session_id
+                and draft.branch_id == session.active_branch_id
+                and draft.generation_id == generation_id
+                and draft.content != ""
+                for draft in self._drafts.values()
+            ):
+                raise DebateConcurrencyError("Debate generation has already produced output")
+
+            at = max(at, session.updated_at)
+            round_number = 1 if session.status.endswith("_round_1") else 2
+            # Both rounds begin with the configured opening side.  At this
+            # point a generation has no agent output, so exchange one is the
+            # only valid anchor shape.
+            anchor = DebateMessage(
+                id=generation_id,
+                session_id=session_id,
+                branch_id=session.active_branch_id,
+                generation_id=generation_id,
+                sequence_number=max(
+                    (message.sequence_number for message in self._messages.values()
+                     if message.session_id == session_id
+                     and message.branch_id == session.active_branch_id),
+                    default=0,
+                ) + 1,
+                round_number=round_number,
+                exchange_number=1,
+                role=session.opening_side,
+                message_kind="argument",
+                content="",
+                metadata={"interrupted": True, "before_output": True},
+                is_complete=False,
+                cancelled_at=at,
+                created_at=at,
+            )
+            unique_key = (session_id, session.active_branch_id, anchor.sequence_number)
+            if unique_key in self._message_keys:
+                raise DebateConcurrencyError("Before-output anchor sequence changed")
+            self._messages[generation_id] = _clone(anchor)
+            self._message_keys[unique_key] = generation_id
+            self._citations[generation_id] = ()
+
+            # A queued delivery can be cancelled immediately.  A running
+            # worker observes the rotated generation and settles its job when
+            # its provider call returns; it is intentionally left running here.
+            for key, job in list(self._jobs.items()):
+                if job.session_id == session_id and job.status == "queued":
+                    stamp = max(at, job.updated_at)
+                    self._jobs[key] = _clone(job.model_copy(update={
+                        "status": "cancelled", "finished_at": stamp, "updated_at": stamp,
+                    }))
+
+            self._drafts = {
+                key: value for key, value in self._drafts.items()
+                if value.session_id != session_id
+            }
+            stopped = DebateSession.model_validate({
+                **session.model_dump(),
+                "status": "interrupted_awaiting_user",
+                "active_generation_id": uuid5(session.id, f"before-output:{generation_id}"),
+                "updated_at": at,
+                "completed_at": None,
+                "final_judge_message_id": None,
+            })
+            self._sessions[session_id] = stopped
+            return _clone(stopped)
+
+    def record_interjection(self, point: DebateMessage) -> DebateMessage:
+        from app.services.debate_interruption import interruption_target
+        with self._lock:
+            session = self._sessions.get(point.session_id)
+            if session is None:
+                raise DebateConcurrencyError("Debate is not waiting at this interruption")
+            # A network retry may arrive after Continue or End has won the
+            # state race.  The exact idempotent write must still return the
+            # existing point, while a reused identifier with changed content
+            # remains a conflict.
+            previous = self._messages.get(point.id)
+            if previous is not None:
+                if (
+                    previous.session_id == point.session_id
+                    and previous.branch_id == point.branch_id
+                    and previous.generation_id == point.generation_id
+                    and previous.role == point.role
+                    and previous.message_kind == point.message_kind
+                    and previous.content == point.content
+                    and previous.metadata == point.metadata
+                ):
+                    return _clone(previous)
+                raise DebateConcurrencyError("Interjection key conflicts")
+            if (session.status != "interrupted_awaiting_user"
+                    or session.active_generation_id != point.generation_id
+                    or session.active_branch_id != point.branch_id):
+                raise DebateConcurrencyError("Debate is not waiting at this interruption")
+            transcript = self.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
+            target = interruption_target(transcript)
+            if (point.role != "user" or point.message_kind != "question"
+                    or point.metadata.get("interjection") is not True
+                    or point.metadata.get("interrupted_message_id") != str(target.id)
+                    or not 1 <= len(point.content.strip()) <= 500):
+                raise DebateConcurrencyError("Invalid interjection target")
+            if sum(m.metadata.get("interjection") is True for m in transcript) >= 6:
+                raise DebateConcurrencyError("Interjection limit reached")
+            if point.sequence_number != max((m.sequence_number for m in transcript), default=0) + 1:
+                raise DebateConcurrencyError("Interjection sequence changed")
+            stored = self.append_message(point)
+            self._sessions[session.id] = _clone(session.model_copy(update={
+                "updated_at": max(session.updated_at, point.created_at)}))
+            return stored
+
+    def continue_interrupted(self, session: DebateSession, job: DebateJob, message: DebateQueueMessage,
+                             *, expected_generation_id: UUID, interjection_id: UUID,
+                             ) -> tuple[DebateSession, DebateJob]:
+        from app.services.debate_interruption import CONTINUATION_MAX_AGE, prepare_continuation
+        with self._lock:
+            current = self._sessions.get(session.id)
+            if current is None or current.user_id != session.user_id:
+                raise DebateConcurrencyError("Session unavailable")
+            existing = self._jobs.get(job.id)
+            if existing is not None:
+                if existing.session_id != session.id or existing.idempotency_key != job.idempotency_key:
+                    raise DebateConcurrencyError("Continue key conflicts")
+                return _clone(current), _clone(existing)
+            transcript = self.list_messages(current.id, current.user_id, branch_id=current.active_branch_id)
+            expected, expected_job, expected_message = prepare_continuation(current, transcript,
+                expected_generation_id=expected_generation_id, interjection_id=interjection_id,
+                idempotency_key=job.idempotency_key.rsplit(":", 1)[-1], at=session.updated_at)
+            captured_at = current.created_at
+            if current.analysis_context.captured_at:
+                captured_at = min(captured_at, current.analysis_context.captured_at)
+            now = self._queue_now()
+            if now < captured_at or now - captured_at > CONTINUATION_MAX_AGE:
+                raise DebateConcurrencyError("Frozen discussion expired; start a new debate")
+            if (expected != session or expected_job != job or expected_message != message
+                    or job.idempotency_key in self._job_keys):
+                raise DebateConcurrencyError("Continue payload conflicts")
+            self._validate_one_active_job(job)
+            validate_session_update(current, session)
+            queue_id = self._next_queue_message_id
+            queued_job = _clone(job.model_copy(update={"queue_message_id": queue_id}))
+            stamp = self._queue_now()
+            self._sessions[session.id] = _clone(session)
+            self._jobs[job.id] = queued_job
+            self._job_keys[job.idempotency_key] = job.id
+            self._queue_messages[queue_id] = _QueueEnvelope(message=_clone(message), enqueued_at=stamp, visible_at=stamp)
+            self._next_queue_message_id += 1
+            return _clone(session), _clone(queued_job)
 
     def append_message(
         self,
@@ -547,6 +958,14 @@ class InMemoryDebateRepository:
             )
             queued_status = "queued_round_1" if job.job_type == "round_1" else "queued_round_2"
             retried_session = transition_session(session, queued_status, at=at)
+            # A retry regenerates the first incomplete provider turn.  Its
+            # checkpoint is provider output from the failed attempt and must
+            # not be mistaken for an append-only prefix of the new attempt.
+            # Keep the provider-attempt ledger itself for billing/audit.
+            self._drafts = {
+                key: value for key, value in self._drafts.items()
+                if value.session_id != session.id
+            }
             self._jobs[job.id] = _clone(retried_job)
             self._sessions[session.id] = _clone(retried_session)
             return _clone(retried_session), _clone(retried_job)

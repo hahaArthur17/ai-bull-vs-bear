@@ -1327,3 +1327,131 @@ def test_interrupted_session_can_be_explicitly_ended(monkeypatch):
     assert ended.status_code == 202
     assert ended.json()['session']['status'] == 'cancelled'
     assert ended.json()['messages'][0]['message']['is_complete'] is False
+
+
+def test_end_interruption_does_not_require_a_recorded_user_point(monkeypatch):
+    first = create_round_one(monkeypatch, user='end-without-point-owner')
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
+    headers = {'X-User-Id': 'end-without-point-owner'}
+    target = first['messages'][0]['message']
+    stopped = client.post(f"/debates/{first['session']['id']}/interrupt", headers=headers, json={
+        'generation_id': first['session']['active_generation_id'],
+        'message_id': target['id'], 'visible_prefix': ''})
+    assert stopped.status_code == 200
+    ended = client.post(f"/debates/{first['session']['id']}/end-interruption", headers=headers,
+        json={'interrupted_message_id': target['id']})
+    assert ended.status_code == 202
+    assert ended.json()['session']['status'] == 'cancelled'
+    assert ended.json()['messages'][0]['message']['is_complete'] is False
+
+
+def test_before_output_stop_can_be_ended_without_an_interjection(monkeypatch):
+    monkeypatch.setattr(main.settings, 'debate_queue_enabled', True)
+    enable_preview(monkeypatch)
+    response = client.post(
+        "/debates",
+        headers={'X-User-Id': 'end-before-output-owner'},
+        json={
+            'ticker': 'AAPL',
+            'question': 'Which dated factors support each side?',
+            'opening_side': 'bull',
+        },
+    )
+    assert response.status_code == 202
+    first = response.json()
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
+    headers = {'X-User-Id': 'end-before-output-owner'}
+    session = first['session']
+    stopped = client.post(
+        f"/debates/{session['id']}/interrupt-before-output",
+        headers=headers,
+        json={'generation_id': session['active_generation_id']},
+    )
+    assert stopped.status_code == 200
+    target = stopped.json()['messages'][-1]['message']
+    assert target['content'] == ''
+    assert target['metadata'] == {'interrupted': True, 'before_output': True}
+
+    ended = client.post(
+        f"/debates/{session['id']}/end-interruption",
+        headers=headers,
+        json={'interrupted_message_id': target['id']},
+    )
+    assert ended.status_code == 202
+    assert ended.json()['session']['status'] == 'cancelled'
+    assert ended.json()['messages'][-1]['message']['id'] == target['id']
+
+
+@pytest.mark.parametrize('round_number,stop_index', [(1, i) for i in range(7)] + [(2, i) for i in range(5)])
+def test_interject_then_continue_resumes_only_unfinished_plan_slots(monkeypatch, round_number, stop_index):
+    first = create_round_one(monkeypatch, user='continue-owner')
+    if round_number == 2:
+        initial_target = first['messages'][1]['message']
+        response = client.post(f"/debates/{first['session']['id']}/interventions",
+            headers={'X-User-Id': 'continue-owner'}, json={
+                'selected_message_id': initial_target['id'],
+                'selected_text': initial_target['content'][:40],
+                'question': 'Does this underweight the filing risk?'})
+        assert response.status_code == 201
+        first = response.json()
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
+    monkeypatch.setattr(main.settings, 'debate_queue_enabled', True)
+    session = first['session']
+    headers = {'X-User-Id': 'continue-owner'}
+    round_messages = [r['message'] for r in first['messages']
+                      if r['message']['round_number'] == round_number
+                      and r['message']['role'] in {'bull', 'bear', 'judge'}]
+    target = round_messages[stop_index]
+    stopped = client.post(f"/debates/{session['id']}/interrupt", headers=headers, json={
+        'generation_id': session['active_generation_id'], 'message_id': target['id'],
+        'visible_prefix': target['content'][:8]})
+    assert stopped.status_code == 200
+    waiting_generation = stopped.json()['session']['active_generation_id']
+    point_payload = {'generation_id': waiting_generation, 'content': 'Please consider the downside.',
+                     'idempotency_key': 'point-continue-001'}
+    point_response = client.post(f"/debates/{session['id']}/interjections", headers=headers, json=point_payload)
+    assert point_response.status_code == 201
+    assert point_response.json()['session']['status'] == 'interrupted_awaiting_user'
+    assert point_response.json()['job'] is None
+    assert client.post(f"/debates/{session['id']}/interjections", headers=headers, json=point_payload).json() == point_response.json()
+    point = point_response.json()['messages'][-1]['message']
+    continue_payload = {'generation_id': waiting_generation, 'interjection_id': point['id'],
+                        'idempotency_key': 'continue-001'}
+    continued = client.post(f"/debates/{session['id']}/continue", headers=headers, json=continue_payload)
+    assert continued.status_code == 202
+    result = continued.json()
+    assert result['session']['status'] == f'queued_round_{round_number}'
+    assert result['session']['active_generation_id'] != waiting_generation
+    assert result['session']['analysis_context'] == session['analysis_context']
+    assert client.post(f"/debates/{session['id']}/continue", headers=headers, json=continue_payload).json() == result
+    assert main.debate_preview_service is not None
+    finished = asyncio.run(main.debate_preview_service.orchestrator.execute_job_streaming(UUID(result['job']['id'])))
+    assert finished.status == ('awaiting_user' if round_number == 1 else 'completed')
+    repo = main.debate_preview_service.repository
+    messages = repo.list_messages(finished.id, finished.user_id, branch_id=finished.active_branch_id)
+    assert sum(m.is_complete and m.role in {'bull', 'bear', 'judge'} for m in messages) == (7 if round_number == 1 else 12)
+    assert sum(not m.is_complete for m in messages) == 1
+    job = repo.get_job(UUID(result['job']['id']))
+    assert job.provider_request_count == (7 if round_number == 1 else 5) - stop_index
+
+
+def test_end_interruption_cancels_a_concurrently_queued_continue(monkeypatch):
+    first = create_round_one(monkeypatch, user='end-continue-owner')
+    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
+    monkeypatch.setattr(main.settings, 'debate_queue_enabled', True)
+    session = first['session']
+    headers = {'X-User-Id': 'end-continue-owner'}
+    target = first['messages'][0]['message']
+    stopped = client.post(f"/debates/{session['id']}/interrupt", headers=headers, json={
+        'generation_id': session['active_generation_id'], 'message_id': target['id'], 'visible_prefix': ''}).json()
+    generation = stopped['session']['active_generation_id']
+    point = client.post(f"/debates/{session['id']}/interjections", headers=headers, json={
+        'generation_id': generation, 'content': 'Consider the risk.', 'idempotency_key': 'point-end-001'}).json()['messages'][-1]['message']
+    continuation = {'generation_id': generation, 'interjection_id': point['id'], 'idempotency_key': 'continue-end-001'}
+    assert client.post(f"/debates/{session['id']}/continue", headers=headers, json=continuation).status_code == 202
+    ended = client.post(f"/debates/{session['id']}/end-interruption", headers=headers,
+        json={'interrupted_message_id': target['id']})
+    assert ended.status_code == 202
+    assert ended.json()['session']['status'] == 'cancelled'
+    replay = client.post(f"/debates/{session['id']}/continue", headers=headers, json=continuation)
+    assert replay.json()['session']['status'] == 'cancelled'

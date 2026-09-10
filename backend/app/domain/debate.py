@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
@@ -124,6 +125,85 @@ class DebateMessage(ImmutableDomainModel):
         return self
 
 
+class DebateDraftCheckpoint(ImmutableDomainModel):
+    """Non-canonical, append-only provider output used solely for interruption."""
+
+    message_id: UUID
+    session_id: UUID
+    branch_id: UUID
+    generation_id: UUID
+    sequence_number: int = Field(ge=1)
+    round_number: Literal[1, 2]
+    exchange_number: int = Field(ge=0, le=3)
+    role: Literal["bull", "bear", "judge"]
+    message_kind: Literal["argument", "rebuttal", "summary"]
+    content: Annotated[str, StringConstraints(strip_whitespace=False)] = Field(
+        default="", max_length=6000
+    )
+    created_at: AwareDatetime
+
+    @model_validator(mode="after")
+    def validate_shape(self) -> DebateDraftCheckpoint:
+        if self.role == "judge":
+            if self.message_kind != "summary" or self.exchange_number != 0:
+                raise ValueError("Judge checkpoints require a summary shape")
+        elif self.message_kind == "summary":
+            raise ValueError("Turn checkpoints cannot use summary kind")
+        return self
+
+
+class ProviderAttempt(ImmutableDomainModel):
+    """Durable billing/audit identity, independent of canonical messages."""
+
+    id: UUID
+    session_id: UUID
+    generation_id: UUID
+    message_id: UUID
+    role: Literal["bull", "bear", "judge"]
+    provider: str = Field(min_length=1, max_length=120)
+    model: str = Field(min_length=1, max_length=160)
+    admitted_at: AwareDatetime
+    dispatched_at: AwareDatetime | None = None
+    finished_at: AwareDatetime | None = None
+    outcome: Literal["admitted", "dispatched", "completed", "failed"] = "admitted"
+    usage_status: Literal["unknown", "reported"] = "unknown"
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+
+    @model_validator(mode="after")
+    def validate_lifecycle(self) -> ProviderAttempt:
+        if self.outcome == "admitted" and (
+            self.dispatched_at is not None or self.finished_at is not None
+        ):
+            raise ValueError("An admitted attempt has not been dispatched")
+        if self.outcome in {"dispatched", "completed", "failed"} and self.dispatched_at is None:
+            raise ValueError("A dispatched attempt requires dispatched_at")
+        if self.outcome == "dispatched" and self.finished_at is not None:
+            raise ValueError("A dispatched attempt has not finished")
+        if self.outcome in {"completed", "failed"} and self.finished_at is None:
+            raise ValueError("A finished attempt requires finished_at")
+        if self.dispatched_at is not None and self.dispatched_at < self.admitted_at:
+            raise ValueError("Dispatch cannot precede admission")
+        if (
+            self.finished_at is not None
+            and self.dispatched_at is not None
+            and self.finished_at < self.dispatched_at
+        ):
+            raise ValueError("Finish cannot precede dispatch")
+        tokens = (self.prompt_tokens, self.completion_tokens, self.total_tokens)
+        if self.usage_status == "unknown" and any(value is not None for value in tokens):
+            raise ValueError("Unknown usage must remain null")
+        if self.usage_status == "reported":
+            if self.outcome not in {"completed", "failed"}:
+                raise ValueError("Usage can be reported only after an attempt finishes")
+            if any(value is None for value in tokens):
+                raise ValueError("Reported usage requires all token counts")
+            if self.total_tokens != self.prompt_tokens + self.completion_tokens:
+                raise ValueError("Provider usage total must equal its components")
+        return self
+
+
 class DebateMessageEvidence(ImmutableDomainModel):
     message_id: UUID
     evidence_id: str = Field(min_length=1, max_length=240)
@@ -203,4 +283,3 @@ def build_round_plan(
         opening_side=opening_side,
         turns=tuple(turns),
     )
-

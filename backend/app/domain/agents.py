@@ -14,6 +14,14 @@ BoundedPoint = Annotated[str, Field(min_length=1, max_length=300)]
 BoundedTerm = Annotated[str, Field(min_length=1, max_length=100)]
 
 
+def _validate_interrupted_context(messages: tuple[DebateMessage, ...], session_id: UUID, branch_id: UUID) -> None:
+    if any(message.session_id != session_id or message.branch_id != branch_id
+           or message.role not in {"bull", "bear", "judge"}
+           or message.is_complete or message.metadata.get("interrupted") is not True
+           for message in messages):
+        raise ValueError("Interrupted context must contain explicitly incomplete messages from this branch")
+
+
 class DebateTurnRequest(ImmutableDomainModel):
     session_id: UUID
     branch_id: UUID
@@ -27,6 +35,7 @@ class DebateTurnRequest(ImmutableDomainModel):
     analysis_context: AnalysisContext
     factor_snapshot: FactorSnapshot
     transcript: tuple[DebateMessage, ...] = ()
+    interrupted_context: tuple[DebateMessage, ...] = Field(default=(), max_length=6)
     rebuttal_target_message_id: UUID | None = None
     allowed_evidence_ids: frozenset[str] = frozenset()
     previously_used_points: tuple[BoundedPoint, ...] = Field(default=(), max_length=30)
@@ -39,6 +48,7 @@ class DebateTurnRequest(ImmutableDomainModel):
 
     @model_validator(mode="after")
     def validate_grounding_and_rebuttal_target(self) -> DebateTurnRequest:
+        _validate_interrupted_context(self.interrupted_context, self.session_id, self.branch_id)
         normalized_ticker = self.ticker.upper()
         if self.analysis_context.ticker != normalized_ticker:
             raise ValueError("Analysis-context ticker does not match the turn request")
@@ -137,11 +147,13 @@ class DebateJudgeRequest(ImmutableDomainModel):
     analysis_context: AnalysisContext
     factor_snapshot: FactorSnapshot
     transcript: tuple[DebateMessage, ...] = Field(min_length=1)
+    interrupted_context: tuple[DebateMessage, ...] = Field(default=(), max_length=6)
     allowed_evidence_ids: frozenset[str] = frozenset()
     max_output_chars: int = Field(default=2400, ge=300, le=4000)
 
     @model_validator(mode="after")
     def validate_transcript(self) -> DebateJudgeRequest:
+        _validate_interrupted_context(self.interrupted_context, self.session_id, self.branch_id)
         if self.factor_snapshot.ticker != self.analysis_context.ticker:
             raise ValueError("Judge request snapshots must use the same ticker")
         if self.factor_snapshot.as_of != self.analysis_context.as_of:

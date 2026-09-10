@@ -4,7 +4,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 import logging
-from uuid import UUID, uuid5
+from uuid import UUID, uuid4, uuid5
 
 from pydantic import JsonValue
 
@@ -19,11 +19,13 @@ from app.domain.agents import (
 )
 from app.domain.debate import (
     DebateIntervention,
+    DebateDraftCheckpoint,
     DebateMessage,
     DebateMessageEvidence,
     DebateRoundPlan,
     DebateSession,
     DebateSessionStatus,
+    ProviderAttempt,
     build_round_plan,
 )
 from app.domain.events import DebateEventType
@@ -149,6 +151,7 @@ class DebateOrchestrator:
             running_session = self.repository.update_session(
                 running_session,
                 expected_status=queued_status,
+                expected_generation_id=session.active_generation_id,
             )
             plan = build_round_plan(round_number, running_session.opening_side)
             transcript = self.repository.list_messages(
@@ -201,6 +204,7 @@ class DebateOrchestrator:
             finished_session = self.repository.update_session(
                 finished_session,
                 expected_status=running_status,
+                expected_generation_id=running_session.active_generation_id,
             )
             completed_job = complete_job(
                 running_job,
@@ -231,7 +235,7 @@ class DebateOrchestrator:
                     session,
                     provider_request_count=provider_request_count,
                 )
-            self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
+            self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count, session.active_generation_id)
             raise DebateOrchestrationError("Debate job execution failed") from exc
 
     async def execute_job_streaming(self, job_id: UUID) -> DebateSession:
@@ -268,6 +272,7 @@ class DebateOrchestrator:
             running_session = self.repository.update_session(
                 running_session,
                 expected_status=queued_status,
+                expected_generation_id=session.active_generation_id,
             )
             plan = build_round_plan(round_number, running_session.opening_side)
             transcript = self.repository.list_messages(
@@ -340,6 +345,7 @@ class DebateOrchestrator:
             finished_session = self.repository.update_session(
                 finished_session,
                 expected_status=running_status,
+                expected_generation_id=running_session.active_generation_id,
             )
             completed_job = complete_job(
                 running_job,
@@ -384,7 +390,7 @@ class DebateOrchestrator:
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                 ) from exc
-            self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count)
+            self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count, session.active_generation_id)
             raise DebateOrchestrationError("Debate streaming job execution failed") from exc
 
     def _resume_plan_prefix(
@@ -396,7 +402,7 @@ class DebateOrchestrator:
         completed = [
             message
             for message in transcript
-            if message.generation_id == session.active_generation_id
+            if message.branch_id == session.active_branch_id and message.is_complete
             and message.round_number == plan.round_number
             and message.role in {"bull", "bear", "judge"}
         ]
@@ -432,6 +438,7 @@ class DebateOrchestrator:
                 session = self.repository.update_session(
                     attached,
                     expected_status=session.status,
+                    expected_generation_id=session.active_generation_id,
                 )
             elif attached_id != judge.id:
                 raise DebateOrchestrationError(
@@ -465,6 +472,7 @@ class DebateOrchestrator:
             requested = self.repository.update_session(
                 requested,
                 expected_status=session.status,
+                expected_generation_id=session.active_generation_id,
             )
         except DebateConcurrencyError as exc:
             current = self.repository.get_session(session_id, user_id)
@@ -567,7 +575,8 @@ class DebateOrchestrator:
         self.repository.create_intervention(intervention)
         self.repository.append_message(question)
         self.repository.create_job(round_two_job)
-        return self.repository.update_session(queued, expected_status="awaiting_user")
+        return self.repository.update_session(queued, expected_status="awaiting_user",
+            expected_generation_id=session.active_generation_id)
 
     def prepare_challenge(
         self,
@@ -662,7 +671,34 @@ class DebateOrchestrator:
             exchange_number=exchange_number,
             user_intervention=user_intervention,
         )
-        draft = self.turn_provider.generate_turn(request)
+        attempt = self._admit_attempt(
+            session, message_id=message_id, sequence_number=sequence_number,
+            round_number=round_number, exchange_number=exchange_number, role=role,
+            message_kind=message_kind, provider=self.turn_provider,
+        )
+        if attempt is not None:
+            self.repository.mark_provider_attempt_dispatched(attempt.id, self.clock())
+        self._emit_turn_started(
+            session,
+            message_id=message_id,
+            role=role,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            message_kind=message_kind,
+            target_id=target_id,
+        )
+        try:
+            draft = self.turn_provider.generate_turn(request)
+        except Exception as exc:
+            if attempt is not None:
+                observed = getattr(exc, "usage", None)
+                self.repository.finish_provider_attempt(attempt.id, at=self.clock(), failed=True,
+                    prompt_tokens=observed.prompt_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    completion_tokens=observed.completion_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None)
+            raise
+        if attempt is not None:
+            self.repository.finish_provider_attempt(attempt.id, at=self.clock())
         for delta_index, delta in enumerate(preview_text_chunks(draft.content), start=1):
             self._assert_generation_active(session, self._running_status(round_number))
             self._emit_turn_delta(
@@ -710,14 +746,31 @@ class DebateOrchestrator:
             user_intervention=user_intervention,
         )
 
+        attempt = self._admit_attempt(
+            session, message_id=message_id, sequence_number=sequence_number,
+            round_number=round_number, exchange_number=exchange_number, role=role,
+            message_kind=message_kind, provider=self.streaming_turn_provider,
+        )
+        if attempt is not None:
+            self.repository.mark_provider_attempt_dispatched(attempt.id, self.clock())
+        self._emit_turn_started(
+            session,
+            message_id=message_id,
+            role=role,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            message_kind=message_kind,
+            target_id=target_id,
+        )
+
         received = ""
 
         async def publish_delta(event: DebateTurnStreamDelta) -> None:
             nonlocal received
             received += event.delta
             if self.checkpoint_drafts:
-                self.repository.checkpoint_draft(DebateMessage(
-                    id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+                self.repository.checkpoint_draft(DebateDraftCheckpoint(
+                    message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
                     generation_id=session.active_generation_id, sequence_number=sequence_number,
                     round_number=round_number, exchange_number=exchange_number, role=role,
                     message_kind=message_kind, content=received, created_at=session.updated_at))
@@ -731,11 +784,24 @@ class DebateOrchestrator:
                 source=event.source,
             )
 
-        collected = await collect_debate_turn_stream(
-            self.streaming_turn_provider,
-            request,
-            on_delta=publish_delta,
-        )
+        try:
+            collected = await collect_debate_turn_stream(
+                self.streaming_turn_provider, request, on_delta=publish_delta,
+            )
+        except Exception as exc:
+            if attempt is not None:
+                observed = getattr(exc, "usage", None)
+                self.repository.finish_provider_attempt(attempt.id, at=self.clock(), failed=True,
+                    prompt_tokens=observed.prompt_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    completion_tokens=observed.completion_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None)
+            raise
+        if attempt is not None:
+            self.repository.finish_provider_attempt(
+                attempt.id, at=self.clock(), prompt_tokens=collected.usage.prompt_tokens,
+                completion_tokens=collected.usage.completion_tokens,
+                total_tokens=collected.usage.total_tokens,
+            )
         self._assert_generation_active(session, self._running_status(round_number))
         message = self._persist_turn_draft(
             session,
@@ -766,12 +832,55 @@ class DebateOrchestrator:
     ) -> tuple[UUID | None, int, UUID, DebateTurnRequest]:
         opponent = "bear" if role == "bull" else "bull"
         latest_opponent = next(
-            (message for message in reversed(transcript) if message.role == opponent),
+            (message for message in reversed(transcript) if message.role == opponent and message.is_complete),
             None,
         )
         target_id = latest_opponent.id if latest_opponent is not None else None
         sequence_number = self._next_sequence(transcript)
         message_id = self._message_id(session, sequence_number)
+        request = DebateTurnRequest(
+            session_id=session.id,
+            branch_id=session.active_branch_id,
+            generation_id=session.active_generation_id,
+            ticker=session.ticker,
+            role=role,
+            round_number=round_number,
+            exchange_number=exchange_number,
+            initial_question=session.initial_question,
+            user_intervention=user_intervention,
+            analysis_context=session.analysis_context,
+            factor_snapshot=session.factor_snapshot,
+            transcript=tuple(message for message in transcript if message.is_complete),
+            interrupted_context=tuple(message for message in transcript if not message.is_complete
+                and message.metadata.get("interrupted") is True)[-6:],
+            rebuttal_target_message_id=target_id,
+            allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
+            previously_used_points=tuple(
+                str(message.metadata["rebuttal_point"])
+                for message in transcript
+                if message.metadata.get("rebuttal_point")
+            )[-30:],
+        )
+        return target_id, sequence_number, message_id, request
+
+    def _emit_turn_started(
+        self,
+        session: DebateSession,
+        *,
+        message_id: UUID,
+        role: str,
+        round_number: int,
+        exchange_number: int,
+        message_kind: str,
+        target_id: UUID | None,
+    ) -> None:
+        """Publish a start only after the request has been admitted.
+
+        Admission and Stop share the repository's session lock.  Delaying this
+        transient event until admission succeeds prevents a stale ``started``
+        event from appearing after a concurrent Stop has invalidated the
+        generation.
+        """
         self._emit(
             session.id,
             "turn.started",
@@ -785,28 +894,6 @@ class DebateOrchestrator:
                 "responds_to_message_id": str(target_id) if target_id else None,
             },
         )
-        request = DebateTurnRequest(
-            session_id=session.id,
-            branch_id=session.active_branch_id,
-            generation_id=session.active_generation_id,
-            ticker=session.ticker,
-            role=role,
-            round_number=round_number,
-            exchange_number=exchange_number,
-            initial_question=session.initial_question,
-            user_intervention=user_intervention,
-            analysis_context=session.analysis_context,
-            factor_snapshot=session.factor_snapshot,
-            transcript=tuple(transcript),
-            rebuttal_target_message_id=target_id,
-            allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
-            previously_used_points=tuple(
-                str(message.metadata["rebuttal_point"])
-                for message in transcript
-                if message.metadata.get("rebuttal_point")
-            )[-30:],
-        )
-        return target_id, sequence_number, message_id, request
 
     def _persist_turn_draft(
         self,
@@ -923,22 +1010,38 @@ class DebateOrchestrator:
             phase=phase,
             analysis_context=session.analysis_context,
             factor_snapshot=session.factor_snapshot,
-            transcript=tuple(transcript),
+            transcript=tuple(message for message in transcript if message.is_complete),
+            interrupted_context=tuple(message for message in transcript if not message.is_complete
+                and message.metadata.get("interrupted") is True)[-6:],
             allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
         )
         sequence_number = self._next_sequence(transcript)
         message_id = self._message_id(session, sequence_number)
-        self._emit(
-            session.id,
-            "judge.started",
-            {
-                "message_id": str(message_id),
-                "generation_id": str(session.active_generation_id),
-                "round_number": round_number,
-                "phase": phase,
-            },
+        attempt = self._admit_attempt(
+            session, message_id=message_id, sequence_number=sequence_number,
+            round_number=round_number, exchange_number=0, role="judge",
+            message_kind="summary", provider=self.judge_provider,
         )
-        draft = self.judge_provider.generate_judgement(request)
+        if attempt is not None:
+            self.repository.mark_provider_attempt_dispatched(attempt.id, self.clock())
+        self._emit_judge_started(
+            session,
+            message_id=message_id,
+            round_number=round_number,
+            phase=phase,
+        )
+        try:
+            draft = self.judge_provider.generate_judgement(request)
+        except Exception as exc:
+            if attempt is not None:
+                observed = getattr(exc, "usage", None)
+                self.repository.finish_provider_attempt(attempt.id, at=self.clock(), failed=True,
+                    prompt_tokens=observed.prompt_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    completion_tokens=observed.completion_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None)
+            raise
+        if attempt is not None:
+            self.repository.finish_provider_attempt(attempt.id, at=self.clock())
         self._assert_generation_active(session, self._running_status(round_number))
         return self._persist_judge_draft(
             session,
@@ -967,20 +1070,25 @@ class DebateOrchestrator:
             phase=phase,
             analysis_context=session.analysis_context,
             factor_snapshot=session.factor_snapshot,
-            transcript=tuple(transcript),
+            transcript=tuple(message for message in transcript if message.is_complete),
+            interrupted_context=tuple(message for message in transcript if not message.is_complete
+                and message.metadata.get("interrupted") is True)[-6:],
             allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
         )
         sequence_number = self._next_sequence(transcript)
         message_id = self._message_id(session, sequence_number)
-        self._emit(
-            session.id,
-            "judge.started",
-            {
-                "message_id": str(message_id),
-                "generation_id": str(session.active_generation_id),
-                "round_number": round_number,
-                "phase": phase,
-            },
+        attempt = self._admit_attempt(
+            session, message_id=message_id, sequence_number=sequence_number,
+            round_number=round_number, exchange_number=0, role="judge",
+            message_kind="summary", provider=self.streaming_judge_provider,
+        )
+        if attempt is not None:
+            self.repository.mark_provider_attempt_dispatched(attempt.id, self.clock())
+        self._emit_judge_started(
+            session,
+            message_id=message_id,
+            round_number=round_number,
+            phase=phase,
         )
 
         received = ""
@@ -989,8 +1097,8 @@ class DebateOrchestrator:
             nonlocal received
             received += event.delta
             if self.checkpoint_drafts:
-                self.repository.checkpoint_draft(DebateMessage(
-                    id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+                self.repository.checkpoint_draft(DebateDraftCheckpoint(
+                    message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
                     generation_id=session.active_generation_id, sequence_number=sequence_number,
                     round_number=round_number, exchange_number=0, role="judge",
                     message_kind="summary", content=received, created_at=session.updated_at))
@@ -1009,11 +1117,24 @@ class DebateOrchestrator:
                 },
             )
 
-        collected = await collect_debate_judge_stream(
-            self.streaming_judge_provider,
-            request,
-            on_delta=publish_delta,
-        )
+        try:
+            collected = await collect_debate_judge_stream(
+                self.streaming_judge_provider, request, on_delta=publish_delta,
+            )
+        except Exception as exc:
+            if attempt is not None:
+                observed = getattr(exc, "usage", None)
+                self.repository.finish_provider_attempt(attempt.id, at=self.clock(), failed=True,
+                    prompt_tokens=observed.prompt_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    completion_tokens=observed.completion_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None)
+            raise
+        if attempt is not None:
+            self.repository.finish_provider_attempt(
+                attempt.id, at=self.clock(), prompt_tokens=collected.usage.prompt_tokens,
+                completion_tokens=collected.usage.completion_tokens,
+                total_tokens=collected.usage.total_tokens,
+            )
         self._assert_generation_active(session, self._running_status(round_number))
         attached = self._persist_judge_draft(
             session,
@@ -1028,6 +1149,52 @@ class DebateOrchestrator:
             usage=collected.usage,
         )
         return attached, collected.usage
+
+    def _emit_judge_started(
+        self,
+        session: DebateSession,
+        *,
+        message_id: UUID,
+        round_number: int,
+        phase: str,
+    ) -> None:
+        """Publish Judge start only after the provider attempt is admitted."""
+        self._emit(
+            session.id,
+            "judge.started",
+            {
+                "message_id": str(message_id),
+                "generation_id": str(session.active_generation_id),
+                "round_number": round_number,
+                "phase": phase,
+            },
+        )
+
+    def _admit_attempt(
+        self, session: DebateSession, *, message_id: UUID, sequence_number: int,
+        round_number: int, exchange_number: int, role: str, message_kind: str,
+        provider: object,
+    ) -> ProviderAttempt | None:
+        """Create the request identity and empty draft in one stop-serialized write."""
+
+        if not self.checkpoint_drafts:
+            return None
+        at = self.clock()
+        provider_name = str(getattr(provider, "name", "unknown"))
+        model_name = str(getattr(provider, "model", "") or
+                         f"{provider_name}:{getattr(provider, 'version', 'unknown')}")
+        attempt = ProviderAttempt(
+            id=uuid4(), session_id=session.id, generation_id=session.active_generation_id,
+            message_id=message_id, role=role, provider=provider_name,
+            model=model_name, admitted_at=at,
+        )
+        checkpoint = DebateDraftCheckpoint(
+            message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+            generation_id=session.active_generation_id, sequence_number=sequence_number,
+            round_number=round_number, exchange_number=exchange_number, role=role,
+            message_kind=message_kind, content="", created_at=at,
+        )
+        return self.repository.admit_provider_attempt(attempt, checkpoint)
 
     def _persist_judge_draft(
         self,
@@ -1109,7 +1276,8 @@ class DebateOrchestrator:
             message_id=message.id,
             at=self._at_or_after(session.updated_at),
         )
-        return self.repository.update_session(attached, expected_status=session.status)
+        return self.repository.update_session(attached, expected_status=session.status,
+            expected_generation_id=session.active_generation_id)
 
     def _record_safe_failure(
         self,
@@ -1117,15 +1285,19 @@ class DebateOrchestrator:
         session_id: UUID,
         user_id: UUID,
         provider_request_count: int,
+        expected_generation_id: UUID,
     ) -> None:
         try:
             current_session = self.repository.get_session(session_id, user_id)
-            if current_session is not None and current_session.status not in {
+            if (current_session is not None
+                and current_session.active_generation_id == expected_generation_id
+                and current_session.status not in {
                 "completed",
                 "cancel_requested",
                 "cancelled",
                 "failed",
-            }:
+                "interrupted_awaiting_user",
+            }):
                 failed_session = transition_session(
                     current_session,
                     "failed",
@@ -1135,6 +1307,7 @@ class DebateOrchestrator:
                 self.repository.update_session(
                     failed_session,
                     expected_status=current_session.status,
+                    expected_generation_id=expected_generation_id,
                 )
                 self._emit(
                     failed_session.id,
@@ -1232,6 +1405,7 @@ class DebateOrchestrator:
             cancelled = self.repository.update_session(
                 cancelled,
                 expected_status="cancel_requested",
+                expected_generation_id=session.active_generation_id,
             )
         except DebateConcurrencyError as exc:
             current = self.repository.get_session(session.id, session.user_id)

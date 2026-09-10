@@ -25,12 +25,21 @@ from app.config import get_settings
 from app.debate_schemas import (
     DebateCancelRequest,
     DebateInterruptRequest,
+    DebateInterruptBeforeOutputRequest,
+    DebateInterjectionRequest,
+    DebateContinueRequest,
+    DebateEndInterruptionRequest,
     DebateChallengeRequest,
     DebateCreateRequest,
     DebateExplanationRequest,
     DebateMessageRecord,
     DebateMutationResponse,
     DebateSessionDetail,
+)
+from app.services.debate_interruption import (
+    interruption_target,
+    prepare_interjection,
+    prepare_continuation,
 )
 from app.domain.debate import DebateSession
 from app.domain.explanations import ExplanationResult
@@ -1118,6 +1127,111 @@ def stream_debate_events(
     )
 
 
+@app.get("/debates/{session_id}/provider-attempts",
+         include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
+def debate_provider_attempts(session_id: UUID,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)]) -> dict[str, object]:
+    if not settings.debate_interruptions_enabled:
+        raise HTTPException(status_code=404, detail="Provider audit is not enabled")
+    assert debate_preview_service is not None
+    session = _debate_session_or_404(session_id, _debate_user_id(auth))
+    rows = debate_preview_service.repository.list_provider_attempts(session.id, session.user_id)
+    return {"attempts": [row.model_dump(mode="json") for row in rows],
+        "admitted_count": len(rows),
+        "dispatch_attempts": sum(row.dispatched_at is not None for row in rows),
+        "reported_tokens": sum(row.total_tokens or 0 for row in rows),
+        "unknown_usage_attempts": sum(row.usage_status == "unknown" for row in rows)}
+
+
+@app.post("/debates/{session_id}/interjections", response_model=DebateSessionDetail,
+          status_code=201, include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
+def interject_debate(session_id: UUID, request: DebateInterjectionRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    if not settings.debate_interruptions_enabled:
+        raise HTTPException(status_code=404, detail="Interruption is not enabled")
+    assert debate_preview_service is not None
+    session = _debate_session_or_404(session_id, _debate_user_id(auth))
+    repository = debate_preview_service.repository
+    transcript = repository.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
+    # Resolve an exact retry before checking the current waiting state.  The
+    # point is intentionally durable across Continue/End state changes.
+    point_id = uuid5(session.id, f"interject:{request.idempotency_key}")
+    existing = next((message for message in transcript if message.id == point_id), None)
+    if existing is not None:
+        if (
+            existing.role != "user"
+            or existing.message_kind != "question"
+            or existing.content != request.content.strip()
+            or existing.metadata.get("interjection") is not True
+        ):
+            raise DebateConcurrencyError("Interjection key conflicts")
+        return _debate_detail(session)
+    point = prepare_interjection(session, transcript, expected_generation_id=request.generation_id,
+        content=request.content, idempotency_key=request.idempotency_key, at=datetime.now(timezone.utc))
+    repository.record_interjection(point)
+    return _debate_detail(_debate_session_or_404(session.id, session.user_id))
+
+
+@app.post("/debates/{session_id}/end-interruption", response_model=DebateSessionDetail,
+          status_code=202, include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
+def end_interrupted_debate(session_id: UUID, request: DebateEndInterruptionRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    if not settings.debate_interruptions_enabled:
+        raise HTTPException(status_code=404, detail="Interruption is not enabled")
+    assert debate_preview_service is not None
+    user_id = _debate_user_id(auth)
+    # If Continue wins the first status race, End targets the new generation
+    # descending from this same interruption; it never ends a newer stop point.
+    for _ in range(3):
+        session = _debate_session_or_404(session_id, user_id)
+        transcript = debate_preview_service.repository.list_messages(session.id, user_id,
+            branch_id=session.active_branch_id)
+        target = interruption_target(transcript)
+        if target.id != request.interrupted_message_id:
+            raise DebateConcurrencyError("Interruption point changed")
+        if session.status in {"cancelled", "completed", "failed"}:
+            return _debate_detail(session)
+        try:
+            ended = debate_preview_service.orchestrator.request_cancellation(
+                session.id, user_id, session.active_generation_id)
+            return _debate_detail(ended)
+        except DebateOrchestrationError:
+            continue
+    raise DebateConcurrencyError("End conflicted; retry at the current interruption")
+
+
+@app.post("/debates/{session_id}/continue", response_model=DebateSessionDetail,
+          status_code=202, include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
+def continue_debate(session_id: UUID, request: DebateContinueRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    if not settings.debate_interruptions_enabled or not settings.debate_queue_enabled:
+        raise HTTPException(status_code=404, detail="Queued continuation is not enabled")
+    assert debate_preview_service is not None
+    session = _debate_session_or_404(session_id, _debate_user_id(auth))
+    repository = debate_preview_service.repository
+    job_id = uuid5(session.id, f"continue-job:{request.idempotency_key}")
+    existing = repository.get_job(job_id)
+    if existing is not None:
+        expected_key = f"continue:{session.id}:{request.generation_id}:{request.interjection_id}:{request.idempotency_key}"
+        if existing.user_id != session.user_id or existing.session_id != session.id or existing.idempotency_key != expected_key:
+            raise DebateConcurrencyError("Continue key conflicts")
+        return _debate_detail(session)
+    transcript = repository.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
+    queued, job, envelope = prepare_continuation(session, transcript,
+        expected_generation_id=request.generation_id, interjection_id=request.interjection_id,
+        idempotency_key=request.idempotency_key, at=datetime.now(timezone.utc))
+    queued, job = repository.continue_interrupted(queued, job, envelope,
+        expected_generation_id=request.generation_id, interjection_id=request.interjection_id)
+    debate_event_broker.publish(session.id, "job.queued", payload={
+        "generation_id": str(queued.active_generation_id), "status": queued.status,
+        "job_id": str(job.id), "job_type": job.job_type})
+    return _debate_detail(queued)
+
+
 @app.post("/debates/{session_id}/interrupt", response_model=DebateSessionDetail,
           include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
 def interrupt_debate(session_id: UUID, request: DebateInterruptRequest,
@@ -1136,6 +1250,27 @@ def interrupt_debate(session_id: UUID, request: DebateInterruptRequest,
         "cancelled_generation_id": str(request.generation_id), "interrupted": True,
     })
     return _debate_detail(cancelled)
+
+
+@app.post("/debates/{session_id}/interrupt-before-output", response_model=DebateSessionDetail,
+          include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
+def interrupt_debate_before_output(session_id: UUID, request: DebateInterruptBeforeOutputRequest,
+    _feature: Annotated[None, Depends(require_debate_workflow_v2)],
+    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    """Stop a queued/running generation before its first agent output."""
+    if not settings.debate_interruptions_enabled:
+        raise HTTPException(status_code=404, detail="Interruption is not enabled")
+    assert debate_preview_service is not None
+    user_id = _debate_user_id(auth)
+    _debate_session_or_404(session_id, user_id)
+    stopped = debate_preview_service.repository.interrupt_before_output_generation(
+        session_id, user_id, request.generation_id, datetime.now(timezone.utc))
+    debate_event_broker.publish(session_id, "session.interrupted_awaiting_user", payload={
+        "status": "interrupted_awaiting_user", "generation_id": str(stopped.active_generation_id),
+        "cancelled_generation_id": str(request.generation_id), "interrupted": True,
+        "before_output": True,
+    })
+    return _debate_detail(stopped)
 
 
 @app.post(

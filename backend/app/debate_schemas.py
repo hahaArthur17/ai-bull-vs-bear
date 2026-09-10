@@ -83,6 +83,10 @@ class DebateInterruptRequest(BaseModel):
     visible_prefix: str = Field(max_length=6000)
 
 
+class DebateInterruptBeforeOutputRequest(BaseModel):
+    generation_id: UUID
+
+
 class DebateCancelRequest(BaseModel):
     generation_id: UUID
 
@@ -127,3 +131,19 @@ class DebateSessionDetail(BaseModel):
 
 class DebateMutationResponse(DebateSessionDetail):
     job_id: UUID
+
+
+class DebateInterjectionRequest(BaseModel):
+    generation_id: UUID
+    content: str = Field(min_length=1, max_length=500)
+    idempotency_key: str = Field(min_length=8, max_length=80, pattern=r'^[A-Za-z0-9_-]+$')
+
+
+class DebateContinueRequest(BaseModel):
+    generation_id: UUID
+    interjection_id: UUID
+    idempotency_key: str = Field(min_length=8, max_length=80, pattern=r'^[A-Za-z0-9_-]+$')
+
+
+class DebateEndInterruptionRequest(BaseModel):
+    interrupted_message_id: UUID

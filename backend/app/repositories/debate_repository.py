@@ -6,10 +6,12 @@ from uuid import UUID
 
 from app.domain.debate import (
     DebateIntervention,
+    DebateDraftCheckpoint,
     DebateMessage,
     DebateMessageEvidence,
     DebateSession,
     DebateSessionStatus,
+    ProviderAttempt,
 )
 from app.domain.jobs import (
     ClaimedDebateQueueMessage,
@@ -48,6 +50,7 @@ class DebateSessionRepository(Protocol):
         session: DebateSession,
         *,
         expected_status: DebateSessionStatus,
+        expected_generation_id: UUID | None = None,
     ) -> DebateSession:
         ...
 
@@ -98,6 +101,52 @@ class DebateJobRepository(Protocol):
         *,
         expected_status: DebateJobStatus,
     ) -> DebateJob:
+        ...
+
+
+@runtime_checkable
+class DebateInterruptionRepository(Protocol):
+    def record_interjection(self, point: DebateMessage) -> DebateMessage:
+        ...
+
+    def continue_interrupted(self, session: DebateSession, job: DebateJob, message: DebateQueueMessage,
+                             *, expected_generation_id: UUID, interjection_id: UUID,
+                             ) -> tuple[DebateSession, DebateJob]:
+        ...
+
+    def checkpoint_draft(self, checkpoint: DebateDraftCheckpoint) -> None:
+        ...
+
+    def admit_provider_attempt(self, attempt: ProviderAttempt, checkpoint: DebateDraftCheckpoint) -> ProviderAttempt:
+        """Atomically admit an attempt and seed its empty draft under the session lock."""
+        ...
+
+    def mark_provider_attempt_dispatched(self, attempt_id: UUID, at: datetime) -> ProviderAttempt:
+        ...
+
+    def finish_provider_attempt(self, attempt_id: UUID, *, at: datetime,
+                                prompt_tokens: int | None = None,
+                                completion_tokens: int | None = None,
+                                total_tokens: int | None = None,
+                                failed: bool = False) -> ProviderAttempt:
+        """Finish even after generation cancellation; missing usage stays unknown."""
+        ...
+
+    def list_provider_attempts(self, session_id: UUID, user_id: UUID) -> list[ProviderAttempt]:
+        ...
+
+    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
+                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
+        ...
+
+    def interrupt_before_output_generation(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        generation_id: UUID,
+        at: datetime,
+    ) -> DebateSession:
+        """Stop a generation before its first agent output under the session lock."""
         ...
 
 
@@ -171,14 +220,4 @@ class DebateQueueRepository(Protocol):
     ) -> tuple[DebateSession, DebateJob]:
         """Atomically terminalize a running Job whose retry budget is exhausted."""
 
-        ...
-
-
-@runtime_checkable
-class DebateInterruptionRepository(Protocol):
-    def checkpoint_draft(self, message: DebateMessage) -> None:
-        ...
-
-    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
-                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
         ...

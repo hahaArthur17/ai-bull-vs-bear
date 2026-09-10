@@ -75,3 +75,6 @@ psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260827_v2_debate_persisten
 psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260909_debate_draft_interruption.sql" >/dev/null
 psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260909_debate_draft_interruption.sql" >/dev/null
 psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_draft_interruption.sql"
+psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_provider_attempts.sql"
+psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_continuation.sql"
+psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_before_output.sql"
