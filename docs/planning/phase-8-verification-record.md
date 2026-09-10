@@ -779,3 +779,20 @@ leaves usage explicitly unknown when no report was received. This enables the
 independent attempt ledger to account for rejected output without inventing zero
 cost. Turn stream contract tests: 12 passed, including reported usage on mismatched
 output and iterator cleanup on interruption. No external provider calls.
+
+### 2026-09-10 — WP8L status and version reconciliation
+
+Reconciled the current status, remaining-work register and Live acceptance
+matrix to committed baseline `2298eed`. The committed scope now explicitly
+includes the waiting state, isolated PostgreSQL and crashed-Worker checks,
+persisted unconfirmed-Stop recovery, and stream usage retention. Historical
+checkpoint sections remain unchanged because they describe the evidence at the
+time each checkpoint was made.
+
+The later dirty worktree contains provider-attempt persistence, before-output
+Stop, interjection and explicit Continue integration. It passed 463 backend
+tests, 105 mobile tests, TypeScript and the isolated PostgreSQL runner during
+this review, but is not recorded as completed: before-output Stop is not wired
+to the mobile client, all new SQL is not yet consolidated into the formal
+migration, and the interjection generation boundary is inconsistent between
+client and server. No external data/model calls or hosted changes were made.

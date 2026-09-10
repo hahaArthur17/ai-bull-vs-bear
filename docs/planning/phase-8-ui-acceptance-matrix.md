@@ -98,8 +98,11 @@ and volatility must be checked for one shared definition before final closure.
 
 ## Live Data and Live AI acceptance
 
-Status at `50d9885` (2026-09-09): data/provider/reveal and default-off Stop
-foundations have implementation evidence; this entire matrix is not yet passed.
+Status at committed baseline `2298eed` (2026-09-10): data/provider/reveal,
+default-off Stop, the waiting state, isolated database checks, crashed-Worker
+recovery, unconfirmed-Stop restore and rejected-stream usage retention have
+implementation evidence. Interjection/Continue and before-output Stop remain
+uncommitted integration work; this entire matrix is not yet passed.
 See [`remaining sequence`](wp8l-next-steps.md).
 
 The controlled live run supplements fixture-based UI review. It is not a public

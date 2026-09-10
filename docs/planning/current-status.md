@@ -1,6 +1,7 @@
 # Current Project Status
 
-Last verified: 2026-09-09 (code baseline `50d9885`)
+Last verified: 2026-09-10 (committed code baseline `2298eed`; later WP8L.5
+integration remains uncommitted)
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -17,8 +18,13 @@ remains an active product/UI remediation phase.
 ## Current execution position
 
 Phase 8 / WP8L.5 is in progress. Data admission, streamed Judge, reveal pacing,
-and default-off interruption foundations are implemented; complete live/device
-acceptance is not. The ordered remaining work and corrected boundaries are in
+default-off interruption, the durable waiting state, isolated PostgreSQL
+verification, crashed-Worker recovery, persisted unconfirmed-Stop recovery and
+stream usage retention are implemented. Provider-attempt persistence,
+before-output Stop, interjection and explicit Continue are present only in the
+uncommitted integration worktree and are not accepted features. Complete
+live/device acceptance is also outstanding. The ordered remaining work and
+corrected boundaries are in
 [`wp8l-next-steps.md`](wp8l-next-steps.md). Historical checkpoints below are dated
 progress records, not the current outstanding-work list.
 
@@ -32,9 +38,9 @@ progress records, not the current outstanding-work list.
 | Market and evidence integrity | In progress | Distinct quote/close, current evidence, SEC facts and seven macro inputs are validated and frozen. A bounded real AAPL capture passed on 2026-09-09 using 100 cached daily rows. Trading-calendar/release-lag edges and a fresh preflight at acceptance time remain open; this is not permanent freshness or complete statement coverage. |
 | Technical and macro exploration | In progress | WP4 now renders the 1M/3M daily and 6M/1Y weekly workspace with responsive measured charts, MA overlays, RSI, MACD, volume, volatility, seven dated macro series, per-series unavailable states, and explicit provenance. The deterministic `review_fixture` passes the 320/390/768/1280 Web state matrix; native-device and product-owner visual acceptance remain required. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share a validated single-response Bull/Bear/Judge contract. Explanation independently defaults to deterministic and offers a bounded Groq provider behind explicit configuration; its one-request local verifier passed on 2026-08-29. The default-off async Groq Turn stream also passed one quota-controlled live Round 1. |
-| Controlled Live Acceptance | In progress | Currently WP8L.5: data gates, streamed Judge and reveal pacing are implemented. `568a3c2` adds default-off interruption persistence; `50d9885` freezes client-visible text and confirms the incomplete canonical prefix. PostgreSQL migration/runtime verification, recovery, interjection/Continue, current-SHA integrated Live AAPL and Expo Go acceptance remain open. See the current execution roadmap above. |
+| Controlled Live Acceptance | In progress | Currently WP8L.5: data gates, streamed Judge, reveal pacing, immediate prefix freeze, a distinct waiting state, isolated PostgreSQL checks, Worker-crash survival and persisted unconfirmed-Stop recovery are committed through `2298eed`. Hosted migration/PostgREST/Queue verification, checkpoint latency, remaining Stop races, interjection/Continue integration, current-SHA Live AAPL and Expo Go acceptance remain open. See the current execution roadmap above. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic, but the hosted frontend/backend are not yet proven to be the same release: the public API does not expose the current `/bundle` contract, and a staging deployment from one shared SHA plus smoke-test/rollback evidence is still required. |
-| Automated verification | In progress | Latest recorded code baseline: 434 backend tests, 93 mobile tests, TypeScript and Expo Web export pass. Existing responsive fixture/browser evidence is retained in the verification record. These checks do not establish new interruption SQL runtime, native/device, full Live AAPL, visual-owner or staging acceptance. |
+| Automated verification | In progress | The committed checkpoints record a 435-test backend suite, 105 mobile tests, focused PostgreSQL/Worker checks and 12 stream-contract tests. The current uncommitted WP8L.5 integration worktree passes 463 backend tests, 105 mobile tests, TypeScript and the isolated PostgreSQL runner. These checks do not establish hosted migration/runtime, native/device, full Live AAPL, visual-owner or staging acceptance. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive single/two-panel Auth surface is implemented. Four-width Web inspection found no horizontal overflow; required/invalid state and label/description relationships are present in the Web DOM. Live-provider submission, native keyboard/screen-reader, simulator, and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search and the loaded-stock “Ready to review” summary now use the shared dark system and a responsive single/two-column layout. A local catalog-only MSFT search and four-width no-overflow check passed; persistence/reload, recovery-state, native, and product-owner acceptance remain open. |
