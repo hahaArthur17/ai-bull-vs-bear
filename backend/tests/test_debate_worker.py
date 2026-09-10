@@ -386,6 +386,63 @@ def test_worker_settles_cancellation_after_a_running_process_crash() -> None:
     asyncio.run(run_scenario())
 
 
+def test_worker_settles_interruption_after_a_running_process_crash() -> None:
+    async def run_scenario() -> None:
+        clock = MutableClock()
+        repository = InMemoryDebateRepository(clock=clock)
+        session, job = admit_round_one(repository)
+        provider = CrashOnceAfterTwoTurnsProvider()
+        worker = build_streaming_worker(repository, provider)
+
+        crashed = asyncio.create_task(worker.run_once())
+        await asyncio.wait_for(provider.crash_boundary.wait(), timeout=1)
+        partial = repository.list_messages(
+            session.id,
+            session.user_id,
+            branch_id=session.active_branch_id,
+        )
+        assert len(partial) == 2
+        stopped_message = partial[-1]
+        visible_prefix = stopped_message.content[: max(1, len(stopped_message.content) // 2)]
+        stopped = repository.interrupt_generation(
+            session.id,
+            session.user_id,
+            session.active_generation_id,
+            stopped_message.id,
+            visible_prefix,
+            clock.now,
+        )
+        assert stopped.status == "interrupted_awaiting_user"
+
+        crashed.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await crashed
+
+        clock.now += timedelta(seconds=30)
+        cancelled = await worker.run_once()
+        stored_job = repository.get_job(job.id)
+        stored_session = repository.get_session(session.id, session.user_id)
+        messages = repository.list_messages(
+            session.id,
+            session.user_id,
+            branch_id=session.active_branch_id,
+        )
+
+        assert cancelled.outcome == "cancelled"
+        assert cancelled.read_count == 2
+        assert stored_job is not None and stored_job.status == "cancelled"
+        assert stored_session is not None
+        assert stored_session.status == "interrupted_awaiting_user"
+        assert stored_session.completed_at is None
+        assert len(messages) == 2
+        assert messages[-1].id == stopped_message.id
+        assert messages[-1].content == visible_prefix
+        assert messages[-1].metadata["interrupted"] is True
+        assert (await worker.run_once()).outcome == "idle"
+
+    asyncio.run(run_scenario())
+
+
 def test_two_workers_apply_backpressure_to_three_queued_sessions() -> None:
     async def run_scenario() -> None:
         clock = MutableClock()

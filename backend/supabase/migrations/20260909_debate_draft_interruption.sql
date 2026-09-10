@@ -35,7 +35,7 @@ begin
      or (message_payload ->> 'branch_id')::uuid is distinct from s.active_branch_id
      or coalesce(message_payload ->> 'role','') not in ('bull','bear','judge')
      or (message_payload ->> 'round_number')::integer is distinct from
-        case when s.status='running_round_1' then 1 else 2 end then
+        (case when s.status='running_round_1' then 1 else 2 end) then
     raise exception using errcode='40001', message='Draft generation is not active';
   end if;
   select payload into previous from public.debate_draft_checkpoints where message_id=mid;

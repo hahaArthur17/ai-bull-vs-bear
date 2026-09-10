@@ -647,3 +647,17 @@ Worker cancellation/recovery preserves it rather than treating it as a failed or
 completed round. This state does not itself enable interjection or Continue.
 Backend 435 tests and mobile typecheck pass; SQL runtime validation is ongoing
 in isolation and the feature remains off. No live data/model calls.
+
+
+### 2026-09-10 — isolated PostgreSQL and crashed Worker verification
+
+Added `scripts/validate_debate_interruption_sql.sh` and SQL fixtures, using a
+temporary local PostgreSQL 17 cluster over a Unix socket (no hosted writes).
+Fixed the checkpoint RPC CASE-expression syntax found by execution. First and
+repeat migration application, role/RLS isolation, foreign keys, prefix retention,
+idempotence and checkpoint pruning pass. The runner supports PG_BIN discovery
+and a TMPDIR containing spaces. Worker tests: 12 passed, including Stop followed
+by process crash and lease redelivery; the old job is cancelled while the waiting
+session and incomplete prefix survive. Per-message audit loss was confirmed and
+is being addressed separately by the provider-attempt ledger, not declared fixed
+by this migration test. Hosted PostgREST/Queue validation remains separate.
