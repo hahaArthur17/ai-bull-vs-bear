@@ -75,6 +75,14 @@ class TokenRecordingJudgeProvider(DeterministicStreamingJudgeProvider):
                 yield event
 
 
+class RecordingProviderPacer:
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def wait(self) -> None:
+        self.calls += 1
+
+
 class InterruptingStreamProvider:
     name = "interrupting-stream"
     version = "test-v1"
@@ -218,6 +226,7 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
     provider = TokenRecordingStreamProvider(max_chunk_characters=32)
     judge_provider = TokenRecordingJudgeProvider(max_chunk_characters=32)
     broker = InMemoryDebateEventBroker()
+    pacer = RecordingProviderPacer()
     orchestrator = DebateOrchestrator(
         repository,
         provider,
@@ -226,6 +235,7 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
         streaming_judge_provider=judge_provider,
         event_publisher=broker,
         clock=StepClock(),
+        provider_request_pacer=pacer,
     )
 
     session = asyncio.run(orchestrator.execute_job_streaming(job.id))
@@ -238,6 +248,7 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
     stored_job = repository.get_job(job.id)
 
     assert session.status == "awaiting_user"
+    assert pacer.calls == 7
     assert len(messages) == 7
     assert all(message.is_complete for message in messages)
     assert all(

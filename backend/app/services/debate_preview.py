@@ -25,6 +25,7 @@ from app.repositories.debate_repository import (
 from app.services.debate_event_broker import DebateEventPublisher
 from app.services.debate_orchestrator import DebateOrchestrator
 from app.services.debate_state import transition_session
+from app.services.provider_pacing import ProviderRequestPacer
 
 
 class DebatePreviewService:
@@ -43,6 +44,7 @@ class DebatePreviewService:
         clock: Callable[[], datetime] | None = None,
         id_factory: Callable[[], UUID] | None = None,
         max_attempts: int = 3,
+        provider_min_interval_seconds: float = 0,
     ) -> None:
         if not 1 <= max_attempts <= 10:
             raise ValueError("Debate job max_attempts must be between 1 and 10")
@@ -59,6 +61,9 @@ class DebatePreviewService:
             checkpoint_drafts=checkpoint_drafts,
             event_publisher=event_publisher,
             clock=self.clock,
+            provider_request_pacer=ProviderRequestPacer(
+                provider_min_interval_seconds
+            ),
         )
 
     def create_and_execute_round_one(

@@ -170,6 +170,12 @@ if settings.persistence_mode.lower().strip() == "supabase":
             checkpoint_drafts=settings.debate_interruptions_enabled,
             event_publisher=debate_event_broker,
             max_attempts=settings.debate_job_max_attempts,
+            provider_min_interval_seconds=(
+                settings.debate_provider_min_interval_seconds
+                if settings.debate_streaming_provider.strip().lower() != "deterministic"
+                or settings.debate_streaming_judge_provider.strip().lower() != "deterministic"
+                else 0
+            ),
         )
     else:
         debate_preview_service = None
@@ -185,6 +191,12 @@ else:
         checkpoint_drafts=settings.debate_interruptions_enabled,
         event_publisher=debate_event_broker,
         max_attempts=settings.debate_job_max_attempts,
+        provider_min_interval_seconds=(
+            settings.debate_provider_min_interval_seconds
+            if settings.debate_streaming_provider.strip().lower() != "deterministic"
+            or settings.debate_streaming_judge_provider.strip().lower() != "deterministic"
+            else 0
+        ),
     )
 quote_cache = (
     QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))

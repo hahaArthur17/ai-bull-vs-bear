@@ -45,6 +45,10 @@ class Settings(BaseSettings):
     # Every Debate stage gets this immutable retry budget. Set to one for a
     # bounded live acceptance run so a Worker cannot dispatch a stage twice.
     debate_job_max_attempts: int = Field(default=3, ge=1, le=10)
+    # The current Groq free tier is organization-limited per rolling minute.
+    # One request start per minute keeps the full-context model below that cap;
+    # paid or separately governed deployments can explicitly set this to zero.
+    debate_provider_min_interval_seconds: float = Field(default=61, ge=0, le=120)
     # Redis is an optional optimization/coordination layer. Canonical state
     # remains in Supabase and every operation has a bounded local fallback.
     redis_enabled: bool = False

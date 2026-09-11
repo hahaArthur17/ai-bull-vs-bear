@@ -45,6 +45,7 @@ from app.repositories.debate_repository import DebateConcurrencyError, DebateUni
 from app.services.debate_job_state import cancel_job, complete_job, fail_job, start_job
 from app.services.debate_event_broker import DebateEventPublisher
 from app.services.debate_presentation import build_debate_message_presentation
+from app.services.provider_pacing import ProviderRequestPacer
 from app.services.debate_state import (
     attach_judge_message,
     request_session_cancellation,
@@ -146,6 +147,7 @@ class DebateOrchestrator:
         checkpoint_drafts: bool = False,
         event_publisher: DebateEventPublisher | None = None,
         clock: Callable[[], datetime] | None = None,
+        provider_request_pacer: ProviderRequestPacer | None = None,
     ) -> None:
         self.repository = repository
         self.checkpoint_drafts = checkpoint_drafts
@@ -159,6 +161,7 @@ class DebateOrchestrator:
         )
         self.event_publisher = event_publisher
         self.clock = clock or (lambda: datetime.now(timezone.utc))
+        self.provider_request_pacer = provider_request_pacer or ProviderRequestPacer()
 
     def execute_job(self, job_id: UUID) -> DebateSession:
         job = self.repository.get_job(job_id)
@@ -354,6 +357,11 @@ class DebateOrchestrator:
             )
 
             for turn in plan.turns[completed_turn_count:]:
+                self._assert_generation_active(running_session, running_status)
+                await self.provider_request_pacer.wait()
+                # A Stop or restart can invalidate the generation while it is
+                # waiting for the provider budget. Never admit or dispatch the
+                # obsolete request after that wait.
                 self._assert_generation_active(running_session, running_status)
                 provider_request_count += 1
                 if turn.role == "judge":
