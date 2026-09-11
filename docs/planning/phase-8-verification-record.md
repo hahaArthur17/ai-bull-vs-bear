@@ -882,12 +882,22 @@ characters. Its worst-input test also covers extra evidence/factors, fourteen
 long messages, six interrupted prefixes, thirty prior points and maximum
 question/interjection text.
 
-After `7f6a4da`, 515 backend tests pass with one existing Starlette deprecation
+The 2026-09-12 current-SHA Session
+`820646d0-cb0f-5a2f-8e24-c3ca9529175b` then completed five paced Round 1
+Turns before entering safe `debate_execution_failed` without admitting request
+six. Its five ledger rows are all dispatched, completed and reported, totalling
+13,366 Tokens with no retry or unknown usage. The fifth canonical message's
+server-authored `rebuttal_point` was 334 characters; the next
+`DebateTurnRequest.previously_used_points` item limit is 300. `19b9d85` now
+bounds that projection while preserving the full canonical metadata.
+`901cddb` also makes verifier failure reports re-read the provider ledger rather
+than leaving observed usage at zero.
+
+After `901cddb`, 516 backend tests pass with one existing Starlette deprecation
 warning; 111 mobile tests and TypeScript also pass. No generated transcript or
-credential was written to this record.
-Known reported usage across these Sessions is 53,895 Tokens; failed or rejected
-attempts with no provider report remain explicitly unknown. No further model
-call was made in this sequence merely to repeat the failure. The next quota
-window requires one new current-SHA, `max_attempts=1`, 61-second-paced
-twelve-attempt run before Expo Go acceptance. Expo Go, the existing Render API
-deployment, cold start/restart and rollback remain open.
+credential was written to this record. Known reported usage across the retained
+Sessions is now 67,261 Tokens; failed or rejected attempts with no provider
+report remain explicitly unknown. No second model Session was started in this
+quota window. A later current-SHA, `max_attempts=1`, 61-second-paced
+twelve-attempt run is required before Expo Go acceptance. Expo Go, the existing
+Render API deployment, cold start/restart and rollback remain open.

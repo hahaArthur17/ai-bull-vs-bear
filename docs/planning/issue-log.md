@@ -21,6 +21,48 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-12 — Persisted rebuttal point exceeded the next-request domain bound
+
+**Status:** Resolved locally; a later full two-round run is still required.
+
+**Scope and verified evidence**
+
+Current-SHA Session `820646d0-cb0f-5a2f-8e24-c3ca9529175b` passed Queue
+admission and completed five paced Round 1 Turns, then entered the safe
+`debate_execution_failed` terminal state before admitting the sixth provider
+request. The ledger contains exactly five dispatched/completed attempts, all
+with reported usage, totalling 13,366 Tokens and no Worker retry or unknown
+usage. The fifth canonical message retained a 334-character server-authored
+`rebuttal_point`; `_prepare_turn` projected it unchanged into
+`previously_used_points`, whose domain item limit is 300 characters. Request
+validation therefore failed before the sixth provider admission.
+
+The first verifier failure report correctly stopped at the terminal SSE event,
+but displayed zero observed requests because it only read the provider ledger
+after a successful phase terminal. The hosted ledger, not that incomplete
+failure-report field, is the authoritative usage evidence above.
+
+**Mitigation and verification**
+
+`19b9d85` bounds the projection at the orchestrator boundary. It preserves the
+original canonical metadata for audit while supplying at most 300 characters
+per prior point to both synchronous and streaming Turn requests. Its regression
+uses legal 500-character provider points, completes all six Round 1 Turns and
+checks both the preserved canonical value and bounded later requests.
+`901cddb` makes the verifier re-read and safely summarize provider attempts
+after a workflow failure, including admitted/dispatched counts, reported and
+unknown usage, outcomes and budget state. The full backend suite passes 516
+tests with one existing Starlette warning. An independent Luna 5.6 Extra High
+read-only audit confirmed the shared orchestrator projection as the smallest
+safe fix; neither fix made a provider call.
+
+**Remaining follow-up**
+
+Do not represent this Session as a Round 1 or full-flow pass. Retain its 13,366
+reported Tokens in cumulative accounting. A later run on `901cddb` or newer
+must again use one process, `max_attempts=1`, 61-second pacing and the twelve-
+request ceiling, and must complete both Judges and Round 2 before Expo Go.
+
 ## 2026-09-11 — Late Round 2 Turn Prompt lacked free-tier margin
 
 **Status:** Mitigated locally; the full two-round run remains deliberately deferred.

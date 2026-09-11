@@ -353,8 +353,12 @@ preflight pass. The reviewed current-SHA Live Queue verifier is committed. A
 oversized Interim Judge Prompt; `399e6fe` reduces the exact input from 34,391 to
 10,827 characters offline. `7f6a4da` also bounds Turn inputs and lowers the same
 Session's late-Round-2 projection from 31,127 to 16,289 characters. These
-checks made no additional model request. One full two-round rerun and Expo Go
-acceptance remain unexecuted. See
+checks made no additional model request. A 2026-09-12 rerun then completed five
+paced Turns before a persisted 334-character rebuttal point exceeded the next
+request's 300-character domain bound. `19b9d85` fixes that projection and
+`901cddb` makes terminal-failure reports recover actual ledger usage. That
+Session used 13,366 reported Tokens with no retry or unknown usage. One later
+full two-round rerun and Expo Go acceptance remain unexecuted. See
 [`remaining roadmap`](../planning/wp8l-next-steps.md). The canonical
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
@@ -481,7 +485,8 @@ Session conflict, and one declared model-call budget.
 - Bull/Bear and independently configured Interim/Final Judge streaming are
   implemented. Current-SHA Round 1 has six successful cited Turns under the
   free-tier pacer; the compacted Judge/Turn projections pass offline bounds,
-  while the full standard AAPL two-round result remains open.
+  and the persisted prior-point projection is now bounded. The full standard
+  AAPL two-round result remains open.
 - Client reveal pacing and default-off visible-prefix freeze are implemented;
   native pacing/accessibility, interruption recovery, interjection and explicit
   Continue still need verification/implementation.
