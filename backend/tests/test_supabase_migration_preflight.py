@@ -6,6 +6,7 @@ import pytest
 from scripts.verify_supabase_migration_preflight import (
     CATALOG_MIGRATIONS,
     DEBATE_MIGRATIONS,
+    INTERRUPTION_MIGRATIONS,
     QUEUE_MIGRATIONS,
     HostedMigrationPreflight,
 )
@@ -51,7 +52,12 @@ def test_preflight_reports_only_missing_migration_groups() -> None:
     assert report["catalog"]["deployed"] is True  # type: ignore[index]
     assert report["debate_persistence"]["deployed"] is False  # type: ignore[index]
     assert report["queue"]["deployed"] is False  # type: ignore[index]
-    assert report["required_migrations"] == [*DEBATE_MIGRATIONS, *QUEUE_MIGRATIONS]
+    assert report["interruption"]["deployed"] is False  # type: ignore[index]
+    assert report["required_migrations"] == [
+        *DEBATE_MIGRATIONS,
+        *QUEUE_MIGRATIONS,
+        *INTERRUPTION_MIGRATIONS,
+    ]
     assert report["capacity_gate_required"] is False
 
 
@@ -89,6 +95,36 @@ def test_preflight_matches_runtime_debate_rpc_paths() -> None:
     }
 
 
+def test_preflight_matches_runtime_interruption_paths() -> None:
+    interruption_paths = {
+        "/debate_draft_checkpoints": {},
+        "/debate_provider_attempts": {},
+        "/rpc/checkpoint_debate_draft": {},
+        "/rpc/interrupt_debate_generation": {},
+        "/rpc/record_debate_interjection": {},
+        "/rpc/continue_interrupted_debate": {},
+        "/rpc/interrupt_debate_before_output_generation": {},
+        "/rpc/admit_debate_provider_attempt": {},
+        "/rpc/dispatch_debate_provider_attempt": {},
+        "/rpc/finish_debate_provider_attempt": {},
+    }
+
+    def respond(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={"definitions": {"stocks": {"properties": {}}}, "paths": interruption_paths},
+        )
+
+    report = build_preflight(httpx.MockTransport(respond)).inspect()
+
+    assert report["interruption"]["deployed"] is True  # type: ignore[index]
+    assert report["interruption"]["tables"] == {  # type: ignore[index]
+        "/debate_draft_checkpoints": True,
+        "/debate_provider_attempts": True,
+    }
+    assert all(report["interruption"]["rpcs"].values())  # type: ignore[index, union-attr]
+
+
 def test_preflight_is_read_only_and_does_not_leak_remote_error_body() -> None:
     def fail(request: httpx.Request) -> httpx.Response:
         assert request.method == "GET"
@@ -100,11 +136,17 @@ def test_preflight_is_read_only_and_does_not_leak_remote_error_body() -> None:
         preflight.inspect()
 
     assert "must-not-leak" not in str(error.value)
-    assert [*CATALOG_MIGRATIONS, *DEBATE_MIGRATIONS, *QUEUE_MIGRATIONS] == [
+    assert [
+        *CATALOG_MIGRATIONS,
+        *DEBATE_MIGRATIONS,
+        *QUEUE_MIGRATIONS,
+        *INTERRUPTION_MIGRATIONS,
+    ] == [
         "20260827_stock_catalog_coverage.sql",
         "20260827_stock_catalog_search.sql",
         "20260827_stock_catalog_seed.sql",
         "20260827_v2_debate_persistence.sql",
         "20260827_v2_debate_persistence_rpc.sql",
         "20260828_v2_debate_queue.sql",
+        "20260909_debate_draft_interruption.sql",
     ]

@@ -21,6 +21,7 @@ DEBATE_MIGRATIONS = (
     "20260827_v2_debate_persistence_rpc.sql",
 )
 QUEUE_MIGRATIONS = ("20260828_v2_debate_queue.sql",)
+INTERRUPTION_MIGRATIONS = ("20260909_debate_draft_interruption.sql",)
 
 CATALOG_COLUMNS = (
     "coverage_status",
@@ -48,6 +49,20 @@ QUEUE_RPC_PATHS = (
     "/rpc/retry_debate_job",
     "/rpc/requeue_debate_job",
     "/rpc/fail_exhausted_debate_job",
+)
+INTERRUPTION_TABLE_PATHS = (
+    "/debate_draft_checkpoints",
+    "/debate_provider_attempts",
+)
+INTERRUPTION_RPC_PATHS = (
+    "/rpc/checkpoint_debate_draft",
+    "/rpc/interrupt_debate_generation",
+    "/rpc/record_debate_interjection",
+    "/rpc/continue_interrupted_debate",
+    "/rpc/interrupt_debate_before_output_generation",
+    "/rpc/admit_debate_provider_attempt",
+    "/rpc/dispatch_debate_provider_attempt",
+    "/rpc/finish_debate_provider_attempt",
 )
 
 
@@ -98,9 +113,18 @@ class HostedMigrationPreflight:
         debate_tables = {path: path in paths for path in DEBATE_TABLE_PATHS}
         debate_rpcs = {path: path in paths for path in DEBATE_RPC_PATHS}
         queue_rpcs = {path: path in paths for path in QUEUE_RPC_PATHS}
+        interruption_tables = {
+            path: path in paths for path in INTERRUPTION_TABLE_PATHS
+        }
+        interruption_rpcs = {
+            path: path in paths for path in INTERRUPTION_RPC_PATHS
+        }
         catalog_deployed = all(catalog_columns.values()) and catalog_rpc
         debate_deployed = all(debate_tables.values()) and all(debate_rpcs.values())
         queue_deployed = all(queue_rpcs.values())
+        interruption_deployed = (
+            all(interruption_tables.values()) and all(interruption_rpcs.values())
+        )
 
         required_migrations: list[str] = []
         if not catalog_deployed:
@@ -109,6 +133,8 @@ class HostedMigrationPreflight:
             required_migrations.extend(DEBATE_MIGRATIONS)
         if not queue_deployed:
             required_migrations.extend(QUEUE_MIGRATIONS)
+        if not interruption_deployed:
+            required_migrations.extend(INTERRUPTION_MIGRATIONS)
         return {
             "postgrest_openapi_available": True,
             "catalog": {
@@ -124,6 +150,11 @@ class HostedMigrationPreflight:
             "queue": {
                 "deployed": queue_deployed,
                 "rpcs": queue_rpcs,
+            },
+            "interruption": {
+                "deployed": interruption_deployed,
+                "tables": interruption_tables,
+                "rpcs": interruption_rpcs,
             },
             "required_migrations": required_migrations,
             "capacity_gate_required": not catalog_deployed,

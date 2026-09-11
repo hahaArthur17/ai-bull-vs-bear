@@ -21,6 +21,28 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Virtualenv console scripts retained the former workspace path
+
+**Status:** Mitigated; environment rebuild remains optional.
+
+**Scope and verified evidence**
+
+After the repository moved from the former `B学期576` path to
+`BSemester576`, invoking `backend/.venv/bin/pytest` failed before test
+collection because its generated launcher still referenced the former absolute
+Python path. The interpreter at `backend/.venv/bin/python` remains usable, and
+running pytest through `python -m pytest` succeeds.
+
+**Mitigation and follow-up**
+
+Development and verification commands must use
+`backend/.venv/bin/python -m pytest` while this virtual environment is retained.
+Recreate `backend/.venv` from the committed dependency files if other generated
+console scripts prove unusable; do not treat this launcher failure as a product
+test failure.
+
+---
+
 ## 2026-09-11 — Live Queue verifier review found false-positive acceptance paths
 
 **Status:** Resolved locally in `63406d4`; hosted/live execution remains open.
