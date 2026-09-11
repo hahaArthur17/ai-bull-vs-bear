@@ -21,6 +21,42 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — First current-SHA Live run exposed SSE ownership and ambiguous admission timeout
+
+**Status:** Mitigated locally and in hosted SQL; one bounded verification rerun remains.
+
+**Scope and verified evidence**
+
+The current-SHA verifier admitted Session
+`bb222d34-5d31-54eb-b0d0-a503f58304ee` with Queue `202`, then raised
+`httpx.StreamClosed` because it returned an SSE response from a temporary
+context manager that immediately owned and closed that response. The Worker
+continued independently. It completed two real Groq Turn requests, then a third
+provider admission committed in Supabase but its HTTP response exceeded the
+repository's 10-second transport window. That attempt remained
+`admitted`, was never dispatched, retained unknown usage, and the one-attempt
+Job ended safely as failed. Exactly two provider calls reported 9,093 total
+Tokens; the failed Session recorded three admission rows and did not retry.
+
+**Mitigation and verification**
+
+The verifier now sends a streaming request whose response remains caller-owned
+until explicit close and treats midstream `httpx.StreamError` as a bounded
+reconnect condition. Persistence now retries one transport failure only for
+exactly replayable checkpoint, provider-ledger and canonical-message writes.
+Dispatch replay accepts only the same attempt id and timestamp; a changed
+timestamp remains an HTTP 409 conflict. Hosted migration
+`20260911_provider_attempt_transport_replay.sql` is applied, and the isolated
+PostgreSQL suite plus focused repository/verifier tests pass. The Supabase
+security advisor shows no new warning from this migration.
+
+**Remaining follow-up**
+
+Run the full backend suite, commit the mitigation, restart the single-process
+acceptance runtime on that SHA, then execute one new twelve-request run. Record
+the failed Session and both completed calls in final accounting rather than
+treating the first run as a pass or silently discarding its usage.
+
 ## 2026-09-11 — Hosted interruption RPCs exposed retry and Queue privilege defects
 
 **Status:** Resolved and verified on the hosted Supabase project.

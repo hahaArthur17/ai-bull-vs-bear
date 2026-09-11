@@ -78,6 +78,8 @@ psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260911_postgrest_conflict_
 psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260911_postgrest_conflict_status.sql" >/dev/null
 psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260911_continue_queue_security.sql" >/dev/null
 psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260911_continue_queue_security.sql" >/dev/null
+psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260911_provider_attempt_transport_replay.sql" >/dev/null
+psql_run -f "$REPO_ROOT/backend/supabase/migrations/20260911_provider_attempt_transport_replay.sql" >/dev/null
 psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_draft_interruption.sql"
 psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_provider_attempts.sql"
 psql_run -f "$REPO_ROOT/backend/tests/sql/test_debate_continuation.sql"

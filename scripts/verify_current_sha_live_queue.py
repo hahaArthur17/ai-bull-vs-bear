@@ -306,7 +306,7 @@ class AuthenticatedApi:
         if after_sequence < 0:
             raise ValueError("SSE cursor cannot be negative")
         try:
-            return self._client.stream(
+            request = self._client.build_request(
                 "GET",
                 f"{self.base_url}/debates/{session_id}/events",
                 params={"after_sequence": str(after_sequence)},
@@ -314,7 +314,8 @@ class AuthenticatedApi:
                     "Accept": "text/event-stream",
                     "Authorization": f"Bearer {self.config.access_token}",
                 },
-            ).__enter__()
+            )
+            return self._client.send(request, stream=True)
         except httpx.RequestError as exc:
             raise SseConnectionError("SSE connection failed before a response") from exc
 
@@ -1071,7 +1072,7 @@ class CurrentShaLiveQueueVerifier:
                 if saw_terminal:
                     return events
                 reconnects += 1
-            except (SseConnectionError, httpx.RequestError):
+            except (SseConnectionError, httpx.RequestError, httpx.StreamError):
                 reconnects += 1
             finally:
                 if response is not None:

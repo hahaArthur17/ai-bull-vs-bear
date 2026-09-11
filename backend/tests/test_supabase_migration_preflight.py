@@ -151,4 +151,5 @@ def test_preflight_is_read_only_and_does_not_leak_remote_error_body() -> None:
         "20260909_debate_draft_interruption.sql",
         "20260911_postgrest_conflict_status.sql",
         "20260911_continue_queue_security.sql",
+        "20260911_provider_attempt_transport_replay.sql",
     ]

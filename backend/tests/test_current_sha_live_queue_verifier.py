@@ -10,6 +10,7 @@ import pytest
 
 from scripts.verify_current_sha_live_queue import (
     AcceptanceConfig,
+    AuthenticatedApi,
     SseFrameParser,
     verify_current_sha_live_queue,
 )
@@ -402,6 +403,38 @@ def test_sse_parser_accepts_fragmented_data_and_comments() -> None:
         output.extend(parser.feed(chunk))
     assert output[0].sequence == 1
     assert output[0].event_type == "heartbeat"
+
+
+def test_authenticated_api_keeps_stream_open_for_the_caller() -> None:
+    payload = event(1, "heartbeat", {"latest_sequence": 0})
+
+    class DelayedByteStream(httpx.SyncByteStream):
+        def __iter__(self):
+            yield sse([payload]).encode()
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(
+            200,
+            headers={"content-type": "text/event-stream"},
+            stream=DelayedByteStream(),
+        )
+    )
+    client = httpx.Client(transport=transport)
+    api = AuthenticatedApi(
+        AcceptanceConfig(
+            base_url="https://api.example.test",
+            access_token="user-token",
+            require_current_sha=False,
+        ),
+        client=client,
+    )
+
+    response = api.stream(SESSION_ID, 0)
+
+    assert not response.is_closed
+    assert list(response.iter_lines())
+    response.close()
+    assert response.is_closed
 
 
 def test_current_sha_live_queue_verifier_uses_auth_and_resumes_sse_without_delete() -> None:

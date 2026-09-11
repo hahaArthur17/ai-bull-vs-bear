@@ -18,6 +18,10 @@ CONFLICT_MIGRATION_SQL = (
     REPOSITORY_ROOT
     / "backend/supabase/migrations/20260911_postgrest_conflict_status.sql"
 ).read_text(encoding="utf-8")
+TRANSPORT_REPLAY_MIGRATION_SQL = (
+    REPOSITORY_ROOT
+    / "backend/supabase/migrations/20260911_provider_attempt_transport_replay.sql"
+).read_text(encoding="utf-8")
 
 
 DEBATE_TABLES = (
@@ -156,3 +160,14 @@ def test_debate_rpc_conflicts_map_to_http_409_without_serialization_retries() ->
     )[1].split("revoke all on function public.continue_interrupted_debate", 1)[0]
     assert "security definer" in continue_definition.lower()
     assert "set search_path=''" in continue_definition.lower()
+
+
+def test_provider_dispatch_transport_retry_requires_the_exact_timestamp() -> None:
+    assert "existing.dispatched_at=dispatch_debate_provider_attempt.dispatched_at" in (
+        INTERRUPTION_MIGRATION_SQL
+    )
+    assert "existing.outcome in ('dispatched','completed','failed')" in (
+        TRANSPORT_REPLAY_MIGRATION_SQL
+    )
+    assert "from public,anon,authenticated" in TRANSPORT_REPLAY_MIGRATION_SQL
+    assert "to service_role;" in TRANSPORT_REPLAY_MIGRATION_SQL

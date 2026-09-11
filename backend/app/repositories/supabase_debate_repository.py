@@ -136,20 +136,25 @@ class SupabaseDebateRepository:
         payload = message.model_dump(mode="json")
         if "message_id" in payload:
             payload["id"] = payload.pop("message_id")
-        self._request("POST", "rpc/checkpoint_debate_draft", json={"message_payload": payload})
+        self._request(
+            "POST",
+            "rpc/checkpoint_debate_draft",
+            json={"message_payload": payload},
+            transport_attempts=2,
+        )
 
     def admit_provider_attempt(self, attempt: ProviderAttempt,
                                checkpoint: DebateDraftCheckpoint) -> ProviderAttempt:
         response = self._request("POST", "rpc/admit_debate_provider_attempt", json={
             "attempt_payload": attempt.model_dump(mode="json"),
             "checkpoint_payload": checkpoint.model_dump(mode="json"),
-        })
+        }, transport_attempts=2)
         return self._model(response.json(), ProviderAttempt, "Provider attempt")
 
     def mark_provider_attempt_dispatched(self, attempt_id: UUID, at: datetime) -> ProviderAttempt:
         response = self._request("POST", "rpc/dispatch_debate_provider_attempt", json={
             "requested_attempt_id": str(attempt_id), "dispatched_at": at.isoformat(),
-        })
+        }, transport_attempts=2)
         return self._model(response.json(), ProviderAttempt, "Provider attempt")
 
     def finish_provider_attempt(self, attempt_id: UUID, *, at: datetime,
@@ -162,7 +167,7 @@ class SupabaseDebateRepository:
             "reported_prompt_tokens": prompt_tokens,
             "reported_completion_tokens": completion_tokens,
             "reported_total_tokens": total_tokens, "attempt_failed": failed,
-        })
+        }, transport_attempts=2)
         return self._model(response.json(), ProviderAttempt, "Provider attempt")
 
     def list_provider_attempts(self, session_id: UUID, user_id: UUID) -> list[ProviderAttempt]:
@@ -226,6 +231,7 @@ class SupabaseDebateRepository:
                 "message_payload": message.model_dump(mode="json"),
                 "citations_payload": [citation.model_dump(mode="json") for citation in citations],
             },
+            transport_attempts=2,
         )
         payload = self._object(response.json(), "Debate message transaction")
         stored_message = self._model(payload.get("message"), DebateMessage, "Debate message")
@@ -629,19 +635,27 @@ class SupabaseDebateRepository:
         *,
         params: dict[str, str] | None = None,
         json: object | None = None,
+        transport_attempts: int = 1,
     ) -> httpx.Response:
-        try:
-            requester = self.client.request if self.client is not None else httpx.request
-            response = requester(
-                method,
-                f"{self.rest_url}/{path}",
-                params=params,
-                json=json,
-                headers=service_headers(self.secret_key, "return=representation"),
-                timeout=10.0,
-            )
-        except httpx.RequestError as exc:
-            raise DebateRepositoryError("Supabase Debate persistence is unavailable") from exc
+        if transport_attempts not in {1, 2}:
+            raise ValueError("Supabase transport attempts must be one or two")
+        for attempt_number in range(transport_attempts):
+            try:
+                requester = self.client.request if self.client is not None else httpx.request
+                response = requester(
+                    method,
+                    f"{self.rest_url}/{path}",
+                    params=params,
+                    json=json,
+                    headers=service_headers(self.secret_key, "return=representation"),
+                    timeout=10.0,
+                )
+                break
+            except httpx.RequestError as exc:
+                if attempt_number + 1 == transport_attempts:
+                    raise DebateRepositoryError(
+                        "Supabase Debate persistence is unavailable"
+                    ) from exc
         if response.status_code == 409:
             raise DebateConcurrencyError("Supabase Debate persistence conflict")
         if response.status_code >= 400:

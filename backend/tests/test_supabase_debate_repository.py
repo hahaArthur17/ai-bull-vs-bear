@@ -6,7 +6,12 @@ from uuid import UUID
 import httpx
 import pytest
 
-from app.domain.debate import DebateIntervention, DebateMessageEvidence
+from app.domain.debate import (
+    DebateDraftCheckpoint,
+    DebateIntervention,
+    DebateMessageEvidence,
+    ProviderAttempt,
+)
 from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
@@ -368,6 +373,48 @@ def test_supabase_repository_maps_remote_errors_without_leaking_response_payload
     with pytest.raises(DebateRepositoryError) as error:
         repository.get_job(UUID("00000000-0000-4000-8000-000000000108"))
     assert "must-not-leak" not in str(error.value)
+
+
+def test_provider_admission_replays_one_ambiguous_transport_failure() -> None:
+    attempt = ProviderAttempt(
+        id=UUID("00000000-0000-4000-8000-000000000208"),
+        session_id=UUID("00000000-0000-4000-8000-000000000101"),
+        generation_id=UUID("00000000-0000-4000-8000-000000000104"),
+        message_id=UUID("00000000-0000-4000-8000-000000000209"),
+        role="bull",
+        provider="groq-live-debate",
+        model="openai/gpt-oss-20b",
+        admitted_at=NOW,
+    )
+    checkpoint = DebateDraftCheckpoint(
+        message_id=attempt.message_id,
+        session_id=attempt.session_id,
+        branch_id=BRANCH_ID,
+        generation_id=attempt.generation_id,
+        sequence_number=1,
+        round_number=1,
+        exchange_number=1,
+        role="bull",
+        message_kind="argument",
+        created_at=NOW,
+    )
+    call_count = 0
+
+    def ambiguous(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise httpx.ReadTimeout("response lost after commit", request=request)
+        return httpx.Response(200, json=attempt.model_dump(mode="json"))
+
+    repository = SupabaseDebateRepository(
+        "https://example.supabase.co",
+        "sb_secret_debate",
+        httpx.Client(transport=httpx.MockTransport(ambiguous)),
+    )
+
+    assert repository.admit_provider_attempt(attempt, checkpoint) == attempt
+    assert call_count == 2
 
 
 def test_supabase_repository_round_trips_durable_queue_operations() -> None:

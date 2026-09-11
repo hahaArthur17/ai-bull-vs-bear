@@ -158,6 +158,21 @@ end $$;
 select public.dispatch_debate_provider_attempt(
   '60000000-0000-0000-0000-000000000001','2026-09-10 00:00:03+00'
 );
+-- An ambiguous transport retry with the exact timestamp returns the stored
+-- dispatch. A different dispatch identity still conflicts.
+select public.dispatch_debate_provider_attempt(
+  '60000000-0000-0000-0000-000000000001','2026-09-10 00:00:03+00'
+);
+do $$
+begin
+  begin
+    perform public.dispatch_debate_provider_attempt(
+      '60000000-0000-0000-0000-000000000001','2026-09-10 00:00:04+00'
+    );
+    raise exception 'changed dispatch retry was accepted';
+  exception when sqlstate 'PT409' then null;
+  end;
+end $$;
 do $$
 declare
   stored public.debate_provider_attempts%rowtype;

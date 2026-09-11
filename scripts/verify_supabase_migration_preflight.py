@@ -25,6 +25,7 @@ INTERRUPTION_MIGRATIONS = (
     "20260909_debate_draft_interruption.sql",
     "20260911_postgrest_conflict_status.sql",
     "20260911_continue_queue_security.sql",
+    "20260911_provider_attempt_transport_replay.sql",
 )
 
 CATALOG_COLUMNS = (
