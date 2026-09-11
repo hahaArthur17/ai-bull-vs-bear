@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import asyncio
 from dataclasses import dataclass
+from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
+from uuid import UUID
 
 import pytest
 
 from app.config import Settings
+from app.domain.debate import DebateMessage
 from app.domain.factors import FactorObservation, FactorSnapshot
 from app.providers.debate_agents import DebateStreamingTurnProvider
 from app.providers.debate_factory import build_debate_streaming_turn_provider
@@ -202,6 +205,109 @@ def test_prompt_treats_snapshot_text_as_data_and_never_exposes_real_evidence_ids
     assert prompt.index("<response_contract>") > prompt.index("</frozen_context>")
     assert "first non-whitespace characters of every paragraph" in prompt
     assert "Never postpone the first citation" in prompt
+
+
+def test_turn_prompt_uses_a_bounded_late_round_projection() -> None:
+    base = grounded_request(max_output_chars=2400)
+    evidence = tuple(
+        base.analysis_context.evidence[0].model_copy(
+            update={
+                "id": f"news-{index}",
+                "title": "T" * 500,
+                "excerpt": "E" * 6000,
+            }
+        )
+        for index in range(1, 9)
+    )
+    context = base.analysis_context.model_copy(
+        update={
+            "evidence": evidence,
+            "allowed_evidence_ids": frozenset(item.id for item in evidence),
+        }
+    )
+    template = DebateMessage(
+        id=UUID("00000000-0000-4000-8000-000000000601"),
+        session_id=base.session_id,
+        branch_id=base.branch_id,
+        generation_id=base.generation_id,
+        sequence_number=1,
+        round_number=1,
+        exchange_number=1,
+        role="bull",
+        message_kind="argument",
+        content="A" * 4000,
+        created_at=datetime(2026, 8, 28, tzinfo=timezone.utc),
+    )
+    transcript = tuple(
+        template.model_copy(
+            update={
+                "id": UUID(int=0x700 + index),
+                "sequence_number": index,
+                "round_number": 1 if index <= 6 else 2,
+                "exchange_number": ((index - 1) % 6) // 2 + 1,
+                "role": "bull" if index % 2 else "bear",
+                "message_kind": "rebuttal",
+            }
+        )
+        for index in range(1, 15)
+    )
+    interrupted_context = tuple(
+        template.model_copy(
+            update={
+                "id": UUID(int=0x800 + index),
+                "sequence_number": 14 + index,
+                "round_number": 2,
+                "exchange_number": 3,
+                "content": "I" * 6000,
+                "metadata": {"interrupted": True},
+                "is_complete": False,
+                "cancelled_at": datetime(2026, 8, 28, tzinfo=timezone.utc),
+            }
+        )
+        for index in range(1, 7)
+    )
+    request = base.model_copy(
+        update={
+            "round_number": 2,
+            "exchange_number": 3,
+            "initial_question": "Q" * 500,
+            "user_intervention": "U" * 500,
+            "analysis_context": context,
+            "allowed_evidence_ids": context.allowed_evidence_ids,
+            "transcript": transcript,
+            "interrupted_context": interrupted_context,
+            "rebuttal_target_message_id": transcript[-1].id,
+            "previously_used_points": tuple("P" * 300 for _ in range(30)),
+            "factor_snapshot": base.factor_snapshot.model_copy(
+                update={"observations": base.factor_snapshot.observations * 51}
+            ),
+        }
+    )
+    request = type(base).model_validate(request.model_dump())
+
+    prompt = build_groq_debate_prompt(request)
+
+    assert len(prompt) < 24_000
+    assert prompt.count('"citation":') == 6
+    assert "[E7]" not in prompt
+    assert prompt.count("E" * 419 + "…") == 6
+    assert prompt.count("A" * 599 + "…") == 10
+    assert prompt.count("I" * 599 + "…") == 6
+    assert prompt.count("P" * 199 + "…") == 8
+    assert prompt.count('"label":') == 12
+
+
+def test_live_provider_defaults_to_an_800_token_completion_cap() -> None:
+    client = FakeGroqClient(
+        [chunk("A bounded grounded point [E1]."), chunk(finish_reason="stop")]
+    )
+    provider = GroqStreamingDebateProvider(api_key="test-key", client=client)
+
+    result = collect(provider, grounded_request(max_output_chars=1600))
+
+    assert result.draft.evidence_ids == ("news-1",)
+    assert client.completions.kwargs is not None
+    assert client.completions.kwargs["max_completion_tokens"] == 800
 
 
 @pytest.mark.parametrize(

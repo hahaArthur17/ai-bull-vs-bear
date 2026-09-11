@@ -37,6 +37,18 @@ _TERM_LABELS = (
 )
 _MAX_STREAM_DELTA_CHARS = 600
 _GUARDRAIL_HOLDBACK_CHARS = max(len(phrase) for phrase in REWRITES) - 1
+_MAX_EVIDENCE_ITEMS = 6
+_MAX_FACTOR_OBSERVATIONS = 12
+_MAX_TRANSCRIPT_MESSAGES = 10
+_MAX_EVIDENCE_TITLE_CHARS = 240
+_MAX_EVIDENCE_EXCERPT_CHARS = 420
+_MAX_FACTOR_LABEL_CHARS = 120
+_MAX_FACTOR_INTERPRETATION_CHARS = 240
+_MAX_TRANSCRIPT_CONTENT_CHARS = 600
+_MAX_INTERRUPTED_CONTENT_CHARS = 600
+_MAX_PREVIOUSLY_USED_POINTS = 8
+_MAX_PREVIOUSLY_USED_POINT_CHARS = 200
+_DEFAULT_MAX_COMPLETION_TOKENS = 800
 
 
 class GroqDebateConfigurationError(RuntimeError):
@@ -103,6 +115,8 @@ def _evidence_aliases(request: DebateTurnRequest) -> dict[str, str]:
     for item in request.analysis_context.evidence:
         if item.id in request.allowed_evidence_ids:
             aliases[f"E{len(aliases) + 1}"] = item.id
+        if len(aliases) == _MAX_EVIDENCE_ITEMS:
+            break
     return aliases
 
 
@@ -116,24 +130,35 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         {
             "citation": f"[{alias}]",
             "source_type": evidence_by_id[evidence_id].source_type,
-            "title": _truncate(evidence_by_id[evidence_id].title, 300),
+            "title": _truncate(
+                evidence_by_id[evidence_id].title,
+                _MAX_EVIDENCE_TITLE_CHARS,
+            ),
             "published_at": evidence_by_id[evidence_id].published_at,
-            "excerpt": _truncate(evidence_by_id[evidence_id].excerpt, 700),
+            "excerpt": _truncate(
+                evidence_by_id[evidence_id].excerpt,
+                _MAX_EVIDENCE_EXCERPT_CHARS,
+            ),
         }
         for alias, evidence_id in aliases.items()
     ]
     factors = [
         {
-            "label": _truncate(observation.label, 120),
+            "label": _truncate(observation.label, _MAX_FACTOR_LABEL_CHARS),
             "category": observation.category,
             "direction": observation.direction,
             "confidence": observation.confidence,
             "as_of": observation.as_of,
             "value": observation.value,
             "unit": observation.unit,
-            "interpretation": _truncate(observation.interpretation, 360),
+            "interpretation": _truncate(
+                observation.interpretation,
+                _MAX_FACTOR_INTERPRETATION_CHARS,
+            ),
         }
-        for observation in request.factor_snapshot.observations[:20]
+        for observation in request.factor_snapshot.observations[
+            :_MAX_FACTOR_OBSERVATIONS
+        ]
     ]
     transcript = [
         {
@@ -141,9 +166,9 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
             "role": message.role,
             "round": message.round_number,
             "exchange": message.exchange_number,
-            "content": _truncate(message.content, 900),
+            "content": _truncate(message.content, _MAX_TRANSCRIPT_CONTENT_CHARS),
         }
-        for message in request.transcript[-10:]
+        for message in request.transcript[-_MAX_TRANSCRIPT_MESSAGES:]
     ]
     payload = {
         "ticker": request.ticker,
@@ -159,12 +184,19 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
             else None
         ),
         "previously_used_points": [
-            _truncate(point, 300) for point in request.previously_used_points[-12:]
+            _truncate(point, _MAX_PREVIOUSLY_USED_POINT_CHARS)
+            for point in request.previously_used_points[
+                -_MAX_PREVIOUSLY_USED_POINTS:
+            ]
         ],
         "evidence": evidence,
         "factor_observations": factors,
         "unfinished_context_not_evidence": [
-            {"role": message.role, "content": message.content[:900], "is_complete": False}
+            {
+                "role": message.role,
+                "content": _truncate(message.content, _MAX_INTERRUPTED_CONTENT_CHARS),
+                "is_complete": False,
+            }
             for message in request.interrupted_context
         ],
         "transcript": transcript,
@@ -341,7 +373,7 @@ class GroqStreamingDebateProvider:
                 top_p=0.95,
                 max_completion_tokens=min(
                     request.max_output_chars,
-                    self.max_completion_tokens or 1600,
+                    self.max_completion_tokens or _DEFAULT_MAX_COMPLETION_TOKENS,
                 ),
                 reasoning_effort="low",
                 include_reasoning=False,
