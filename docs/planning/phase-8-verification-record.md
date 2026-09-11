@@ -834,3 +834,54 @@ must be reviewed against the actual API, SHA and `max_attempts=1` contract befor
 commit or any external call. Remaining acceptance is hosted migration/runtime,
 incomplete-prefix Explanation, fresh AAPL two-round/two-Judge verification and
 Expo Go/native operation.
+
+### 2026-09-11 — hosted interruption and current-SHA Live closure checkpoint
+
+Hosted Supabase now contains the interruption, PostgREST conflict-code,
+service-only Continue Queue and exact provider-attempt replay migrations. The
+disposable two-user verifier passed Stop before output, Stop after a durable
+prefix, restart recovery, ownership rejection, interjection, idempotent
+Continue, Queue archive and cleanup. Application conflicts use `PT409` rather
+than PostgreSQL's retryable `40001`. Hosted sequential checkpoint latency
+motivated `2abdec6`, which batches up to 240 characters or 12 provider chunks
+while preserving persist-before-SSE ordering. Frozen-prefix Explanation is
+implemented in `46b4a73`.
+
+The standard AAPL preflight read 115 completed daily rows through 2026-09-10,
+63 weekly rows, 13 news items, 4 filings, 155 financial facts and all seven
+required macro series. A single Finnhub quote check returned a positive current
+quote. The configured Groq model directory exposed `openai/gpt-oss-20b`. No
+Alpha Vantage, EIA, FRED or SEC refresh was needed.
+
+Four bounded current-SHA Sessions were retained rather than represented as a
+pass:
+
+- `bb222d34-5d31-54eb-b0d0-a503f58304ee` exposed premature SSE response close
+  and an ambiguous provider-admission transport timeout. Two dispatched calls
+  completed with 9,093 reported Tokens; an admitted but undispatched row kept
+  unknown usage. `5c0894d` fixes caller-owned streaming and exactly replayable
+  repository boundaries.
+- `b5d2d2f3-ee6d-53af-896c-0d0baea88027` exposed a 911-character Bear prefix
+  without any of six required aliases. `70b8ce3` strengthens the post-context
+  citation contract, lowers temperature and makes the verifier stop immediately
+  on failed/cancelled terminal events.
+- `eb564e13-a53f-5b59-af47-4088d51322e1` completed two Turns with 9,175
+  reported Tokens inside 29 seconds, then hit a retryable upstream rejection.
+  This matches Groq's current organization-level 8K TPM free limit. `46eb16c`
+  adds a shared 61-second provider pacer with a post-wait generation check.
+- `0fc62829-dd7b-56c9-a766-0e2e1b3092db` proved the pacer by completing all six
+  Round 1 Turns with 31,155 reported Tokens, valid citations and no forbidden
+  phrases. The Interim Judge was rejected before output; its reconstructed
+  prompt contained 34,391 characters. `399e6fe` replaces unbounded factor dumps
+  with bounded evidence/factor/transcript projections, lowers the Judge cap to
+  800 Tokens, and reduces the same offline prompt to 10,827 characters.
+
+After `399e6fe`, 513 backend tests pass with one existing Starlette deprecation
+warning; 111 mobile tests and TypeScript also pass. No generated transcript or
+credential was written to this record.
+Known reported usage across these Sessions is 53,895 Tokens; failed or rejected
+attempts with no provider report remain explicitly unknown. No further model
+call was made in this sequence merely to repeat the failure. The next quota
+window requires one new current-SHA, `max_attempts=1`, 61-second-paced
+twelve-attempt run before Expo Go acceptance. Expo Go, the existing Render API
+deployment, cold start/restart and rollback remain open.

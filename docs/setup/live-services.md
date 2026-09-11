@@ -347,9 +347,12 @@ be selected before an ingestion adapter can be implemented.
 
 ## Controlled Expo Go Live Acceptance profile
 
-Status (2026-09-11): implementation and bounded data/model probes have progressed;
-the reviewed current-SHA Live Queue verifier is committed, and full Expo Go
-acceptance remains unexecuted. See
+Status (2026-09-11): hosted interruption/Queue validation and current AAPL data
+preflight pass. The reviewed current-SHA Live Queue verifier is committed. A
+61-second-paced run completed all six cited Round 1 Turns, then exposed an
+oversized Interim Judge Prompt; `399e6fe` reduces the exact input from 34,391 to
+10,827 characters offline. One full two-round rerun and Expo Go acceptance
+remain unexecuted. See
 [`remaining roadmap`](../planning/wp8l-next-steps.md). The canonical
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
@@ -432,6 +435,12 @@ the exact server SHA, and a twelve-request ceiling. It records the created
 Session ID and does not pretend to clean it up when no exact delete endpoint is
 configured.
 
+The current Groq free-plan limit for `openai/gpt-oss-20b` is 8K TPM at the
+organization level. Keep `DEBATE_PROVIDER_MIN_INTERVAL_SECONDS=61` for this
+profile. A zero interval is only for an account whose current organization
+limit has been checked and can hold the complete prompt volume; never use
+Worker retries to hide a rate-limit failure in a bounded acceptance run.
+
 ### 4. Start one controlled standard-mode session
 
 Use a dedicated non-production Supabase user. Keep API, Worker, and event broker
@@ -443,6 +452,7 @@ cd backend
 ENVIRONMENT=development APP_DATA_MODE=standard \
 DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
 DEBATE_INTERRUPTIONS_ENABLED=true DEBATE_JOB_MAX_ATTEMPTS=1 \
+DEBATE_PROVIDER_MIN_INTERVAL_SECONDS=61 \
 DEBATE_STREAMING_PROVIDER=groq DEBATE_STREAMING_JUDGE_PROVIDER=groq \
 APP_BUILD_SHA=$(git rev-parse HEAD) \
 .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
@@ -467,13 +477,16 @@ Session conflict, and one declared model-call budget.
 ### 5. Know what still blocks final Live Acceptance
 
 - Bull/Bear and independently configured Interim/Final Judge streaming are
-  implemented. Current-SHA, full standard AAPL two-round acceptance remains open.
+  implemented. Current-SHA Round 1 has six successful cited Turns under the
+  free-tier pacer; the compacted Judge and full standard AAPL two-round result
+  remain open.
 - Client reveal pacing and default-off visible-prefix freeze are implemented;
   native pacing/accessibility, interruption recovery, interjection and explicit
   Continue still need verification/implementation.
-- Apply and test the interruption migration in isolation before hosted testing.
-  The current `cancelled` foundation is not yet a durable waiting-for-user state.
-  Benchmark per-delta synchronous checkpoint writes and provider-admission races.
+- The interruption migrations, PostgREST conflict mapping, service-only Continue
+  Queue path and hosted Stop/recovery/interjection/Continue verifier pass.
+  Per-delta hosted latency led to bounded durable checkpoint batching; Expo Go
+  still must validate weak-network, background and force-reopen behaviour.
 - The process-local SSE broker still requires a single API/Worker process.
   Persisted draft checkpoints do not substitute for shared cross-process delta
   delivery and cursor replay.

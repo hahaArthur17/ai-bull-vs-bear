@@ -21,6 +21,76 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Full Live Debate exceeded the Groq free request envelope
+
+**Status:** Mitigated locally; a new full two-round run is deliberately deferred.
+
+**Scope and verified evidence**
+
+Current-SHA Session `eb564e13-a53f-5b59-af47-4088d51322e1` completed two
+Turn requests with 9,175 reported Tokens in 29 seconds, then its third Turn was
+rejected 0.3 seconds after dispatch as a retryable upstream failure. Groq's
+current free-plan table lists `openai/gpt-oss-20b` at 8K TPM and states that
+limits apply at organization level. A later paced Session
+`0fc62829-dd7b-56c9-a766-0e2e1b3092db` completed all six Round 1 Turns with
+31,155 reported Tokens and valid citations, proving that serialized pacing
+removed the per-minute failure. Its Interim Judge was then rejected before any
+output. Reconstructing that request without calling the provider measured a
+34,391-character Judge prompt, consistent with a non-retryable oversized
+request; the failed attempt has unknown usage and is not represented as zero.
+
+**Mitigation and verification**
+
+`46eb16c` adds a shared monotonic provider pacer and defaults configured live
+Groq sessions to one request start every 61 seconds. It rechecks the active
+generation after waiting and before admission, so Stop cannot release a stale
+request. `399e6fe` replaces the Judge's unbounded factor dumps with bounded,
+selected fields, caps evidence/transcript projections, lowers the 120-word
+Judge completion ceiling to 800 Tokens, and repeats the citation contract after
+the frozen data. The exact failed-session reconstruction falls from 34,391 to
+10,827 prompt characters, a 68.5% reduction. The backend suite passes 513
+tests. See Groq's official [rate-limit table](https://console.groq.com/docs/rate-limits)
+and [HTTP error reference](https://console.groq.com/docs/errors).
+
+**Remaining follow-up**
+
+No further provider request was made in this development sequence merely to
+repeat the failed full run. On the next quota window, perform one current-SHA,
+single-process, `max_attempts=1`, 61-second-paced run and require all twelve
+attempts, both Judges, citations, reload and SSE checks to pass before Expo Go
+acceptance. No product-owner operation is required for this model-side rerun.
+
+## 2026-09-11 — Live Bear prefix lacked the required evidence citation
+
+**Status:** Resolved for the subsequent six-Turn live sequence.
+
+**Scope and verified evidence**
+
+Session `b5d2d2f3-ee6d-53af-896c-0d0baea88027` completed one Bull Turn, then
+the Bear stream exposed a durable 911-character prefix but failed final
+validation. The prefix contained no citation token despite six available
+evidence aliases; it contained no invalid alias syntax, out-of-range alias or
+forbidden financial phrase. The failed provider attempt retained unknown usage
+and no canonical Bear message was written. The verifier initially consumed all
+reconnects because it did not treat `session.failed` as a terminal failure.
+
+**Mitigation and verification**
+
+`70b8ce3` repeats a strict response contract after the untrusted frozen context,
+requires each evidence-bearing paragraph to begin with relevant exact aliases,
+and reduces Turn sampling temperature to 0.2 without fabricating citations.
+The verifier now stops immediately on `session.failed` or
+`session.cancelled` and reports only the safe terminal code. In the later paced
+Session, all six Bull/Bear Turns completed with two to four valid citations and
+no invalid citation or forbidden phrase. The full backend suite passed before
+and after the change.
+
+**Remaining follow-up**
+
+The next full run must still prove both bounded Judge outputs and Round 2. Keep
+rejected text out of documentation and preserve unknown usage in the attempt
+ledger.
+
 ## 2026-09-11 — First current-SHA Live run exposed SSE ownership and ambiguous admission timeout
 
 **Status:** Mitigated locally and in hosted SQL; one bounded verification rerun remains.
