@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import AsyncIterator
+import math
+from uuid import UUID
 
 import pytest
 
@@ -15,15 +17,21 @@ from app.domain.agents import (
     DebateTurnStreamEvent,
     DebateTurnStreamUsage,
 )
+from app.domain.debate import DebateDraftCheckpoint, DebateMessage
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.streaming_debate import (
     DeterministicStreamingDebateProvider,
     DeterministicStreamingJudgeProvider,
+    preview_text_chunks,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_event_broker import InMemoryDebateEventBroker
-from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
-from app.services.debate_orchestrator import DebateRetryableOrchestrationError
+from app.services.debate_orchestrator import (
+    DURABLE_DELTA_BATCH_MAX_CHUNKS,
+    DebateOrchestrationError,
+    DebateOrchestrator,
+    DebateRetryableOrchestrationError,
+)
 from test_debate_orchestrator import StepClock, build_queued_round_one
 
 
@@ -120,8 +128,15 @@ class RetryOnceAfterTwoTurnsProvider(DeterministicStreamingDebateProvider):
 
 
 class CancellationBoundaryStreamProvider(DeterministicStreamingDebateProvider):
-    def __init__(self) -> None:
-        super().__init__(max_chunk_characters=32)
+    def __init__(
+        self,
+        *,
+        pause_after_chunks: int = DURABLE_DELTA_BATCH_MAX_CHUNKS,
+    ) -> None:
+        # Pause exactly when twelve small provider fragments reach the durable
+        # batching chunk bound and become one user-visible checkpoint.
+        super().__init__(max_chunk_characters=1)
+        self.pause_after_chunks = pause_after_chunks
         self.first_delta_sent = asyncio.Event()
         self.release_late_output = asyncio.Event()
 
@@ -129,11 +144,12 @@ class CancellationBoundaryStreamProvider(DeterministicStreamingDebateProvider):
         self,
         request: DebateTurnRequest,
     ) -> AsyncIterator[DebateTurnStreamEvent]:
-        first_delta = True
+        delta_count = 0
         async for event in super().stream_turn(request):
             yield event
-            if first_delta and event.kind == "delta":
-                first_delta = False
+            if event.kind == "delta":
+                delta_count += 1
+            if delta_count == self.pause_after_chunks:
                 self.first_delta_sent.set()
                 await self.release_late_output.wait()
 
@@ -159,6 +175,40 @@ class CancellationBoundaryJudgeProvider(DeterministicStreamingJudgeProvider):
                     await self.release_late_output.wait()
         finally:
             self.stream_closed.set()
+
+
+class CheckpointRecordingRepository(InMemoryDebateRepository):
+    def __init__(self, operation_log: list[tuple[str, UUID, str]]) -> None:
+        super().__init__()
+        self.operation_log = operation_log
+
+    def checkpoint_draft(
+        self,
+        message: DebateDraftCheckpoint | DebateMessage,
+    ) -> None:
+        super().checkpoint_draft(message)
+        message_id = message.id if isinstance(message, DebateMessage) else message.message_id
+        self.operation_log.append(("checkpoint", message_id, message.content))
+
+
+class CheckpointOrderBroker(InMemoryDebateEventBroker):
+    def __init__(self, operation_log: list[tuple[str, UUID, str]]) -> None:
+        super().__init__(max_events_per_session=4096)
+        self.operation_log = operation_log
+
+    def publish(self, session_id, event_type, *, payload=None, timestamp=None):
+        event = super().publish(
+            session_id,
+            event_type,
+            payload=payload,
+            timestamp=timestamp,
+        )
+        if event_type in {"turn.delta", "judge.delta"}:
+            assert payload is not None
+            self.operation_log.append(
+                ("event", UUID(str(payload["message_id"])), str(payload["delta"]))
+            )
+        return event
 
 
 def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() -> None:
@@ -206,6 +256,18 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
         for event in events
         if event.type == "turn.delta"
     )
+    first_turn_events = [
+        event
+        for event in events
+        if event.type == "turn.delta"
+        and event.payload["message_id"] == str(messages[0].id)
+    ]
+    assert [event.payload["delta_index"] for event in first_turn_events] == list(
+        range(1, len(first_turn_events) + 1)
+    )
+    assert [event.payload["delta"] for event in first_turn_events] == list(
+        preview_text_chunks(messages[0].content, max_characters=32)
+    )
     assert events[-1].payload["execution_mode"] == "async_stream"
     assert stored_job is not None
     assert stored_job.provider_request_count == 7
@@ -216,6 +278,66 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
     event_count = len(events)
     assert asyncio.run(orchestrator.execute_job_streaming(job.id)) == session
     assert len(broker.replay(session.id)) == event_count
+
+
+def test_checkpointed_stream_batches_only_durable_contiguous_deltas() -> None:
+    operation_log: list[tuple[str, UUID, str]] = []
+    repository = CheckpointRecordingRepository(operation_log)
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    provider = DeterministicStreamingDebateProvider(max_chunk_characters=1)
+    judge_provider = DeterministicStreamingJudgeProvider(max_chunk_characters=1)
+    broker = CheckpointOrderBroker(operation_log)
+    orchestrator = DebateOrchestrator(
+        repository,
+        provider,
+        provider,
+        streaming_turn_provider=provider,
+        streaming_judge_provider=judge_provider,
+        checkpoint_drafts=True,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    session = asyncio.run(orchestrator.execute_job_streaming(job.id))
+    messages = repository.list_messages(
+        session.id,
+        session.user_id,
+        branch_id=session.active_branch_id,
+    )
+    delta_events = [
+        event
+        for event in broker.replay(session.id)
+        if event.type in {"turn.delta", "judge.delta"}
+    ]
+
+    assert len(operation_log) == len(delta_events) * 2
+    visible_by_message: dict[UUID, str] = {}
+    for checkpoint, emitted in zip(operation_log[::2], operation_log[1::2], strict=True):
+        assert checkpoint[0] == "checkpoint"
+        assert emitted[0] == "event"
+        assert checkpoint[1] == emitted[1]
+        previous = visible_by_message.get(emitted[1], "")
+        assert checkpoint[2] == previous + emitted[2]
+        visible_by_message[emitted[1]] = checkpoint[2]
+
+    for message in messages:
+        matching_events = [
+            event
+            for event in delta_events
+            if event.payload["message_id"] == str(message.id)
+        ]
+        provider_chunks = preview_text_chunks(message.content, max_characters=1)
+        assert "".join(str(event.payload["delta"]) for event in matching_events) == message.content
+        assert [event.payload["delta_index"] for event in matching_events] == list(
+            range(1, len(matching_events) + 1)
+        )
+        assert len(matching_events) == math.ceil(
+            len(provider_chunks) / DURABLE_DELTA_BATCH_MAX_CHUNKS
+        )
+        assert visible_by_message[message.id] == message.content
+
+    assert any(len(str(event.payload["delta"])) > 1 for event in delta_events)
 
 
 def test_interrupted_stream_never_persists_an_incomplete_canonical_message() -> None:
@@ -257,6 +379,31 @@ def test_interrupted_stream_never_persists_an_incomplete_canonical_message() -> 
     assert failed_session is not None and failed_session.status == "failed"
     assert failed_job is not None and failed_job.status == "failed"
     assert failed_job.provider_request_count == 1
+
+
+def test_failed_checkpointed_stream_never_emits_an_unflushed_delta() -> None:
+    repository = InMemoryDebateRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    judge_provider = DeterministicDebateProvider()
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        judge_provider,
+        judge_provider,
+        streaming_turn_provider=InterruptingStreamProvider(),
+        checkpoint_drafts=True,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    with pytest.raises(DebateOrchestrationError):
+        asyncio.run(orchestrator.execute_job_streaming(job.id))
+
+    events = broker.replay(queued.id)
+    assert not any(event.type == "turn.delta" for event in events)
+    assert not any(event.type == "turn.completed" for event in events)
+    assert events[-1].type == "session.failed"
 
 
 def test_retryable_stream_failure_leaves_canonical_work_active() -> None:
@@ -453,7 +600,6 @@ def test_interruption_preserves_prefix_and_cancels_worker_without_failure() -> N
         execution = asyncio.create_task(orchestrator.execute_job_streaming(job.id))
         await asyncio.wait_for(provider.first_delta_sent.wait(), timeout=1)
         delta = next(event for event in broker.replay(queued.id) if event.type == "turn.delta")
-        from uuid import UUID
         prefix = delta.payload["delta"][:3]
         repository.interrupt_generation(queued.id, queued.user_id, queued.active_generation_id,
             UUID(delta.payload["message_id"]), prefix, queued.updated_at)
@@ -476,6 +622,57 @@ def test_interruption_preserves_prefix_and_cancels_worker_without_failure() -> N
         assert stored_job.provider_request_count == 1
         assert any(event.type == "turn.delta" for event in events)
         assert sum(event.type == "turn.delta" for event in events) == 1
+        assert not any(event.type == "turn.completed" for event in events)
+        assert not any(event.type == "session.failed" for event in events)
+
+    asyncio.run(run_scenario())
+
+
+def test_before_output_stop_discards_an_uncheckpointed_pending_delta() -> None:
+    async def run_scenario() -> None:
+        repository = InMemoryDebateRepository()
+        queued, job = build_queued_round_one()
+        repository.create_session_with_job(queued, job)
+        provider = CancellationBoundaryStreamProvider(pause_after_chunks=1)
+        judge_provider = DeterministicDebateProvider()
+        broker = InMemoryDebateEventBroker()
+        orchestrator = DebateOrchestrator(
+            repository,
+            judge_provider,
+            judge_provider,
+            streaming_turn_provider=provider,
+            checkpoint_drafts=True,
+            event_publisher=broker,
+            clock=StepClock(),
+        )
+
+        execution = asyncio.create_task(orchestrator.execute_job_streaming(job.id))
+        await asyncio.wait_for(provider.first_delta_sent.wait(), timeout=1)
+        assert not any(
+            event.type == "turn.delta" for event in broker.replay(queued.id)
+        )
+
+        stopped = repository.interrupt_before_output_generation(
+            queued.id,
+            queued.user_id,
+            queued.active_generation_id,
+            queued.updated_at,
+        )
+        provider.release_late_output.set()
+        completed = await asyncio.wait_for(execution, timeout=1)
+        messages = repository.list_messages(
+            queued.id,
+            queued.user_id,
+            branch_id=queued.active_branch_id,
+        )
+        events = broker.replay(queued.id)
+
+        assert completed == stopped
+        assert completed.status == "interrupted_awaiting_user"
+        assert len(messages) == 1
+        assert messages[0].content == ""
+        assert messages[0].metadata == {"interrupted": True, "before_output": True}
+        assert not any(event.type == "turn.delta" for event in events)
         assert not any(event.type == "turn.completed" for event in events)
         assert not any(event.type == "session.failed" for event in events)
 

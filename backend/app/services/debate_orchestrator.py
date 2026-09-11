@@ -59,6 +59,54 @@ from app.services.debate_streaming import (
 
 logger = logging.getLogger(__name__)
 
+DURABLE_DELTA_BATCH_MAX_CHARACTERS = 240
+DURABLE_DELTA_BATCH_MAX_CHUNKS = 12
+
+
+class _DurableDeltaBatch:
+    """Buffer provider fragments until one cumulative prefix can be persisted."""
+
+    def __init__(
+        self,
+        *,
+        max_characters: int = DURABLE_DELTA_BATCH_MAX_CHARACTERS,
+        max_chunks: int = DURABLE_DELTA_BATCH_MAX_CHUNKS,
+    ) -> None:
+        if max_characters < 1 or max_chunks < 1:
+            raise ValueError("Durable delta batch bounds must be positive")
+        self.max_characters = max_characters
+        self.max_chunks = max_chunks
+        self.content = ""
+        self.pending = ""
+        self.pending_chunks = 0
+        self.source: str | None = None
+        self.emitted_count = 0
+
+    def append(self, delta: str, source: str) -> None:
+        if self.source is not None and self.source != source:
+            raise ValueError("Durable delta batch cannot mix provider sources")
+        self.content += delta
+        self.pending += delta
+        self.pending_chunks += 1
+        self.source = source
+
+    @property
+    def ready(self) -> bool:
+        return (
+            len(self.pending) >= self.max_characters
+            or self.pending_chunks >= self.max_chunks
+        )
+
+    def take(self) -> tuple[int, str, str, str] | None:
+        if not self.pending or self.source is None:
+            return None
+        self.emitted_count += 1
+        result = (self.emitted_count, self.pending, self.source, self.content)
+        self.pending = ""
+        self.pending_chunks = 0
+        self.source = None
+        return result
+
 
 class DebateOrchestrationError(RuntimeError):
     """Safe workflow failure that does not expose provider or persistence data."""
@@ -763,17 +811,37 @@ class DebateOrchestrator:
             target_id=target_id,
         )
 
-        received = ""
+        durable_batch = _DurableDeltaBatch()
+
+        def flush_durable_batch() -> None:
+            batch = durable_batch.take()
+            if batch is None:
+                return
+            delta_index, delta, source, durable_content = batch
+            self.repository.checkpoint_draft(DebateDraftCheckpoint(
+                message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+                generation_id=session.active_generation_id, sequence_number=sequence_number,
+                round_number=round_number, exchange_number=exchange_number, role=role,
+                message_kind=message_kind, content=durable_content,
+                created_at=session.updated_at))
+            self._assert_generation_active(session, self._running_status(round_number))
+            self._emit_turn_delta(
+                session,
+                message_id=message_id,
+                role=role,
+                delta_index=delta_index,
+                delta=delta,
+                source=source,
+            )
 
         async def publish_delta(event: DebateTurnStreamDelta) -> None:
-            nonlocal received
-            received += event.delta
             if self.checkpoint_drafts:
-                self.repository.checkpoint_draft(DebateDraftCheckpoint(
-                    message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
-                    generation_id=session.active_generation_id, sequence_number=sequence_number,
-                    round_number=round_number, exchange_number=exchange_number, role=role,
-                    message_kind=message_kind, content=received, created_at=session.updated_at))
+                if durable_batch.pending and durable_batch.source != event.source:
+                    flush_durable_batch()
+                durable_batch.append(event.delta, event.source)
+                if durable_batch.ready:
+                    flush_durable_batch()
+                return
             self._assert_generation_active(session, self._running_status(round_number))
             self._emit_turn_delta(
                 session,
@@ -788,6 +856,8 @@ class DebateOrchestrator:
             collected = await collect_debate_turn_stream(
                 self.streaming_turn_provider, request, on_delta=publish_delta,
             )
+            if self.checkpoint_drafts:
+                flush_durable_batch()
         except Exception as exc:
             if attempt is not None:
                 observed = getattr(exc, "usage", None)
@@ -1091,17 +1161,42 @@ class DebateOrchestrator:
             phase=phase,
         )
 
-        received = ""
+        durable_batch = _DurableDeltaBatch()
+
+        def flush_durable_batch() -> None:
+            batch = durable_batch.take()
+            if batch is None:
+                return
+            delta_index, delta, source, durable_content = batch
+            self.repository.checkpoint_draft(DebateDraftCheckpoint(
+                message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
+                generation_id=session.active_generation_id, sequence_number=sequence_number,
+                round_number=round_number, exchange_number=0, role="judge",
+                message_kind="summary", content=durable_content,
+                created_at=session.updated_at))
+            self._assert_generation_active(session, self._running_status(round_number))
+            self._emit(
+                session.id,
+                "judge.delta",
+                {
+                    "message_id": str(message_id),
+                    "generation_id": str(session.active_generation_id),
+                    "round_number": round_number,
+                    "phase": phase,
+                    "delta_index": delta_index,
+                    "delta": delta,
+                    "source": source,
+                },
+            )
 
         async def publish_delta(event: DebateJudgeStreamDelta) -> None:
-            nonlocal received
-            received += event.delta
             if self.checkpoint_drafts:
-                self.repository.checkpoint_draft(DebateDraftCheckpoint(
-                    message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
-                    generation_id=session.active_generation_id, sequence_number=sequence_number,
-                    round_number=round_number, exchange_number=0, role="judge",
-                    message_kind="summary", content=received, created_at=session.updated_at))
+                if durable_batch.pending and durable_batch.source != event.source:
+                    flush_durable_batch()
+                durable_batch.append(event.delta, event.source)
+                if durable_batch.ready:
+                    flush_durable_batch()
+                return
             self._assert_generation_active(session, self._running_status(round_number))
             self._emit(
                 session.id,
@@ -1121,6 +1216,8 @@ class DebateOrchestrator:
             collected = await collect_debate_judge_stream(
                 self.streaming_judge_provider, request, on_delta=publish_delta,
             )
+            if self.checkpoint_drafts:
+                flush_durable_batch()
         except Exception as exc:
             if attempt is not None:
                 observed = getattr(exc, "usage", None)
