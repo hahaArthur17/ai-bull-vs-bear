@@ -1049,6 +1049,18 @@ class CurrentShaLiveQueueVerifier:
                             raise AcceptanceError("SSE event sequence was not contiguous from the cursor")
                         cursor = event.sequence
                         events.append(event)
+                        if event.event_type in {"session.failed", "session.cancelled"}:
+                            nested = _event_payload(event)
+                            safe_error_code = nested.get("safe_error_code")
+                            suffix = (
+                                f" ({safe_error_code})"
+                                if isinstance(safe_error_code, str) and safe_error_code
+                                else ""
+                            )
+                            raise AcceptanceError(
+                                f"SSE {phase} reached {event.event_type}{suffix} before "
+                                f"{terminal_type}"
+                            )
                         if event.event_type == terminal_type:
                             saw_terminal = True
                             break
@@ -1066,6 +1078,18 @@ class CurrentShaLiveQueueVerifier:
                             raise AcceptanceError("SSE event sequence was not contiguous from the cursor")
                         cursor = event.sequence
                         events.append(event)
+                        if event.event_type in {"session.failed", "session.cancelled"}:
+                            nested = _event_payload(event)
+                            safe_error_code = nested.get("safe_error_code")
+                            suffix = (
+                                f" ({safe_error_code})"
+                                if isinstance(safe_error_code, str) and safe_error_code
+                                else ""
+                            )
+                            raise AcceptanceError(
+                                f"SSE {phase} reached {event.event_type}{suffix} before "
+                                f"{terminal_type}"
+                            )
                         if event.event_type == terminal_type:
                             saw_terminal = True
                             break

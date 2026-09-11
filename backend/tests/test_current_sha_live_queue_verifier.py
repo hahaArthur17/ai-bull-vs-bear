@@ -553,6 +553,37 @@ def test_sse_connection_failure_respects_reconnect_bound() -> None:
     assert "bounded reconnects" in report["error"]
 
 
+def test_terminal_session_failure_stops_without_burning_reconnect_budget() -> None:
+    transport, state = fixture_transport(include_r1_retry=False, max_attempts=1)
+    state["r1_events"] = state["r1_events"][:3] + [
+        event(
+            4,
+            "session.failed",
+            {
+                "status": "failed",
+                "safe_error_code": "debate_execution_failed",
+                "generation_id": GENERATION_ONE,
+            },
+        )
+    ]
+    config = AcceptanceConfig(
+        base_url="https://api.example.test",
+        access_token="token",
+        expected_sha=SHA,
+        max_reconnects=4,
+    )
+
+    report = verify_current_sha_live_queue(config, client=httpx.Client(transport=transport))
+
+    assert not report["passed"]
+    assert report["error"] == (
+        "SSE 1 reached session.failed (debate_execution_failed) before "
+        "session.awaiting_user"
+    )
+    assert sum(path.endswith("/events") for _, path, _ in state["requests"]) == 2
+    assert not any(path.endswith("/interventions") for _, path, _ in state["requests"])
+
+
 def test_deterministic_providers_cannot_pass_live_acceptance() -> None:
     transport, state = fixture_transport(include_r1_retry=False, max_attempts=1)
     for detail in state["details"].values():

@@ -196,7 +196,13 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         "reasoning. Use one to three short paragraphs and stay under "
         f"{request.max_output_chars} characters and {word_limit} words.\n\n"
         f"<frozen_context>\n{json.dumps(payload, ensure_ascii=False, default=str)}\n"
-        "</frozen_context>"
+        "</frozen_context>\n\n"
+        "<response_contract>\n"
+        "When frozen_context.evidence is non-empty, the first non-whitespace characters of "
+        "every paragraph must be one or more relevant exact evidence aliases copied from that "
+        "list, such as [E1]. Never postpone the first citation until the end of the response. "
+        "A response without at least one exact evidence alias will be rejected.\n"
+        "</response_contract>"
     )
 
 
@@ -331,7 +337,7 @@ class GroqStreamingDebateProvider:
             stream = await self.client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": "user", "content": build_groq_debate_prompt(request)}],
-                temperature=0.6,
+                temperature=0.2,
                 top_p=0.95,
                 max_completion_tokens=min(
                     request.max_output_chars,

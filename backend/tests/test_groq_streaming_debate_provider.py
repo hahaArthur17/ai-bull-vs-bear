@@ -157,6 +157,7 @@ def test_live_provider_streams_plain_text_and_builds_server_owned_metadata() -> 
     assert request_kwargs["stream"] is True
     assert request_kwargs["include_reasoning"] is False
     assert request_kwargs["citation_options"] == "disabled"
+    assert request_kwargs["temperature"] == 0.2
     assert request_kwargs["max_completion_tokens"] == 800
     assert "response_format" not in request_kwargs
     assert key not in str(request_kwargs)
@@ -198,6 +199,9 @@ def test_prompt_treats_snapshot_text_as_data_and_never_exposes_real_evidence_ids
     assert "news-1" not in prompt
     assert "Return plain user-facing prose only: no JSON" in prompt
     assert "under 800 characters and 100 words" in prompt
+    assert prompt.index("<response_contract>") > prompt.index("</frozen_context>")
+    assert "first non-whitespace characters of every paragraph" in prompt
+    assert "Never postpone the first citation" in prompt
 
 
 @pytest.mark.parametrize(
