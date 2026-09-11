@@ -17,8 +17,8 @@ remains an active product/UI remediation phase.
 
 ## Current execution position
 
-Phase 8 / WP8L.5 is after hosted interruption/Queue verification and before the
-final full-model/device gates. Default-off Stop covers durable provider-attempt
+Phase 8 / WP8L.6 is after hosted interruption/Queue and complete Live-model
+verification and before the Expo Go device gate. Default-off Stop covers durable provider-attempt
 accounting, before-output interruption, waiting state, persisted unconfirmed
 recovery, interjection without model dispatch, explicit Continue/End, bounded
 job retries, and read-only Explanation for a frozen incomplete prefix. Hosted
@@ -30,8 +30,10 @@ projection also exposed insufficient request margin and is reduced from 31,127
 to 16,289 characters offline. A subsequent current-SHA run completed five
 paced Turns before a 334-character persisted rebuttal point exceeded the
 next-request 300-character domain bound; that projection and failure-ledger
-reporting are now fixed. A full two-round rerun and Expo Go remain. The ordered
-remaining work and corrected boundaries are in
+reporting are now fixed. A later `64c1c6c` Session passed all twelve requests,
+both Judges, both rounds, citations, SSE and ledger checks with 39,269 reported
+Tokens and no retry or unknown usage. Expo Go remains. The ordered remaining
+work and corrected boundaries are in
 [`wp8l-next-steps.md`](wp8l-next-steps.md). Historical checkpoints below are dated
 progress records, not the current outstanding-work list.
 
@@ -45,7 +47,7 @@ progress records, not the current outstanding-work list.
 | Market and evidence integrity | In progress | Distinct quote/close, current evidence, SEC facts and seven macro inputs are validated and frozen. The 2026-09-11 preflight found 115 completed daily rows through 09-10, 63 weekly rows, 13 news items, 4 filings, 155 financial facts, all seven macro series, and a positive Finnhub quote. Trading-calendar/release-lag edges remain open; this is not permanent freshness or complete statement coverage. |
 | Technical and macro exploration | In progress | WP4 now renders the 1M/3M daily and 6M/1Y weekly workspace with responsive measured charts, MA overlays, RSI, MACD, volume, volatility, seven dated macro series, per-series unavailable states, and explicit provenance. The deterministic `review_fixture` passes the 320/390/768/1280 Web state matrix; native-device and product-owner visual acceptance remain required. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share validated Bull/Bear/Judge contracts. Explanation independently defaults to deterministic and offers a bounded Groq provider. Live Turn output repeats an explicit citation contract after frozen data; both Turn and Judge inputs use bounded evidence/factor/transcript projections and an 800-Token default completion cap. A shared 61-second pacer respects the current Groq free 8K TPM envelope without Worker retries. |
-| Controlled Live Acceptance | In progress | Stop, provider-attempt audit, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local coverage and hosted Supabase interruption verification. Current-SHA live Sessions found and fixed SSE ownership, exact transport replay, citation adherence, provider pacing and request-size bounds. The 2026-09-12 run completed five paced Turns with 13,366 reported Tokens, then exposed a persisted rebuttal-point projection mismatch before request six; `19b9d85` fixes that boundary and `901cddb` preserves failure-ledger reporting. One full twelve-attempt/two-Judge rerun and Expo Go acceptance remain open. |
+| Controlled Live Acceptance | In progress | Stop, provider-attempt audit, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local coverage and hosted Supabase interruption verification. Session `ee8409eb-f415-54b3-892e-d47d85516ae4` on `64c1c6c` passed the complete standard AAPL flow: Queue 202, 12/12 live attempts, two rounds, both Judges, 40 citations, durable reload, SSE cursors, `max_attempts=1`, 39,269 reported Tokens and zero unknown usage. Expo Go/native acceptance remains open. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic. `cf8b9e7` adds an explicit `APP_BUILD_SHA` value to `/health`, but it has not been deployed or used to prove the running backend revision. The project will not create an independent staging environment or require a static Web frontend release. The remaining release gate deploys the accepted SHA to the existing Render API and records smoke checks plus a reversible rollback target. |
 | Automated verification | In progress | At committed feature-code baseline `901cddb`, the backend suite passes 516 tests; mobile currently passes 111 tests and TypeScript. Isolated PostgreSQL interruption/replay, hosted interruption/Queue checks, feature-enabled Web export and durable checkpoint batching pass. These checks do not establish native/device, full two-round Live AAPL, visual-owner or existing-Render release acceptance. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |

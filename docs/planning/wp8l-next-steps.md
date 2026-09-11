@@ -5,20 +5,20 @@
 
 ## 当前位置
 
-当前处于 **Phase 8 / WP8L.5 托管停止与插话已验证、完整真实模型联合运行收口前**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue 和当前数据预检已经完成；完整两轮真实模型运行仍缺最终一次成功记录，之后才进入 Expo Go 产品负责人验收。
+当前处于 **Phase 8 / WP8L.6 完整真实模型联合运行已通过、Expo Go 验收前**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue、当前数据预检和完整两轮真实模型运行已经完成；下一门槛是 Expo Go 产品负责人验收。
 
 | 工作包 | 已有证据 | 尚未完成 |
 | --- | --- | --- |
 | WP8L.1 数据口径 | 最新 Finnhub 报价与完成日线分开冻结；行情、新闻/公告、SEC 财务事实、七项宏观输入有准入检查 | 权威交易日/提前收市日历；宏观发布时差与节假日边界；财务覆盖不等于完整报表 |
 | WP8L.2 数据预检 | 2026-09-11 当前 AAPL 预检通过：115 条完成日线至 09-10、63 条周线、13 条新闻、4 份 filing、155 项财务事实、7 项宏观；Finnhub 当前 quote 读取成功 | 最终验收若跨日期，只重新检查并刷新到期来源；历史 capture 不是永久“最新”证明 |
-| WP8L.3 Queue 与真实模型 | 当前 SHA Queue 202、真实 Groq Bull/Bear、durable SSE、引用和账本已联合运行；61 秒免费档节流曾完成六个 Round 1 Turn。已修复引用遗漏、8K TPM 节流、Turn/Judge 请求大小及 334→300 字符历史论点投影冲突；失败态 verifier 也会回读真实账本 | 后续 quota window 只运行一次修复后完整两轮：12 attempts、Interim/Final Judge、重载和分角色用量必须同时通过 |
+| WP8L.3 Queue 与真实模型 | `64c1c6c` 通过完整标准 AAPL 验证：Queue 202、12/12 Groq attempts、两轮 10 个 Bull/Bear Turn、Interim/Final Judge、40 条引用、持久重载、SSE 双终态、分角色账本、0 retry/unknown usage | 已完成；Expo Go 若运行真实会话仍沿用 61 秒节流、单进程和明确预算，不重复以旧 SHA 做模型验收 |
 | WP8L.4 显示调度 | 英文按词、中文按字素、单一活动气泡；生成完成不强制全文展开；有自动化测试 | 真机流畅度、屏幕阅读器实际播报、后台/重连及与 Stop 的联合体验 |
 | WP8L.5 停止与插话 | provider-attempt 审计、首字前/中途停止、恢复、插话、Continue/End、冻结快照、稳定重试键和不完整前缀 Explanation 已提交；托管迁移、PostgREST/Queue、重启恢复、所有权、幂等和清理验证通过 | 弱网、原生强退/重开、各角色联合流程和 Expo Go 体验验收 |
 | WP8L.6–7 | 单 API/Worker/SSE 进程的首轮验收边界已确定 | 专门测试账号的 Expo Go 联合验收；重启、拓扑与发布证据 |
 | WP9 / WP10 | 验收要求已规划 | 产品负责人完成 Expo Go 视觉/交互验收；现有 Render 后端同 SHA 发布检查与回滚复核。不创建独立 staging，不要求测试或发布静态 Web 前端 |
 | Phase 9 | 保留在后续路线中 | Replay、可观测性、韧性/负载、最终发布证明与演示材料 |
 
-最近复核：提交 `901cddb` 后端 **516** 项通过；移动端 **111** 项与 TypeScript 当前复跑通过。隔离 PostgreSQL migration/replay、托管 Supabase interruption/Queue、启用 interruption flag 的 Web export 及 bounded checkpoint batching 均通过。这些仍不能替代完整两轮真实模型记录或 Expo Go 实机验收。
+最近复核：提交 `901cddb` 后端 **516** 项通过；移动端 **111** 项与 TypeScript 当前复跑通过。隔离 PostgreSQL migration/replay、托管 Supabase interruption/Queue、启用 interruption flag 的 Web export、bounded checkpoint batching 及 `64c1c6c` 完整两轮真实模型运行均通过。这些仍不能替代 Expo Go 实机验收。
 
 ## 下一步执行顺序
 
@@ -54,7 +54,7 @@
 
 完成证据：各中断位置的完整状态机测试和无隐式模型调用验证。
 
-### 4. 重做实时数据预检和小额端到端检测（WP8L.1–3 收口）
+### 4. 已完成：实时数据预检和完整端到端检测（WP8L.1–3 收口）
 
 `583610c` 已支持仅刷新过期宏观系列；`38495e3` 可关闭 Worker 重试；`cf8b9e7` 在 `/health` 暴露显式 build SHA。`63406d4` 提交了当前 SHA Live Queue 验证器。2026-09-11 当前数据和模型目录预检通过；四个有界 Session 依次暴露并修复 SSE 所有权/事务重放、Turn 引用遗漏、Groq 8K TPM 节流和过大的 Judge Prompt。最后一个 Session 在 61 秒节流下完成全部六个 Round 1 Turn 与有效引用，但旧 Judge Prompt 在输出前被拒绝。`399e6fe` 已将同一输入的 Judge Prompt 离线缩小 68.5%；`7f6a4da` 又将同一托管 Session 的 Round 2 开场 Turn 从 24,954 缩到 12,813 字符、十二消息后期投影从 31,127 缩到 16,289 字符，均未再次消耗模型额度。
 
@@ -63,12 +63,20 @@
 `rebuttal_point` 334 字符超过 request item 的 300 字符上限而安全失败。
 账本为 5 次 dispatch/completion、13,366 reported Tokens、0 unknown usage、
 0 retry。`19b9d85` 修复投影边界；`901cddb` 修复 verifier 在失败终态低报
-请求数的问题。该 Session 不是 Round 1 通过记录，本窗口不重复模型调用。
+请求数的问题。该 Session 不是 Round 1 通过记录。
+
+修复后的 `64c1c6c` Session `ee8409eb-f415-54b3-892e-d47d85516ae4`
+随后通过完整 verifier：Round 1 7 attempts/19,478 Tokens，Round 2 5
+attempts/19,791 Tokens，总计 39,269；Bull 15,851、Bear 16,808、Judge
+6,610，全部为 `openai/gpt-oss-20b`，0 retry、0 unknown usage。两阶段共
+196 个有序 live delta、40 个 citation event，终态 SSE cursor 为 267；
+冻结快照为 100 条完成日线至 2026-09-10、6 条 evidence、32 项财务事实
+和 7 项宏观。完整真实模型联合检测已经收口。
 
 - 先读缓存与调用记录，只补过期/不足数据。用户已授权限额刷新和微小模型检测，不必每次重复请求同一授权。
 - 补交易日历、提前收盘、跨时区/宏观发布日期测试；统一七项宏观的固定年龄阈值需要源级规则复核，避免休市日误挡或把旧数据当新数据。
 - 每个来源记录当天已知请求数、预计请求数和允许上限。无法确认剩余额度时先用缓存/离线检查，不凭本次调用次数推断整个账号剩余额度。
-- 后续 quota window 只做一次标准 AAPL 联合运行：单进程、`max_attempts=1`、`DEBATE_PROVIDER_MIN_INTERVAL_SECONDS=61`，并要求 Queue 202、两轮 Bull/Bear、Interim/Final Judge、引用、重载和 provider ledger 全部通过。不要再用未节流、未压缩 Prompt 或未修复历史论点边界的旧 SHA；最低基线为 `901cddb`。
+- 完整模型验收不再重复运行。Expo Go 若需创建真实会话，仍须使用 `901cddb` 或更新代码、单进程、`max_attempts=1` 和 61 秒节流，并在既定日额度内单独记录；纯界面/恢复检查优先复用已完成 Session 或确定性路径。
 - 分开记录 Bull、Bear、Judge、Explanation 的模型与请求/Token；失败也计入请求数，未知 Token 单独标记。历史 Judge 的 612 Token 仅属于那次成功请求，不包含此前两次未知用量的失败。
 
 完成证据：当前 SHA、当前 capture 时间与预算下的验证记录；不把历史单项检测拼成一次并未发生的完整验收。

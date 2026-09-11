@@ -893,11 +893,26 @@ bounds that projection while preserving the full canonical metadata.
 `901cddb` also makes verifier failure reports re-read the provider ledger rather
 than leaving observed usage at zero.
 
+The repaired `64c1c6c` Session
+`ee8409eb-f415-54b3-892e-d47d85516ae4` then passed the complete verifier:
+
+- Queue returned `202`; both Jobs used `max_attempts=1` and no retry;
+- Round 1 completed six live Turns plus Interim Judge, then durable reload and
+  the standard Challenge admitted Round 2;
+- Round 2 completed four live Turns plus Final Judge, yielding the expected 13
+  canonical messages and final SSE cursor 267;
+- 12/12 provider attempts used `openai/gpt-oss-20b`, all with reported usage:
+  Bull 15,851, Bear 16,808 and Judge 6,610 Tokens, or 39,269 total;
+- 196 ordered live deltas, 40 citation events, canonical sequence/role counts,
+  source allowlists, provider metadata and both phase ledgers passed; and
+- the frozen acceptance projection held 100 completed AAPL closes through
+  2026-09-10, six news/filing evidence items, 32 financial facts and all seven
+  macro series, with a current positive Finnhub quote.
+
 After `901cddb`, 516 backend tests pass with one existing Starlette deprecation
 warning; 111 mobile tests and TypeScript also pass. No generated transcript or
-credential was written to this record. Known reported usage across the retained
-Sessions is now 67,261 Tokens; failed or rejected attempts with no provider
-report remain explicitly unknown. No second model Session was started in this
-quota window. A later current-SHA, `max_attempts=1`, 61-second-paced
-twelve-attempt run is required before Expo Go acceptance. Expo Go, the existing
-Render API deployment, cold start/restart and rollback remain open.
+credential was written to this record. Known reported usage across all retained
+Sessions is now 106,530 Tokens; failed or rejected attempts with no provider
+report remain explicitly unknown. Full model-side acceptance is complete. Expo
+Go, the existing Render API deployment, cold start/restart and rollback remain
+open in that order.

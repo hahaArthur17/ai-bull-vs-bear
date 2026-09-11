@@ -347,7 +347,7 @@ be selected before an ingestion adapter can be implemented.
 
 ## Controlled Expo Go Live Acceptance profile
 
-Status (2026-09-11): hosted interruption/Queue validation and current AAPL data
+Status (2026-09-12): hosted interruption/Queue validation and current AAPL data
 preflight pass. The reviewed current-SHA Live Queue verifier is committed. A
 61-second-paced run completed all six cited Round 1 Turns, then exposed an
 oversized Interim Judge Prompt; `399e6fe` reduces the exact input from 34,391 to
@@ -357,8 +357,11 @@ checks made no additional model request. A 2026-09-12 rerun then completed five
 paced Turns before a persisted 334-character rebuttal point exceeded the next
 request's 300-character domain bound. `19b9d85` fixes that projection and
 `901cddb` makes terminal-failure reports recover actual ledger usage. That
-Session used 13,366 reported Tokens with no retry or unknown usage. One later
-full two-round rerun and Expo Go acceptance remain unexecuted. See
+Session used 13,366 reported Tokens with no retry or unknown usage. The later
+`64c1c6c` Session `ee8409eb-f415-54b3-892e-d47d85516ae4` passed the full
+12-request/two-Judge/two-round verifier with 39,269 reported Tokens, 40
+citations, 196 ordered deltas and no retry or unknown usage. Expo Go acceptance
+remains unexecuted. See
 [`remaining roadmap`](../planning/wp8l-next-steps.md). The canonical
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
@@ -483,10 +486,10 @@ Session conflict, and one declared model-call budget.
 ### 5. Know what still blocks final Live Acceptance
 
 - Bull/Bear and independently configured Interim/Final Judge streaming are
-  implemented. Current-SHA Round 1 has six successful cited Turns under the
-  free-tier pacer; the compacted Judge/Turn projections pass offline bounds,
-  and the persisted prior-point projection is now bounded. The full standard
-  AAPL two-round result remains open.
+  implemented. The full current-SHA standard AAPL two-round result passes under
+  the free-tier pacer, with compacted Judge/Turn projections and bounded prior
+  points. Do not repeat the model-side proof during Expo Go unless a new code
+  change invalidates it.
 - Client reveal pacing and default-off visible-prefix freeze are implemented;
   native pacing/accessibility, interruption recovery, interjection and explicit
   Continue still need verification/implementation.

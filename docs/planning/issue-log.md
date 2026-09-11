@@ -23,7 +23,7 @@ duplicating implementation detail.
 
 ## 2026-09-12 — Persisted rebuttal point exceeded the next-request domain bound
 
-**Status:** Resolved locally; a later full two-round run is still required.
+**Status:** Resolved and verified by a subsequent full two-round run.
 
 **Scope and verified evidence**
 
@@ -58,14 +58,15 @@ safe fix; neither fix made a provider call.
 
 **Remaining follow-up**
 
-Do not represent this Session as a Round 1 or full-flow pass. Retain its 13,366
-reported Tokens in cumulative accounting. A later run on `901cddb` or newer
-must again use one process, `max_attempts=1`, 61-second pacing and the twelve-
-request ceiling, and must complete both Judges and Round 2 before Expo Go.
+Do not represent the failed Session as a Round 1 or full-flow pass; retain its
+13,366 reported Tokens in cumulative accounting. Session
+`ee8409eb-f415-54b3-892e-d47d85516ae4` on later SHA `64c1c6c` crossed the
+previous failure point and passed the full 12-request, two-Judge, two-round
+verifier with no retry or unknown usage. This issue no longer blocks Expo Go.
 
 ## 2026-09-11 — Late Round 2 Turn Prompt lacked free-tier margin
 
-**Status:** Mitigated locally; the full two-round run remains deliberately deferred.
+**Status:** Resolved for the bounded AAPL acceptance profile.
 
 **Scope and verified evidence**
 
@@ -92,13 +93,14 @@ request or generated-text logging was used for this verification.
 **Remaining follow-up**
 
 The character projection is calibrated to the retained English AAPL inputs; it
-is not a universal tokenizer proof for arbitrary high-Unicode content. Use only
-the reviewed `7f6a4da` or later SHA for the next single paced full run, retain
-the twelve-request ceiling, and record actual provider Tokens before Expo Go.
+is not a universal tokenizer proof for arbitrary high-Unicode content. Session
+`ee8409eb-f415-54b3-892e-d47d85516ae4` subsequently completed all twelve
+requests, including both bounded Judges and every Round 2 Turn, with 39,269
+reported Tokens. Keep the same bounds and 61-second pacing during Expo Go.
 
 ## 2026-09-11 — Full Live Debate exceeded the Groq free request envelope
 
-**Status:** Mitigated locally; a new full two-round run is deliberately deferred.
+**Status:** Resolved for the bounded AAPL acceptance profile.
 
 **Scope and verified evidence**
 
@@ -129,11 +131,12 @@ and [HTTP error reference](https://console.groq.com/docs/errors).
 
 **Remaining follow-up**
 
-No further provider request was made in this development sequence merely to
-repeat the failed full run. On the next quota window, perform one current-SHA,
-single-process, `max_attempts=1`, 61-second-paced run and require all twelve
-attempts, both Judges, citations, reload and SSE checks to pass before Expo Go
-acceptance. No product-owner operation is required for this model-side rerun.
+The later current-SHA Session `ee8409eb-f415-54b3-892e-d47d85516ae4`
+completed all twelve attempts with one Worker attempt per phase, both Judges,
+40 citation links, canonical reload and SSE terminal checks. Its Bull, Bear and
+Judge totals were 15,851, 16,808 and 6,610 Tokens respectively, all on
+`openai/gpt-oss-20b`. Continue to apply pacing and explicit daily accounting;
+the remaining owner gate is Expo Go, not another model-side rerun.
 
 ## 2026-09-11 — Live Bear prefix lacked the required evidence citation
 
