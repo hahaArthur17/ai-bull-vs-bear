@@ -62,6 +62,7 @@ logger = logging.getLogger(__name__)
 
 DURABLE_DELTA_BATCH_MAX_CHARACTERS = 240
 DURABLE_DELTA_BATCH_MAX_CHUNKS = 12
+PREVIOUSLY_USED_POINT_MAX_CHARACTERS = 300
 
 
 class _DurableDeltaBatch:
@@ -934,7 +935,9 @@ class DebateOrchestrator:
             rebuttal_target_message_id=target_id,
             allowed_evidence_ids=session.analysis_context.allowed_evidence_ids,
             previously_used_points=tuple(
-                str(message.metadata["rebuttal_point"])
+                str(message.metadata["rebuttal_point"])[
+                    :PREVIOUSLY_USED_POINT_MAX_CHARACTERS
+                ]
                 for message in transcript
                 if message.metadata.get("rebuttal_point")
             )[-30:],

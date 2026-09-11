@@ -60,6 +60,14 @@ class InventedEvidenceProvider(RecordingProvider):
         return draft.model_copy(update={"evidence_ids": ("invented-evidence-id",)})
 
 
+class LongRebuttalPointProvider(RecordingProvider):
+    def generate_turn(self, request: DebateTurnRequest):
+        draft = super().generate_turn(request)
+        if draft.rebuttal_point is None:
+            return draft
+        return draft.model_copy(update={"rebuttal_point": "R" * 500})
+
+
 def build_queued_round_one() -> tuple[DebateSession, DebateJob]:
     context = build_current_context()
     snapshot = FactorRegistry(
@@ -172,6 +180,31 @@ def test_each_rebuttal_request_targets_the_latest_opponent_message() -> None:
             message for message in reversed(request.transcript) if message.role == opponent
         )
         assert request.rebuttal_target_message_id == latest_opponent.id
+
+
+def test_prior_rebuttal_points_are_bounded_before_the_next_turn_request() -> None:
+    provider = LongRebuttalPointProvider()
+
+    repository, provider, _, session = start_round_one(provider)
+    messages = repository.list_messages(
+        session.id,
+        session.user_id,
+        branch_id=session.active_branch_id,
+    )
+
+    assert session.status == "awaiting_user"
+    assert len(provider.turn_requests) == 6
+    assert provider.turn_requests[-1].previously_used_points
+    assert all(
+        len(str(message.metadata["rebuttal_point"])) == 500
+        for message in messages
+        if message.metadata.get("rebuttal_point")
+    )
+    assert all(
+        len(point) == 300
+        for request in provider.turn_requests[2:]
+        for point in request.previously_used_points
+    )
 
 
 def test_user_challenge_runs_round_two_and_persists_final_judge() -> None:
