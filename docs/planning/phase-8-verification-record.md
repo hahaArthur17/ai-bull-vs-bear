@@ -827,13 +827,10 @@ verifier test is excluded, 111 mobile tests and TypeScript. The isolated
 PostgreSQL runner and feature-enabled Web export also pass. No hosted migration,
 market-data refresh or model request was made during this sequence.
 
-The only uncommitted files are `scripts/verify_current_sha_live_queue.py` and
-`backend/tests/test_current_sha_live_queue_verifier.py`. Their mocked tests had
-passed, but independent review was interrupted by the requested pause. They
-must be reviewed against the actual API, SHA and `max_attempts=1` contract before
-commit or any external call. Remaining acceptance is hosted migration/runtime,
-incomplete-prefix Explanation, fresh AAPL two-round/two-Judge verification and
-Expo Go/native operation.
+That pause checkpoint is superseded: the current-SHA Live Queue verifier and
+its mocked contract tests are committed. Remaining acceptance is the fresh AAPL
+two-round/two-Judge run and Expo Go/native operation; only after Expo Go
+acceptance does the existing Render API deployment and rollback gate begin.
 
 ### 2026-09-11 — hosted interruption and current-SHA Live closure checkpoint
 
@@ -876,7 +873,16 @@ pass:
   with bounded evidence/factor/transcript projections, lowers the Judge cap to
   800 Tokens, and reduces the same offline prompt to 10,827 characters.
 
-After `399e6fe`, 513 backend tests pass with one existing Starlette deprecation
+An additional no-provider-call audit then found the same Session's six-message
+Round 2 opening Turn Prompt at 24,954 characters and a twelve-message late-round
+projection at 31,127. `7f6a4da` caps Turn evidence, factors, transcript,
+interrupted prefixes and prior points, and lowers the default Turn completion
+cap to 800 Tokens. The corresponding reconstructions are now 12,813 and 16,289
+characters. Its worst-input test also covers extra evidence/factors, fourteen
+long messages, six interrupted prefixes, thirty prior points and maximum
+question/interjection text.
+
+After `7f6a4da`, 515 backend tests pass with one existing Starlette deprecation
 warning; 111 mobile tests and TypeScript also pass. No generated transcript or
 credential was written to this record.
 Known reported usage across these Sessions is 53,895 Tokens; failed or rejected

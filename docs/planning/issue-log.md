@@ -21,6 +21,39 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Late Round 2 Turn Prompt lacked free-tier margin
+
+**Status:** Mitigated locally; the full two-round run remains deliberately deferred.
+
+**Scope and verified evidence**
+
+After bounding the Judge, a no-provider-call reconstruction of retained Session
+`0fc62829-dd7b-56c9-a766-0e2e1b3092db` found that the six-message Round 2
+opening Turn Prompt still contained 24,954 characters and a late-Round-2
+projection reached 31,127. This had not yet failed a provider request, but left
+insufficient input/output margin under the same 8K TPM free-provider envelope
+that had already affected the full run.
+
+**Mitigation and verification**
+
+`7f6a4da` caps the Turn projection at six evidence items, twelve factor
+observations, ten transcript messages, six interrupted prefixes and eight prior
+points; it also bounds individual text fields and lowers the default completion
+cap from 1,600 to 800 Tokens. The same retained Session now reconstructs to
+12,813 characters for the Round 2 opening and 16,289 for a twelve-message late
+Round 2 projection. A worst-input unit test includes eight source evidence
+items, 51 factors, 14 long transcript messages, six maximum-length interrupted
+prefixes, 30 prior points and maximum question/interjection text. The full
+backend suite passes 515 tests with one existing Starlette warning. No Groq
+request or generated-text logging was used for this verification.
+
+**Remaining follow-up**
+
+The character projection is calibrated to the retained English AAPL inputs; it
+is not a universal tokenizer proof for arbitrary high-Unicode content. Use only
+the reviewed `7f6a4da` or later SHA for the next single paced full run, retain
+the twelve-request ceiling, and record actual provider Tokens before Expo Go.
+
 ## 2026-09-11 — Full Live Debate exceeded the Groq free request envelope
 
 **Status:** Mitigated locally; a new full two-round run is deliberately deferred.
