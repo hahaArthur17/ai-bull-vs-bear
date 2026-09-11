@@ -26,7 +26,7 @@ export function exactExplanationTerm(
 ): string | null {
   const selectedText = term.trim();
   if (
-    !record.message.is_complete
+    !isExplanationSource(record)
     || !selectedText
     || selectedText.length > 500
     || !record.message.content.includes(selectedText)
@@ -34,6 +34,17 @@ export function exactExplanationTerm(
     return null;
   }
   return selectedText;
+}
+
+/**
+ * A durable interrupted prefix is explainable but never promoted to a complete
+ * claim. Empty before-output anchors intentionally have no Explanation action.
+ */
+export function isExplanationSource(record: DebateMessageRecord): boolean {
+  return record.message.is_complete || (
+    record.message.metadata.interrupted === true
+    && record.message.content.trim().length > 0
+  );
 }
 
 

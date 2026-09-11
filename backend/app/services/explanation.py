@@ -13,7 +13,7 @@ class ExplanationError(RuntimeError):
 
 
 class ExplanationNotFound(ExplanationError):
-    """The owned Session or selected complete message does not exist."""
+    """The owned Session or selected explainable message does not exist."""
 
 
 class ExplanationValidationError(ExplanationError):
@@ -56,8 +56,16 @@ class ExplanationService:
             (message for message in messages if message.id == source_message_id),
             None,
         )
-        if source is None or not source.is_complete:
+        source_is_explainable = source is not None and (
+            source.is_complete
+            or (
+                source.metadata.get("interrupted") is True
+                and bool(source.content.strip())
+            )
+        )
+        if not source_is_explainable:
             raise ExplanationNotFound("Debate explanation source was not found")
+        assert source is not None
         citations = self.repository.list_message_evidence(source.id, user_id)
         allowed_evidence_ids = frozenset(
             citation.evidence_id

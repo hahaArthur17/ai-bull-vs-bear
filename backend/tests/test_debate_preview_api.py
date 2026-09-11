@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
 from fastapi.testclient import TestClient
 
 from app import main
+from app.domain.debate import DebateDraftCheckpoint
 from app.domain.explanations import ExplanationDraft
 from app.providers.current_factors import build_current_factor_registry
 from app.providers.deterministic_debate import DeterministicDebateProvider
@@ -17,6 +19,7 @@ from app.services.debate_admission import DebateAdmissionPolicy, DebateIdempoten
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
+from app.services.debate_state import transition_session
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
 from app.services.explanation_admission import ExplanationAdmissionPolicy
@@ -248,6 +251,74 @@ def test_explanation_endpoint_returns_a_bounded_read_only_result(
         session_id,
         user_id,
         branch_id=session_before.active_branch_id,
+    ) == messages_before
+
+
+def test_explanation_endpoint_accepts_a_frozen_interrupted_prefix_without_mutation(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    enable_preview(monkeypatch)
+    user_id = uuid5(NAMESPACE_URL, "ai-bull-vs-bear:user:preview-user")
+    queued, job = build_queued_round_one()
+    queued = queued.model_copy(update={"user_id": user_id})
+    job = job.model_copy(update={"user_id": user_id})
+    assert main.debate_preview_service is not None
+    repository = main.debate_preview_service.repository
+    repository.create_session_with_job(queued, job)
+    running = transition_session(
+        queued,
+        "running_round_1",
+        at=queued.updated_at + timedelta(seconds=1),
+    )
+    repository.update_session(running, expected_status="queued_round_1")
+    checkpoint = DebateDraftCheckpoint(
+        message_id=uuid4(),
+        session_id=running.id,
+        branch_id=running.active_branch_id,
+        generation_id=running.active_generation_id,
+        sequence_number=1,
+        round_number=1,
+        exchange_number=1,
+        role="bull",
+        message_kind="argument",
+        content="Visible interrupted prefix with a possible unfinished conclusion",
+        created_at=running.updated_at,
+    )
+    repository.checkpoint_draft(checkpoint)
+    stopped = repository.interrupt_generation(
+        running.id,
+        running.user_id,
+        running.active_generation_id,
+        checkpoint.message_id,
+        "Visible interrupted prefix",
+        running.updated_at + timedelta(seconds=1),
+    )
+    job_before = repository.get_job(job.id)
+    messages_before = repository.list_messages(
+        stopped.id,
+        stopped.user_id,
+        branch_id=stopped.active_branch_id,
+    )
+
+    response = client.post(
+        f"/debates/{stopped.id}/explanations",
+        headers={"X-User-Id": "preview-user"},
+        json={
+            "message_id": str(checkpoint.message_id),
+            "selected_text": "interrupted prefix",
+            "question": "What can this unfinished point mean?",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["evidence_ids"] == []
+    assert "interrupted Bull prefix" in response.json()["content"]
+    assert repository.get_session(stopped.id, stopped.user_id) == stopped
+    assert repository.get_job(job.id) == job_before
+    assert repository.list_messages(
+        stopped.id,
+        stopped.user_id,
+        branch_id=stopped.active_branch_id,
     ) == messages_before
 
 

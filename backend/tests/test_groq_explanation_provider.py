@@ -206,6 +206,25 @@ def test_prompt_never_includes_unlinked_evidence_identifiers() -> None:
     assert "unlinked-evidence" not in prompt
 
 
+def test_prompt_marks_interrupted_prefix_as_unfinished() -> None:
+    request = grounded_request()
+    source = request.source_message.model_copy(
+        update={
+            "content": "The moving average may",
+            "is_complete": False,
+            "cancelled_at": request.source_message.created_at,
+            "metadata": {"interrupted": True},
+        }
+    )
+
+    prompt = build_groq_explanation_prompt(
+        request.model_copy(update={"source_message": source})
+    )
+
+    assert '"state":"interrupted_prefix"' in prompt
+    assert "do not infer its missing conclusion" in prompt
+
+
 def test_prompt_neutralizes_historical_source_citation_aliases() -> None:
     request = grounded_request()
     source = request.source_message.model_copy(

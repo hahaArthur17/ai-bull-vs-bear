@@ -6,6 +6,7 @@ import {
   defaultExplanationQuestion,
   defaultPointPassage,
   exactExplanationTerm,
+  isExplanationSource,
 } from "./explanationView.ts";
 import type { DebateMessageRecord } from "./types";
 
@@ -31,15 +32,33 @@ const message: DebateMessageRecord = {
 };
 
 
-test("Explanation terms must be exact selections from complete messages", () => {
+test("Explanation terms must be exact selections from eligible messages", () => {
   assert.equal(exactExplanationTerm(message, " moving average "), "moving average");
   assert.equal(exactExplanationTerm(message, "invented term"), null);
+  const interrupted = {
+    ...message,
+    message: {
+      ...message.message,
+      content: "The moving average may",
+      is_complete: false,
+      metadata: { interrupted: true },
+    },
+  };
+  assert.equal(isExplanationSource(interrupted), true);
+  assert.equal(exactExplanationTerm(interrupted, "moving average"), "moving average");
   assert.equal(
     exactExplanationTerm(
       { ...message, message: { ...message.message, is_complete: false } },
       "moving average",
     ),
     null,
+  );
+  assert.equal(
+    isExplanationSource({
+      ...interrupted,
+      message: { ...interrupted.message, content: "   " },
+    }),
+    false,
   );
   assert.equal(
     defaultExplanationQuestion("moving average"),

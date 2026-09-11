@@ -11,12 +11,14 @@ export type InterruptionComposerBusy = "save" | "continue" | "end" | null;
 export type InterruptionComposerProps = {
   value: string;
   onChange: (value: string) => void;
+  onExplainStoppedText: () => void;
   onSave: () => void;
   onContinue: () => void;
   onEnd: () => void;
   busy: InterruptionComposerBusy;
   saved: boolean;
   error?: string;
+  canExplainStoppedText: boolean;
   canContinue: boolean;
 };
 
@@ -32,12 +34,14 @@ export function truncateInterruptionViewpoint(
 export function InterruptionComposer({
   value,
   onChange,
+  onExplainStoppedText,
   onSave,
   onContinue,
   onEnd,
   busy,
   saved,
   error,
+  canExplainStoppedText,
   canContinue,
 }: InterruptionComposerProps) {
   const displayedValue = truncateInterruptionViewpoint(value);
@@ -55,6 +59,24 @@ export function InterruptionComposer({
       <Text style={styles.intro}>
         Save your viewpoint as context for this interruption. Saving does not call the model; Continue resumes the debate explicitly.
       </Text>
+
+      {canExplainStoppedText ? (
+        <FocusablePressable
+          accessibilityHint="Opens a read-only explanation without resuming or changing the debate."
+          accessibilityLabel="Explain stopped text"
+          accessibilityRole="button"
+          accessibilityState={{ disabled: isBusy }}
+          disabled={isBusy}
+          onPress={onExplainStoppedText}
+          style={[styles.explainButton, isBusy && styles.disabledButton]}
+        >
+          <Text style={styles.explainButtonText}>Explain stopped text</Text>
+        </FocusablePressable>
+      ) : (
+        <Text style={styles.explainUnavailable}>
+          No text was shown before this stop, so there is nothing to explain.
+        </Text>
+      )}
 
       <Text nativeID="interruption-viewpoint-label" style={styles.label}>YOUR VIEWPOINT</Text>
       <TextInput
@@ -213,6 +235,27 @@ const styles = StyleSheet.create({
     lineHeight: 18,
     marginTop: spacing.md,
     padding: spacing.sm,
+  },
+  explainButton: {
+    alignItems: "center",
+    borderColor: colors.action.primary,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    justifyContent: "center",
+    marginTop: spacing.md,
+    minHeight: interaction.minTargetSize,
+    paddingHorizontal: spacing.md,
+  },
+  explainButtonText: {
+    color: colors.action.primary,
+    fontSize: 13,
+    fontWeight: "800",
+  },
+  explainUnavailable: {
+    color: colors.content.secondary,
+    fontSize: 11,
+    lineHeight: 16,
+    marginTop: spacing.md,
   },
   primaryButton: {
     alignItems: "center",

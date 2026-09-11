@@ -455,6 +455,11 @@ export function LiveDebateScreen({
     && snapshot.activeGenerationId !== null
     && interruptionPoint !== null;
   const interruptionJobSettled = !isInterruptionJobPending(snapshot.jobStatus);
+  const canExplainStoppedText = interruptionPoint !== null
+    && exactExplanationTerm(
+      interruptionPoint,
+      defaultPointPassage(interruptionPoint.message.content),
+    ) !== null;
   const drafts = revealDisplay.drafts;
   const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
     || snapshot.sessionStatus === "running_round_2"
@@ -532,7 +537,7 @@ export function LiveDebateScreen({
   const selectExplanationTerm = (record: DebateMessageRecord, term: string) => {
     const selectedTerm = exactExplanationTerm(record, term);
     if (selectedTerm === null) {
-      setActionError("This term is not an exact selection from a complete message.");
+      setActionError("This term is not an exact selection from an explainable message.");
       return;
     }
     invalidateExplanationRequest();
@@ -960,11 +965,15 @@ export function LiveDebateScreen({
             setInterruptionError("");
           }}
           onSave={() => void saveInterjection()}
+          onExplainStoppedText={() => {
+            if (interruptionPoint) openPointQuestion(interruptionPoint);
+          }}
           onContinue={() => void continueInterruptedDebate()}
           onEnd={() => void endInterruptedDebate()}
           busy={interruptionBusy}
           saved={interjectionSaved}
           error={interruptionError || undefined}
+          canExplainStoppedText={canExplainStoppedText}
           canContinue={interruptionJobSettled && savedInterjection !== null}
         />
       ) : null}
@@ -1085,6 +1094,7 @@ function PointInquiryModal({
   onSubmitChallenge: () => void;
 }) {
   const isChallengeConfirmation = mode === "challenge";
+  const isInterruptedPrefix = !target.message.is_complete;
   const canDismiss = canDismissPointInquiry(challenging);
   const canPrepareChallenge = canPrepareRoundTwoChallenge({
     canChallenge,
@@ -1149,12 +1159,18 @@ function PointInquiryModal({
               </FocusablePressable>
             </View>
             <Text style={screenStyles.modalTitle}>
-              {isChallengeConfirmation ? "Start a second debate round?" : "Ask before you challenge"}
+              {isChallengeConfirmation
+                ? "Start a second debate round?"
+                : isInterruptedPrefix
+                  ? "Ask about the stopped text"
+                  : "Ask before you challenge"}
             </Text>
             <Text style={screenStyles.modalHelp}>
               {isChallengeConfirmation
                 ? "This will commit your exact question and start Round 2. It is a Debate intervention, not an explanation."
-                : "Ask the Explainer about this passage first. Its answer is educational, grounded in the completed message and linked evidence, and does not change the Debate."}
+                : isInterruptedPrefix
+                  ? "Ask the Explainer about an exact passage in the frozen prefix. The response treats it as unfinished, has no unverified citations, and does not resume or change the Debate."
+                  : "Ask the Explainer about this passage first. Its answer is educational, grounded in the completed message and linked evidence, and does not change the Debate."}
             </Text>
 
             <Text style={screenStyles.inputLabel}>
@@ -1169,7 +1185,9 @@ function PointInquiryModal({
               placeholder="Keep an exact passage from this message"
               placeholderTextColor={colors.muted}
               accessibilityLabel="Exact passage from the selected Debate message"
-              accessibilityHint="Edit this only to another exact passage from the same completed message."
+              accessibilityHint={isInterruptedPrefix
+                ? "Edit this only to another exact passage from the same frozen prefix."
+                : "Edit this only to another exact passage from the same completed message."}
             />
             {!selectedTextIsValid ? (
               <Text style={screenStyles.validationText}>

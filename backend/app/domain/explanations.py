@@ -46,8 +46,14 @@ class ExplanationAgentRequest(ImmutableDomainModel):
             or self.source_message.branch_id != self.branch_id
         ):
             raise ValueError("Explanation source must belong to the selected branch")
-        if not self.source_message.is_complete:
-            raise ValueError("Explanation source must be a complete message")
+        is_interrupted_prefix = (
+            not self.source_message.is_complete
+            and self.source_message.metadata.get("interrupted") is True
+        )
+        if not self.source_message.is_complete and not is_interrupted_prefix:
+            raise ValueError(
+                "Explanation source must be complete or an interrupted prefix"
+            )
         if self.selected_text not in self.source_message.content:
             raise ValueError("Selected text must occur in the source message")
         if self.analysis_context.ticker != self.ticker:

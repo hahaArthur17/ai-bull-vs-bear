@@ -1,4 +1,5 @@
-from uuid import UUID
+from datetime import timedelta
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -15,6 +16,8 @@ from app.services.explanation import (
     ExplanationValidationError,
 )
 from app.services.guardrails import DISCLAIMER
+from test_debate_domain import NOW
+from test_memory_debate_repository import build_message, store_running_round_one
 
 
 USER_ID = UUID("00000000-0000-4000-8000-000000000701")
@@ -107,6 +110,89 @@ def test_deterministic_explanation_accepts_a_long_exact_passage() -> None:
     assert result.selected_text == selected_text
     assert result.terms == ()
     assert "Can you explain this point" in result.content
+
+
+def test_interrupted_prefix_explanation_is_read_only_and_has_no_citations() -> None:
+    repository = InMemoryDebateRepository()
+    running = store_running_round_one(repository)
+    draft = build_message(content="Visible unfinished prefix with bounded context")
+    repository.checkpoint_draft(draft)
+    stopped = repository.interrupt_generation(
+        running.id,
+        running.user_id,
+        running.active_generation_id,
+        draft.id,
+        "Visible unfinished prefix",
+        NOW + timedelta(seconds=5),
+    )
+    messages_before = repository.list_messages(
+        stopped.id,
+        stopped.user_id,
+        branch_id=stopped.active_branch_id,
+    )
+
+    result = ExplanationService(
+        repository,
+        DeterministicExplanationProvider(),
+    ).explain(
+        session_id=stopped.id,
+        user_id=stopped.user_id,
+        source_message_id=messages_before[0].id,
+        selected_text="unfinished prefix",
+        question="What can this partial point mean without assuming its conclusion?",
+    )
+
+    assert "interrupted Bull prefix" in result.content
+    assert result.evidence_ids == ()
+    assert repository.get_session(stopped.id, stopped.user_id) == stopped
+    assert repository.list_messages(
+        stopped.id,
+        stopped.user_id,
+        branch_id=stopped.active_branch_id,
+    ) == messages_before
+
+
+def test_explanation_rejects_empty_or_unmarked_incomplete_sources() -> None:
+    repository = InMemoryDebateRepository()
+    running = store_running_round_one(repository)
+    stopped = repository.interrupt_before_output_generation(
+        running.id,
+        running.user_id,
+        running.active_generation_id,
+        NOW + timedelta(seconds=5),
+    )
+    empty_source = repository.list_messages(
+        stopped.id,
+        stopped.user_id,
+        branch_id=stopped.active_branch_id,
+    )[0]
+    service = ExplanationService(repository, DeterministicExplanationProvider())
+
+    with pytest.raises(ExplanationNotFound):
+        service.explain(
+            session_id=stopped.id,
+            user_id=stopped.user_id,
+            source_message_id=empty_source.id,
+            selected_text="invented",
+            question="What does this mean?",
+        )
+
+    unmarked = empty_source.model_copy(
+        update={
+            "id": uuid4(),
+            "content": "Unmarked incomplete content",
+            "metadata": {},
+        }
+    )
+    repository._messages[unmarked.id] = unmarked
+    with pytest.raises(ExplanationNotFound):
+        service.explain(
+            session_id=stopped.id,
+            user_id=stopped.user_id,
+            source_message_id=unmarked.id,
+            selected_text="incomplete content",
+            question="What does this mean?",
+        )
 
 
 def test_explanation_requires_owned_active_branch_message_and_exact_text() -> None:

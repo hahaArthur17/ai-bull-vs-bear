@@ -34,6 +34,11 @@ class DeterministicExplanationProvider:
         request: ExplanationAgentRequest,
     ) -> ExplanationDraft:
         role = request.source_message.role.capitalize()
+        source_description = (
+            f"an interrupted {role} prefix"
+            if not request.source_message.is_complete
+            else f"a complete {role} message"
+        )
         evidence_note = (
             "The source message links to frozen evidence, but that evidence remains dated "
             "and incomplete."
@@ -42,7 +47,7 @@ class DeterministicExplanationProvider:
         )
         return ExplanationDraft(
             content=(
-                f'Here, "{request.selected_text}" appears in a complete {role} message. '
+                f'Here, "{request.selected_text}" appears in {source_description}. '
                 "Read it only within that message and the session's frozen factor/evidence "
                 "snapshot; it does not establish causation or predict a future return. "
                 f"{evidence_note} The user's question was: {request.question}"
