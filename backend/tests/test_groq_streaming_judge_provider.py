@@ -8,7 +8,10 @@ import pytest
 
 from app.domain.agents import DebateJudgeRequest
 from app.domain.debate import DebateMessage
-from app.providers.groq_streaming_judge import GroqStreamingJudgeProvider
+from app.providers.groq_streaming_judge import (
+    GroqStreamingJudgeProvider,
+    build_groq_judge_prompt,
+)
 from app.services.debate_streaming import DebateTurnStreamError, collect_debate_judge_stream
 from test_groq_streaming_debate_provider import FakeGroqClient, FakeUsage, chunk, grounded_request
 
@@ -58,7 +61,7 @@ def test_live_judge_streams_summary_and_reports_usage() -> None:
         client=client,
     )
 
-    result = collect(provider)
+    result = collect(provider, judge_request(max_output_chars=1200))
 
     assert result.draft.evidence_ids == ("news-1",)
     assert result.usage.prompt_tokens == 23
@@ -67,6 +70,35 @@ def test_live_judge_streams_summary_and_reports_usage() -> None:
     assert result.delta_count >= 1
     assert client.completions.kwargs is not None
     assert client.completions.kwargs["stream"] is True
+    assert client.completions.kwargs["max_completion_tokens"] == 800
+
+
+def test_judge_prompt_uses_a_bounded_projection_and_repeats_citation_contract() -> None:
+    base = judge_request(max_output_chars=2400)
+    transcript = tuple(
+        base.transcript[0].model_copy(
+            update={
+                "sequence_number": index,
+                "content": "A" * 4000,
+            }
+        )
+        for index in range(1, 15)
+    )
+    request = base.model_copy(
+        update={
+            "transcript": transcript,
+            "factor_snapshot": base.factor_snapshot.model_copy(
+                update={"observations": base.factor_snapshot.observations * 51}
+            ),
+        }
+    )
+
+    prompt = build_groq_judge_prompt(request)
+
+    assert len(prompt) < 16_000
+    assert prompt.count("A" * 600) == 12
+    assert prompt.index("<response_contract>") > prompt.index("</frozen_context>")
+    assert "begin the response with one or more relevant exact evidence aliases" in prompt
 
 
 @pytest.mark.parametrize(

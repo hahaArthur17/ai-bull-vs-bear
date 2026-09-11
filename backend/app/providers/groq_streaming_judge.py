@@ -27,16 +27,25 @@ from app.services.guardrails import DISCLAIMER, REWRITES, apply_guardrails
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
 _CITATION_TOKEN_PATTERN = re.compile(r"\[E[0-9][^\]\r\n]*\]")
 _GUARDRAIL_HOLDBACK_CHARS = max(len(phrase) for phrase in REWRITES) - 1
+_MAX_EVIDENCE_ITEMS = 6
+_MAX_FACTOR_OBSERVATIONS = 12
+_MAX_TRANSCRIPT_MESSAGES = 12
+_MAX_EVIDENCE_TITLE_CHARS = 240
+_MAX_EVIDENCE_EXCERPT_CHARS = 420
+_MAX_FACTOR_LABEL_CHARS = 120
+_MAX_FACTOR_INTERPRETATION_CHARS = 240
+_MAX_TRANSCRIPT_CONTENT_CHARS = 600
+_DEFAULT_MAX_COMPLETION_TOKENS = 800
 
 
 def _aliases(request: DebateJudgeRequest) -> dict[str, str]:
-    return {
-        f"E{index}": item.id
-        for index, item in enumerate(
-            (item for item in request.analysis_context.evidence if item.id in request.allowed_evidence_ids),
-            start=1,
-        )
-    }
+    aliases: dict[str, str] = {}
+    for item in request.analysis_context.evidence:
+        if item.id in request.allowed_evidence_ids:
+            aliases[f"E{len(aliases) + 1}"] = item.id
+        if len(aliases) == _MAX_EVIDENCE_ITEMS:
+            break
+    return aliases
 
 
 def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 120) -> str:
@@ -49,14 +58,32 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
         "evidence": [
             {
                 "citation": f"[{alias}]",
-                "title": evidence_by_id[evidence_id].title,
+                "title": evidence_by_id[evidence_id].title[:_MAX_EVIDENCE_TITLE_CHARS],
                 "source_type": evidence_by_id[evidence_id].source_type,
                 "published_at": evidence_by_id[evidence_id].published_at,
-                "excerpt": evidence_by_id[evidence_id].excerpt[:700],
+                "excerpt": evidence_by_id[evidence_id].excerpt[
+                    :_MAX_EVIDENCE_EXCERPT_CHARS
+                ],
             }
             for alias, evidence_id in aliases.items()
         ],
-        "factor_observations": [item.model_dump(mode="json") for item in request.factor_snapshot.observations[:20]],
+        "factor_observations": [
+            {
+                "label": item.label[:_MAX_FACTOR_LABEL_CHARS],
+                "category": item.category,
+                "direction": item.direction,
+                "confidence": item.confidence,
+                "as_of": item.as_of,
+                "value": item.value,
+                "unit": item.unit,
+                "interpretation": item.interpretation[
+                    :_MAX_FACTOR_INTERPRETATION_CHARS
+                ],
+            }
+            for item in request.factor_snapshot.observations[
+                :_MAX_FACTOR_OBSERVATIONS
+            ]
+        ],
         "unfinished_context_not_evidence": [
             {"role": message.role, "content": message.content[:900], "is_complete": False}
             for message in request.interrupted_context
@@ -66,9 +93,9 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
                 "role": message.role,
                 "round": message.round_number,
                 "exchange": message.exchange_number,
-                "content": message.content[:900],
+                "content": message.content[:_MAX_TRANSCRIPT_CONTENT_CHARS],
             }
-            for message in request.transcript[-14:]
+            for message in request.transcript[-_MAX_TRANSCRIPT_MESSAGES:]
         ],
     }
     # Interrupted text is user-selected context, never validated evidence.
@@ -85,7 +112,12 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
         "target, or promise an outcome. " + citation_rule + " Return plain user-facing prose only, "
         "with no JSON, headings, code fence, or hidden reasoning. Stay under "
         f"{request.max_output_chars} characters and {word_limit} words.\n\n<frozen_context>\n"
-        f"{json.dumps(payload, ensure_ascii=False, default=str)}\n</frozen_context>"
+        f"{json.dumps(payload, ensure_ascii=False, default=str)}\n</frozen_context>\n\n"
+        "<response_contract>\n"
+        "When frozen_context.evidence is non-empty, begin the response with one or more "
+        "relevant exact evidence aliases copied from that list, such as [E1]. A response "
+        "without at least one exact evidence alias will be rejected.\n"
+        "</response_contract>"
     )
 
 
@@ -121,7 +153,7 @@ class GroqStreamingJudgeProvider:
     name = "groq-live-judge"
     version = "v1"
 
-    def __init__(self, *, api_key: str | None, model: str, timeout_seconds: float = 45, max_completion_tokens: int = 1600, client: Any | None = None) -> None:
+    def __init__(self, *, api_key: str | None, model: str, timeout_seconds: float = 45, max_completion_tokens: int = _DEFAULT_MAX_COMPLETION_TOKENS, client: Any | None = None) -> None:
         if not api_key:
             raise GroqDebateConfigurationError("GROQ_API_KEY is required when DEBATE_STREAMING_JUDGE_PROVIDER=groq")
         if not 1 <= max_completion_tokens <= 1600:
