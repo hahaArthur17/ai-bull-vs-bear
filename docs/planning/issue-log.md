@@ -21,6 +21,41 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Live Queue verifier review found false-positive acceptance paths
+
+**Status:** Resolved locally in `63406d4`; hosted/live execution remains open.
+
+**Scope and verified evidence**
+
+The paused verifier initially allowed an async deterministic provider to satisfy
+the “live” metadata check, accepted a failed-only provider-attempt row as coverage
+for a canonical completed message, omitted the observed server SHA from its
+report, and did not require per-message delta/citation events or a complete
+current-data snapshot. Its reconnect test also combined an initial connection
+failure and a deliberate short stream inside a one-reconnect limit, so the test
+failed before any external request was made.
+
+**Mitigation and verification**
+
+`63406d4` requires the expected live Turn and Judge provider identities, at
+least one successful positive-Token attempt for every canonical model message,
+per-message started/delta/citation/completed SSE evidence, the actual server SHA,
+and a non-content AAPL snapshot summary covering prices, quote, news/filing,
+seven macro series and SEC facts. The reconnect fixture now separates a passing
+two-reconnect case from the bounded failure case. Twelve focused tests and all
+492 backend tests pass; no provider or market-data request was made by this
+review.
+
+**Remaining follow-up**
+
+Apply and verify the interruption migration on the hosted Supabase project,
+refresh only sources that fail the current preflight, and execute exactly one
+bounded current-SHA run with the dedicated acceptance user. Record the Session
+ID, provider attempt/Token summary and any unknown usage without storing the
+generated transcript or credentials.
+
+---
+
 ## 2026-09-11 — Independent staging removed from the project release scope
 
 **Status:** Scope decision recorded; active plans synchronized.

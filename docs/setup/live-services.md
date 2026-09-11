@@ -347,8 +347,9 @@ be selected before an ingestion adapter can be implemented.
 
 ## Controlled Expo Go Live Acceptance profile
 
-Status (2026-09-09): implementation and bounded data/model probes have progressed;
-full Expo Go acceptance remains unexecuted. See
+Status (2026-09-11): implementation and bounded data/model probes have progressed;
+the reviewed current-SHA Live Queue verifier is committed, and full Expo Go
+acceptance remains unexecuted. See
 [`remaining roadmap`](../planning/wp8l-next-steps.md). The canonical
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
@@ -359,6 +360,21 @@ Alpha Vantage, Finnhub, and SEC settings, but the V2/Queue/live-provider/Expo V2
 flags are unset and therefore use safe disabled/deterministic defaults. Never
 record or print the credential values.
 
+For the current WP8L acceptance sequence, the product owner has authorized
+model and stock/market-data calls within the existing daily free allowances and
+the repository's hard request caps; do not ask again for each call. This is not
+permission to raise a cap, repeat a same-day refresh without evidence that it is
+due, enable an unbounded retry, or expose credentials/generated transcript
+content. Read cache timestamps and known call records first, and record failed
+requests plus unknown provider usage.
+
+All delegated work in this sequence uses `gpt-5.6-luna` with `xhigh` reasoning
+and runs in parallel only for non-overlapping files and external state. Material
+incidents are reconciled against `docs/planning/issue-log.md` before Root adds a
+new append-only entry. If a non-Expo blocker still requires user action after
+2–3 materially different attempts, stop that path and give the user exact
+recovery steps.
+
 ### 1. Confirm provider truth before any write or model call
 
 - Recheck the active Groq model through the Models API and current provider
@@ -368,15 +384,16 @@ record or print the credential values.
 - Treat the newest Alpha Vantage daily row as the latest completed OHLCV close
   for chart/indicator calculations. `TIME_SERIES_DAILY` is a daily-history
   source, not the app's real-time quote channel.
-- Confirm the intended request budget before each live test. The existing Round
-  1 verifier makes at most six non-retried Bull/Bear requests; Judge and
-  Explanation have separate provider contracts and budgets.
+- Confirm the intended request budget before each live test. The current-SHA
+  verifier admits at most one two-round run with twelve non-retried requests:
+  ten Bull/Bear Turns and two independently metered Judges. Explanation remains
+  a separate provider contract and budget.
 
 ### 2. Refresh real AAPL inputs, one bounded source at a time
 
-These commands write provider data into the configured Supabase project. Run
-them only after explicit authorization and no more frequently than their source
-budgets require:
+These commands write provider data into the configured Supabase project. The
+current acceptance sequence already has authorization within the documented
+hard caps; run them no more frequently than their source budgets require:
 
 ```shell
 PYTHONPATH=backend backend/.venv/bin/python scripts/ingest_live_prices.py
@@ -391,19 +408,29 @@ stale state, and data mode. Stop before model use if the daily cache failed to
 advance when expected, fewer than 50 valid closes remain, or simulated/fallback
 provenance appears.
 
-### 3. Run the quota-bounded provider verifier
+### 3. Run the quota-bounded current-SHA provider verifier
 
-After revalidating the model and accepting six provider requests:
+After revalidating both configured Groq providers, refreshing only data that is
+due, and setting the expected build SHA, start the single-process API/Worker/SSE
+runtime described below. Obtain a bearer token for the dedicated acceptance
+user without printing it, then run:
 
 ```shell
-DEBATE_STREAMING_PROVIDER=groq PYTHONPATH=backend \
-  backend/.venv/bin/python scripts/verify_groq_debate_streaming.py \
-  --confirm-live-quota
+DEBATE_API_BASE_URL=http://127.0.0.1:8000 \
+EXPECTED_CURRENT_SHA=$(git rev-parse HEAD) \
+PYTHONPATH=backend backend/.venv/bin/python \
+  scripts/verify_current_sha_live_queue.py
 ```
 
-Require ordered deltas, six complete Bull/Bear Turns, valid citation IDs,
-nonzero token accounting, reconnect, and cleanup. The present verifier uses a
-deterministic local Judge; it is not proof that every visible agent is live.
+Set `DEBATE_API_TOKEN` in the calling shell through the local secret workflow;
+do not paste it into a committed command, report, screenshot, or shell history.
+
+The verifier requires Queue `202`, ordered live-provider deltas, ten complete
+Bull/Bear Turns, both live Judges, valid citation IDs, canonical reload, current
+AAPL snapshot counts/provenance, positive token accounting, no Worker retries,
+the exact server SHA, and a twelve-request ceiling. It records the created
+Session ID and does not pretend to clean it up when no exact delete endpoint is
+configured.
 
 ### 4. Start one controlled standard-mode session
 
@@ -415,7 +442,9 @@ in one process because live deltas are currently process-local. Do not use
 cd backend
 ENVIRONMENT=development APP_DATA_MODE=standard \
 DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
-DEBATE_STREAMING_PROVIDER=groq \
+DEBATE_INTERRUPTIONS_ENABLED=true DEBATE_JOB_MAX_ATTEMPTS=1 \
+DEBATE_STREAMING_PROVIDER=groq DEBATE_STREAMING_JUDGE_PROVIDER=groq \
+APP_BUILD_SHA=$(git rev-parse HEAD) \
 .venv/bin/python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
