@@ -555,6 +555,7 @@ def test_sse_connection_failure_respects_reconnect_bound() -> None:
 
 def test_terminal_session_failure_stops_without_burning_reconnect_budget() -> None:
     transport, state = fixture_transport(include_r1_retry=False, max_attempts=1)
+    state["r1_attempts"] = state["r1_attempts"][:5]
     state["r1_events"] = state["r1_events"][:3] + [
         event(
             4,
@@ -582,6 +583,20 @@ def test_terminal_session_failure_stops_without_burning_reconnect_budget() -> No
     )
     assert sum(path.endswith("/events") for _, path, _ in state["requests"]) == 2
     assert not any(path.endswith("/interventions") for _, path, _ in state["requests"])
+    assert report["observed_provider_requests"] == 5
+    assert report["failure_provider_accounting"] == {
+        "admitted_count": 5,
+        "dispatch_attempts": 5,
+        "reported_tokens": 75,
+        "unknown_usage_attempts": 0,
+        "completed_attempts": 5,
+        "failed_attempts": 0,
+        "unsettled_attempts": 0,
+        "reported_prompt_tokens": 50,
+        "reported_completion_tokens": 25,
+        "usage_valid": True,
+        "summary_accounting": True,
+    }
 
 
 def test_deterministic_providers_cannot_pass_live_acceptance() -> None:

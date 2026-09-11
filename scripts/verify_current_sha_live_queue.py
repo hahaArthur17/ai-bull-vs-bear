@@ -808,6 +808,75 @@ def _check_attempts(
     }
 
 
+def _summarize_failure_attempts(
+    attempts_payload: dict[str, Any],
+    *,
+    budget: ProviderBudget,
+) -> dict[str, Any]:
+    """Retain safe provider accounting when a workflow fails before a phase gate."""
+
+    raw_attempts = attempts_payload.get("attempts")
+    if not isinstance(raw_attempts, list):
+        raise AcceptanceError("Provider audit did not contain an attempts list")
+    attempts = [_object(item, "Provider attempt") for item in raw_attempts]
+    budget.observe(attempts)
+    reported_prompt = reported_completion = reported_total = 0
+    unknown_usage = 0
+    usage_valid = True
+    for attempt in attempts:
+        usage_status = attempt.get("usage_status")
+        values = tuple(
+            attempt.get(key)
+            for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+        )
+        if usage_status == "unknown":
+            unknown_usage += 1
+            usage_valid = usage_valid and all(value is None for value in values)
+        elif usage_status == "reported":
+            valid_values = all(
+                isinstance(value, int)
+                and not isinstance(value, bool)
+                and value >= 0
+                for value in values
+            )
+            if not valid_values or values[2] != values[0] + values[1]:
+                usage_valid = False
+            else:
+                reported_prompt += values[0]
+                reported_completion += values[1]
+                reported_total += values[2]
+        else:
+            usage_valid = False
+    dispatched = sum(bool(attempt.get("dispatched_at")) for attempt in attempts)
+    summary_values = {
+        "admitted_count": len(attempts),
+        "dispatch_attempts": dispatched,
+        "reported_tokens": reported_total,
+        "unknown_usage_attempts": unknown_usage,
+    }
+    summary_matches = all(
+        key not in attempts_payload or attempts_payload.get(key) == expected
+        for key, expected in summary_values.items()
+    )
+    return {
+        **summary_values,
+        "completed_attempts": sum(
+            attempt.get("outcome") == "completed" for attempt in attempts
+        ),
+        "failed_attempts": sum(
+            attempt.get("outcome") == "failed" for attempt in attempts
+        ),
+        "unsettled_attempts": sum(
+            attempt.get("outcome") not in {"completed", "failed"}
+            for attempt in attempts
+        ),
+        "reported_prompt_tokens": reported_prompt,
+        "reported_completion_tokens": reported_completion,
+        "usage_valid": usage_valid,
+        "summary_accounting": summary_matches,
+    }
+
+
 def _event_message(event: SseEvent) -> dict[str, Any] | None:
     nested = event.payload.get("payload")
     if not isinstance(nested, dict):
@@ -1368,6 +1437,29 @@ class CurrentShaLiveQueueVerifier:
         except (AcceptanceError, AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
             report["error"] = str(exc)
             checks["workflow_error_free"] = False
+            if self.session_id is not None:
+                try:
+                    failure_audit = self._provider_attempts({})
+                    if self._provider_audit_available:
+                        failure_accounting = _summarize_failure_attempts(
+                            failure_audit,
+                            budget=self.budget,
+                        )
+                        report["failure_provider_accounting"] = failure_accounting
+                        checks["failure_provider_budget"] = (
+                            self.budget.observed <= self.config.provider_request_budget
+                        )
+                except (
+                    AcceptanceError,
+                    AttributeError,
+                    IndexError,
+                    KeyError,
+                    TypeError,
+                    ValueError,
+                ):
+                    report["failure_provider_accounting"] = {
+                        "available": False,
+                    }
         finally:
             report["cleanup"] = self._create_cleanup_status()
             report["session_id"] = self.session_id
