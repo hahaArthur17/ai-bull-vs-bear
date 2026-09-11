@@ -45,7 +45,7 @@ begin
      or (message_payload ->> 'sequence_number')::integer < 1
      or (message_payload ->> 'round_number')::integer is distinct from
         (case when s.status='running_round_1' then 1 else 2 end) then
-    raise exception using errcode='40001', message='Draft generation is not active';
+    raise exception using errcode='PT409', message='Draft generation is not active';
   end if;
   if exists (
     select 1 from public.debate_messages
@@ -53,7 +53,7 @@ begin
         and sequence_number=(message_payload ->> 'sequence_number')::integer
         and id <> (message_payload ->> 'id')::uuid
   ) then
-    raise exception using errcode='40001', message='Draft sequence is already canonical';
+    raise exception using errcode='PT409', message='Draft sequence is already canonical';
   end if;
   select payload into previous from public.debate_draft_checkpoints where message_id=mid;
   if previous is not null and (
@@ -63,7 +63,7 @@ begin
     or previous ->> 'sequence_number' is distinct from message_payload ->> 'sequence_number'
     or left(message_payload ->> 'content', char_length(previous ->> 'content'))
        is distinct from previous ->> 'content') then
-    raise exception using errcode='40001', message='Draft prefix changed';
+    raise exception using errcode='PT409', message='Draft prefix changed';
   end if;
   insert into public.debate_draft_checkpoints(message_id,session_id,payload)
     values(mid,s.id,message_payload)
@@ -83,7 +83,7 @@ begin
   select * into s from public.debate_sessions
     where id=requested_session_id and user_id=requested_user_id for update;
   if not found then
-    raise exception using errcode='40001', message='Interruption target unavailable';
+    raise exception using errcode='PT409', message='Interruption target unavailable';
   end if;
   select to_jsonb(m) into target from public.debate_messages m where id=requested_message_id;
   if target is null then
@@ -91,7 +91,7 @@ begin
   end if;
   if target is null or (target ->> 'session_id')::uuid is distinct from s.id
       or (target ->> 'branch_id')::uuid is distinct from s.active_branch_id then
-    raise exception using errcode='40001', message='Interruption target unavailable';
+    raise exception using errcode='PT409', message='Interruption target unavailable';
   end if;
   if s.status='interrupted_awaiting_user' and target ->> 'is_complete'='false'
       and target #>> '{metadata,interrupted}'='true'
@@ -105,7 +105,7 @@ begin
       or target ->> 'role' not in ('bull','bear','judge')
       or visible_prefix is null or char_length(visible_prefix)>6000
       or left(target ->> 'content',char_length(visible_prefix)) is distinct from visible_prefix then
-    raise exception using errcode='40001', message='Interruption prefix or generation is invalid';
+    raise exception using errcode='PT409', message='Interruption prefix or generation is invalid';
   end if;
   interrupted_at := greatest(interrupted_at,s.updated_at);
   target_sequence := (target ->> 'sequence_number')::integer;
@@ -170,7 +170,7 @@ declare s public.debate_sessions%rowtype; target public.debate_messages%rowtype;
 begin
   select * into s from public.debate_sessions where id=(message_payload->>'session_id')::uuid for update;
   if not found then
-    raise exception using errcode='40001', message='Debate is not waiting at this interruption';
+    raise exception using errcode='PT409', message='Debate is not waiting at this interruption';
   end if;
   -- Preserve exact retries even after Continue or End wins the state race.
   select * into existing from public.debate_messages where id=(message_payload->>'id')::uuid;
@@ -182,14 +182,14 @@ begin
       or existing.message_kind is distinct from message_payload->>'message_kind'
       or existing.content is distinct from message_payload->>'content'
       or existing.metadata is distinct from message_payload->'metadata' then
-      raise exception using errcode='40001', message='Interjection key conflicts';
+      raise exception using errcode='PT409', message='Interjection key conflicts';
     end if;
     return to_jsonb(existing);
   end if;
   if s.status<>'interrupted_awaiting_user'
     or s.active_generation_id is distinct from (message_payload->>'generation_id')::uuid
     or s.active_branch_id is distinct from (message_payload->>'branch_id')::uuid then
-    raise exception using errcode='40001', message='Debate is not waiting at this interruption';
+    raise exception using errcode='PT409', message='Debate is not waiting at this interruption';
   end if;
   select * into target from public.debate_messages where session_id=s.id and branch_id=s.active_branch_id
     and not is_complete and metadata->>'interrupted'='true' order by sequence_number desc limit 1;
@@ -201,13 +201,13 @@ begin
     or coalesce(char_length(btrim(message_payload->>'content')),0) not between 1 and 500
     or (message_payload->>'round_number')::integer is distinct from target.round_number
     or (message_payload->>'is_complete')::boolean is distinct from true then
-    raise exception using errcode='40001', message='Invalid interjection target';
+    raise exception using errcode='PT409', message='Invalid interjection target';
   end if;
   if (select count(*) from public.debate_messages where session_id=s.id and branch_id=s.active_branch_id
       and metadata->>'interjection'='true')>=6
     or (message_payload->>'sequence_number')::integer is distinct from
       (select coalesce(max(sequence_number),0)+1 from public.debate_messages where session_id=s.id and branch_id=s.active_branch_id) then
-    raise exception using errcode='40001', message='Interjection limit or sequence conflict';
+    raise exception using errcode='PT409', message='Interjection limit or sequence conflict';
   end if;
   insert into public.debate_messages select (jsonb_populate_record(null::public.debate_messages,message_payload)).*
     returning to_jsonb(debate_messages.*) into result;
@@ -221,24 +221,24 @@ grant execute on function public.record_debate_interjection(jsonb) to service_ro
 create or replace function public.continue_interrupted_debate(
   session_payload jsonb, job_payload jsonb, queue_payload jsonb,
   expected_generation_id uuid, requested_interjection_id uuid
-) returns jsonb language plpgsql set search_path='' as $$
+) returns jsonb language plpgsql security definer set search_path='' as $$
 declare s public.debate_sessions%rowtype; point public.debate_messages%rowtype;
   target public.debate_messages%rowtype; existing public.debate_jobs%rowtype;
   saved_session jsonb; saved_job jsonb; queue_id bigint; stamp timestamptz;
 begin
   select * into s from public.debate_sessions where id=(session_payload->>'id')::uuid
     and user_id=(session_payload->>'user_id')::uuid for update;
-  if not found then raise exception using errcode='40001', message='Session unavailable'; end if;
+  if not found then raise exception using errcode='PT409', message='Session unavailable'; end if;
   if expected_generation_id is null or requested_interjection_id is null
     or coalesce(job_payload->>'idempotency_key','') !~
       ('^continue:'||s.id::text||':'||expected_generation_id::text||':'||requested_interjection_id::text||':[A-Za-z0-9_-]{8,80}$') then
-    raise exception using errcode='40001', message='Continue key is not bound to the interruption';
+    raise exception using errcode='PT409', message='Continue key is not bound to the interruption';
   end if;
   select * into existing from public.debate_jobs where id=(job_payload->>'id')::uuid;
   if found then
     if existing.session_id<>s.id or existing.user_id<>s.user_id
       or existing.idempotency_key is distinct from job_payload->>'idempotency_key' then
-      raise exception using errcode='40001', message='Continue key conflicts';
+      raise exception using errcode='PT409', message='Continue key conflicts';
     end if;
     return jsonb_build_object('session',to_jsonb(s),'job',to_jsonb(existing));
   end if;
@@ -247,11 +247,11 @@ begin
     or (session_payload->>'active_branch_id')::uuid is distinct from s.active_branch_id
     or session_payload->'analysis_context' is distinct from s.analysis_context
     or session_payload->'factor_snapshot' is distinct from s.factor_snapshot then
-    raise exception using errcode='40001', message='Debate is not waiting at this interruption';
+    raise exception using errcode='PT409', message='Debate is not waiting at this interruption';
   end if;
   stamp := (session_payload->>'updated_at')::timestamptz;
   if stamp is null or stamp < s.updated_at or stamp > least(s.created_at,coalesce((s.analysis_context->>'captured_at')::timestamptz,s.created_at)) + interval '30 minutes' then
-    raise exception using errcode='40001', message='Frozen discussion expired';
+    raise exception using errcode='PT409', message='Frozen discussion expired';
   end if;
   select * into target from public.debate_messages where session_id=s.id and branch_id=s.active_branch_id
     and not is_complete and metadata->>'interrupted'='true' order by sequence_number desc limit 1;
@@ -272,7 +272,7 @@ begin
     or queue_payload->>'job_id' is distinct from job_payload->>'id'
     or queue_payload->>'session_id' is distinct from s.id::text
     or queue_payload->>'job_type' is distinct from job_payload->>'job_type' then
-    raise exception using errcode='40001', message='Invalid Continue point or job';
+    raise exception using errcode='PT409', message='Invalid Continue point or job';
   end if;
   insert into public.debate_jobs select (jsonb_populate_record(null::public.debate_jobs,job_payload)).*;
   update public.debate_sessions set status=session_payload->>'status',
@@ -306,7 +306,7 @@ begin
   select * into s from public.debate_sessions
     where id=requested_session_id and user_id=requested_user_id for update;
   if not found then
-    raise exception using errcode='40001', message='Before-output interruption target unavailable';
+    raise exception using errcode='PT409', message='Before-output interruption target unavailable';
   end if;
 
   -- The generation UUID is also the stable empty anchor id. A retry after the
@@ -314,7 +314,7 @@ begin
   select * into existing_message from public.debate_messages where id=requested_generation_id;
   if found then
     if existing_message.session_id <> s.id then
-      raise exception using errcode='40001', message='Before-output anchor identifier collision';
+      raise exception using errcode='PT409', message='Before-output anchor identifier collision';
     end if;
     if s.status='interrupted_awaiting_user'
        and existing_message.generation_id=requested_generation_id
@@ -326,19 +326,19 @@ begin
        and existing_message.metadata->>'before_output'='true' then
       return to_jsonb(s);
     end if;
-    raise exception using errcode='40001', message='Before-output anchor identifier already exists';
+    raise exception using errcode='PT409', message='Before-output anchor identifier already exists';
   end if;
 
   select * into existing_draft from public.debate_draft_checkpoints
     where message_id=requested_generation_id;
   if found and (existing_draft.session_id <> s.id
                 or (existing_draft.payload->>'generation_id')::uuid is distinct from requested_generation_id) then
-    raise exception using errcode='40001', message='Before-output anchor identifier collision';
+    raise exception using errcode='PT409', message='Before-output anchor identifier collision';
   end if;
 
   if s.status not in ('queued_round_1','queued_round_2','running_round_1','running_round_2')
      or s.active_generation_id is distinct from requested_generation_id then
-    raise exception using errcode='40001', message='Debate generation is not waiting before output';
+    raise exception using errcode='PT409', message='Debate generation is not waiting before output';
   end if;
 
   -- User challenge/question rows are part of the generation but are not
@@ -354,7 +354,7 @@ begin
         and (payload->>'generation_id')::uuid=requested_generation_id
         and coalesce(payload->>'content','') <> ''
   ) then
-    raise exception using errcode='40001', message='Debate generation has already produced output';
+    raise exception using errcode='PT409', message='Debate generation has already produced output';
   end if;
 
   round_number := case when s.status in ('queued_round_1','running_round_1') then 1 else 2 end;
@@ -470,7 +470,7 @@ begin
      or checkpoint_payload->>'role' is null
      or checkpoint_payload->>'message_kind' is null
      or checkpoint_payload->>'content' is null then
-    raise exception using errcode='40001', message='Provider attempt payload is invalid';
+    raise exception using errcode='PT409', message='Provider attempt payload is invalid';
   end if;
 
   requested_id := (attempt_payload->>'id')::uuid;
@@ -479,7 +479,7 @@ begin
     where id=(attempt_payload->>'session_id')::uuid
     for update;
   if not found then
-    raise exception using errcode='40001', message='Provider attempt generation is not active';
+    raise exception using errcode='PT409', message='Provider attempt generation is not active';
   end if;
 
   -- A provider admission can be retried after Stop has rotated the session.
@@ -509,7 +509,7 @@ begin
        or checkpoint_payload->>'session_id' is distinct from existing.session_id::text
        or checkpoint_payload->>'generation_id' is distinct from existing.generation_id::text
        or checkpoint_payload->>'role' is distinct from existing.role then
-      raise exception using errcode='40001', message='Provider attempt identifier conflict';
+      raise exception using errcode='PT409', message='Provider attempt identifier conflict';
     end if;
     return to_jsonb(existing);
   end if;
@@ -547,7 +547,7 @@ begin
      or attempt_payload->>'prompt_tokens' is not null
      or attempt_payload->>'completion_tokens' is not null
      or attempt_payload->>'total_tokens' is not null then
-    raise exception using errcode='40001', message='Provider attempt generation is not active';
+    raise exception using errcode='PT409', message='Provider attempt generation is not active';
   end if;
 
   -- A canonical row or another in-flight checkpoint already owns this
@@ -564,7 +564,7 @@ begin
       and (payload->>'sequence_number')::integer=(checkpoint_payload->>'sequence_number')::integer
       and message_id <> (attempt_payload->>'message_id')::uuid
   ) then
-    raise exception using errcode='40001', message='Provider attempt message is already reserved';
+    raise exception using errcode='PT409', message='Provider attempt message is already reserved';
   end if;
 
   insert into public.debate_provider_attempts
@@ -584,7 +584,7 @@ begin
        or stored.provider <> attempt_payload->>'provider'
        or stored.model <> attempt_payload->>'model'
        or stored.admitted_at <> (attempt_payload->>'admitted_at')::timestamptz then
-      raise exception using errcode='40001', message='Provider attempt identifier conflict';
+      raise exception using errcode='PT409', message='Provider attempt identifier conflict';
     end if;
     return to_jsonb(stored);
   end if;
@@ -611,7 +611,7 @@ begin
      or existing_checkpoint->>'branch_id' is distinct from checkpoint_payload->>'branch_id'
      or existing_checkpoint->>'sequence_number' is distinct from checkpoint_payload->>'sequence_number'
      or existing_checkpoint->>'content' is distinct from '' then
-    raise exception using errcode='40001', message='Provider checkpoint identifier conflict';
+    raise exception using errcode='PT409', message='Provider checkpoint identifier conflict';
   end if;
   return to_jsonb(stored);
 end; $$;
@@ -627,7 +627,7 @@ begin
       and dispatch_debate_provider_attempt.dispatched_at >= attempt.admitted_at
     returning to_jsonb(attempt.*) into result;
   if result is null then
-    raise exception using errcode='40001', message='Provider attempt is not dispatchable';
+    raise exception using errcode='PT409', message='Provider attempt is not dispatchable';
   end if;
   return result;
 end; $$;
@@ -677,7 +677,7 @@ begin
       and finish_debate_provider_attempt.finished_at >= attempt.dispatched_at
     returning to_jsonb(attempt.*) into result;
   if result is null then
-    raise exception using errcode='40001', message='Provider attempt is not finishable';
+    raise exception using errcode='PT409', message='Provider attempt is not finishable';
   end if;
   return result;
 end; $$;

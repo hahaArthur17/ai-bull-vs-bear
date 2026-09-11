@@ -21,6 +21,39 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-11 — Hosted interruption RPCs exposed retry and Queue privilege defects
+
+**Status:** Resolved and verified on the hosted Supabase project.
+
+**Scope and verified evidence**
+
+The disposable hosted interruption verifier twice timed out on a deliberate
+wrong-owner Stop. The RPC returned SQLSTATE `40001` for an application-level
+optimistic conflict; PostgREST 14 treats that code as a transient serialization
+failure and retries it. After the conflict code was corrected, Continue reached
+its Queue write but returned `403` because the function called `pgmq.send`
+without the Queue RPCs' service-only `SECURITY DEFINER` boundary.
+
+**Mitigation and verification**
+
+The source migrations now use `PT409` for application conflicts. Corrective
+migration `20260911_postgrest_conflict_status.sql` updates already-migrated
+projects, and `20260911_continue_queue_security.sql` gives only `service_role`
+the narrowly scoped Continue execution path. The hosted project contains all
+three interruption migrations, exposes no listed Debate RPC containing
+`40001`, and the full disposable Stop, restart recovery, interjection, Continue,
+before-output Stop, ownership, idempotency and cleanup verifier passes. The
+backend suite passes 501 tests and the isolated PostgreSQL migration suite
+passes. Supabase documents the retry behaviour in its
+[PostgREST custom error-code troubleshooting guide](https://supabase.com/docs/guides/troubleshooting/high-cpu-and-infinite-transaction-retries-when-using-custom-error-codes-in-rpc-functions-77326b).
+
+**Remaining follow-up**
+
+Hosted sequential draft checkpoints measured about 212 ms at p50 and 309 ms at
+p95. Reduce the number of synchronous round trips with bounded server-side
+delta batching while preserving the invariant that the UI only receives text
+after its cumulative prefix is durable.
+
 ## 2026-09-11 — Virtualenv console scripts retained the former workspace path
 
 **Status:** Mitigated; environment rebuild remains optional.

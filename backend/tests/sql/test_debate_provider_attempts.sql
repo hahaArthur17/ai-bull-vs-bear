@@ -111,7 +111,7 @@ begin
       )
     );
     raise exception 'conflicting duplicate attempt was accepted';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
 end $$;
 
@@ -140,7 +140,7 @@ begin
   begin
     perform public.admit_debate_provider_attempt(attempt,checkpoint);
     raise exception 'round-mismatched checkpoint was accepted';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
 
   update public.debate_sessions set status='awaiting_user'
@@ -149,7 +149,7 @@ begin
   begin
     perform public.admit_debate_provider_attempt(attempt,checkpoint);
     raise exception 'non-running session admission was accepted';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
   update public.debate_sessions set status='running_round_1'
     where id='10000000-0000-0000-0000-000000000001';
@@ -315,7 +315,7 @@ begin
       )
     );
     raise exception 'stale generation admission was accepted';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
 end $$;
 

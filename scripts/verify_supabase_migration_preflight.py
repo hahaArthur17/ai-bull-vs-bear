@@ -21,7 +21,11 @@ DEBATE_MIGRATIONS = (
     "20260827_v2_debate_persistence_rpc.sql",
 )
 QUEUE_MIGRATIONS = ("20260828_v2_debate_queue.sql",)
-INTERRUPTION_MIGRATIONS = ("20260909_debate_draft_interruption.sql",)
+INTERRUPTION_MIGRATIONS = (
+    "20260909_debate_draft_interruption.sql",
+    "20260911_postgrest_conflict_status.sql",
+    "20260911_continue_queue_security.sql",
+)
 
 CATALOG_COLUMNS = (
     "coverage_status",

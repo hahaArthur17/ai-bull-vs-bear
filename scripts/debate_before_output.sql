@@ -23,7 +23,7 @@ begin
   select * into s from public.debate_sessions
     where id=requested_session_id and user_id=requested_user_id for update;
   if not found then
-    raise exception using errcode='40001', message='Before-output interruption target unavailable';
+    raise exception using errcode='PT409', message='Before-output interruption target unavailable';
   end if;
 
   -- The generation UUID is also the stable empty anchor id. A retry after the
@@ -31,7 +31,7 @@ begin
   select * into existing_message from public.debate_messages where id=requested_generation_id;
   if found then
     if existing_message.session_id <> s.id then
-      raise exception using errcode='40001', message='Before-output anchor identifier collision';
+      raise exception using errcode='PT409', message='Before-output anchor identifier collision';
     end if;
     if s.status='interrupted_awaiting_user'
        and existing_message.generation_id=requested_generation_id
@@ -43,19 +43,19 @@ begin
        and existing_message.metadata->>'before_output'='true' then
       return to_jsonb(s);
     end if;
-    raise exception using errcode='40001', message='Before-output anchor identifier already exists';
+    raise exception using errcode='PT409', message='Before-output anchor identifier already exists';
   end if;
 
   select * into existing_draft from public.debate_draft_checkpoints
     where message_id=requested_generation_id;
   if found and (existing_draft.session_id <> s.id
                 or (existing_draft.payload->>'generation_id')::uuid is distinct from requested_generation_id) then
-    raise exception using errcode='40001', message='Before-output anchor identifier collision';
+    raise exception using errcode='PT409', message='Before-output anchor identifier collision';
   end if;
 
   if s.status not in ('queued_round_1','queued_round_2','running_round_1','running_round_2')
      or s.active_generation_id is distinct from requested_generation_id then
-    raise exception using errcode='40001', message='Debate generation is not waiting before output';
+    raise exception using errcode='PT409', message='Debate generation is not waiting before output';
   end if;
 
   -- User challenge/question rows are part of the generation but are not
@@ -71,7 +71,7 @@ begin
         and (payload->>'generation_id')::uuid=requested_generation_id
         and coalesce(payload->>'content','') <> ''
   ) then
-    raise exception using errcode='40001', message='Debate generation has already produced output';
+    raise exception using errcode='PT409', message='Debate generation has already produced output';
   end if;
 
   round_number := case when s.status in ('queued_round_1','running_round_1') then 1 else 2 end;

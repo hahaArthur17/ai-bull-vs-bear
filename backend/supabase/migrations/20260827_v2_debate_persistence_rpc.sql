@@ -85,18 +85,18 @@ begin
     end if;
     if requested_branch_id <> current_session.active_branch_id then
       raise exception using
-        errcode = '40001',
+        errcode = 'PT409',
         message = 'Debate message branch is no longer active';
     end if;
     if current_session.status in ('cancel_requested', 'cancelled', 'completed', 'failed') then
       raise exception using
-        errcode = '40001',
+        errcode = 'PT409',
         message = 'Debate session no longer accepts messages';
     end if;
     if requested_role <> 'user'
        and requested_generation_id <> current_session.active_generation_id then
       raise exception using
-        errcode = '40001',
+        errcode = 'PT409',
         message = 'Debate message generation is no longer active';
     end if;
     if requested_role in ('bull', 'bear', 'judge')
@@ -106,7 +106,7 @@ begin
          (requested_round = 2 and current_session.status = 'running_round_2')
        ) then
       raise exception using
-        errcode = '40001',
+        errcode = 'PT409',
         message = 'Debate session is not running this message round';
     end if;
 

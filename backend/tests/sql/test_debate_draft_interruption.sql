@@ -47,7 +47,7 @@ begin
       'generation_id','30000000-0000-0000-0000-000000000001',
       'sequence_number',1,'round_number',1,'role','bull','content','Changed'));
     raise exception 'changed prefix was accepted';
-  exception when serialization_failure then null;
+  exception when sqlstate 'PT409' then null;
   end;
 end $$;
 

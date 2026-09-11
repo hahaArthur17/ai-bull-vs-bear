@@ -81,7 +81,7 @@ begin
      or checkpoint_payload->>'role' is null
      or checkpoint_payload->>'message_kind' is null
      or checkpoint_payload->>'content' is null then
-    raise exception using errcode='40001', message='Provider attempt payload is invalid';
+    raise exception using errcode='PT409', message='Provider attempt payload is invalid';
   end if;
 
   requested_id := (attempt_payload->>'id')::uuid;
@@ -90,7 +90,7 @@ begin
     where id=(attempt_payload->>'session_id')::uuid
     for update;
   if not found then
-    raise exception using errcode='40001', message='Provider attempt generation is not active';
+    raise exception using errcode='PT409', message='Provider attempt generation is not active';
   end if;
 
   -- A provider admission can be retried after Stop has rotated the session.
@@ -120,7 +120,7 @@ begin
        or checkpoint_payload->>'session_id' is distinct from existing.session_id::text
        or checkpoint_payload->>'generation_id' is distinct from existing.generation_id::text
        or checkpoint_payload->>'role' is distinct from existing.role then
-      raise exception using errcode='40001', message='Provider attempt identifier conflict';
+      raise exception using errcode='PT409', message='Provider attempt identifier conflict';
     end if;
     return to_jsonb(existing);
   end if;
@@ -158,7 +158,7 @@ begin
      or attempt_payload->>'prompt_tokens' is not null
      or attempt_payload->>'completion_tokens' is not null
      or attempt_payload->>'total_tokens' is not null then
-    raise exception using errcode='40001', message='Provider attempt generation is not active';
+    raise exception using errcode='PT409', message='Provider attempt generation is not active';
   end if;
 
   -- A canonical row or another in-flight checkpoint already owns this
@@ -175,7 +175,7 @@ begin
       and (payload->>'sequence_number')::integer=(checkpoint_payload->>'sequence_number')::integer
       and message_id <> (attempt_payload->>'message_id')::uuid
   ) then
-    raise exception using errcode='40001', message='Provider attempt message is already reserved';
+    raise exception using errcode='PT409', message='Provider attempt message is already reserved';
   end if;
 
   insert into public.debate_provider_attempts
@@ -195,7 +195,7 @@ begin
        or stored.provider <> attempt_payload->>'provider'
        or stored.model <> attempt_payload->>'model'
        or stored.admitted_at <> (attempt_payload->>'admitted_at')::timestamptz then
-      raise exception using errcode='40001', message='Provider attempt identifier conflict';
+      raise exception using errcode='PT409', message='Provider attempt identifier conflict';
     end if;
     return to_jsonb(stored);
   end if;
@@ -222,7 +222,7 @@ begin
      or existing_checkpoint->>'branch_id' is distinct from checkpoint_payload->>'branch_id'
      or existing_checkpoint->>'sequence_number' is distinct from checkpoint_payload->>'sequence_number'
      or existing_checkpoint->>'content' is distinct from '' then
-    raise exception using errcode='40001', message='Provider checkpoint identifier conflict';
+    raise exception using errcode='PT409', message='Provider checkpoint identifier conflict';
   end if;
   return to_jsonb(stored);
 end; $$;
@@ -238,7 +238,7 @@ begin
       and dispatch_debate_provider_attempt.dispatched_at >= attempt.admitted_at
     returning to_jsonb(attempt.*) into result;
   if result is null then
-    raise exception using errcode='40001', message='Provider attempt is not dispatchable';
+    raise exception using errcode='PT409', message='Provider attempt is not dispatchable';
   end if;
   return result;
 end; $$;
@@ -288,7 +288,7 @@ begin
       and finish_debate_provider_attempt.finished_at >= attempt.dispatched_at
     returning to_jsonb(attempt.*) into result;
   if result is null then
-    raise exception using errcode='40001', message='Provider attempt is not finishable';
+    raise exception using errcode='PT409', message='Provider attempt is not finishable';
   end if;
   return result;
 end; $$;

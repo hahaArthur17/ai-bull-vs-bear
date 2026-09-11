@@ -47,7 +47,7 @@ begin
   begin
     perform public.record_debate_interjection(point||'{"content":"changed"}'::jsonb);
     raise exception 'conflicting interjection accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   queued := s||jsonb_build_object('status','queued_round_1','updated_at','2026-09-10 00:00:03Z',
     'active_generation_id','30000000-0000-0000-0000-000000000003');
   job := jsonb_build_object('id','40000000-0000-0000-0000-000000000001','session_id',sid,
@@ -68,7 +68,7 @@ begin
   begin
     perform public.continue_interrupted_debate(queued||'{"analysis_context":{"changed":true}}'::jsonb,job,envelope,gen,point_id);
     raise exception 'changed snapshot was accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   result := public.continue_interrupted_debate(queued,job,envelope,gen,point_id);
   if result#>>'{session,status}'<>'queued_round_1' or result#>>'{job,queue_message_id}' is null then
     raise exception 'Continue failed'; end if;
@@ -76,13 +76,13 @@ begin
   begin
     perform public.continue_interrupted_debate(queued,job,envelope,gen,'50000000-0000-0000-0000-000000000099');
     raise exception 'Continue replay with changed point accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
   if (select count(*) from pgmq.test_messages)<>1 or (select count(*) from public.debate_jobs)<>1 then
     raise exception 'Continue duplicated Queue or job'; end if;
   begin
     perform public.continue_interrupted_debate(queued,job||'{"id":"40000000-0000-0000-0000-000000000002"}'::jsonb,envelope,gen,point_id);
     raise exception 'second Continue accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
 end $$;
 reset role;
 rollback;

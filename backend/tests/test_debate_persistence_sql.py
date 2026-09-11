@@ -10,6 +10,14 @@ RPC_MIGRATION_SQL = (
     REPOSITORY_ROOT
     / "backend/supabase/migrations/20260827_v2_debate_persistence_rpc.sql"
 ).read_text(encoding="utf-8")
+INTERRUPTION_MIGRATION_SQL = (
+    REPOSITORY_ROOT
+    / "backend/supabase/migrations/20260909_debate_draft_interruption.sql"
+).read_text(encoding="utf-8")
+CONFLICT_MIGRATION_SQL = (
+    REPOSITORY_ROOT
+    / "backend/supabase/migrations/20260911_postgrest_conflict_status.sql"
+).read_text(encoding="utf-8")
 
 
 DEBATE_TABLES = (
@@ -134,3 +142,17 @@ def test_debate_transaction_rpcs_are_service_only_and_queue_independent() -> Non
     assert RPC_MIGRATION_SQL.count("to service_role;") == 2
     assert "security definer" not in RPC_MIGRATION_SQL.lower()
     assert "pgmq" not in RPC_MIGRATION_SQL.lower()
+
+
+def test_debate_rpc_conflicts_map_to_http_409_without_serialization_retries() -> None:
+    assert "'40001'" not in RPC_MIGRATION_SQL
+    assert "'40001'" not in INTERRUPTION_MIGRATION_SQL
+    assert "'PT409'" in RPC_MIGRATION_SQL
+    assert "'PT409'" in INTERRUPTION_MIGRATION_SQL
+    assert "pg_get_functiondef" in CONFLICT_MIGRATION_SQL
+    assert "'PT409'" in CONFLICT_MIGRATION_SQL
+    continue_definition = INTERRUPTION_MIGRATION_SQL.split(
+        "create or replace function public.continue_interrupted_debate", 1
+    )[1].split("revoke all on function public.continue_interrupted_debate", 1)[0]
+    assert "security definer" in continue_definition.lower()
+    assert "set search_path=''" in continue_definition.lower()
