@@ -1,11 +1,11 @@
 # WP8L 当前进度与剩余路线
 
-复核日期：2026-09-12。已提交功能代码基线：`901cddb`。Live Queue 验证器、托管 interruption/Queue 修复、真实 provider 节流、Turn/Judge Prompt 上限及下一请求历史论点边界均已提交；本文已同步对应验证证据与剩余路线。
+复核日期：2026-09-12。已提交功能代码基线：`901cddb`；当前 mobile baseline：`0f70366`。Live Queue 验证器、托管 interruption/Queue 修复、真实 provider 节流、Turn/Judge Prompt 上限及下一请求历史论点边界均已提交；本文已同步对应验证证据与剩余路线。
 本文汇总当前执行顺序；详细验收仍以 Phase 8 remediation、UI acceptance matrix 和 verification record 为准。历史 checkpoint 描述的是当时状态，不代表当前待办。
 
 ## 当前位置
 
-当前处于 **Phase 8 / WP8L.6 完整真实模型联合运行已通过、Expo Go 验收前**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue、当前数据预检和完整两轮真实模型运行已经完成；下一门槛是 Expo Go 产品负责人验收。
+当前处于 **Phase 8 / WP8L.6 完整真实模型联合运行已通过、Expo Go 验收前**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue、当前数据预检、完整两轮真实模型运行和 Expo SDK54 本地迁移已经完成；下一门槛是产品负责人使用 SDK54 App Store Expo Go 完成 iPhone 真机验收，随后补 Android 原生模拟器或可用设备的 edge-to-edge 验收。
 
 | 工作包 | 已有证据 | 尚未完成 |
 | --- | --- | --- |
@@ -14,11 +14,17 @@
 | WP8L.3 Queue 与真实模型 | `64c1c6c` 通过完整标准 AAPL 验证：Queue 202、12/12 Groq attempts、两轮 10 个 Bull/Bear Turn、Interim/Final Judge、40 条引用、持久重载、SSE 双终态、分角色账本、0 retry/unknown usage | 已完成；Expo Go 若运行真实会话仍沿用 61 秒节流、单进程和明确预算，不重复以旧 SHA 做模型验收 |
 | WP8L.4 显示调度 | 英文按词、中文按字素、单一活动气泡；生成完成不强制全文展开；有自动化测试 | 真机流畅度、屏幕阅读器实际播报、后台/重连及与 Stop 的联合体验 |
 | WP8L.5 停止与插话 | provider-attempt 审计、首字前/中途停止、恢复、插话、Continue/End、冻结快照、稳定重试键和不完整前缀 Explanation 已提交；托管迁移、PostgREST/Queue、重启恢复、所有权、幂等和清理验证通过 | 弱网、原生强退/重开、各角色联合流程和 Expo Go 体验验收 |
-| WP8L.6–7 | 单 API/Worker/SSE 进程的首轮验收边界已确定 | 专门测试账号的 Expo Go 联合验收；重启、拓扑与发布证据 |
+| WP8L.6–7 | SDK52→53→54 已逐级完成；Expo `54.0.37`、React Native `0.81.5`、React `19.1.0`、安全区迁移及 iOS/Android native export 已在本地通过 | 产品负责人使用 App Store Expo Go 完成 iPhone 真机验收；Android 原生模拟器或可用设备的 edge-to-edge、重启、拓扑与发布证据 |
 | WP9 / WP10 | 验收要求已规划 | 产品负责人完成 Expo Go 视觉/交互验收；现有 Render 后端同 SHA 发布检查与回滚复核。不创建独立 staging，不要求测试或发布静态 Web 前端 |
 | Phase 9 | 保留在后续路线中 | Replay、可观测性、韧性/负载、最终发布证明与演示材料 |
 
-最近复核：提交 `901cddb` 后端 **516** 项通过；移动端 **111** 项与 TypeScript 当前复跑通过。隔离 PostgreSQL migration/replay、托管 Supabase interruption/Queue、启用 interruption flag 的 Web export、bounded checkpoint batching 及 `64c1c6c` 完整两轮真实模型运行均通过。这些仍不能替代 Expo Go 实机验收。
+最近复核：提交 `901cddb` 后端 **516** 项通过；移动端 **112** 项与 TypeScript、Expo Doctor **18/18** 当前复跑通过；SDK54 iOS/Android native export 均成功。隔离 PostgreSQL migration/replay、托管 Supabase interruption/Queue、启用 interruption flag 的 Web export、bounded checkpoint batching 及 `64c1c6c` 完整两轮真实模型运行均通过。这些仍不能替代 Expo Go 实机验收。
+
+SDK54 依赖图的 `npm audit` 当前记录 18 项传递依赖发现（7 moderate、11
+high、0 critical），来源为 Expo/Metro/config-build 工具链。npm 唯一完整
+修复路径建议升级 Expo57，但这会破坏当前以 App Store Expo Go SDK54 为目标的
+验收路线；不运行 `npm audit fix --force`，也不强制覆盖传递版本。Metro 仅在
+可信本地网络运行，待 Expo Go 支持更高 SDK 后再重新评估。
 
 ## 下一步执行顺序
 
@@ -83,7 +89,21 @@ attempts/19,791 Tokens，总计 39,269；Bull 15,851、Bear 16,808、Judge
 
 ### 5. Expo Go 和跨状态验收（WP8L.6、WP8 与 WP9）
 
-- 客户端当前为 Expo SDK 52。Android 真机或模拟器可使用匹配版本的 Expo Go；实体 iPhone 无法侧载旧客户端，若 App Store 版拒绝 SDK 52，必须先完成受支持的 SDK 升级，或由产品负责人明确把开发构建替代写入验收范围。版本不匹配不能靠重启 Metro、切换 LAN/tunnel 或 Web 浏览器验收解决，详见 `issue-log.md`。
+- SDK52→53→54 已在本地逐级完成，当前客户端为 Expo SDK54（Expo
+  `54.0.37`、React Native `0.81.5`、React `19.1.0`），并已迁移到
+  `react-native-safe-area-context`。iPhone 可直接安装 App Store Expo Go
+  SDK54；Android 真机或模拟器使用匹配的 SDK54 客户端。旧 SDK52/53 Expo Go
+  不能在实体 iPhone 侧载，故原阻塞已解决，剩余是产品负责人真机验收。
+- iPhone 验收：电脑启动 `npx expo start --lan --clear`，手机与电脑加入同一
+  Wi-Fi，在 iPhone Expo Go 中选择 **Scan QR code** 扫描终端二维码；允许
+  iOS 的相机和 Local Network 权限，并把 `EXPO_PUBLIC_API_URL` 指向电脑的
+  局域网地址。Metro 和 API 必须同时运行，`localhost` 不能指向电脑。
+- SDK54 的 Android edge-to-edge 已强制开启；native export 成功不等于运行时
+  通过，必须检查状态栏/导航栏安全区、底部导航位置、键盘避让和返回手势。
+- `npm audit` 的 18 项传递依赖发现（7 moderate、11 high、0 critical）暂不
+  通过 force/override 处理；完整路径会把目标推到 Expo57，破坏当前 App Store
+  Expo Go SDK54 验收目标。Metro 继续只在可信本地网络使用，待 Expo Go 支持更
+  新 SDK 后再升级。
 - 专门测试账号、standard 模式，单进程单实例 API/Worker/SSE，无热重载；核对手机网络、登录和 API 地址。
 - 验证真实数据标签、冻结快照、Queue 等待、各角色渐进输出、Stop、插话、Continue、结束、重连、后台、重开 History 和费用。
 - 补齐 Web 四宽度、200% 缩放、键盘、降低动态效果、屏幕阅读器、原生键盘/焦点、iOS/Android 与至少一台物理设备的缺失证据。缺设备明确记录，不以浏览器模拟替代。

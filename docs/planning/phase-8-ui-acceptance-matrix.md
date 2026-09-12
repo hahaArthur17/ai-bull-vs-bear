@@ -2,7 +2,7 @@
 
 **Status:** Active for Phase 8  
 **Owner:** Mobile application  
-**Last updated:** 2026-09-08
+**Last updated:** 2026-09-12
 
 This matrix is the visual and interaction acceptance contract for the
 financial-research UI redesign. It supplements executable checks; it does not
@@ -19,6 +19,32 @@ prior warm-paper visual direction is not an acceptable alternative. Colour must
 never be the sole carrier of financial direction, freshness, job state, or
 validation feedback. The same semantic components and content hierarchy must
 work on native mobile and Expo Web.
+
+## Current SDK54 physical-device acceptance entry
+
+The next native acceptance entry is the mobile client at commit
+`0f7036609eaa16aab0108f49416a6e211d29ff49` (`0f70366`) in the SDK54-compatible
+Expo Go client from the Apple App Store, run first on a physical iPhone. The
+automated baseline passes 112 mobile tests, TypeScript typecheck, Expo Web
+export, Expo Doctor 18/18, and iOS and Android native bundle exports. This is
+not a real-device pass.
+
+Complete this capture block before marking the entry executed; do not infer any
+of the device or client versions from the Git commit:
+
+| Acceptance field | Value to record | Current status |
+| --- | --- | --- |
+| Client commit SHA | `0f7036609eaa16aab0108f49416a6e211d29ff49` | Fixed for this entry |
+| Expo SDK / runtime | Expo SDK 54 / `expo 54.0.37` / React Native `0.81.5` | Fixed for this entry |
+| Device | Physical iPhone — exact model | Pending physical run |
+| iOS version | Exact version from Settings → General → About | Pending physical run |
+| Expo Go version | Exact App Store version shown in Expo Go | Pending physical run |
+| Result | Native flow result and limitation | Not yet accepted |
+
+The iPhone run must use the workstation LAN address, not `localhost` or
+`127.0.0.1`. An iPhone result does not certify Android; Android needs its own
+native simulator or available-device edge-to-edge, system-bar, keyboard,
+bottom-navigation, and back-behavior review.
 
 ### Design-system acceptance
 

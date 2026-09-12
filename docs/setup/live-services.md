@@ -1,6 +1,6 @@
 # Live Services Setup
 
-Last reviewed: 2026-09-08
+Last reviewed: 2026-09-12
 
 This document records the non-secret configuration needed to move AI Bull vs
 Bear from deterministic demo mode to real services.
@@ -366,6 +366,14 @@ remains unexecuted. See
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
 
+Current SDK54 acceptance entry: mobile commit `0f7036609eaa16aab0108f49416a6e211d29ff49`
+(`0f70366`) targets Expo SDK54 and the App Store Expo Go client. The automated
+baseline passes 112 mobile tests, TypeScript typecheck, Expo Web export, Expo
+Doctor 18/18, and iOS and Android native bundle exports. The next live product
+check is a physical iPhone running this SHA; record the exact iPhone model, iOS
+version, and App Store Expo Go version in the acceptance matrix before starting.
+No physical-device acceptance has been claimed yet.
+
 This profile is deliberately separate from `review_fixture`. A safe
 presence-only audit confirms that the ignored local `.env` has Supabase, Groq,
 Alpha Vantage, Finnhub, and SEC settings, but the V2/Queue/live-provider/Expo V2
@@ -483,7 +491,7 @@ starting Debate, read `/health`, `/stocks/AAPL/quote`,
 Confirm standard mode, fresh/dated provenance, no fixture IDs, no unfinished
 Session conflict, and one declared model-call budget.
 
-### 5. Know what still blocks final Live Acceptance
+### 5. Historical checkpoint before the SDK54 baseline
 
 - Bull/Bear and independently configured Interim/Final Judge streaming are
   implemented. The full current-SHA standard AAPL two-round result passes under
@@ -507,6 +515,19 @@ Do not enable hosted V2/Queue/Groq flags until the local Expo pass, expected-SHA
 smoke checks on the existing Render API, rollback, quota, and provenance gates
 are recorded. Independent staging and the Render static Web frontend are not
 part of this acceptance path.
+
+### 6. Current SDK54 native acceptance status (2026-09-12)
+
+Stop, before-output interruption, user interjection, and explicit Continue are
+implemented. Their hosted Supabase/PostgREST/Queue verification has passed,
+including durable recovery and idempotent Continue. The remaining gate is the
+native experience: run the SDK54 App Store Expo Go client on the physical iPhone
+from commit `0f7036609eaa16aab0108f49416a6e211d29ff49` and record the device, iOS,
+and Expo Go versions. Validate weak-network behavior, background/foreground,
+force-reopen recovery, keyboard/focus, safe-area/system-bar layout, and the full
+Stop → interjection → Continue flow. Android remains a separate native
+simulator or available-device review; the iPhone result and successful native
+bundles do not replace it.
 
 ## Verification checklist
 

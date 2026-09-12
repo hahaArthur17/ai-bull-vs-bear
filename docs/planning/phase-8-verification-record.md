@@ -916,3 +916,21 @@ Sessions is now 106,530 Tokens; failed or rejected attempts with no provider
 report remain explicitly unknown. Full model-side acceptance is complete. Expo
 Go, the existing Render API deployment, cold start/restart and rollback remain
 open in that order.
+
+### 2026-09-12 — SDK54 baseline and next physical-iPhone acceptance entry
+
+The current mobile baseline is commit `0f7036609eaa16aab0108f49416a6e211d29ff49`
+(`0f70366`), upgraded to Expo SDK 54 (`expo 54.0.37`, React Native `0.81.5`,
+React `19.1.0`). The automated checks for this baseline pass: 112 mobile tests,
+TypeScript typecheck, Expo Web export, Expo Doctor 18/18, and iOS and Android
+native bundle exports. These are build and automation results; they do not count
+as native-device acceptance.
+
+The hosted Stop/interruption/interjection/Continue contract and its bounded
+verification are complete. The next acceptance entry is an App Store Expo Go
+session on a physical iPhone. Record the exact device model, iOS version, Expo Go
+App Store version, and the client commit above before starting the run. The
+physical iPhone session has not yet been executed, so no real-device pass is
+claimed. Android remains a separate native simulator or available-device
+acceptance surface, including SDK54 edge-to-edge, system-bar insets, keyboard,
+bottom-navigation, and back behavior checks.

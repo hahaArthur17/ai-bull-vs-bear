@@ -59,6 +59,67 @@ precedes any claim that the Expo Go physical-device gate passed. Official
 references: [Expo Go version tooling and mismatch guidance](https://docs.expo.dev/develop/tools/)
 and the [SDK 52 client download](https://expo.dev/go?device=true&platform=android&sdkVersion=52).
 
+## 2026-09-12 — Expo SDK54 remediation resolved the physical-iPhone blocker locally
+
+**Status:** Resolved locally; product-owner iPhone Expo Go acceptance and a
+separate Android native regression remain open.
+
+**Scope and verified evidence**
+
+Following the blocker above, the mobile project was upgraded one SDK at a time
+(52 → 53 → 54) in mobile baseline `0f70366`. It now uses Expo `54.0.37`, React
+Native `0.81.5`, and React `19.1.0`; React Native safe-area usage was migrated
+to `react-native-safe-area-context`. Mobile **112** tests, TypeScript, Expo
+Doctor **18/18**, and both iOS and Android native exports pass locally. These
+checks prove the build/dependency path, not runtime acceptance on a physical
+device.
+
+**Impact and mitigation**
+
+The SDK54 App Store Expo Go client is now the planned iPhone acceptance client.
+The phone and development computer must be on the same Wi-Fi network; the
+reviewer opens Expo Go, chooses **Scan QR code**, and scans the QR code printed
+by `npx expo start --lan --clear`. The API URL must use the computer's LAN IP,
+not `localhost`. Android can use a matching SDK54 Expo Go client or simulator.
+SDK54 mandatory Android edge-to-edge remains a separate runtime boundary:
+status/navigation insets, bottom navigation, keyboard avoidance, and back
+behavior still need native simulator or available-device review.
+
+**Remaining follow-up**
+
+The product owner must complete the iPhone App Store Expo Go real-device/UI
+acceptance. Android edge-to-edge must then be checked in a native simulator or
+available device; do not substitute a Web browser or native export for native
+runtime evidence. Official references:
+[Expo Go version mismatch guidance](https://docs.expo.dev/troubleshooting/expo-go-version-mismatch/),
+[Expo SDK upgrade walkthrough](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/),
+and the [SDK54 release notes](https://expo.dev/changelog/sdk-54).
+
+## 2026-09-12 — Expo SDK54 npm audit findings are transitive and deferred
+
+**Status:** Recorded; no force-fix or dependency override is approved.
+
+**Scope and verified evidence**
+
+Running `npm audit` for the SDK54 mobile dependency graph reports **18**
+findings: **7 moderate**, **11 high**, and **0 critical**. The findings are in
+transitive Expo/Metro/config-build tooling rather than application code. npm's
+only complete remediation path proposes upgrading Expo to SDK57.
+
+**Impact and mitigation**
+
+For this project, forcing that path would break the current App Store Expo Go
+SDK54 target. Do not run `npm audit fix --force` and do not force or override
+transitive Expo/Metro versions to silence the report. Metro is used only on a
+trusted local network during development; no public Metro endpoint is part of
+the release path.
+
+**Remaining follow-up**
+
+Re-evaluate the audit when Expo Go supports the newer SDK target, then upgrade
+incrementally and rerun the full mobile/device gates. Until then, retain the
+SDK54 target and record these findings as a known tooling-chain limitation.
+
 ## 2026-09-12 — Persisted rebuttal point exceeded the next-request domain bound
 
 **Status:** Resolved and verified by a subsequent full two-round run.

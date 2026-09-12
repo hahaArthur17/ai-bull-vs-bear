@@ -1,25 +1,55 @@
 # Mobile app
 
-This is the Expo / React Native client for AI Bull vs Bear. It uses the
-deterministic FastAPI demo provider by default and does not require API keys.
+This is the Expo / React Native client for AI Bull vs Bear. The current baseline
+targets Expo SDK 54 (`expo 54.0.37`, React Native `0.81.5`, React `19.1.0`). It
+uses the deterministic FastAPI demo provider by default and does not require
+API keys.
 
-## Run
+The SDK54 automated baseline passes 112 mobile tests, TypeScript typecheck, Expo
+Web export, Expo Doctor 18/18, and iOS and Android native bundle exports. These
+checks do not replace physical-device acceptance.
+
+## Run on an iPhone with App Store Expo Go
+
+Start the backend so another device on the same network can reach it:
 
     cd backend
     python3 -m venv .venv
     source .venv/bin/activate
     pip install -r requirements.txt
-    uvicorn app.main:app --reload --port 8000
+    ENVIRONMENT=development APP_DATA_MODE=review_fixture \
+      uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
-In another terminal:
+Find the computer's LAN IPv4 address (for example, `192.168.1.20`) and start
+Expo in another terminal. Replace the example address with the real address:
 
     cd apps/mobile
-    npm install
-    npm run start
+    npm ci
+    EXPO_PUBLIC_AUTH_MODE=demo \
+    EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+    EXPO_PUBLIC_API_URL=http://192.168.1.20:8000 \
+    npx expo start --lan --clear
 
-The default API URL is http://localhost:8000. For a physical device, set
-EXPO_PUBLIC_API_URL to the computer's LAN address, for example
-http://192.168.1.20:8000.
+Then on the iPhone:
+
+1. Install and open **Expo Go** from the Apple App Store. It must be the
+   SDK54-compatible client.
+2. Put the iPhone and computer on the same Wi-Fi network, and allow Expo Go
+   local-network and camera access when iOS asks.
+3. In Expo Go, choose **Scan QR code** and scan the QR code shown by the
+   `npx expo start --lan` terminal.
+4. Keep the backend and Metro terminals running during the review.
+
+For a physical iPhone, `EXPO_PUBLIC_API_URL` must use the computer's LAN IP.
+Do not use `localhost` or `127.0.0.1`: on a phone those addresses point back to
+the phone itself. Loopback is suitable only when the app and backend run in the
+same simulator environment. On macOS, `ipconfig getifaddr en0` commonly prints
+the Wi-Fi address; use the active interface if it differs.
+
+This iPhone run is the next acceptance entry for commit `0f70366`; record the
+exact iPhone model, iOS version, and Expo Go App Store version. Android remains a
+separate native regression surface even though its bundle export passes; use a
+native simulator or an available Android device for that follow-up.
 
 ## Implemented flow
 

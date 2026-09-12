@@ -1,7 +1,8 @@
 # Current Project Status
 
-Last verified: 2026-09-12 (committed feature-code baseline `901cddb`; status
-documents reconciled to the hosted and Live evidence below)
+Last verified: 2026-09-12 (committed feature-code baseline `901cddb`; current
+mobile baseline `0f70366`; status documents reconciled to the hosted, Live, and
+local Expo SDK54 evidence below)
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -32,12 +33,13 @@ paced Turns before a 334-character persisted rebuttal point exceeded the
 next-request 300-character domain bound; that projection and failure-ledger
 reporting are now fixed. A later `64c1c6c` Session passed all twelve requests,
 both Judges, both rounds, citations, SSE and ledger checks with 39,269 reported
-Tokens and no retry or unknown usage. Expo Go remains. The client is still on
-Expo SDK 52: Android can use a matching version-specific Expo Go client, while
-a physical iPhone cannot install an older client and therefore requires an SDK
-upgrade or an explicitly accepted development-build substitution if the App
-Store client rejects SDK 52. The ordered remaining work and corrected
-boundaries are in
+Tokens and no retry or unknown usage. The SDK52 physical-iPhone blocker is now
+resolved locally: the mobile app was upgraded one SDK at a time (52 → 53 → 54)
+to Expo `54.0.37`, React Native `0.81.5`, and React `19.1.0`; the safe-area
+migration and both iOS/Android native exports pass. Expo Go/device acceptance
+remains the product-owner gate: iPhone uses the SDK54 App Store client, while
+Android still needs a native simulator/device edge-to-edge review. The ordered
+remaining work and corrected boundaries are in
 [`wp8l-next-steps.md`](wp8l-next-steps.md). Historical checkpoints below are dated
 progress records, not the current outstanding-work list.
 
@@ -45,19 +47,26 @@ progress records, not the current outstanding-work list.
 
 | Area | Status | Current state |
 | --- | --- | --- |
-| Mobile application | In progress | The functional Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock research, Signals, Evidence Board, Debate, claim examination, History, and About. WP3 provides the Prototype-derived deep shell, WP4 the responsive research workspace, WP5 authoritative Debate fact/evidence projections, WP6 the chronological V2 chat, and WP7 the remaining core-screen migration. Integrated zoom/motion/accessibility review and native/physical-device acceptance remain open. |
+| Mobile application | In progress | The functional Expo/React Native flow includes authentication, coverage-aware security search and Watchlist, stock research, Signals, Evidence Board, Debate, claim examination, History, and About. WP3 provides the Prototype-derived deep shell, WP4 the responsive research workspace, WP5 authoritative Debate fact/evidence projections, WP6 the chronological V2 chat, and WP7 the remaining core-screen migration. Expo SDK54 (`54.0.37`), React Native `0.81.5`, React `19.1.0`, and the safe-area migration are complete locally; product-owner visual and physical-device acceptance remain open. |
 | Backend API | Done | FastAPI exposes ranked catalog search, coverage, cached prices, indicators, macro context, evidence, watchlist, analysis, trace, token usage, and claim examination. The default-off V2 path adds Session, Message, Challenge, generation-scoped Cancellation, resumable SSE, optional durable Queue admission, and a backward-compatible server-authored fact/evidence presentation projection for canonical messages. |
 | Authentication and persistence | Done | Supabase Auth, bearer-token verification, RLS, persistent watchlists, current-format analysis history, evidence, vectors, XBRL facts, price/macro caches, and the default-off V2 Debate schema/RPCs are implemented. |
 | Market and evidence integrity | In progress | Distinct quote/close, current evidence, SEC facts and seven macro inputs are validated and frozen. The 2026-09-11 preflight found 115 completed daily rows through 09-10, 63 weekly rows, 13 news items, 4 filings, 155 financial facts, all seven macro series, and a positive Finnhub quote. Trading-calendar/release-lag edges remain open; this is not permanent freshness or complete statement coverage. |
 | Technical and macro exploration | In progress | WP4 now renders the 1M/3M daily and 6M/1Y weekly workspace with responsive measured charts, MA overlays, RSI, MACD, volume, volatility, seven dated macro series, per-series unavailable states, and explicit provenance. The deterministic `review_fixture` passes the 320/390/768/1280 Web state matrix; native-device and product-owner visual acceptance remain required. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share validated Bull/Bear/Judge contracts. Explanation independently defaults to deterministic and offers a bounded Groq provider. Live Turn output repeats an explicit citation contract after frozen data; both Turn and Judge inputs use bounded evidence/factor/transcript projections and an 800-Token default completion cap. A shared 61-second pacer respects the current Groq free 8K TPM envelope without Worker retries. |
-| Controlled Live Acceptance | In progress | Stop, provider-attempt audit, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local coverage and hosted Supabase interruption verification. Session `ee8409eb-f415-54b3-892e-d47d85516ae4` on `64c1c6c` passed the complete standard AAPL flow: Queue 202, 12/12 live attempts, two rounds, both Judges, 40 citations, durable reload, SSE cursors, `max_attempts=1`, 39,269 reported Tokens and zero unknown usage. Expo Go/native acceptance remains open. |
+| Controlled Live Acceptance | In progress | Stop, provider-attempt audit, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local coverage and hosted Supabase interruption verification. Session `ee8409eb-f415-54b3-892e-d47d85516ae4` on `64c1c6c` passed the complete standard AAPL flow: Queue 202, 12/12 live attempts, two rounds, both Judges, 40 citations, durable reload, SSE cursors, `max_attempts=1`, 39,269 reported Tokens and zero unknown usage. SDK54 local migration is complete; Expo Go/product-owner device acceptance remains open. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic. `cf8b9e7` adds an explicit `APP_BUILD_SHA` value to `/health`, but it has not been deployed or used to prove the running backend revision. The project will not create an independent staging environment or require a static Web frontend release. The remaining release gate deploys the accepted SHA to the existing Render API and records smoke checks plus a reversible rollback target. |
-| Automated verification | In progress | At committed feature-code baseline `901cddb`, the backend suite passes 516 tests; mobile currently passes 111 tests and TypeScript. Isolated PostgreSQL interruption/replay, hosted interruption/Queue checks, feature-enabled Web export and durable checkpoint batching pass. These checks do not establish native/device, full two-round Live AAPL, visual-owner or existing-Render release acceptance. |
+| Automated verification | In progress | At committed feature-code baseline `901cddb`, the backend suite passes 516 tests; mobile passes 112 tests and TypeScript, with Expo Doctor 18/18. SDK54 iOS and Android native exports pass. Isolated PostgreSQL interruption/replay, hosted interruption/Queue checks, feature-enabled Web export and durable checkpoint batching pass. These checks do not establish physical-device, visual-owner or existing-Render release acceptance. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive single/two-panel Auth surface is implemented. Four-width Web inspection found no horizontal overflow; required/invalid state and label/description relationships are present in the Web DOM. Live-provider submission, native keyboard/screen-reader, simulator, and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search and the loaded-stock “Ready to review” summary now use the shared dark system and a responsive single/two-column layout. A local catalog-only MSFT search and four-width no-overflow check passed; persistence/reload, recovery-state, native, and product-owner acceptance remain open. |
-| Native-device verification | In progress | The Android browser simulator pass is recorded, but Expo Go/native Android review, iOS review, and one physical-device pass remain open. The SDK 52 client can be installed version-specifically on Android and simulators; a physical iPhone requires an SDK upgrade or an accepted development-build substitution when the current App Store Expo Go rejects SDK 52. See [`issue-log.md`](issue-log.md) and [`phase-8-verification-record.md`](phase-8-verification-record.md). |
+| Native-device verification | In progress | The SDK52→53→54 upgrade, safe-area migration, Expo Doctor 18/18, and iOS/Android native exports pass locally. The next gate is product-owner Expo Go acceptance on a physical iPhone using the SDK54 App Store client; Android mandatory edge-to-edge behavior then needs its own native simulator or available-device review. See [`issue-log.md`](issue-log.md) and [`phase-8-verification-record.md`](phase-8-verification-record.md). |
+
+The current SDK54 dependency graph reports 18 `npm audit` findings (7
+moderate, 11 high, 0 critical) in transitive Expo/Metro/config-build tooling.
+The only complete npm remediation path proposes Expo57, which would invalidate
+the current App Store Expo Go SDK54 target. Do not force or override those
+transitive versions; Metro remains restricted to a trusted local network until
+Expo Go supports a newer SDK target.
 
 The historical public verification on 2026-08-27 returned `200` from the
 deployed frontend, returned a healthy production API with `provider=demo`, and
@@ -92,11 +101,13 @@ These are limitations of the current implementation, not completed features:
   `interrupted_awaiting_user`, including before first output. The user can save
   an interjection without dispatching a model, explicitly Continue with a new
   generation, or End. Local pending-Stop recovery survives screen recreation;
-  native kill/reopen, weak-network and hosted Queue acceptance remain open.
+  native kill/reopen, weak-network and product-owner device acceptance remain
+  open; hosted Queue acceptance is complete.
 - V2 queued Interim/Final Judge now has an independent streamed provider and
   `judge.delta`, model/usage metadata, and completion checks. Its default remains
   deterministic. One synthetic Groq probe passed; the current-SHA full AAPL
-  two-round/live-Judge/device flow remains unverified. Explanation stays separate.
+  two-round/live-Judge physical-device flow remains unverified. Explanation stays
+  separate.
 - Deployed Claim Examination accepts four fixed question types. V2 accepts a
   free-form Challenge only at the Interim Judge pause. The context-bounded
   Explanation service is available through an authenticated default-off HTTP
