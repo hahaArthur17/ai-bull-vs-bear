@@ -8,6 +8,12 @@ export type ResponsiveAppShellLayout = {
   navigationPadding: number;
 };
 
+const NAVIGATION_EDGE_GAP = 12;
+
+export function getBottomNavigationOffset(bottomSafeAreaInset: number): number {
+  return NAVIGATION_EDGE_GAP + Math.max(0, bottomSafeAreaInset);
+}
+
 /**
  * Keep the application frame readable on wide Web viewports while letting the
  * same bottom navigation remain comfortably tappable on compact screens.

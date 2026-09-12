@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getResponsiveAppShellLayout } from "./appShell.ts";
+import { getBottomNavigationOffset, getResponsiveAppShellLayout } from "./appShell.ts";
 import { layout } from "./theme/tokens.ts";
 
 test("app shell keeps a readable content width and compacts navigation below tablet", () => {
@@ -18,4 +18,10 @@ test("app shell keeps a readable content width and compacts navigation below tab
   assert.ok(desktop.navigationGap > tablet.navigationGap);
   assert.ok(desktop.navigationPadding > compact.navigationPadding);
   assert.ok(desktop.navigationMaxWidth <= layout.navigationMaxWidth);
+});
+
+test("bottom navigation stays above the device safe-area inset", () => {
+  assert.equal(getBottomNavigationOffset(0), 12);
+  assert.equal(getBottomNavigationOffset(34), 46);
+  assert.equal(getBottomNavigationOffset(-1), 12);
 });

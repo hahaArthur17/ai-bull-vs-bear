@@ -199,7 +199,7 @@ export const appStyles = StyleSheet.create({
   historyTimestamp: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: 7 },
   aboutCard: { backgroundColor: palette.card, borderColor: palette.line, borderWidth: 1, borderRadius: 16, padding: 18, marginBottom: 12 },
   loading: { flex: 1, padding: 22, alignItems: "center", justifyContent: "center", gap: 14 },
-  bottomNav: { alignItems: "center", bottom: 12, left: 0, position: "absolute", right: 0 },
+  bottomNav: { alignItems: "center", left: 0, position: "absolute", right: 0 },
   bottomNavContent: { ...elevation.floating, alignSelf: "center", backgroundColor: colors.surface.floating, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, flexDirection: "row", justifyContent: "space-between", paddingVertical: spacing.sm, width: "100%" },
   navButton: { alignItems: "center", borderColor: "transparent", borderRadius: radii.md, borderWidth: interaction.focusRingWidth, justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: spacing.sm },
   navLabel: { color: palette.muted, fontSize: 12, fontWeight: "700" },

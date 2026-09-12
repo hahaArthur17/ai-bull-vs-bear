@@ -5,11 +5,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   ActivityIndicator,
-  SafeAreaView,
   Text,
   useWindowDimensions,
   View,
 } from "react-native";
+import {
+  initialWindowMetrics,
+  SafeAreaProvider,
+  SafeAreaView,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 
 import { api } from "./src/api";
 import { AuthScreen } from "./src/AuthScreen";
@@ -17,7 +22,7 @@ import {
   FocusablePressable,
   NavButton,
 } from "./src/components/common";
-import { getResponsiveAppShellLayout } from "./src/appShell";
+import { getBottomNavigationOffset, getResponsiveAppShellLayout } from "./src/appShell";
 import { canSubmitExamination } from "./src/examinationState";
 import { findActiveDebate, isActiveDebateConflict } from "./src/debateHistoryView";
 import { AboutScreen } from "./src/screens/AboutScreen";
@@ -58,7 +63,16 @@ function mergeStocks(...groups: Stock[][]): Stock[] {
 }
 
 export default function App() {
+  return (
+    <SafeAreaProvider initialMetrics={initialWindowMetrics}>
+      <AppContent />
+    </SafeAreaProvider>
+  );
+}
+
+function AppContent() {
   const { width } = useWindowDimensions();
+  const { bottom: bottomSafeAreaInset } = useSafeAreaInsets();
   const responsiveShell = getResponsiveAppShellLayout(width);
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
@@ -440,8 +454,8 @@ export default function App() {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <StatusBar backgroundColor={palette.paper} style="light" />
+    <SafeAreaView edges={["top", "left", "right"]} style={styles.safeArea}>
+      <StatusBar style="light" />
       <View style={styles.appShell}>
         {reviewFixtureMode ? (
           <View accessibilityRole="text" style={styles.fixtureBanner}>
@@ -463,7 +477,11 @@ export default function App() {
         <View style={[styles.contentFrame, { maxWidth: responsiveShell.contentMaxWidth }]}>
           {renderScreen()}
         </View>
-        <View accessibilityLabel="Primary navigation" accessibilityRole="tablist" style={styles.bottomNav}>
+        <View
+          accessibilityLabel="Primary navigation"
+          accessibilityRole="tablist"
+          style={[styles.bottomNav, { bottom: getBottomNavigationOffset(bottomSafeAreaInset) }]}
+        >
           <View style={[
             styles.bottomNavContent,
             {

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import {
   ActivityIndicator,
+  KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 import { supabase } from "./supabase";
 import { colors, interaction, layout, palette, radii, spacing, typography } from "./theme";
@@ -71,7 +72,15 @@ export function AuthScreen() {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.keyboardAvoider}
+      >
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+          keyboardShouldPersistTaps="handled"
+        >
         <View style={[styles.authFrame, isWideLayout && styles.authFrameWide]}>
           <View style={[styles.introPanel, isWideLayout && styles.introPanelWide]}>
             <View style={styles.brandRow} accessibilityRole="header">
@@ -160,13 +169,15 @@ export function AuthScreen() {
             </Text>
           </View>
         </View>
-      </ScrollView>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.paper },
+  keyboardAvoider: { flex: 1 },
   scrollContent: { alignItems: "center", flexGrow: 1, justifyContent: "center", padding: spacing.xl },
   authFrame: { alignSelf: "center", maxWidth: 960, width: "100%" },
   authFrameWide: { alignItems: "stretch", flexDirection: "row", gap: spacing.xl },
