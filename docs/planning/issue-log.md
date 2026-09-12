@@ -21,6 +21,44 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-12 — Expo SDK 52 is incompatible with the current physical-iPhone Expo Go path
+
+**Status:** Open; Android and simulator workarounds are documented, while a
+physical-iPhone Expo Go gate requires an SDK upgrade or an accepted development
+build substitution.
+
+**Scope and verified evidence**
+
+The mobile package remains on Expo SDK 52 and React Native 0.76.9. As of this
+review, Expo's current download page lists Expo Go for SDK 57. Expo documents
+that an unsupported project/client pairing returns “Project is incompatible
+with this version of Expo Go,” that version-specific Expo Go clients can be
+installed on Android devices and Android/iOS simulators, and that Apple policy
+does not permit side-loading an older Expo Go version on a physical iPhone.
+The earlier Android-emulator attempt already recorded that this project
+resolved an SDK 52 Expo Go client; it did not complete the download and is not
+a native-device pass. `expo-doctor` passing 18/18 proves dependency consistency
+inside the SDK 52 project, not compatibility with the current App Store client.
+
+**Impact and mitigation**
+
+The root README now states the SDK version before its device instructions and
+links the official SDK 52 Android download. An Android physical device can use
+a matching client; both platform simulators can use version-specific clients.
+If a physical iPhone reports the mismatch, repeatedly restarting Metro or
+changing LAN/tunnel settings cannot fix it, and Web review cannot substitute
+for the native gate.
+
+**Remaining follow-up**
+
+Record the product owner's acceptance-device platform. For a physical iPhone,
+either upgrade the project through the supported Expo SDK sequence and rerun
+mobile/typecheck/export/device regression gates, or explicitly replace Expo Go
+with a development build in the acceptance plan. This compatibility decision
+precedes any claim that the Expo Go physical-device gate passed. Official
+references: [Expo Go version tooling and mismatch guidance](https://docs.expo.dev/develop/tools/)
+and the [SDK 52 client download](https://expo.dev/go?device=true&platform=android&sdkVersion=52).
+
 ## 2026-09-12 — Persisted rebuttal point exceeded the next-request domain bound
 
 **Status:** Resolved and verified by a subsequent full two-round run.

@@ -1,195 +1,309 @@
 # AI Bull vs Bear
 
-AI Bull vs Bear is an educational Agentic RAG mobile application that helps
-users examine possible reasons behind stock-price movements using technical
-indicators, cached financial evidence, and a Bull vs Bear debate.
+[![CI](https://github.com/hahaArthur17/ai-bull-vs-bear/actions/workflows/ci.yml/badge.svg)](https://github.com/hahaArthur17/ai-bull-vs-bear/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-The app explains evidence and uncertainty. It does not provide stock
-predictions, buy/sell/hold recommendations, or personalised financial advice.
+AI Bull vs Bear is an educational, AI-assisted equity-research app. It turns
+market data, technical indicators, company evidence, and macro context into a
+citation-backed debate between Bull and Bear agents, followed by a neutral
+Judge summary.
 
-Start project planning and context recovery from
-[`docs/planning/README.md`](docs/planning/README.md). The verified implementation
-baseline is maintained in
-[`docs/planning/current-status.md`](docs/planning/current-status.md).
+The goal is not to predict prices or tell a user what to trade. The app makes
+competing interpretations, source provenance, uncertainty, and model usage
+visible so a user can examine an investment narrative instead of accepting a
+single generated answer.
 
-## What is implemented
+> **Educational use only.** This project does not provide personalised
+> financial advice, price predictions, or buy/sell/hold recommendations.
 
-- Expo / React Native mobile flow for coverage-aware security search, Watchlist,
-  Stock Detail, Evidence Board, Debate Arena, Cross Examination, History, and
-  About.
-- FastAPI API contract for ranked catalog search, coverage, prices, indicators,
-  watchlist, analysis, trace, token usage, and claim examination.
-- A versioned 7,695-row SEC ticker/exchange identity catalog. Search makes no
-  runtime SEC or market-data request; catalog-only identities can be saved but
-  cannot show synthetic prices or start Debate.
-- Database-independent multi-turn Debate contracts plus local/Supabase
-  repositories for sessions, complete messages/citations, interventions, and
-  the application job ledger. A deterministic runtime completes both rounds and
-  the user-Challenge pause. A default-off V2 preview exposes the Session,
-  Message, Challenge, Queue, and resumable SSE event API while production
-  remains unchanged. With Queue admission disabled, preview deltas are buffered
-  deterministic chunks, not live model tokens. A default-off async per-Turn
-  contract and Groq adapter validate true provider streams before persistence.
-  The V2 mobile screen mounts the resumable SSE client, Queue state, Round 2,
-  generation-scoped cancellation, and a read-only point-question modal before
-  an explicit Round 2 confirmation. Explanation defaults to deterministic and
-  has a separately configured, bounded Groq option. Cancellation rotates the
-  active generation and prevents late provider completion from becoming a
-  canonical message.
-- Deterministic demo data for AAPL, GOOG, NVDA, and TSLA, so no credentials are
-  required for the first run.
-- RSI, MACD, 20/50-day moving averages, volatility, and volume-spike signals.
-- Local lexical-RAG retrieval with overlapping chunks and query-based evidence
-  ranking as the credential-free fallback.
-- Bull Agent, Bear Agent, Judge Agent, Guardrail Agent, evidence IDs, a trace,
-  and a token ledger in the demo provider.
-- Groq and Gemini model-provider adapters with structured JSON validation,
-  evidence-ID filtering, token accounting, and the same safety guardrails.
-- Supabase email authentication, mobile session persistence, bearer-token API
-  protection, and Supabase-backed watchlists and analysis history.
-- Live RSS and SEC EDGAR ingestion with stable IDs, Supabase document/chunk
-  storage, selected 10-K/10-Q section extraction, and retry/rate-limit handling.
-- Optional daily OHLCV ingestion (Alpha Vantage or Finnhub) into Supabase with stale-cache
-  provenance and deterministic price fallback.
-- Optional Redis-backed public stock-search and stock-bundle response caching
-  with strict timeouts, local outage fallback, hashed search keys, and visible
-  cache status. Redis remains disabled by default.
-- A six-hour shared factor-snapshot cache is available only for the standard
-  V2 Debate request with no user question or user metadata. Custom questions,
-  Sessions, Messages, Jobs, and history are never shared through this cache.
-- New V2 generation is bounded to one non-terminal Debate per user and three
-  admissions per configurable one-hour window. Redis provides the atomic fast
-  path when enabled; the process-local fallback and canonical Session check
-  remain active when it is disabled or unavailable.
-- Queued V2 creation with a client idempotency key uses a hashed, owner-scoped
-  Redis lock before factor work. Deterministic IDs, a PostgreSQL transaction
-  lock, and the Job idempotency unique key remain the canonical fallback.
-- Database-local evidence vectors and ticker-filtered pgvector retrieval with a
-  deterministic cached fallback.
-- Immutable completed-close/evidence snapshots with source freshness, dated
-  citations, and confidence reduction when current company evidence is missing.
-- Interactive 1M/3M daily and 6M/1Y weekly price views with moving averages,
-  RSI, MACD, volume, volatility, and dated macro-market context.
-- Financial-advice rewrites and a required educational disclaimer.
+## What the app does
 
-## Current roadmap
+- Searches a versioned 7,695-security SEC-derived catalog and labels each
+  result by data coverage. AAPL, GOOG, NVDA, and TSLA are curated
+  `debate_ready` examples; catalog-only securities remain Watchlist-only.
+- Presents daily and weekly price history, moving averages, RSI, MACD, volume,
+  volatility, current quotes, and dated macro context without disguising stale
+  or missing inputs.
+- Retrieves ranked news, filing, and structured financial evidence, preserves
+  source/freshness metadata, and links generated claims to valid evidence IDs.
+- Runs a Bull/Bear/Judge workflow with a deterministic credential-free mode and
+  optional Groq or Gemini providers.
+- Supports a default-off V2 workflow with durable Queue admission, resumable
+  SSE events, two debate rounds, Stop, recovery, user interjection, explicit
+  Continue/End, read-only term explanation, History, and token accounting.
+- Uses Supabase Auth, Postgres, Row Level Security, pgvector retrieval, and
+  owner-scoped persistence when standard mode is configured.
+- Keeps Redis optional: it can accelerate public reads and coordinate bounded
+  rate/idempotency controls, but it never replaces canonical Supabase data.
 
-The deployed mobile Debate is currently a single synchronous Bull/Bear/Judge
-response. A default-off V2 API and screen prove deterministic multi-turn state,
-durable background Queue work, and live-stream selection without changing that
-production baseline. Phase 7 is complete: the default-off V2 experience now
-includes bounded Explanation, Challenge, Round 2, Final Judge, History, and an
-opt-in local Groq Explanation verification. The active
-[`portfolio implementation plan`](docs/planning/portfolio-implementation-plan.md)
-defines Phase 8 as a reusable financial-technology UI system and Phase 9 as
-Demo Replay, observability, resilience, and release proof. General message
-branching and arbitrary Web text selection are deferred enhancements; V2
-intentionally remains linear after the durable Round 1 pause. The
-quota-controlled local live Groq Round 1 now passes its
-streaming/persistence/reconnect gate. Redis cache and coordination work is
-complete in code and local verification; its measurements remain explicitly
-separate from hosted performance claims. Factor-provider and catalog/watchlist
-foundations are implemented, and the hosted Catalog plus Debate persistence/RLS
-gates passed on 2026-08-29. The hosted Queue migration and deterministic
-admission/Worker/retry/restart gate also passed; production V2 flags remain
-default-off until a deliberate production deployment smoke test with a rollback
-plan.
+The mobile product surface includes Sign in, security search, Watchlist, Stock
+Detail, Signals, Evidence Board, Debate, Cross Examination, History, and About.
 
-Planned features are documented separately from implemented behaviour so the
-repository does not overstate its current capabilities.
+## How it works
 
-## Run the backend
+```mermaid
+flowchart LR
+    Mobile[Expo / React Native] -->|HTTP + bearer token| API[FastAPI API]
+    API -->|Auth and canonical records| DB[(Supabase Postgres + RLS + pgvector)]
+    API -->|durable job admission| Queue[Supabase Queue]
+    Queue --> Worker[Bounded Debate Worker]
+    Worker --> Factors[Technical, evidence, financial, and macro factors]
+    Worker --> Models[Deterministic / Groq / Gemini]
+    Worker -->|canonical messages + citations| DB
+    API -->|resumable SSE| Mobile
+    API -. optional cache and coordination .-> Redis[(Redis)]
+    Ingestion[Bounded ingestion jobs] --> DB
+```
 
-    cd backend
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    uvicorn app.main:app --reload --port 8000
+The accepted live topology currently keeps the API, Queue consumer, Worker,
+and transient SSE broker in one process. Persisted messages and checkpoints
+survive restart; live deltas are not yet shared across multiple API processes.
+See the [architecture overview](docs/architecture/overview.md) and
+[API contract](docs/api/api-contract.md) for the detailed boundaries.
 
-For deterministic visual acceptance, use the explicit local-only fixture profile:
+## Current status
 
-    ENVIRONMENT=development APP_DATA_MODE=review_fixture uvicorn app.main:app --reload --port 8000
+Last verified on **2026-09-12**:
 
-It overrides `.env` provider/persistence settings, makes no outbound requests,
-and labels all simulated prices, evidence, macro data, and Debate context.
+| Area | Status |
+| --- | --- |
+| Mobile and backend feature implementation | Implemented; final native product acceptance remains open |
+| Backend automated suite | 516 tests passing |
+| Mobile verification | 111 tests and TypeScript passing; Expo Doctor 18/18 |
+| Hosted Supabase Catalog, RLS, Debate persistence, Queue, restart, and interruption checks | Passed |
+| Current-data and full two-round live-model verification | Passed: 12/12 provider attempts, both Judges, 40 citations, resumable SSE, 39,269 reported tokens, no retry or unknown usage |
+| Expo Go physical-device and interface acceptance | **Next gate — not yet complete** |
+| Existing Render API same-SHA deployment, cold start, restart, smoke, and rollback proof | Pending Expo Go acceptance |
 
-Open http://localhost:8000/docs for the interactive API docs.
+V2, Queue, live Turn/Judge providers, and interruptions remain explicit
+feature flags; the deployed production baseline does not enable them merely
+because their implementation tests passed. The authoritative project truth is
+maintained in [Current Project Status](docs/planning/current-status.md), with
+the remaining order in [WP8L Next Steps](docs/planning/wp8l-next-steps.md).
 
-## Run the mobile app
+## Prerequisites
 
-In another terminal:
+- Git
+- Python **3.12 or newer** (CI uses 3.12; the runtime container uses 3.13)
+- Node.js **20** and npm
+- Expo Go on a compatible device, or an Android/iOS simulator
+- Optional for standard/live mode: an existing Supabase project and the
+  provider credentials described in [Live Services Setup](docs/setup/live-services.md)
 
-    cd apps/mobile
-    npm install
-    npm run start
+The mobile app currently targets **Expo SDK 52**. Before relying on a physical
+device, check that its Expo Go client supports SDK 52:
 
-When the backend uses `APP_DATA_MODE=review_fixture`, explicitly disable the
-client's configured Supabase authentication as well:
+- An Android physical device can install the matching client from the
+  [official Expo SDK 52 download page](https://expo.dev/go?device=true&platform=android&sdkVersion=52).
+- Android and iOS simulators can use the matching client selected from the
+  [Expo Go version archive](https://expo.dev/go).
+- A physical iPhone cannot side-load an older Expo Go version. If the current
+  App Store client reports that SDK 52 is incompatible, the project must first
+  be upgraded to a currently supported Expo SDK or the acceptance plan must use
+  a development build. Do not count a Web browser check as native acceptance.
 
-    EXPO_PUBLIC_AUTH_MODE=demo EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
+## Quick start: deterministic review fixture
 
-The client reads the backend's local-only mode from `/health`, enables the
-deterministic V2 flow, and keeps a simulated-data banner above every screen.
+This is the safest first run. It needs no Supabase project, provider key, or
+network data call. Every simulated market surface is visibly labelled.
 
-The mobile app defaults to http://localhost:8000. For a physical device, set
-EXPO_PUBLIC_API_URL to the computer's LAN address, for example
-http://192.168.1.20:8000.
+### 1. Clone and install the backend
 
-Mobile API requests time out after 15 seconds by default. Override this with
-`EXPO_PUBLIC_API_TIMEOUT_MS` when a slower development environment needs it.
+```shell
+git clone https://github.com/hahaArthur17/ai-bull-vs-bear.git
+cd ai-bull-vs-bear
+cp .env.example .env
 
-## Test
+cd backend
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+```
 
-    cd backend
-    pytest
+### 2. Start the local-only API
 
-## Optional credentials
+From `backend/`:
 
-The demo mode works without any keys. When you are ready to add persistence or
-live model providers:
+```shell
+ENVIRONMENT=development APP_DATA_MODE=review_fixture \
+  .venv/bin/python -m uvicorn app.main:app \
+  --reload --host 0.0.0.0 --port 8000
+```
 
-Follow the secure checklist in
-[`docs/setup/live-services.md`](docs/setup/live-services.md). Never place secrets
-in tracked files.
+The fixture profile overrides credentials and forces in-memory demo auth,
+persistence, models, Queue, and cache behavior. It makes no Supabase, market,
+model, or Redis request. Verify it at
+[`http://localhost:8000/health`](http://localhost:8000/health); interactive API
+documentation is at [`http://localhost:8000/docs`](http://localhost:8000/docs).
 
-- Create a Supabase project at https://supabase.com/dashboard, run
-  backend/supabase/schema.sql in SQL Editor, then place the project URL and anon
-  key in a local .env file.
-- Create a Groq API key at https://console.groq.com/keys and put it in
-  GROQ_API_KEY.
-- Create a Gemini API key at https://aistudio.google.com/apikey and put it in
-  GEMINI_API_KEY.
+### 3. Start the Expo client
 
-To use a real model after adding one of those keys, set exactly one provider in
-the local .env file:
+In a second terminal, from the repository root:
 
-    ANALYSIS_PROVIDER=groq
-    GROQ_API_KEY=your-local-key
+```shell
+cd apps/mobile
+npm ci
 
-or:
+EXPO_PUBLIC_AUTH_MODE=demo \
+EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8000 \
+  npx expo start --lan --clear
+```
 
-    ANALYSIS_PROVIDER=gemini
-    GEMINI_API_KEY=your-local-key
+Replace `YOUR_COMPUTER_LAN_IP` with the computer's LAN address, for example
+`192.168.1.20`. On macOS, `ipconfig getifaddr en0` commonly prints the Wi-Fi
+address. Then:
 
-The model name can be changed with GROQ_MODEL or GEMINI_MODEL. The backend
-returns HTTP 503 with a safe configuration message if a selected provider is
-missing its key; it never includes the key in a response.
+1. Put the phone and computer on the same Wi-Fi network.
+2. Open a compatible Expo Go client and scan the terminal QR code.
+3. Keep both terminal processes running during review.
+4. Confirm `/health` reports `data_mode: "review_fixture"` and that the app
+   shows its simulated-data label.
 
-Never commit .env or paste secret keys into GitHub issues, README files, or
-chat messages.
+`localhost` on a physical phone points to the phone, not the development
+computer. If LAN discovery is blocked by the router, Expo can tunnel the Metro
+bundle with `npx expo start --tunnel`, but the phone still needs a reachable
+backend URL; tunnelling Metro does not expose the FastAPI port.
 
-## Project layout
+For a simulator on the same computer, use loopback instead:
 
-- backend/app: FastAPI routes, schemas, demo store, indicators, RAG, analysis,
-  and guardrails.
-- backend/tests: API and service tests.
-- backend/supabase: database schema and setup notes.
-- apps/mobile: Expo application.
-- data/catalog: versioned, source-attributed stock-identity snapshots.
-- data/demo: deterministic demo-data notes and seed artifacts.
-- docs: planning, API, database, agent, and safety specifications.
+```shell
+EXPO_PUBLIC_AUTH_MODE=demo \
+EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
+  npx expo start --localhost --clear
+```
 
-## Disclaimer
+## Controlled Expo Go standard/live acceptance
 
-This project is for educational purposes only and does not constitute financial
-advice.
+This maintainer path uses real Supabase persistence and can consume market-data
+and model quota. Complete the migrations, dedicated test-user setup, freshness
+preflight, and non-secret configuration in
+[Live Services Setup](docs/setup/live-services.md) before using it.
+
+Start one API/Worker/SSE process from `backend/`. Do not use `--reload` for a
+quota-bearing session:
+
+```shell
+ENVIRONMENT=development APP_DATA_MODE=standard \
+AUTH_MODE=supabase PERSISTENCE_MODE=supabase \
+DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
+DEBATE_INTERRUPTIONS_ENABLED=true DEBATE_JOB_MAX_ATTEMPTS=1 \
+DEBATE_PROVIDER_MIN_INTERVAL_SECONDS=61 \
+DEBATE_STREAMING_PROVIDER=groq \
+DEBATE_STREAMING_JUDGE_PROVIDER=groq \
+APP_BUILD_SHA=$(git rev-parse HEAD) \
+  .venv/bin/python -m uvicorn app.main:app \
+  --host 0.0.0.0 --port 8000
+```
+
+Start the physical-device client from `apps/mobile/`:
+
+```shell
+EXPO_PUBLIC_AUTH_MODE=supabase \
+EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED=true \
+EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8000 \
+  npx expo start --lan --clear
+```
+
+Before creating any new live Debate, verify `/health.build_sha`, standard data
+mode, the AAPL quote/bundle/evidence provenance, the current Debate list, the
+declared provider-call budget, and available daily quota. The complete
+model-side two-round proof already passed; prefer reopening its persisted
+History/session for visual checks unless a code change specifically requires a
+new live run.
+
+The product-owner checklist is in the
+[Phase 8 UI Acceptance Matrix](docs/planning/phase-8-ui-acceptance-matrix.md).
+It covers data labels, charts, citations, Queue/SSE progress, Stop, recovery,
+interjection, Continue/End, background/foreground behavior, force reopen,
+History, accessibility, and error states.
+
+## Configuration and secrets
+
+Copy [`.env.example`](.env.example) to an ignored root `.env`. Defaults are
+credential-free and conservative.
+
+| Location | Examples | Rule |
+| --- | --- | --- |
+| Expo/public client | `EXPO_PUBLIC_API_URL`, `EXPO_PUBLIC_AUTH_MODE`, `EXPO_PUBLIC_SUPABASE_URL`, `EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy anon-key variable) | Only public configuration; Supabase RLS remains the authorization boundary |
+| FastAPI/Worker only | `SUPABASE_SECRET_KEY`, `GROQ_API_KEY`, `GEMINI_API_KEY`, `FINNHUB_API_KEY`, `ALPHA_VANTAGE_API_KEY`, `FRED_API_KEY`, `EIA_API_KEY` | Never use an `EXPO_PUBLIC_` prefix and never ship these values to a device |
+| Safety and rollout flags | `APP_DATA_MODE`, `DEBATE_WORKFLOW_V2`, `DEBATE_QUEUE_ENABLED`, `DEBATE_INTERRUPTIONS_ENABLED`, provider selections | Enable deliberately and verify the matching database/runtime prerequisites |
+
+The client may contain a Supabase publishable key because it is constrained by
+RLS. The Supabase secret key bypasses RLS and must remain on trusted backend or
+job infrastructure. Never commit `.env`, credentials, test-user passwords,
+access tokens, or screenshots/logs containing them.
+
+## Tests
+
+Run the primary local gates from the repository root. The test, typecheck, and
+Web-export commands mirror CI; Expo Doctor adds an SDK/dependency audit.
+
+```shell
+PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
+
+cd apps/mobile
+npm run test:stream
+npm run typecheck
+npm run build:web
+npx expo-doctor
+```
+
+`build:web` is a local compatibility check in CI. Expo Go is the product UI
+acceptance entry point; the project does not use a Render static Web frontend
+as a Phase 8/9 release gate.
+
+Live verification scripts are opt-in, bounded, and may consume provider quota.
+Use the procedures in [Live Services Setup](docs/setup/live-services.md) rather
+than running them as part of an ordinary test suite.
+
+## Release path
+
+The remaining release sequence is deliberately small:
+
+1. Complete Expo Go physical-device and interface acceptance from a recorded
+   commit.
+2. Deploy that accepted commit to the **existing Render API**.
+3. Verify `/health.build_sha`, Auth/CORS, current data, Queue/SSE, cold start,
+   restart, smoke behavior, and a recoverable rollback target.
+4. Enter Phase 9 for replay, observability, resilience, and final delivery.
+
+The project does **not** create an independent staging environment and does
+**not** test or publish a Render static Web frontend as part of this path.
+
+## Repository layout
+
+| Path | Purpose |
+| --- | --- |
+| [`apps/mobile`](apps/mobile) | Expo / React Native client and mobile tests |
+| [`backend/app`](backend/app) | FastAPI routes, domain services, repositories, providers, Worker, guardrails, and caching |
+| [`backend/tests`](backend/tests) | Backend contract, service, persistence, Queue, SSE, and safety tests |
+| [`backend/supabase`](backend/supabase) | Base schema and ordered database migrations |
+| [`data/catalog`](data/catalog) | Versioned stock-identity catalog and provenance |
+| [`data/demo`](data/demo) | Deterministic fixture notes and seed artifacts |
+| [`scripts`](scripts) | Bounded ingestion, benchmark, migration, and verification commands |
+| [`docs`](docs) | Architecture, API, database, agent, setup, planning, and verification records |
+
+## Documentation
+
+- [Current Project Status](docs/planning/current-status.md) — verified baseline
+  and open gates
+- [WP8L Next Steps](docs/planning/wp8l-next-steps.md) — active execution order
+- [Architecture Overview](docs/architecture/overview.md) — runtime modes and
+  data flow
+- [API Contract](docs/api/api-contract.md) — endpoint and SSE behavior
+- [Database Schema Plan](docs/database/schema-plan.md) — Supabase/RLS/Queue
+  boundaries
+- [Agent Workflow](docs/agents/agent-workflow.md) — Bull/Bear/Judge lifecycle
+- [Live Services Setup](docs/setup/live-services.md) — credentials, migrations,
+  ingestion, quotas, and controlled acceptance
+- [Issue Log](docs/planning/issue-log.md) — material incidents and mitigations
+
+When resuming development, start with the
+[planning index](docs/planning/README.md); historical weekly reports are
+evidence, not the active backlog.
+
+## License
+
+Released under the [MIT License](LICENSE).

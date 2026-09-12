@@ -83,6 +83,7 @@ attempts/19,791 Tokens，总计 39,269；Bull 15,851、Bear 16,808、Judge
 
 ### 5. Expo Go 和跨状态验收（WP8L.6、WP8 与 WP9）
 
+- 客户端当前为 Expo SDK 52。Android 真机或模拟器可使用匹配版本的 Expo Go；实体 iPhone 无法侧载旧客户端，若 App Store 版拒绝 SDK 52，必须先完成受支持的 SDK 升级，或由产品负责人明确把开发构建替代写入验收范围。版本不匹配不能靠重启 Metro、切换 LAN/tunnel 或 Web 浏览器验收解决，详见 `issue-log.md`。
 - 专门测试账号、standard 模式，单进程单实例 API/Worker/SSE，无热重载；核对手机网络、登录和 API 地址。
 - 验证真实数据标签、冻结快照、Queue 等待、各角色渐进输出、Stop、插话、Continue、结束、重连、后台、重开 History 和费用。
 - 补齐 Web 四宽度、200% 缩放、键盘、降低动态效果、屏幕阅读器、原生键盘/焦点、iOS/Android 与至少一台物理设备的缺失证据。缺设备明确记录，不以浏览器模拟替代。

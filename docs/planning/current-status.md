@@ -32,8 +32,12 @@ paced Turns before a 334-character persisted rebuttal point exceeded the
 next-request 300-character domain bound; that projection and failure-ledger
 reporting are now fixed. A later `64c1c6c` Session passed all twelve requests,
 both Judges, both rounds, citations, SSE and ledger checks with 39,269 reported
-Tokens and no retry or unknown usage. Expo Go remains. The ordered remaining
-work and corrected boundaries are in
+Tokens and no retry or unknown usage. Expo Go remains. The client is still on
+Expo SDK 52: Android can use a matching version-specific Expo Go client, while
+a physical iPhone cannot install an older client and therefore requires an SDK
+upgrade or an explicitly accepted development-build substitution if the App
+Store client rejects SDK 52. The ordered remaining work and corrected
+boundaries are in
 [`wp8l-next-steps.md`](wp8l-next-steps.md). Historical checkpoints below are dated
 progress records, not the current outstanding-work list.
 
@@ -53,7 +57,7 @@ progress records, not the current outstanding-work list.
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive single/two-panel Auth surface is implemented. Four-width Web inspection found no horizontal overflow; required/invalid state and label/description relationships are present in the Web DOM. Live-provider submission, native keyboard/screen-reader, simulator, and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search and the loaded-stock “Ready to review” summary now use the shared dark system and a responsive single/two-column layout. A local catalog-only MSFT search and four-width no-overflow check passed; persistence/reload, recovery-state, native, and product-owner acceptance remain open. |
-| Native-device verification | In progress | The Android browser simulator pass is recorded, but Expo Go/native Android review, iOS review, and one physical-device pass remain open. See [`phase-8-verification-record.md`](phase-8-verification-record.md). |
+| Native-device verification | In progress | The Android browser simulator pass is recorded, but Expo Go/native Android review, iOS review, and one physical-device pass remain open. The SDK 52 client can be installed version-specifically on Android and simulators; a physical iPhone requires an SDK upgrade or an accepted development-build substitution when the current App Store Expo Go rejects SDK 52. See [`issue-log.md`](issue-log.md) and [`phase-8-verification-record.md`](phase-8-verification-record.md). |
 
 The historical public verification on 2026-08-27 returned `200` from the
 deployed frontend, returned a healthy production API with `provider=demo`, and
