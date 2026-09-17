@@ -21,6 +21,48 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-17 — Reopening a canonical V2 Debate waits on serial detail reads
+
+**Status:** Open performance issue. No Debate data, model output, or canonical
+ordering is incorrect; the current history-to-Debate navigation waits longer
+than an interactive reopen should require.
+
+**Scope and verified evidence**
+
+The History action `Open interim assessment` calls `openSavedDebate`, which
+awaits `GET /debates/{session_id}` before it sets the screen to the Live Debate
+view. It therefore cannot navigate until the entire canonical Session detail is
+assembled. This is a read-only operation: it does not call a model or create a
+new Debate.
+
+For the saved Round 1 Session inspected on 2026-09-17, the detail contained
+seven canonical messages. The current server detail builder performs one
+session lookup, two reads to list messages, three reads per message to load
+citations with ownership checks, and two reads for the active Job: **26 serial
+Supabase REST reads**. A local measurement of the active backend returned the
+history list in 1.039 seconds and the selected detail in 8.210 seconds. The
+post-navigation AAPL bundle refresh measured 4.133 seconds; it is started
+after the screen state is set and is not required to load the saved transcript.
+Network timing will vary, so a person seeing 2–3 seconds is consistent with
+the same serial-read design.
+
+**Mitigation and verification plan**
+
+Do not replace canonical server data with summary-card data or navigate with a
+partially fabricated transcript. The corrective design should reduce the
+server detail path to one bounded, ownership-scoped aggregate/RPC read (or a
+small fixed number of reads) that returns Session, messages, citations, and
+Job together. The client can then either retain its current "load then enter"
+behavior with a materially faster response, or enter a clear loading shell
+immediately while that canonical response loads.
+
+Before implementing it, add a regression that counts repository transport
+calls for a seven-message Session and verifies that an interim transcript,
+citations, and Job state remain identical after reopening. Measure cold and
+warm reopen latency separately; do not use a model call as a performance test.
+
+---
+
 ## 2026-09-17 — V2 Bear turn ended safely before any replayable text
 
 **Status:** The misleading empty-chat-bubble presentation is resolved locally.
