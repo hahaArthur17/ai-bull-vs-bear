@@ -1,8 +1,8 @@
 # Current Project Status
 
-Last verified: 2026-09-12 (committed feature-code baseline `901cddb`; current
-mobile baseline `0f70366`; status documents reconciled to the hosted, Live, and
-local Expo SDK54 evidence below)
+Last verified: 2026-09-17 (committed feature-code baseline `901cddb`; current
+mobile baseline includes `1166e67`; status documents are reconciled to hosted,
+Live, and local Expo SDK54 evidence below)
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -43,6 +43,17 @@ remaining work and corrected boundaries are in
 [`wp8l-next-steps.md`](wp8l-next-steps.md). Historical checkpoints below are dated
 progress records, not the current outstanding-work list.
 
+The current manual handoff is narrower than a new model-side proof: an
+authenticated AAPL V2 Round 1 has seven canonical messages, no active Job, and
+is waiting at the Interim Judge. The next manual action is to reopen that saved
+Session, verify its canonical transcript/citations, then deliberately Continue
+to Round 2 only when its five further live provider calls are accepted. A
+separate Bear attempt safely failed before any replayable text; the completed
+Bull record was preserved and the mobile zero-text draft presentation was
+corrected in `1166e67`. V2 in-app token diagnostics and saved-Debate detail
+latency remain open follow-up work. The exact commands and next-click sequence
+are in [`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md).
+
 ## Verified baseline
 
 | Area | Status | Current state |
@@ -53,9 +64,9 @@ progress records, not the current outstanding-work list.
 | Market and evidence integrity | In progress | Distinct quote/close, current evidence, SEC facts and seven macro inputs are validated and frozen. The 2026-09-11 preflight found 115 completed daily rows through 09-10, 63 weekly rows, 13 news items, 4 filings, 155 financial facts, all seven macro series, and a positive Finnhub quote. Trading-calendar/release-lag edges remain open; this is not permanent freshness or complete statement coverage. |
 | Technical and macro exploration | In progress | WP4 now renders the 1M/3M daily and 6M/1Y weekly workspace with responsive measured charts, MA overlays, RSI, MACD, volume, volatility, seven dated macro series, per-series unavailable states, and explicit provenance. The deterministic `review_fixture` passes the 320/390/768/1280 Web state matrix; native-device and product-owner visual acceptance remain required. |
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share validated Bull/Bear/Judge contracts. Explanation independently defaults to deterministic and offers a bounded Groq provider. Live Turn output repeats an explicit citation contract after frozen data; both Turn and Judge inputs use bounded evidence/factor/transcript projections and an 800-Token default completion cap. A shared 61-second pacer respects the current Groq free 8K TPM envelope without Worker retries. |
-| Controlled Live Acceptance | In progress | Stop, provider-attempt audit, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local coverage and hosted Supabase interruption verification. Session `ee8409eb-f415-54b3-892e-d47d85516ae4` on `64c1c6c` passed the complete standard AAPL flow: Queue 202, 12/12 live attempts, two rounds, both Judges, 40 citations, durable reload, SSE cursors, `max_attempts=1`, 39,269 reported Tokens and zero unknown usage. SDK54 local migration is complete; Expo Go/product-owner device acceptance remains open. |
+| Controlled Live Acceptance | In progress | Stop, provider-attempt audit, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local coverage and hosted Supabase interruption verification. Session `ee8409eb-f415-54b3-892e-d47d85516ae4` on `64c1c6c` passed the complete standard AAPL flow: Queue 202, 12/12 live attempts, two rounds, both Judges, 40 citations, durable reload, SSE cursors, `max_attempts=1`, 39,269 reported Tokens and zero unknown usage. The current Expo manual beta also has one saved AAPL Round 1 (`awaiting_user`, seven canonical messages, no active Job) ready for Interim → Round 2 validation; V2 in-app usage diagnostics and saved-detail read performance are still open. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic. `cf8b9e7` adds an explicit `APP_BUILD_SHA` value to `/health`, but it has not been deployed or used to prove the running backend revision. The project will not create an independent staging environment or require a static Web frontend release. The remaining release gate deploys the accepted SHA to the existing Render API and records smoke checks plus a reversible rollback target. |
-| Automated verification | In progress | At committed feature-code baseline `901cddb`, the backend suite passes 516 tests; mobile passes 112 tests and TypeScript, with Expo Doctor 18/18. SDK54 iOS and Android native exports pass. Isolated PostgreSQL interruption/replay, hosted interruption/Queue checks, feature-enabled Web export and durable checkpoint batching pass. These checks do not establish physical-device, visual-owner or existing-Render release acceptance. |
+| Automated verification | In progress | At committed feature-code baseline `901cddb`, the backend suite passes 516 tests; mobile now passes 114 tests and TypeScript, with Expo Doctor 18/18. SDK54 iOS and Android native exports pass. Isolated PostgreSQL interruption/replay, hosted interruption/Queue checks, feature-enabled Web export and durable checkpoint batching pass. These checks do not establish physical-device, visual-owner or existing-Render release acceptance. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive single/two-panel Auth surface is implemented. Four-width Web inspection found no horizontal overflow; required/invalid state and label/description relationships are present in the Web DOM. Live-provider submission, native keyboard/screen-reader, simulator, and physical-device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search and the loaded-stock “Ready to review” summary now use the shared dark system and a responsive single/two-column layout. A local catalog-only MSFT search and four-width no-overflow check passed; persistence/reload, recovery-state, native, and product-owner acceptance remain open. |

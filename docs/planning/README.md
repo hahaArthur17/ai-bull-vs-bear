@@ -7,19 +7,21 @@ use an old weekly checklist to choose new work.
 
 When resuming development:
 
-1. read [`current-status.md`](current-status.md) for the verified baseline and
+1. for the current Expo V2 beta, read
+   [`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md) first;
+2. read [`current-status.md`](current-status.md) for the verified baseline and
    known gaps;
-2. read the active
+3. read the active
    [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) and
    select only its current phase;
-3. read the active phase-specific remediation register, when present;
-4. review the [project issue log](issue-log.md) for unresolved or recurring
+4. read the active phase-specific remediation register, when present;
+5. review the [project issue log](issue-log.md) for unresolved or recurring
    risks;
-5. read the latest entry in [`reports/`](reports/README.md) when historical
+6. read the latest entry in [`reports/`](reports/README.md) when historical
    implementation detail is needed;
-6. open only the architecture, API, database, agent, or setup document relevant
+7. open only the architecture, API, database, agent, or setup document relevant
    to the selected task; and
-7. compare documentation with the repository and tests before changing code.
+8. compare documentation with the repository and tests before changing code.
 
 The repository and passing verification checks are the implementation source
 of truth. Planning documents describe intent and must be updated when an
@@ -30,6 +32,7 @@ accepted design or completion state changes.
 | Document | Purpose |
 | --- | --- |
 | [`current-status.md`](current-status.md) | Concise, verified current state and limitations. |
+| [`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md) | Exact local V2 beta restart commands, current manual-test state, and ordered next checks. |
 | [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md) | Canonical architecture, phases, acceptance tests, and next coding task. |
 | [`phase-8-ui-acceptance-matrix.md`](phase-8-ui-acceptance-matrix.md) | Required visual, responsive, accessibility, and device-review evidence for the active UI redesign. |
 | [`phase-8-design-remediation.md`](phase-8-design-remediation.md) | Active Phase 8 remediation register for the Prototype dark theme, chart/Debate UX, review fixtures, data integrity, existing-backend release checks, and device acceptance. |

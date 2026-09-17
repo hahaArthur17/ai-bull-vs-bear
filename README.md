@@ -63,16 +63,16 @@ See the [architecture overview](docs/architecture/overview.md) and
 
 ## Current status
 
-Last verified on **2026-09-12**:
+Last verified on **2026-09-17**:
 
 | Area | Status |
 | --- | --- |
 | Mobile and backend feature implementation | Implemented; SDK54 native exports pass; final physical-device/product acceptance remains open |
 | Backend automated suite | 516 tests passing |
-| Mobile verification | 112 tests and TypeScript passing; Expo Doctor 18/18; iOS and Android native exports pass |
+| Mobile verification | 114 tests and TypeScript passing; Expo Doctor 18/18; iOS and Android native exports pass |
 | Hosted Supabase Catalog, RLS, Debate persistence, Queue, restart, and interruption checks | Passed |
 | Current-data and full two-round live-model verification | Passed: 12/12 provider attempts, both Judges, 40 citations, resumable SSE, 39,269 reported tokens, no retry or unknown usage |
-| Expo Go physical-device and interface acceptance | **Next gate — awaiting product-owner iPhone Expo Go acceptance; Android native regression follows** |
+| Expo Go physical-device and interface acceptance | **In progress — a saved AAPL V2 Round 1 is ready for its Interim → Round 2 device flow; Stop/recovery and Android native regression follow** |
 | Existing Render API same-SHA deployment, cold start, restart, smoke, and rollback proof | Pending physical-device acceptance |
 
 V2, Queue, live Turn/Judge providers, and interruptions remain explicit
@@ -80,6 +80,8 @@ feature flags; the deployed production baseline does not enable them merely
 because their implementation tests passed. The authoritative project truth is
 maintained in [Current Project Status](docs/planning/current-status.md), with
 the remaining order in [WP8L Next Steps](docs/planning/wp8l-next-steps.md).
+For the exact next local V2 action and two-terminal commands, start with the
+[V2 Beta Resume Checklist](docs/planning/v2-beta-resume-checklist.md).
 
 ## Prerequisites
 
@@ -189,30 +191,42 @@ preflight, and non-secret configuration in
 [Live Services Setup](docs/setup/live-services.md) before using it.
 
 Start one API/Worker/SSE process from `backend/`. Do not use `--reload` for a
-quota-bearing session:
+quota-bearing session. This exact simulator profile reads credentials only from
+the ignored root `.env` file:
 
 ```shell
 ENVIRONMENT=development APP_DATA_MODE=standard \
 AUTH_MODE=supabase PERSISTENCE_MODE=supabase \
+ANALYSIS_PROVIDER=demo \
 DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
 DEBATE_INTERRUPTIONS_ENABLED=true DEBATE_JOB_MAX_ATTEMPTS=1 \
+DEBATE_WORKER_CONCURRENCY=1 \
 DEBATE_PROVIDER_MIN_INTERVAL_SECONDS=61 \
 DEBATE_STREAMING_PROVIDER=groq \
 DEBATE_STREAMING_JUDGE_PROVIDER=groq \
+DEBATE_GROQ_MODEL=openai/gpt-oss-20b \
+DEBATE_JUDGE_GROQ_MODEL=openai/gpt-oss-20b \
+EXPLANATION_PROVIDER=deterministic \
 APP_BUILD_SHA=$(git rev-parse HEAD) \
   .venv/bin/python -m uvicorn app.main:app \
-  --host 0.0.0.0 --port 8000
+  --host 127.0.0.1 --port 8000
 ```
 
-Start the physical-device client from `apps/mobile/`:
+Start the iOS Simulator client from `apps/mobile/`:
 
 ```shell
 EXPO_PUBLIC_AUTH_MODE=supabase \
 EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
 EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED=true \
-EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8000 \
-  npx expo start --lan --clear
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
+EXPO_PUBLIC_API_TIMEOUT_MS=45000 \
+  npx expo start --ios --clear
 ```
+
+For a physical device, change the API URL to `http://YOUR_COMPUTER_LAN_IP:8000`
+and use `npx expo start --lan --clear` instead. The complete next-click order,
+model-cost boundary, and post-Round-2 checks are in the
+[V2 Beta Resume Checklist](docs/planning/v2-beta-resume-checklist.md).
 
 Before creating any new live Debate, verify `/health.build_sha`, standard data
 mode, the AAPL quote/bundle/evidence provenance, the current Debate list, the
@@ -306,6 +320,7 @@ The project does **not** create an independent staging environment and does
 - [Current Project Status](docs/planning/current-status.md) — verified baseline
   and open gates
 - [WP8L Next Steps](docs/planning/wp8l-next-steps.md) — active execution order
+- [V2 Beta Resume Checklist](docs/planning/v2-beta-resume-checklist.md) — current local V2 test handoff and commands
 - [Architecture Overview](docs/architecture/overview.md) — runtime modes and
   data flow
 - [API Contract](docs/api/api-contract.md) — endpoint and SSE behavior

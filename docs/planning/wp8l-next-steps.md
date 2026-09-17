@@ -1,11 +1,22 @@
 # WP8L 当前进度与剩余路线
 
-复核日期：2026-09-12。已提交功能代码基线：`901cddb`；当前 mobile baseline：`0f70366`。Live Queue 验证器、托管 interruption/Queue 修复、真实 provider 节流、Turn/Judge Prompt 上限及下一请求历史论点边界均已提交；本文已同步对应验证证据与剩余路线。
+复核日期：2026-09-17。已提交功能代码基线：`901cddb`；当前 mobile baseline 包含 `1166e67`。Live Queue 验证器、托管 interruption/Queue 修复、真实 provider 节流、Turn/Judge Prompt 上限及下一请求历史论点边界均已提交；本文已同步对应验证证据与剩余路线。
 本文汇总当前执行顺序；详细验收仍以 Phase 8 remediation、UI acceptance matrix 和 verification record 为准。历史 checkpoint 描述的是当时状态，不代表当前待办。
+
+## 2026-09-17 当前 Expo V2 Beta 交接
+
+当前已保存一个认证 AAPL Round 1 Session：7 条 canonical 消息、无 active Job、
+状态为 `awaiting_user`。下一次不应再创建 Round 1；应从 History 打开 Interim
+Assessment，先核对顺序、引用和冻结数据，再在明确接受额外 5 次 live provider
+调用的前提下 Continue 到 Round 2 与 Final Judge。单个 Bear provider 尝试曾在
+任何可重放文字前安全失败；completed Bull 保留，移动端空草稿显示已由 `1166e67`
+修正。V2 UI token diagnostics 和 saved-detail serial-read performance 仍未完成，
+但不阻断正常路径验收。精确两终端命令和逐步检查见
+[`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md)。
 
 ## 当前位置
 
-当前处于 **Phase 8 / WP8L.6 完整真实模型联合运行已通过、Expo Go 验收前**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue、当前数据预检、完整两轮真实模型运行和 Expo SDK54 本地迁移已经完成；下一门槛是产品负责人使用 SDK54 App Store Expo Go 完成 iPhone 真机验收，随后补 Android 原生模拟器或可用设备的 edge-to-edge 验收。
+当前处于 **Phase 8 / WP8L.6 Expo V2 Beta 正常路径验收**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue、当前数据预检、完整两轮真实模型运行和 Expo SDK54 本地迁移已经完成；当前手工交接是复用已保存的 AAPL Round 1，完成 Interim → Round 2 → Final Judge 检查。之后仍需补齐 Stop/重连/原生设备体验、V2 token diagnostics、saved-detail 读取性能，以及 Android 原生模拟器或可用设备的 edge-to-edge 验收。
 
 | 工作包 | 已有证据 | 尚未完成 |
 | --- | --- | --- |

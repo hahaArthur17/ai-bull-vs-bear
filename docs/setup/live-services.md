@@ -1,6 +1,6 @@
 # Live Services Setup
 
-Last reviewed: 2026-09-12
+Last reviewed: 2026-09-17
 
 This document records the non-secret configuration needed to move AI Bull vs
 Bear from deterministic demo mode to real services.
@@ -347,7 +347,7 @@ be selected before an ingestion adapter can be implemented.
 
 ## Controlled Expo Go Live Acceptance profile
 
-Status (2026-09-12): hosted interruption/Queue validation and current AAPL data
+Status (2026-09-12 historical verifier): hosted interruption/Queue validation and current AAPL data
 preflight pass. The reviewed current-SHA Live Queue verifier is committed. A
 61-second-paced run completed all six cited Round 1 Turns, then exposed an
 oversized Interim Judge Prompt; `399e6fe` reduces the exact input from 34,391 to
@@ -360,19 +360,25 @@ request's 300-character domain bound. `19b9d85` fixes that projection and
 Session used 13,366 reported Tokens with no retry or unknown usage. The later
 `64c1c6c` Session `ee8409eb-f415-54b3-892e-d47d85516ae4` passed the full
 12-request/two-Judge/two-round verifier with 39,269 reported Tokens, 40
-citations, 196 ordered deltas and no retry or unknown usage. Expo Go acceptance
-remains unexecuted. See
+citations, 196 ordered deltas and no retry or unknown usage. Physical-device
+Expo Go acceptance remains unexecuted; the current local V2 beta handoff is
+recorded in the checklist below. See
 [`remaining roadmap`](../planning/wp8l-next-steps.md). The canonical
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
 
-Current SDK54 acceptance entry: mobile commit `0f7036609eaa16aab0108f49416a6e211d29ff49`
-(`0f70366`) targets Expo SDK54 and the App Store Expo Go client. The automated
-baseline passes 112 mobile tests, TypeScript typecheck, Expo Web export, Expo
-Doctor 18/18, and iOS and Android native bundle exports. The next live product
-check is a physical iPhone running this SHA; record the exact iPhone model, iOS
-version, and App Store Expo Go version in the acceptance matrix before starting.
-No physical-device acceptance has been claimed yet.
+Current SDK54 acceptance entry: the mobile baseline includes `1166e67` and
+targets Expo SDK54 and the App Store Expo Go client. The automated baseline
+passes 114 mobile tests, TypeScript typecheck, Expo Web export, Expo Doctor
+18/18, and iOS and Android native bundle exports. The next live product check
+is the saved local V2 beta handoff, followed by a physical iPhone running this
+SHA; record the exact iPhone model, iOS version, and App Store Expo Go version
+in the acceptance matrix before starting.
+No physical-device acceptance has been claimed yet. The current local manual
+handoff is a saved authenticated AAPL V2 Round 1 (`awaiting_user`, seven
+canonical messages, no active Job); resume it with the exact commands and
+checks in [`V2 Beta Resume Checklist`](../planning/v2-beta-resume-checklist.md)
+before creating another live Session.
 
 This profile is deliberately separate from `review_fixture`. A safe
 presence-only audit confirms that the ignored local `.env` has Supabase, Groq,
@@ -516,18 +522,21 @@ smoke checks on the existing Render API, rollback, quota, and provenance gates
 are recorded. Independent staging and the Render static Web frontend are not
 part of this acceptance path.
 
-### 6. Current SDK54 native acceptance status (2026-09-12)
+### 6. Current SDK54 native acceptance status (2026-09-17)
 
 Stop, before-output interruption, user interjection, and explicit Continue are
 implemented. Their hosted Supabase/PostgREST/Queue verification has passed,
-including durable recovery and idempotent Continue. The remaining gate is the
-native experience: run the SDK54 App Store Expo Go client on the physical iPhone
-from commit `0f7036609eaa16aab0108f49416a6e211d29ff49` and record the device, iOS,
-and Expo Go versions. Validate weak-network behavior, background/foreground,
-force-reopen recovery, keyboard/focus, safe-area/system-bar layout, and the full
-Stop → interjection → Continue flow. Android remains a separate native
-simulator or available-device review; the iPhone result and successful native
-bundles do not replace it.
+including durable recovery and idempotent Continue. The current mobile baseline
+includes `1166e67`; automated mobile verification is 114 tests plus TypeScript,
+Expo Doctor 18/18, and native exports. The next local action is the saved AAPL
+V2 Interim → Round 2 beta check in the
+[resume checklist](../planning/v2-beta-resume-checklist.md). The remaining
+native gate is the SDK54 App Store Expo Go client on a physical iPhone; record
+the device, iOS, and Expo Go versions, then validate weak-network behavior,
+background/foreground, force-reopen recovery, keyboard/focus, safe-area/system
+bars, and the full Stop → interjection → Continue flow. Android remains a
+separate native simulator or available-device review; successful native bundles
+do not replace it.
 
 ## Verification checklist
 
