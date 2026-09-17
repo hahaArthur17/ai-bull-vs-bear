@@ -21,6 +21,59 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-17 — V2 Bear turn ended safely before any replayable text
+
+**Status:** The misleading empty-chat-bubble presentation is resolved locally.
+The single-attempt live session remains a valid failed-provider test record;
+no unverified Bear text was retained or replayed.
+
+**Scope and verified evidence**
+
+In the Expo V2 beta Session `e5fea034-e30c-52b5-99de-a788e1b38df4`, Bull
+completed canonically through `openai/gpt-oss-20b` with 1,961 prompt, 253
+completion and 2,214 total reported Tokens. Bear was subsequently admitted
+and dispatched, but finished as a failed provider attempt after about 18
+seconds with unknown usage. The Session and its one-attempt Queue Job both
+ended with the safe code `debate_execution_failed`; the durable transcript
+contains exactly the completed Bull message.
+
+An authenticated replay of the live process's SSE buffer found Bear's
+`turn.started` and terminal failure but zero Bear `turn.delta` events. This
+rules out text encoding, reveal pacing, and lost canonical persistence as the
+reason for the apparently disappearing Bear chat card. The card was the
+intentional zero-content draft created at `turn.started`, which the client
+correctly removes at terminal failure. The current safe-error/ledger contract
+does not persist the private provider exception or rejected text, so the exact
+non-retryable cause cannot be recovered from this terminal Session. Plausible
+contract-side causes include an invalid/missing evidence citation, financial
+guardrail rejection, an abnormal stream finish, or empty provider content.
+It was not classified as a retryable Groq rate-limit/server failure: that path
+would have ended as `debate_retry_exhausted`.
+
+**Mitigation and verification**
+
+The mobile transcript now suppresses zero-text drafts while retaining their
+underlying state for the existing Stop-before-output control. During that
+short interval it says that the agent is preparing its first safe response;
+it never shows an empty message that later appears to vanish. A regression
+test covers the zero-text versus visible-text boundary. The server continues
+to discard incomplete or rejected text rather than promoting it to a canonical
+Bear conclusion.
+
+**Remaining follow-up**
+
+Do not mutate or retry this terminal Session. A deliberate fresh live test may
+use two Worker attempts only if its additional-model-call budget is accepted;
+the current `DEBATE_JOB_MAX_ATTEMPTS=1` setting intentionally chose a single
+bounded call. Add a safe, non-content failure-class field (for example,
+upstream retryable, guardrail, citation/contract, or stream-finalization) to
+the V2 provider-attempt/read model before treating a generic
+`debate_execution_failed` as a precise provider diagnosis. Keep raw rejected
+text and provider-private error payloads out of the client, logs, and issue
+record.
+
+---
+
 ## 2026-09-17 — Legacy real-model token usage was hidden and mislabelled as demo usage
 
 **Status:** Legacy display resolved locally; V2 token diagnostics remain an

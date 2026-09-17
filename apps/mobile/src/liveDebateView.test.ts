@@ -7,6 +7,7 @@ import {
   canChallengeDebate,
   debateMessageSections,
   debateStatusCopy,
+  visibleDebateDrafts,
 } from "./liveDebateView.ts";
 import type { DebateMessageRecord } from "./types.ts";
 
@@ -87,6 +88,22 @@ test("queued and running jobs expose visible cancellable status", () => {
   });
   assert.match(debateStatusCopy(running).detail, /attempt 2/i);
   assert.equal(canCancelDebate(running), true);
+});
+
+test("a started turn without safe text does not render as a transcript bubble", () => {
+  const drafts = [{
+    messageId: "draft-1",
+    generationId: "generation-1",
+    role: "bear" as const,
+    content: "",
+    nextDeltaIndex: 1,
+    citations: [],
+  }];
+
+  assert.deepEqual(visibleDebateDrafts(drafts), []);
+  assert.deepEqual(visibleDebateDrafts([{ ...drafts[0], content: "[E1] A visible point." }]), [
+    { ...drafts[0], content: "[E1] A visible point." },
+  ]);
 });
 
 test("retry delay and failure are presented without provider details", () => {

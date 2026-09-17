@@ -50,6 +50,7 @@ import {
   canCancelDebate,
   canChallengeDebate,
   debateStatusCopy,
+  visibleDebateDrafts,
 } from "../liveDebateView";
 import {
   activeInterruptionDraft,
@@ -460,7 +461,9 @@ export function LiveDebateScreen({
       interruptionPoint,
       defaultPointPassage(interruptionPoint.message.content),
     ) !== null;
-  const drafts = revealDisplay.drafts;
+  const allDrafts = revealDisplay.drafts;
+  const drafts = visibleDebateDrafts(allDrafts);
+  const awaitingFirstSafeText = allDrafts.length > 0 && drafts.length === 0;
   const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
     || snapshot.sessionStatus === "running_round_2"
     ? 2
@@ -909,10 +912,15 @@ export function LiveDebateScreen({
 
       {revealDisplay.canonicalMessages.length === 0 && drafts.length === 0 ? (
         <View style={screenStyles.emptyCard}>
-          <Text style={screenStyles.emptyTitle}>The transcript is intentionally empty</Text>
+          <Text style={screenStyles.emptyTitle}>
+            {awaitingFirstSafeText
+              ? "The agent is preparing a safe first response"
+              : "The transcript is intentionally empty"}
+          </Text>
           <Text style={screenStyles.emptyText}>
-            Queue admission returned before generation. Messages will appear here only after a
-            Worker starts; partial output stays visually distinct from durable output.
+            {awaitingFirstSafeText
+              ? "Nothing is shown as a chat message until the first safe text is available."
+              : "Queue admission returned before generation. Messages will appear here only after a Worker starts; partial output stays visually distinct from durable output."}
           </Text>
         </View>
       ) : null}

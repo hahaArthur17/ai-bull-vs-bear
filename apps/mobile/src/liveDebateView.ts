@@ -1,4 +1,4 @@
-import type { DebateStreamSnapshot } from "./debateStream";
+import type { DebateDraft, DebateStreamSnapshot } from "./debateStream";
 import { presentDebateEvidence } from "./evidencePresentation.ts";
 import type { DebateEvidenceView } from "./evidencePresentation.ts";
 import type { DebateMessageRecord } from "./types.ts";
@@ -18,6 +18,16 @@ export type DebateMessageSections = {
   uncertainty: string | null;
   hasAuthoritativePresentation: boolean;
 };
+
+/**
+ * `turn.started` deliberately reserves a durable draft identity before a
+ * provider can emit text. That empty draft must remain actionable for Stop,
+ * but it is not a chat message yet: rendering it as one makes a safe
+ * zero-delta failure look like a message that disappeared.
+ */
+export function visibleDebateDrafts(drafts: DebateDraft[]): DebateDraft[] {
+  return drafts.filter((draft) => draft.content.trim().length > 0);
+}
 
 export function debateMessageSections(
   record: DebateMessageRecord,
