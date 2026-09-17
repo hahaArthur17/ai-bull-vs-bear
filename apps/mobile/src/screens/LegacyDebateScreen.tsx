@@ -88,7 +88,9 @@ export function LegacyDebateScreen({
               <View style={styles.diagnosticPanel}>
                 <View style={styles.rowBetween}><Text style={styles.cardLabel}>AGENT TRACE</Text><Text style={styles.mutedText}>{analysis.token_usage.model_name}</Text></View>
                 {analysis.trace.map((step) => <Text key={step.step} style={styles.traceLine}>✓ {step.step.replace(/_/g, " ")} — {step.detail}</Text>)}
-                <Text style={styles.traceLine}>Token ledger: {analysis.token_usage.total_tokens} demo tokens</Text>
+                <Text style={styles.traceLine}>
+                  Token usage: {analysis.token_usage.total_tokens} total · prompt {analysis.token_usage.prompt_tokens} · completion {analysis.token_usage.completion_tokens}
+                </Text>
               </View>
             ) : null}
           </View>

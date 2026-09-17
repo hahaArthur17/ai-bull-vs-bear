@@ -21,6 +21,45 @@ duplicating implementation detail.
 
 ---
 
+## 2026-09-17 — Legacy real-model token usage was hidden and mislabelled as demo usage
+
+**Status:** Legacy display resolved locally; V2 token diagnostics remain an
+explicit Beta acceptance and implementation item.
+
+**Scope and verified evidence**
+
+During the local standard-data, single-Groq Legacy Analysis smoke run, the
+mobile screen correctly rendered the verified AAPL close, dated FRED/EIA macro
+context, Judge output, Bull/Bear claims, and dated evidence freshness. The
+analysis response already contains `model_name`, `prompt_tokens`,
+`completion_tokens`, and `total_tokens`, but the mobile screen placed this
+diagnostic disclosure after both claim cards and labelled its total as "demo
+tokens" even when the provider was Groq. This made a successful live-provider
+run needlessly difficult to audit from the UI.
+
+The V2 backend preserves provider-attempt model and usage accounting, including
+reported versus unknown usage, but the current V2 mobile Session/Message/Job
+read types do not expose that ledger. A V2 screen therefore cannot yet present
+reliable per-role or Session token diagnostics, despite rendering provider
+deltas and canonical messages.
+
+**Mitigation and verification**
+
+Legacy diagnostics now show the actual total, prompt, and completion counts
+without describing them as demo usage. A mobile regression test prevents the
+misleading label from returning. This changes presentation only and makes no
+provider request.
+
+**Remaining follow-up**
+
+Before V2 Beta/device acceptance, extend the safe read-only V2 API/client
+contract with provider/model and reported-or-unknown usage fields. Then verify
+on a controlled live stream that token diagnostics reconcile with the
+provider-attempt ledger and that reveal pacing, canonical completion, Stop,
+reconnect, and foreground/background transitions neither reveal hidden text
+nor duplicate or reorder text. The active checklist is in
+[`wp8l-next-steps.md`](wp8l-next-steps.md).
+
 ## 2026-09-12 — Expo SDK 52 is incompatible with the current physical-iPhone Expo Go path
 
 **Status:** Open; Android and simulator workarounds are documented, while a

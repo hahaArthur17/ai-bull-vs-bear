@@ -106,6 +106,7 @@ attempts/19,791 Tokens，总计 39,269；Bull 15,851、Bear 16,808、Judge
   新 SDK 后再升级。
 - 专门测试账号、standard 模式，单进程单实例 API/Worker/SSE，无热重载；核对手机网络、登录和 API 地址。
 - 验证真实数据标签、冻结快照、Queue 等待、各角色渐进输出、Stop、插话、Continue、结束、重连、后台、重开 History 和费用。
+- **V2 Beta 诊断/费用待办：** 在真机流式验收前，扩展移动端的 V2 Session/Message/Job 读模型，以只读诊断区呈现每个 canonical Bull/Bear/Judge 消息的 provider、model、usage status 及 prompt/completion/total Tokens，并在 Session 级别汇总请求数和 reported/unknown usage。当前移动端没有 provider-attempt ledger 字段，不能可靠显示 V2 的真实 token 用量；不得将真实 provider 用量标为 `demo`。同时在真实流式运行中人工核对：单一活动气泡逐步 reveal、canonical completed 不会提前跳全文、Stop 丢弃未显示文本、断线/前后台重连不会重复或乱序显示。
 - 补齐 Web 四宽度、200% 缩放、键盘、降低动态效果、屏幕阅读器、原生键盘/焦点、iOS/Android 与至少一台物理设备的缺失证据。缺设备明确记录，不以浏览器模拟替代。
 - 用户以实际界面验收视觉层级、图表可读性、Judge 结论及异常恢复；反馈转为小步修复并重新验证。
 
