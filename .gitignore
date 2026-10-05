@@ -221,3 +221,7 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Local course presentation submission
+# Keep slides, recordings, video exports, screenshots, and the final ZIP off GitHub.
+presentation-submission/
