@@ -36,6 +36,9 @@ test("Round 2 submission stays impossible until the explicit confirmation mode",
 
   assert.equal(canSubmitRoundTwoChallenge({ mode: "explain", ...validInput }), false);
   assert.equal(canSubmitRoundTwoChallenge({ mode: "challenge", ...validInput }), true);
+  assert.equal(canSubmitRoundTwoChallenge({
+    mode: "challenge", ...validInput, challenging: true,
+  }), false);
 });
 
 test("the dialog dismisses normally but stays open while Round 2 is being committed", () => {

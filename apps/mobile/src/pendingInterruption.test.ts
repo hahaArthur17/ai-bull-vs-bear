@@ -8,9 +8,12 @@ import {
   confirmPendingInterruption,
   createPendingInterruption,
   loadPendingInterruption,
+  pendingInterruptionIsObsolete,
+  pendingInterruptionWasSaved,
   savePendingInterruption,
 } from "./pendingInterruption.ts";
 import type { PendingInterruptionStorage } from "./pendingInterruption.ts";
+import type { DebateSessionDetail } from "./types.ts";
 
 function memoryStorage(): PendingInterruptionStorage & { values: Map<string, string> } {
   const values = new Map<string, string>();
@@ -37,6 +40,39 @@ function pending(
     precedingMessageIds: ["canonical-1", "canonical-2"],
   });
 }
+
+test("a completed Debate clears a Stop that reached the server too late", () => {
+  const target = pending();
+  const detail = {
+    session: { active_generation_id: target.generationId, status: "completed" },
+    messages: [],
+  } as unknown as DebateSessionDetail;
+  assert.equal(pendingInterruptionWasSaved(detail, target), false);
+  assert.equal(pendingInterruptionIsObsolete(detail, target), true);
+
+  detail.session.status = "running_round_2";
+  assert.equal(pendingInterruptionIsObsolete(detail, target), false);
+  detail.session.active_generation_id = "new-generation";
+  assert.equal(pendingInterruptionIsObsolete(detail, target), true);
+});
+
+test("a completed turn clears a raced Stop while later turns keep running", () => {
+  const target = pending();
+  const completed = {
+    id: target.messageId, generation_id: target.generationId,
+    role: "bull", content: "A completed answer.", is_complete: true,
+  };
+  const detail = {
+    session: { active_generation_id: target.generationId, status: "running_round_2" },
+    messages: [{ message: completed }],
+  } as unknown as DebateSessionDetail;
+  assert.equal(pendingInterruptionIsObsolete(detail, target), true);
+
+  const beforeOutput = createPendingInterruption({
+    ...target, messageId: target.generationId, visiblePrefix: "",
+  });
+  assert.equal(pendingInterruptionIsObsolete(detail, beforeOutput), true);
+});
 
 test("pending interruptions retain the exact Stop target and a stable idempotency key", async () => {
   const storage = memoryStorage();

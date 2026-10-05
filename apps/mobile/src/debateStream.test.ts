@@ -435,6 +435,128 @@ test("client reloads canonical state at the server recovery cursor", async () =>
   assert.equal(snapshots.at(-1), 8);
 });
 
+test("Round 2 replay ignores an earlier Stop and resumes live Round 2 output", async () => {
+  const snapshots: DebateStreamSnapshot[] = [];
+  const roundTwoDetail = detail("running_round_2");
+  roundTwoDetail.session.active_generation_id = "generation-2";
+  roundTwoDetail.job = {
+    id: "round-2-job", session_id: "session-1", job_type: "round_2",
+    status: "running", attempt_count: 1, max_attempts: 1,
+  };
+  const client = new DebateStreamClient({
+    eventUrl: "https://example.test/debates/session-1/events",
+    getAccessToken: async () => "access-token",
+    loadCanonical: async () => roundTwoDetail,
+    onSnapshot: (snapshot) => snapshots.push(snapshot),
+    transport: {
+      open: async (options) => {
+        options.onEvent(event(1, "session.created", {
+          generation_id: "generation-1", status: "queued_round_1",
+        }));
+        options.onEvent(event(2, "job.queued", { job_id: "round-1-job" }));
+        options.onEvent(event(3, "job.started", {
+          job_id: "round-1-job", job_type: "round_1", attempt_count: 1,
+        }));
+        assert.equal(snapshots.at(-1)?.sessionStatus, "running_round_2");
+        options.onEvent(event(4, "session.interrupted_awaiting_user", {
+          cancelled_generation_id: "generation-1",
+          generation_id: "interrupted-generation", status: "interrupted_awaiting_user",
+        }));
+        assert.equal(snapshots.at(-1)?.activeGenerationId, "generation-2");
+        assert.equal(snapshots.at(-1)?.sessionStatus, "running_round_2");
+        options.onEvent(event(5, "job.queued", {
+          generation_id: "resumed-generation", job_id: "resumed-job", job_type: "round_1",
+        }));
+        options.onEvent(event(6, "session.awaiting_user", {
+          generation_id: "resumed-generation", status: "awaiting_user",
+        }));
+        options.onEvent(event(7, "job.queued", {
+          generation_id: "generation-2", job_id: "round-2-job", job_type: "round_2",
+        }));
+        assert.equal(snapshots.at(-1)?.sessionStatus, "queued_round_2");
+        options.onEvent(event(8, "job.started", {
+          job_id: "round-2-job", job_type: "round_2", attempt_count: 1,
+        }));
+        assert.equal(snapshots.at(-1)?.sessionStatus, "running_round_2");
+        options.onEvent(event(9, "turn.started", {
+          generation_id: "generation-2", message_id: "round-2-message", role: "bull",
+        }));
+        options.onEvent(event(10, "turn.delta", {
+          generation_id: "generation-2", message_id: "round-2-message",
+          delta_index: 1, delta: "Round 2 reply",
+        }));
+        options.onEvent(event(11, "turn.completed", {
+          generation_id: "generation-2",
+          message: {
+            ...message("Round 2 reply"), id: "round-2-message",
+            generation_id: "generation-2", round_number: 2, sequence_number: 11,
+          },
+        }));
+        assert.equal(snapshots.at(-1)?.canonicalMessages.at(-1)?.message.content, "Round 2 reply");
+        options.onEvent(event(12, "session.completed", {
+          generation_id: "generation-2", status: "completed",
+        }));
+      },
+    },
+  });
+
+  await client.start();
+
+  assert.equal(snapshots.at(-1)?.lastSequence, 12);
+  assert.equal(snapshots.at(-1)?.sessionStatus, "completed");
+  assert.equal(snapshots.at(-1)?.activeGenerationId, "generation-2");
+  assert.equal(snapshots.at(-1)?.status, "closed");
+});
+
+test("client retries a transient canonical load failure before opening the stream", async () => {
+  let loads = 0;
+  const cursors: number[] = [];
+  const statuses: DebateStreamSnapshot["status"][] = [];
+  const client = new DebateStreamClient({
+    eventUrl: "https://example.test/debates/session-1/events",
+    getAccessToken: async () => "access-token",
+    loadCanonical: async () => {
+      loads += 1;
+      if (loads === 1) throw new Error("transient canonical request failure");
+      return detail("running_round_1");
+    },
+    onSnapshot: (snapshot) => statuses.push(snapshot.status),
+    maxReconnectAttempts: 1,
+    transport: {
+      open: async (options) => {
+        cursors.push(options.afterSequence);
+        options.onEvent(event(1, "session.awaiting_user", {
+          generation_id: "generation-1",
+          status: "awaiting_user",
+        }));
+      },
+    },
+  });
+
+  await client.start();
+
+  assert.equal(loads, 2);
+  assert.deepEqual(cursors, [0]);
+  assert.ok(statuses.includes("reconnecting"));
+  assert.equal(statuses.at(-1), "closed");
+});
+
+test("client reports an exhausted event transport as a failed stream snapshot", async () => {
+  const statuses: DebateStreamSnapshot["status"][] = [];
+  const client = new DebateStreamClient({
+    eventUrl: "https://example.test/debates/session-1/events",
+    getAccessToken: async () => "access-token",
+    loadCanonical: async () => detail("running_round_2"),
+    onSnapshot: (snapshot) => statuses.push(snapshot.status),
+    maxReconnectAttempts: 0,
+    transport: { open: async () => { throw new Error("connection closed unexpectedly"); } },
+  });
+
+  await client.start();
+
+  assert.equal(statuses.at(-1), "failed");
+});
+
 test("an interruption from another client reloads the shortened canonical transcript", async () => {
   let loads = 0;
   const received: DebateStreamSnapshot[] = [];
@@ -448,6 +570,7 @@ test("an interruption from another client reloads the shortened canonical transc
     transport: { open: async (options) => {
       options.onEvent(event(1, "session.interrupted_awaiting_user", {
         status: "interrupted_awaiting_user", generation_id: "new-generation",
+        cancelled_generation_id: "generation-1",
       }));
     } },
   });

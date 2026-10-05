@@ -34,10 +34,14 @@ async function responseError(response: Response): Promise<Error> {
   return apiRequestError(response.status, detail);
 }
 
-async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  options: RequestInit = {},
+  timeoutMs = REQUEST_TIMEOUT_MS,
+): Promise<T> {
   const session = supabase ? (await supabase.auth.getSession()).data.session : null;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(API_URL + path, {
       ...options,
@@ -49,7 +53,7 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
       },
     });
     if (!response.ok) throw await responseError(response);
-    return response.json() as Promise<T>;
+    return await response.json() as T;
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error("The request timed out. Check the connection and retry.");
@@ -142,6 +146,7 @@ export const api = {
           idempotency_key: challenge.idempotencyKey,
         }),
       },
+      45000,
     ),
 
   interruptDebate: (sessionId: string, target: {

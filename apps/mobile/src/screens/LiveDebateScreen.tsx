@@ -19,7 +19,8 @@ import {
 } from "react-native";
 
 import { createPendingInterruption, savePendingInterruption, loadPendingInterruption,
-  confirmPendingInterruption, type PendingInterruption } from "../pendingInterruption";
+  confirmPendingInterruption, pendingInterruptionIsObsolete, pendingInterruptionWasSaved,
+  type PendingInterruption } from "../pendingInterruption";
 import { api, createDebateStreamClient } from "../api";
 import { FocusablePressable } from "../components/common";
 import {
@@ -31,6 +32,7 @@ import {
   type InterruptionComposerBusy,
 } from "../components/debate/InterruptionComposer";
 import { debateActionStatus } from "../debateActionState";
+import { hasEarlierUnverifiedGroqMessages } from "../legacyGrounding";
 import {
   debatePhaseBadge,
   getDebateChatLayout,
@@ -91,6 +93,8 @@ type LiveDebateScreenProps = {
 };
 
 const interruptionsEnabled = process.env.EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED === "true";
+const LIVE_CONNECTION_ERROR =
+  "Live updates could not start. Canonical completed messages remain safe.";
 
 const colors = {
   background: themeColors.surface.canvas,
@@ -179,12 +183,15 @@ export function LiveDebateScreen({
   const interruptionHydration = useRef<string | null>(null);
   const explanationRequests = useRef(createExplanationRequestGate());
   const streamClient = useRef<DebateStreamClient | null>(null);
+  const challengeSubmissionInFlight = useRef<symbol | null>(null);
   const scrollRef = useRef<ScrollView | null>(null);
   const scrollFrame = useRef<number | null>(null);
   const followsTranscript = useRef(true);
   const { width: viewportWidth } = useWindowDimensions();
   const chatLayout = getDebateChatLayout(viewportWidth);
   const sessionId = initialDetail.session.id;
+  const currentSessionId = useRef(sessionId);
+  currentSessionId.current = sessionId;
 
   const invalidateExplanationRequest = () => {
     explanationRequests.current.invalidate();
@@ -215,6 +222,8 @@ export function LiveDebateScreen({
     }
     invalidateExplanationRequest();
     challengeKey.current = null;
+    challengeSubmissionInFlight.current = null;
+    setChallenging(false);
     interjectionKey.current = null;
     continuationKey.current = null;
     interruptionHydration.current = null;
@@ -227,9 +236,8 @@ export function LiveDebateScreen({
     void loadPendingInterruption(AsyncStorage, accountId, sessionId).then(async (pending) => {
       if (!active) return;
       if (pending) {
-        const saved = initialDetail.messages.find((record) => record.message.id === pending.messageId);
-        if (saved && !saved.message.is_complete && saved.message.generation_id === pending.generationId
-            && saved.message.content === pending.visiblePrefix) {
+        if (pendingInterruptionWasSaved(initialDetail, pending)
+            || pendingInterruptionIsObsolete(initialDetail, pending)) {
           await confirmPendingInterruption(AsyncStorage, accountId, sessionId, pending.idempotencyKey);
           if (!active) return;
         } else {
@@ -324,7 +332,8 @@ export function LiveDebateScreen({
       immediate: reduceMotionEnabled.current === true
         || screenReaderEnabled.current === true
         || !appIsActive.current
-        || snapshot.status === "reconnecting",
+        || snapshot.status === "reconnecting"
+        || snapshot.sessionStatus === "completed",
     });
     setRevealVersion((version) => version + 1);
   }, [snapshot, recoveryReady]);
@@ -341,15 +350,16 @@ export function LiveDebateScreen({
     if (!recoveryReady || pendingInterruption.current) return;
     let mounted = true;
     const client = createDebateStreamClient(sessionId, (next) => {
-      if (mounted) setSnapshot(next);
+      if (!mounted) return;
+      setSnapshot(next);
+      if (next.status === "failed") setConnectionError(LIVE_CONNECTION_ERROR);
+      else if (next.status === "live" || next.status === "closed") setConnectionError("");
     });
     streamClient.current = client;
     setConnectionError("");
     void client.start().catch(() => {
       if (mounted) {
-        setConnectionError(
-          "Live updates could not start. Canonical completed messages remain safe.",
-        );
+        setConnectionError(LIVE_CONNECTION_ERROR);
       }
     });
     return () => {
@@ -373,11 +383,15 @@ export function LiveDebateScreen({
       try {
         const detail = await api.getDebate(sessionId);
         if (!active) return;
-        setSnapshot((current) => createCanonicalDebateSnapshot(
-          detail,
-          current.lastSequence,
-          current.status,
-        ));
+        setSnapshot((current) => {
+          // A GET started before Save or Continue must not roll the newer
+          // canonical transcript back after that mutation succeeds.
+          if (current.sessionStatus !== "interrupted_awaiting_user"
+            || !isInterruptionJobPending(current.jobStatus)
+            || current.activeGenerationId !== detail.session.active_generation_id
+            || detail.messages.length < current.canonicalMessages.length) return current;
+          return createCanonicalDebateSnapshot(detail, current.lastSequence, current.status);
+        });
         const serverJobPending = detail.session.status === "interrupted_awaiting_user"
           && (detail.job?.status === "queued" || detail.job?.status === "running");
         if (serverJobPending) schedule(500);
@@ -390,7 +404,8 @@ export function LiveDebateScreen({
       active = false;
       if (timer !== null) clearTimeout(timer);
     };
-  }, [recoveryReady, sessionId, snapshot.jobStatus, snapshot.sessionStatus]);
+  }, [recoveryReady, sessionId, snapshot.canonicalMessages.length,
+    snapshot.jobStatus, snapshot.sessionStatus]);
 
   useEffect(() => {
     const target = findInterruptedMessage(snapshot.canonicalMessages);
@@ -439,6 +454,7 @@ export function LiveDebateScreen({
   }, []);
 
   const status = debateStatusCopy(snapshot);
+  const showEarlierSourceWarning = hasEarlierUnverifiedGroqMessages(snapshot.canonicalMessages);
   const revealDisplay = recoveryReady ? revealScheduler.current.display()
     : { canonicalMessages: [], drafts: [], activeMessageId: null };
   const interruptionPoint = findInterruptedMessage(snapshot.canonicalMessages);
@@ -466,6 +482,7 @@ export function LiveDebateScreen({
   const awaitingFirstSafeText = allDrafts.length > 0 && drafts.length === 0;
   const activeRoundNumber = snapshot.sessionStatus === "queued_round_2"
     || snapshot.sessionStatus === "running_round_2"
+    || snapshot.canonicalMessages.some(({ message }) => message.round_number === 2)
     ? 2
     : 1;
   const canCancel = (interruptionsEnabled
@@ -560,6 +577,7 @@ export function LiveDebateScreen({
     setQuestion("");
     setExplanationResult(null);
     setExplanationError("");
+    setActionError("");
     challengeKey.current = null;
   };
 
@@ -618,12 +636,11 @@ export function LiveDebateScreen({
             messageId: target.messageId,
             content: target.visiblePrefix,
           });
-        const saved = detail.messages.find((record) => record.message.id === target.messageId);
-        if (!saved || saved.message.is_complete || saved.message.generation_id !== target.generationId
-            || saved.message.content !== target.visiblePrefix) {
+        if (currentSessionId.current !== sessionId) return;
+        if (!pendingInterruptionWasSaved(detail, target)) {
           throw new Error("Stop was not confirmed. Text remains frozen; retry Stop here.");
         }
-        await confirmPendingInterruption(AsyncStorage, accountId, sessionId, target.idempotencyKey);
+        if (!await confirmPendingInterruption(AsyncStorage, accountId, sessionId, target.idempotencyKey)) return;
         pendingInterruption.current = null;
         revealScheduler.current.releaseFreeze();
         revealScheduler.current.sync(detail.messages, {}, { immediate: true });
@@ -636,11 +653,36 @@ export function LiveDebateScreen({
         current.status,
       ));
     } catch (error) {
+      if (currentSessionId.current !== sessionId) return;
+      const pending = pendingInterruption.current;
+      if (interruptionsEnabled && pending) {
+        try {
+          const latest = await api.getDebate(sessionId);
+          if (currentSessionId.current !== sessionId) return;
+          const saved = pendingInterruptionWasSaved(latest, pending);
+          if (saved || pendingInterruptionIsObsolete(latest, pending)) {
+            if (!await confirmPendingInterruption(
+              AsyncStorage, accountId, sessionId, pending.idempotencyKey,
+            )) return;
+            pendingInterruption.current = null;
+            revealScheduler.current.releaseFreeze();
+            revealScheduler.current.sync(latest.messages, {}, { immediate: true });
+            setSnapshot((current) => createCanonicalDebateSnapshot(
+              latest, current.lastSequence, current.status,
+            ));
+            if (!saved) setStreamEpoch((current) => current + 1);
+            setActionError(saved ? "" : "That turn finished before Stop here could take effect. You can try again on the next live turn.");
+            return;
+          }
+        } catch {
+          // Preserve the saved prefix until the server can confirm its state.
+        }
+      }
       setActionError(interruptionsEnabled
         ? "Stop was not confirmed. Text remains frozen; retry Stop here."
         : error instanceof Error ? error.message : "Could not cancel this Debate.");
     } finally {
-      setCancelling(false);
+      if (currentSessionId.current === sessionId) setCancelling(false);
     }
   };
 
@@ -738,10 +780,17 @@ export function LiveDebateScreen({
   };
 
   const submitChallenge = async () => {
-    if (!pointTarget || !canSubmitChallenge) return;
+    if (!pointTarget || !canSubmitChallenge || challengeSubmissionInFlight.current !== null) return;
+    const submissionId = Symbol("round2-challenge");
+    challengeSubmissionInFlight.current = submissionId;
     setChallenging(true);
     setActionError("");
     challengeKey.current ||= newIdempotencyKey("round2");
+    const showAdmittedChallenge = (detail: DebateSessionDetail) => {
+      setSnapshot(createCanonicalDebateSnapshot(detail));
+      closePointDialog();
+      setStreamEpoch((current) => current + 1);
+    };
     try {
       const detail = await api.challengeDebate(sessionId, {
         selectedMessageId: pointTarget.message.id,
@@ -749,15 +798,33 @@ export function LiveDebateScreen({
         question: question.trim(),
         idempotencyKey: challengeKey.current,
       });
-      setSnapshot(createCanonicalDebateSnapshot(detail));
-      closePointDialog();
-      setStreamEpoch((current) => current + 1);
+      if (currentSessionId.current !== sessionId) return;
+      showAdmittedChallenge(detail);
     } catch (error) {
+      if (currentSessionId.current !== sessionId) return;
+      // The durable challenge may have committed even if the response timed
+      // out. Read the canonical session before offering another submission.
+      try {
+        const detail = await api.getDebate(sessionId);
+        if (currentSessionId.current !== sessionId) return;
+        if (detail.messages.some((record) => (
+          record.message.round_number === 2 && record.message.role === "user"
+        ))) {
+          showAdmittedChallenge(detail);
+          return;
+        }
+      } catch {
+        // Keep the original mutation error when the recovery read also fails.
+      }
+      if (currentSessionId.current !== sessionId) return;
       setActionError(
         error instanceof Error ? error.message : "Could not start the second Debate round.",
       );
     } finally {
-      setChallenging(false);
+      if (challengeSubmissionInFlight.current === submissionId) {
+        challengeSubmissionInFlight.current = null;
+        setChallenging(false);
+      }
     }
   };
 
@@ -910,6 +977,14 @@ export function LiveDebateScreen({
         </Text>
       </View>
 
+      {showEarlierSourceWarning ? (
+        <View style={screenStyles.warningCard}>
+          <Text style={screenStyles.warningText}>
+            Earlier AI messages predate source-quote checks. Citations link excerpts, but do not verify every claim.
+          </Text>
+        </View>
+      ) : null}
+
       {revealDisplay.canonicalMessages.length === 0 && drafts.length === 0 ? (
         <View style={screenStyles.emptyCard}>
           <Text style={screenStyles.emptyTitle}>
@@ -1001,8 +1076,7 @@ export function LiveDebateScreen({
       </View>
 
       <Text style={screenStyles.disclaimer}>
-        Educational analysis only. Bull and Bear arguments are evidence-grounded scenarios, not
-        trading instructions or predictions.
+        Educational analysis. Citations link excerpts; they do not verify every claim. No trading instructions.
       </Text>
     </ScrollView>
     {pointTarget ? (
@@ -1018,6 +1092,7 @@ export function LiveDebateScreen({
         challenging={challenging}
         explaining={explaining}
         explanationError={explanationError}
+        actionError={actionError}
         explanationResult={explanationResult}
         onClose={closePointDialog}
         onSelectedTextChange={(value) => {
@@ -1073,6 +1148,7 @@ function PointInquiryModal({
   challenging,
   explanationResult,
   explanationError,
+  actionError,
   onClose,
   onSelectedTextChange,
   onQuestionChange,
@@ -1093,6 +1169,7 @@ function PointInquiryModal({
   challenging: boolean;
   explanationResult: ExplanationResult | null;
   explanationError: string;
+  actionError: string;
   onClose: () => void;
   onSelectedTextChange: (value: string) => void;
   onQuestionChange: (value: string) => void;
@@ -1140,6 +1217,7 @@ function PointInquiryModal({
           style={screenStyles.modalCard}
         >
           <ScrollView
+            style={screenStyles.modalScroll}
             contentContainerStyle={screenStyles.modalContent}
             keyboardShouldPersistTaps="handled"
             showsVerticalScrollIndicator={false}
@@ -1178,7 +1256,7 @@ function PointInquiryModal({
                 ? "This will commit your exact question and start Round 2. It is a Debate intervention, not an explanation."
                 : isInterruptedPrefix
                   ? "Ask the Explainer about an exact passage in the frozen prefix. The response treats it as unfinished, has no unverified citations, and does not resume or change the Debate."
-                  : "Ask the Explainer about this passage first. Its answer is educational, grounded in the completed message and linked evidence, and does not change the Debate."}
+                  : "Ask about this passage. Check linked excerpts for factual claims. The answer does not change the Debate."}
             </Text>
 
             <Text style={screenStyles.inputLabel}>
@@ -1186,6 +1264,7 @@ function PointInquiryModal({
             </Text>
             <TextInput
               value={selectedText}
+              editable={!challenging}
               onChangeText={onSelectedTextChange}
               maxLength={500}
               multiline
@@ -1207,6 +1286,7 @@ function PointInquiryModal({
             <TextInput
               autoFocus
               value={question}
+              editable={!challenging}
               onChangeText={onQuestionChange}
               maxLength={500}
               multiline
@@ -1225,11 +1305,16 @@ function PointInquiryModal({
                 {explanationError}
               </Text>
             ) : null}
+            {actionError && isChallengeConfirmation ? (
+              <Text accessibilityLiveRegion="assertive" style={screenStyles.validationText}>
+                {actionError}
+              </Text>
+            ) : null}
 
             {isChallengeConfirmation ? (
               <>
                 <FocusablePressable
-                  disabled={!canSubmitChallenge}
+                  disabled={!canSubmitChallenge || challenging}
                   style={[
                     screenStyles.challengeButton,
                     !canSubmitChallenge && screenStyles.disabledButton,
@@ -1385,6 +1470,7 @@ const screenStyles = StyleSheet.create({
   modalRoot: { alignItems: "center", flex: 1, justifyContent: "center", padding: 20 },
   modalBackdrop: { ...StyleSheet.absoluteFillObject, backgroundColor: "rgba(2, 8, 23, 0.78)" },
   modalCard: { backgroundColor: colors.elevated, borderColor: colors.line, borderRadius: 20, borderWidth: 1, maxHeight: "88%", maxWidth: 620, overflow: "hidden", width: "100%" },
+  modalScroll: { flexShrink: 1 },
   modalContent: { padding: 18 },
   modalEyebrow: { flex: 1, fontSize: 10, fontWeight: "900", letterSpacing: 1.1 },
   modalCloseButton: { alignItems: "center", justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize, paddingHorizontal: 4 },

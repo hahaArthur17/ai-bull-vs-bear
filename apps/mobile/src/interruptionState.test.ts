@@ -64,10 +64,27 @@ test("Stop remains available for a queued/running generation before its first dr
   assert.equal(canStopBeforeOutput(snapshot("running_round_1", null)), false);
 });
 
+test("Stop can freeze a displayed prefix after its provider turn became canonical", () => {
+  const completed = record({
+    generation_id: "waiting-generation",
+    is_complete: true,
+    metadata: {},
+  });
+  const current = { ...snapshot("running_round_2"), canonicalMessages: [completed] };
+  const nextDraft: DebateDraft = {
+    messageId: "message-2", generationId: "waiting-generation", role: "bear",
+    content: "Visible next turn", nextDeltaIndex: 1, citations: [],
+  };
+  assert.equal(canStopBeforeOutput(current), false);
+  assert.equal(shouldStopBeforeOutput(current), false);
+  assert.equal(canStopVisibleDraft(current, nextDraft), true);
+  assert.equal(canStopVisibleDraft(current, { ...nextDraft, messageId: "message-1" }), true);
+});
+
 test("visible Stop only accepts agent drafts during an interruptible phase", () => {
   const draft: DebateDraft = {
     messageId: "message-1",
-    generationId: "generation-1",
+    generationId: "waiting-generation",
     role: "bull",
     content: "prefix",
     nextDeltaIndex: 2,

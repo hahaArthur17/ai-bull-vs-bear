@@ -1,3 +1,5 @@
+import type { DebateSessionDetail } from "./types";
+
 export const PENDING_INTERRUPTION_STORAGE_VERSION = 1;
 export const MAX_PENDING_INTERRUPTION_PREFIX_LENGTH = 6_000;
 
@@ -26,6 +28,42 @@ export type PendingInterruptionRole = "bull" | "bear" | "judge" | "system";
 export type PendingInterruption = PendingInterruptionInput & {
   idempotencyKey: string;
 };
+
+export function pendingInterruptionWasSaved(
+  detail: DebateSessionDetail,
+  pending: PendingInterruption,
+): boolean {
+  return detail.messages.some(({ message }) =>
+    message.id === pending.messageId
+    && !message.is_complete
+    && message.generation_id === pending.generationId
+    && message.content === pending.visiblePrefix,
+  );
+}
+
+export function pendingInterruptionIsObsolete(
+  detail: DebateSessionDetail,
+  pending: PendingInterruption,
+): boolean {
+  if (pendingInterruptionWasSaved(detail, pending)) return false;
+  // A provider may finish the visible turn between the tap and the server
+  // mutation. The generation can remain active for later turns, but this
+  // exact prefix can no longer be frozen.
+  if (detail.messages.some(({ message }) =>
+    message.id === pending.messageId && message.is_complete,
+  )) return true;
+  if (pending.messageId === pending.generationId
+    && detail.messages.some(({ message }) =>
+      message.generation_id === pending.generationId
+      && ["bull", "bear", "judge"].includes(message.role)
+      && message.content.length > 0,
+    )) return true;
+  return detail.session.active_generation_id !== pending.generationId
+    || detail.session.status === "awaiting_user"
+    || detail.session.status === "completed"
+    || detail.session.status === "cancelled"
+    || detail.session.status === "failed";
+}
 
 type StoredPendingInterruptions = {
   version: typeof PENDING_INTERRUPTION_STORAGE_VERSION;

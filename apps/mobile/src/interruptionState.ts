@@ -38,16 +38,22 @@ export function isInterruptionJobPending(jobStatus: DebateStreamSnapshot["jobSta
  */
 export function canStopBeforeOutput(snapshot: DebateStreamSnapshot): boolean {
   return snapshot.activeGenerationId !== null
-    && INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "");
+    && INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "")
+    && !snapshot.canonicalMessages.some(({ message }) =>
+      message.generation_id === snapshot.activeGenerationId
+      && INTERRUPTIBLE_ROLES.has(message.role),
+    );
 }
 
 export function canStopVisibleDraft(
   snapshot: DebateStreamSnapshot,
   draft: DebateDraft | undefined,
 ): boolean {
-  return canStopBeforeOutput(snapshot)
+  return snapshot.activeGenerationId !== null
+    && INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "")
     && draft !== undefined
-    && INTERRUPTIBLE_ROLES.has(draft.role);
+    && INTERRUPTIBLE_ROLES.has(draft.role)
+    && draft.generationId === snapshot.activeGenerationId;
 }
 
 /**

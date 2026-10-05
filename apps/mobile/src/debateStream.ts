@@ -371,7 +371,11 @@ export function reduceDebateEvent(
   let jobStatus = current.jobStatus;
   let jobAttemptCount = current.jobAttemptCount;
   let retryDelaySeconds = current.retryDelaySeconds;
-  if ((event.type === "session.created" || event.type === "job.queued") && generationId) {
+  if (
+    (event.type === "session.created" || event.type === "job.queued")
+    && generationId
+    && (current.activeGenerationId === null || generationId === current.activeGenerationId)
+  ) {
     activeGenerationId = generationId;
     drafts = {};
   }
@@ -379,6 +383,9 @@ export function reduceDebateEvent(
     (event.type === "session.cancel_requested" || event.type === "session.cancelled"
       || event.type === "session.interrupted_awaiting_user")
     && generationId
+    && (event.type === "session.cancelled"
+      ? generationId === current.activeGenerationId
+      : stringPayload(event, "cancelled_generation_id") === current.activeGenerationId)
   ) {
     activeGenerationId = generationId;
     drafts = {};
@@ -386,7 +393,11 @@ export function reduceDebateEvent(
   const isLateGeneration = generationId !== null
     && activeGenerationId !== null
     && generationId !== activeGenerationId;
-  if (isLateGeneration) {
+  const eventJobId = event.type.startsWith("job.") ? stringPayload(event, "job_id") : null;
+  const isLateJob = eventJobId !== null
+    && current.jobId !== null
+    && eventJobId !== current.jobId;
+  if (isLateGeneration || isLateJob) {
     return {
       snapshot: { ...current, lastSequence: event.sequence },
       terminal: false,
@@ -400,11 +411,17 @@ export function reduceDebateEvent(
     jobStatus = "queued";
     jobAttemptCount = 0;
     retryDelaySeconds = null;
+    const jobType = stringPayload(event, "job_type");
+    if (jobType === "round_1") sessionStatus = "queued_round_1";
+    if (jobType === "round_2") sessionStatus = "queued_round_2";
   }
   if (event.type === "job.started") {
     jobStatus = "running";
     jobAttemptCount = numberPayload(event, "attempt_count") || jobAttemptCount;
     retryDelaySeconds = null;
+    const jobType = stringPayload(event, "job_type");
+    if (jobType === "round_1") sessionStatus = "running_round_1";
+    if (jobType === "round_2") sessionStatus = "running_round_2";
   }
   if (event.type === "job.retry_scheduled") {
     jobStatus = "retry_scheduled";
@@ -606,7 +623,27 @@ export class DebateStreamClient {
     this.stop();
     this.stopped = false;
     this.controller = new AbortController();
-    await this.reloadCanonical(0, "connecting");
+    let initialLoadAttempts = 0;
+    while (!this.stopped) {
+      try {
+        await this.reloadCanonical(
+          0,
+          initialLoadAttempts === 0 ? "connecting" : "reconnecting",
+        );
+        break;
+      } catch (error) {
+        if (this.stopped) return;
+        initialLoadAttempts += 1;
+        if (initialLoadAttempts > this.maxReconnectAttempts) throw error;
+
+        this.snapshot = { ...this.snapshot, status: "reconnecting" };
+        this.emit();
+        await new Promise((resolve) => setTimeout(
+          resolve,
+          Math.min(250 * 2 ** initialLoadAttempts, 2000),
+        ));
+      }
+    }
     if (this.stopped || this.isCanonicalTerminal()) return;
 
     let attempts = 0;
@@ -624,7 +661,8 @@ export class DebateStreamClient {
             const reduced = reduceDebateEvent(this.snapshot, event);
             this.snapshot = reduced.snapshot;
             terminalEvent = terminalEvent || reduced.terminal;
-            interruptedEvent = interruptedEvent || event.type === "session.interrupted_awaiting_user";
+            interruptedEvent = interruptedEvent
+              || (reduced.terminal && event.type === "session.interrupted_awaiting_user");
             this.emit();
           },
         });
