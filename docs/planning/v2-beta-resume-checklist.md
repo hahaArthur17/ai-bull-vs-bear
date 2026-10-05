@@ -1,30 +1,33 @@
 # V2 Beta Resume Checklist
 
-Last updated: 2026-09-17. This is the practical handoff for the next local
+Last updated: 2026-10-05. This is the practical handoff for the next local
 Expo V2 beta session. It complements the broader
 [WP8L route](wp8l-next-steps.md); use this file first when resuming the current
 manual test.
 
 ## Current position
 
-- SDK54 Expo Go/simulator UI review, real-data display, and a Legacy Groq smoke
-  have been completed locally.
-- A saved, authenticated AAPL V2 Round 1 is currently `awaiting_user`, has
-  seven canonical records (three Bull turns, three Bear turns, and the Interim
-  Judge), and has no active Queue Job. Resume this Session from **History**;
-  do not create another Round 1 merely to continue it.
-- A separate V2 session failed safely during a Bear provider attempt before any
-  replayable Bear text. Its completed Bull message was preserved. The mobile
-  fix in `1166e67` prevents an empty `turn.started` placeholder from looking
-  like a chat message that vanished. See [issue-log.md](issue-log.md).
+- SDK54 Expo Go/simulator UI review, real-data display, and a Legacy Groq
+  smoke were completed locally before the Oct 5 UI simplification.
+- A newer authenticated AAPL V2 Session
+  `2b6831a2-2f33-5629-bdcc-a403c9ec9c2b` completed both rounds with real
+  model calls. Stop → Explanation → user interjection → Continue was exercised
+  in Round 1 and Round 2; Final Judge and History reopen were observed. The
+  17 canonical records include two incomplete prefixes. This Session is
+  complete; do not Continue it or create a duplicate to repeat the proof.
+- An initial live attempt failed safely during stream finalization, and an
+  older Bear attempt failed before replayable text. Keep these terminal
+  Sessions as test records. See [issue-log.md](issue-log.md).
 - The V2 mobile UI does not yet show provider-attempt model/token diagnostics.
   Do not treat that as verified in the UI. The backend ledger remains the
   source of truth, and the read-only V2 diagnostics view is still a follow-up.
 - Redis is intentionally disabled in this local profile. It is not required
   for the V2 flow and does not fix the saved-Debate detail-read latency.
-- Opening a saved Debate currently waits for its canonical detail before the
-  screen navigates. It is a known performance issue, not a new model call or a
-  data-integrity failure. See the corresponding issue-log entry.
+- Saved Debate detail now has a bounded owner-checked message/citation read in
+  code, but cold/warm hosted reopen latency has not been remeasured.
+- The completed AAPL Session includes a message saved before the new
+  source-quote guard was active. It is an interaction proof, not proof that
+  every source claim in that old transcript is verified.
 
 ## Start the local V2 beta profile
 
@@ -84,30 +87,26 @@ Before a new model-bearing action, visit `http://127.0.0.1:8000/health` and
 confirm `data_mode` is `standard`, `debate_workflow_v2` is `true`, and the
 reported build SHA is the commit you intentionally launched.
 
-## Next test — complete the saved normal path
+## Next test — device and post-guard acceptance
 
-This is the highest-priority next action. It reuses the saved Round 1 and does
-not repeat its seven provider attempts.
+The complete live interaction path has been observed. The next checks should
+use the target simulator or device and record the running backend SHA; do not
+spend another full model run merely to inspect layout or History.
 
-1. In the app, open **History** → the saved AAPL card → **Open interim
-   assessment**. A short wait is currently expected because the server loads
-   the canonical Session, messages, citations, and Job before navigation.
-2. Confirm all seven Round 1 records are present, ordered, and attributed
-   correctly: three Bull turns, three Bear turns, then the Interim Judge.
-   Expand several citations and check source, date, freshness, and support
-   passage. Confirm the stock/date snapshot is the saved one, not a simulated
-   fixture.
-3. Use one point Explanation/read-only question. With the profile above it
-   uses the deterministic Explanation provider and does not add a Debate turn
-   or spend a Groq Debate call.
-4. If those checks pass and the remaining model budget is accepted, use the
-   on-screen explicit question/Continue flow to start Round 2. Round 2 makes
-   five further live provider requests (four Bull/Bear turns and the Final
-   Judge), paced at least 61 seconds apart. Do not start a second Session at
-   the same time.
-5. Confirm the Final Judge appears, the Session becomes `completed`, and
-   History reopens the same final transcript and citations without duplicate or
-   reordered messages.
+1. Reopen the completed AAPL Session from **History**. Verify all 17 canonical
+   records, both incomplete prefixes, the Final Judge, ordering, citation
+   cards, and the visible warning for earlier Groq v1 content. Measure cold
+   and warm reopen time separately.
+2. Scroll the full AAPL Stock Detail screen at narrow width, including every
+   technical and macro panel; then inspect Watchlist search, saved rows,
+   empty/error states, and large text. Record any collision or clipping.
+3. Exercise sign-up/confirmation and switch between two test accounts while a
+   home or stock request is delayed. Verify Watchlist and Debate History stay
+   account-scoped and no former-account content flashes in the new workspace.
+4. On a new deliberately budgeted Session, verify the current source guard
+   against actual evidence excerpts and repeat Stop/recovery during app
+   background/foreground and a weak connection. Keep the resulting Session ID,
+   build SHA, and provider-attempt ledger; do not record credentials.
 
 While observing live output, a temporary larger word burst can occur when the
 provider or durable checkpoint batching outruns the display scheduler. It is
@@ -116,28 +115,19 @@ active draft bubble is shown. Record a screenshot and approximate time if whole
 paragraphs jump in at once, content becomes unordered, or a canonical message
 changes after completion.
 
-## After the normal path passes
+## Remaining implementation and measurement
 
-Run these as separate, deliberate device tests; do not combine them with the
-normal completion run.
-
-1. **Stop and recovery:** Stop before first visible text and mid-stream; verify
-   the visible prefix, saved waiting state, and no automatic continuation.
-2. **Interjection:** save a user point, verify it is not promoted to market
-   evidence, then explicitly Continue or End.
-3. **Resilience:** background/foreground the app, reopen History, and test a
-   reconnect. Confirm no duplicate messages or replayed hidden text.
-4. **V2 diagnostics implementation:** add the safe provider-attempt
-   model/usage read model to the mobile UI before claiming in-app V2 token
-   verification.
-5. **Performance work:** replace the serial saved-Debate detail reads with a
-   bounded owner-scoped aggregate read. This is independent from Redis and
-   should follow functional acceptance unless the delay blocks usability.
+1. Add safe V2 provider-attempt model/usage diagnostics to the mobile UI and
+   reconcile reported and unknown usage with the backend ledger.
+2. Measure the new saved-Debate detail path on hosted Supabase, cold and warm,
+   and compare canonical messages/citations against the saved Session.
+3. Finish native accessibility, weak-network, account-switch, and product-owner
+   visual acceptance. A post-guard source audit needs a fresh model Session.
 
 ## Completion boundary for this beta pass
 
-The V2 normal-path device beta is sufficiently evidenced when the saved Round
-1 and one deliberately continued Round 2 reach the Final Judge; citations,
-History reload, ordering, real-data labels, and safe provider failures behave
-as stated above. It does **not** complete the Stop/reconnect/native
-accessibility/performance tasks or the missing V2 in-app token diagnostics.
+The completed live AAPL run establishes the controlled interaction path through
+both rounds, including two Stop/interjection/Continue cycles and History
+reopen. It does **not** complete target-device acceptance, a wholly post-guard
+source audit, registration/two-account acceptance, weak-network recovery,
+hosted reopen performance, or the missing V2 in-app token diagnostics.

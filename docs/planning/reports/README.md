@@ -50,6 +50,9 @@ When resuming the project:
 - [`project-week-15.md`](project-week-15.md) — Debate admission coordination,
   Redis outage proof, hosted Catalog/Debate/Queue gates, and a bounded live
   Groq Round 1.
+- [`project-week-16.md`](project-week-16.md) — real-model two-round Stop and
+  interjection verification, stream/source fixes, account isolation, and the
+  research-screen handoff.
 
 ## Template for a new report
 

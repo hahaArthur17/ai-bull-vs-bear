@@ -21,6 +21,128 @@ duplicating implementation detail.
 
 ---
 
+## 2026-10-05 — AAPL live Debate Stop and Round 2 recovery regressions
+
+**Status:** Corrected locally; one complete real-model AAPL Session passed. A
+physical-device, weak-network, and multi-account acceptance pass remains open.
+
+**Symptom and evidence**
+
+An initial live attempt (`93634c30-5dfd-557d-b16c-533024bd1a6d`) failed
+safely after a provider stream appeared to finish: final guardrail trimming
+could make the published prefix differ from the canonical final content. The
+mobile Stop button could disappear when the provider had completed a turn but
+the paced reveal still showed only a prefix. Replayed Round 1 terminal SSE
+could also close a Round 2 connection. A Round 2 Challenge response timeout
+was ambiguous because admission may have committed before the client received
+the response. None of these symptoms justifies starting a duplicate Session.
+
+**Mitigation and verification**
+
+Backend commit `0c9fdb2` buffers canonical streamed text before finalization,
+keeps prior-generation terminal SSE from ending the active generation, moves
+blocking repository calls off the streaming event loop, and loads messages
+with their citations in a bounded repository read. Mobile commit `fac5d59`
+keeps Stop available for a visible, paced prefix, confirms durable Stop state
+before unfreezing, rejects stale generation/Job events, and rereads canonical
+state after an ambiguous Challenge submission. Earlier code checks passed 542
+backend tests, 122 mobile tests, and TypeScript checking. The completed AAPL
+Session `2b6831a2-2f33-5629-bdcc-a403c9ec9c2b` exercised Stop → Explanation
+→ user interjection → Continue in both rounds, reached the Final Judge, and
+reopened from History with 17 canonical records, including two incomplete
+prefixes. The provider-attempt ledger reported 50,380 Debate tokens for this
+Session plus one attempt with unknown usage; Explanation usage is separate and
+was not measured. This is a controlled run, not a latency or cost baseline.
+
+**Remaining follow-up / owner**
+
+The project owner and developer should repeat Stop and recovery on the target
+device, including background/foreground and a weak connection. Implement a
+safe V2 in-app model/token readout and reconcile it with the ledger. Do not
+claim total model cost from the reported Debate tokens alone.
+
+---
+
+## 2026-10-05 — Citations alone did not verify generated source claims
+
+**Status:** Prospective guard added locally; historical saved text remains
+unchanged and source attribution is still conservative, not semantic proof.
+
+**Symptom and evidence**
+
+The completed AAPL run contains an early Round 1 Bull message saved before the
+new guard became active; its quoted source wording was not verified against
+the linked excerpt. A citation alias identifies supplied evidence, but cannot
+by itself establish that an agent's prose or numeric conclusion appears in
+that evidence. Some live Explanation calls returned a generic conservative
+fallback when the proposed source-specific wording could not be verified.
+
+**Mitigation and verification**
+
+Commit `0c9fdb2` adds streaming source-attribution checks for new Bull, Bear,
+and Judge output, checks short direct quotations against the supplied excerpt,
+sanitizes old transcript context before using it in new prompts, and makes
+Explanation fail safely on unsupported source-specific claims. Commit
+`fac5d59` marks earlier Groq v1 records in the mobile transcript. Unit
+regressions cover supported quotes, unsupported attributions, and streamed
+boundaries. These checks do not retroactively rewrite saved messages.
+
+**Remaining follow-up / owner**
+
+The developer should audit a fresh, fully post-guard live Session and inspect
+the actual evidence cards for each consequential assertion. The product owner
+should treat old v1 messages as historical test output and review their linked
+excerpts before relying on them.
+
+---
+
+## 2026-10-05 — Account workspace and research-screen review
+
+**Status:** Local fixes committed; native multi-account and full visual
+acceptance remain open.
+
+**Symptom and evidence**
+
+During sign-out or account switching, outstanding home, stock, Watchlist, and
+Debate requests could return after the new account was adopted and repopulate
+client state with the former account's data. The stock research panels also
+had crowded headers and metadata that could collide at narrow widths; the
+Watchlist repeated counts, provenance, and catalog instructions.
+
+**Mitigation and verification**
+
+Commit `12b20c5` clears account workspace state, invalidates outstanding
+account-scoped client requests, waits for a fresh home load before rendering,
+wraps dense section headings, and shortens Stock Detail and Watchlist copy
+while retaining data warnings and accessibility labels. This addresses a
+client-state isolation risk; server authorization and RLS remain the canonical
+access-control boundary.
+
+**Remaining follow-up / owner**
+
+The developer and product owner should test sign-up/confirmation, sign-out,
+two-account switching, Watchlist persistence, and every Stock Detail panel on
+the target simulator/device at narrow width. Verify no stale account content
+appears during a delayed request. This commit does not establish completion of
+that manual acceptance.
+
+---
+
+## 2026-10-05 — Saved Debate detail read reduction needs live measurement
+
+**Status:** Code-level read reduction committed; performance issue still open
+until a hosted cold/warm comparison is recorded.
+
+The 2026-09-17 entry below measured 26 serial Supabase reads and 8.210 seconds
+for a seven-message Session. Commit `0c9fdb2` replaces the per-message
+citation loop with an owner-checked PostgREST embedded message/citation read.
+Repository and API regressions check ordering and citation attachment. The
+developer should measure cold and warm History reopen after this change and
+confirm that the complete owner-scoped transcript is identical; the previous
+8.210-second result is historical, not a new timing claim.
+
+---
+
 ## 2026-09-17 — Reopening a canonical V2 Debate waits on serial detail reads
 
 **Status:** Open performance issue. No Debate data, model output, or canonical
