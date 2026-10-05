@@ -2,8 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import { ScrollView, StyleSheet, Text, TextInput, useWindowDimensions, View } from "react-native";
 
 import { FocusablePressable, SectionHeader } from "../components/common";
-import { getCoveragePresentation, getDiscoverySummary } from "../discoverySummary";
-import { colors, interaction, layout, palette, radii, spacing, typography } from "../theme";
+import { getCoveragePresentation } from "../discoverySummary";
+import { colors, interaction, layout, palette, radii, spacing } from "../theme";
 import type { Stock } from "../types";
 
 type WatchlistScreenProps = {
@@ -35,7 +35,10 @@ export function WatchlistScreen({
     () => stocks.filter((stock) => watchlist.includes(stock.ticker)),
     [stocks, watchlist],
   );
-  const { readyToReview } = useMemo(() => getDiscoverySummary(stocks), [stocks]);
+  const catalogResults = useMemo(
+    () => query.trim() ? results : results.filter((stock) => !watchlist.includes(stock.ticker)),
+    [query, results, watchlist],
+  );
   const { width: viewportWidth } = useWindowDimensions();
   const isWideLayout = viewportWidth >= layout.breakpoints.tablet;
 
@@ -79,14 +82,8 @@ export function WatchlistScreen({
   return (
     <ScrollView contentContainerStyle={styles.page} keyboardShouldPersistTaps="handled">
       <View style={styles.hero}>
-        <Text style={styles.eyebrow}>RESEARCH QUEUE</Text>
-        <Text accessibilityRole="header" style={styles.title}>Track the names worth revisiting.</Text>
-        <Text style={styles.heroBody}>Search the versioned security catalog, keep a focused watchlist, then open available research context.</Text>
-        <View style={styles.statRow}>
-          <View style={styles.stat}><Text style={styles.statValue}>{visible.length}</Text><Text style={styles.statLabel}>WATCHED</Text></View>
-          <View style={styles.statDivider} />
-          <View style={styles.stat}><Text style={styles.statValue}>{readyToReview}</Text><Text style={styles.statLabel}>READY TO REVIEW</Text></View>
-        </View>
+        <Text accessibilityRole="header" style={styles.title}>Watchlist</Text>
+        <Text style={styles.heroCount}>{visible.length} saved</Text>
       </View>
       {error ? (
         <View accessibilityLiveRegion="assertive" style={styles.errorCard}>
@@ -97,44 +94,41 @@ export function WatchlistScreen({
       ) : null}
       <View style={[styles.workspaceGrid, isWideLayout && styles.workspaceGridWide]}>
         <View style={[styles.watchlistPanel, isWideLayout && styles.watchlistPanelWide]}>
-          <SectionHeader title="Your watchlist" meta={`${visible.length} saved`} />
+          <SectionHeader title="Saved stocks" />
           {visible.length ? visible.map((stock) => (
             <StockRow key={stock.ticker} stock={stock} watched onOpen={onOpen} onToggle={onToggle} />
           )) : (
             <View style={styles.emptyCard}>
-              <Text style={styles.emptyTitle}>Your watchlist is clear.</Text>
-              <Text style={styles.emptyText}>Save a catalog symbol to keep it at the top of this research queue.</Text>
+              <Text style={styles.emptyTitle}>No saved stocks yet</Text>
+              <Text style={styles.emptyText}>Tap ☆ to add one.</Text>
             </View>
           )}
         </View>
         <View style={[styles.catalogPanel, isWideLayout && styles.catalogPanelWide]}>
           <View style={[styles.catalogHeading, isWideLayout && styles.catalogHeadingWide]}>
-            <Text style={styles.catalogEyebrow}>SECURITY CATALOG</Text>
-            <Text style={styles.catalogTitle}>Find a listed security</Text>
-            <Text style={styles.catalogBody}>Catalog search identifies securities only. A coverage label tells you whether research data is available before opening it.</Text>
+            <Text style={styles.catalogTitle}>Find stocks</Text>
           </View>
-          <Text style={styles.label}>TICKER OR COMPANY</Text>
           <TextInput
             accessibilityLabel="Search ticker or company"
             autoCapitalize="characters"
             onChangeText={setQuery}
-            placeholder="For example: AAPL or Apple"
+            placeholder="Search ticker or company"
             placeholderTextColor={palette.muted}
             style={styles.search}
             value={query}
           />
-          {searching ? <Text accessibilityLiveRegion="polite" style={styles.searchStatus}>Searching the security catalog…</Text> : null}
+          {searching ? <Text accessibilityLiveRegion="polite" style={styles.searchStatus}>Searching…</Text> : null}
           {searchError ? <Text accessibilityLiveRegion="assertive" style={styles.searchError}>{searchError}</Text> : null}
-          {!searching && !searchError && results.length === 0 ? (
-            <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No matching symbol</Text><Text style={styles.emptyText}>Try a ticker, a shorter company name, or clear the query to browse available research coverage.</Text></View>
+          {!searching && !searchError && query.trim() && catalogResults.length === 0 ? (
+            <View style={styles.emptyCard}><Text style={styles.emptyTitle}>No matching stocks</Text><Text style={styles.emptyText}>Try another ticker or company.</Text></View>
           ) : null}
-          {results.map((stock) => (
+          {!searching && catalogResults.map((stock) => (
             <StockRow key={stock.ticker} stock={stock} watched={watchlist.includes(stock.ticker)} onOpen={onOpen} onToggle={onToggle} />
           ))}
         </View>
       </View>
       <View style={styles.disclaimerBox}>
-        <Text style={styles.disclaimerText}>Educational research context only. Nothing here is a recommendation to buy, sell, or hold a security.</Text>
+        <Text style={styles.disclaimerText}>For research only. Not a recommendation to buy, sell, or hold.</Text>
       </View>
     </ScrollView>
   );
@@ -148,10 +142,13 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
 }) {
   const coverage = getCoveragePresentation(stock.coverage_status);
   const isCatalogOnly = coverage.tone === "catalog";
+  const shortCoverageLabel = stock.coverage_status === "debate_ready" ? "Ready"
+    : stock.coverage_status === "evidence_ready" ? "Evidence"
+      : stock.coverage_status === "price_cached" ? "Limited" : "Watchlist only";
   return (
     <View style={styles.stockRow}>
       <FocusablePressable
-        accessibilityHint="Opens this security's research workspace."
+        accessibilityHint={isCatalogOnly ? "Opens this security's catalog details." : "Opens this security's research workspace."}
         accessibilityLabel={`${stock.ticker}, ${stock.company_name}, ${coverage.label}`}
         accessibilityRole="button"
         onPress={() => onOpen(stock.ticker)}
@@ -164,10 +161,9 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
             <Text style={[
               styles.coverageBadge,
               coverage.tone === "ready" ? styles.readyBadge : coverage.tone === "partial" ? styles.partialBadge : styles.catalogOnlyBadge,
-            ]}>{coverage.label}</Text>
+            ]}>{shortCoverageLabel}</Text>
           </View>
           <Text numberOfLines={1} style={styles.stockCompany}>{stock.company_name}</Text>
-          <Text style={styles.stockMeta}>{stock.exchange}{stock.sector ? ` · ${stock.sector}` : ""}</Text>
         </View>
       </FocusablePressable>
       <FocusablePressable
@@ -177,7 +173,7 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
         onPress={() => onToggle(stock.ticker)}
         style={styles.starButton}
       >
-        <Text style={[styles.star, watched && styles.starActive]}>{watched ? "Saved" : "Save"}</Text>
+        <Text style={[styles.star, watched && styles.starActive]}>{watched ? "★" : "☆"}</Text>
       </FocusablePressable>
     </View>
   );
@@ -186,14 +182,8 @@ function StockRow({ stock, watched, onOpen, onToggle }: {
 const styles = StyleSheet.create({
   page: { alignSelf: "center", maxWidth: layout.contentMaxWidth, padding: spacing.xl, paddingBottom: 110, width: "100%" },
   hero: { backgroundColor: colors.surface.elevated, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, marginBottom: spacing.lg, padding: spacing.xl },
-  eyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
   title: { color: palette.ink, fontSize: 31, fontWeight: "800", lineHeight: 37 },
-  heroBody: { color: palette.muted, fontSize: 15, lineHeight: 22, marginTop: spacing.sm },
-  statRow: { alignItems: "center", flexDirection: "row", marginTop: spacing.lg },
-  stat: { flex: 1 },
-  statValue: { color: palette.ink, fontSize: 21, fontWeight: "900" },
-  statLabel: { color: palette.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginTop: 2 },
-  statDivider: { backgroundColor: palette.line, height: 32, width: 1 },
+  heroCount: { color: palette.muted, fontSize: 13, marginTop: spacing.xs },
   errorCard: { backgroundColor: colors.surface.danger, borderRadius: radii.md, marginBottom: spacing.md, padding: spacing.md },
   errorTitle: { color: colors.content.danger, fontSize: 14, fontWeight: "800", marginBottom: 2 },
   errorText: { color: colors.content.danger, fontSize: 12, lineHeight: 18 },
@@ -210,10 +200,7 @@ const styles = StyleSheet.create({
   catalogPanelWide: { flex: 1, minWidth: 0 },
   catalogHeading: { marginTop: spacing.xxl },
   catalogHeadingWide: { marginTop: 18 },
-  catalogEyebrow: { color: palette.accent, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.xs },
-  catalogTitle: { color: palette.ink, fontSize: 23, fontWeight: "800", lineHeight: 29, marginBottom: spacing.xs },
-  catalogBody: { color: palette.muted, fontSize: 13, lineHeight: 20, marginBottom: spacing.lg },
-  label: { color: palette.ink, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginBottom: spacing.xs },
+  catalogTitle: { color: palette.ink, fontSize: 23, fontWeight: "800", lineHeight: 29, marginBottom: spacing.md },
   search: { backgroundColor: palette.card, borderColor: palette.line, borderRadius: radii.md, borderWidth: 1, color: palette.ink, fontSize: 16, minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
   searchStatus: { color: palette.muted, fontSize: 12, marginTop: spacing.sm },
   searchError: { color: colors.content.danger, fontSize: 12, lineHeight: 18, marginTop: spacing.sm },
@@ -224,16 +211,15 @@ const styles = StyleSheet.create({
   symbolText: { color: colors.content.inverse, fontSize: 18, fontWeight: "800" },
   catalogSymbolText: { color: palette.accent },
   stockCopy: { flex: 1, marginLeft: spacing.md, minWidth: 0 },
-  tickerRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  stockTicker: { color: palette.ink, fontSize: 16, fontWeight: "900" },
+  tickerRow: { alignItems: "center", flexDirection: "row", flexWrap: "wrap", columnGap: spacing.sm, rowGap: spacing.xs, minWidth: 0 },
+  stockTicker: { color: palette.ink, fontSize: 16, fontWeight: "900", flexShrink: 1 },
   coverageBadge: { borderRadius: radii.sm, fontSize: 10, fontWeight: "800", overflow: "hidden", paddingHorizontal: spacing.sm, paddingVertical: 3 },
   readyBadge: { backgroundColor: colors.surface.positive, color: palette.accent },
   partialBadge: { backgroundColor: colors.surface.warning, color: colors.content.warning },
   catalogOnlyBadge: { backgroundColor: colors.surface.information, color: palette.accent },
   stockCompany: { color: palette.muted, fontSize: 13, marginTop: 2 },
-  stockMeta: { color: palette.muted, fontSize: 11, marginTop: 2 },
   starButton: { alignItems: "center", justifyContent: "center", minHeight: interaction.minTargetSize, minWidth: interaction.minTargetSize },
-  star: { color: palette.muted, fontSize: 11, fontWeight: "800" },
+  star: { color: palette.muted, fontSize: 26, fontWeight: "800" },
   starActive: { color: palette.accent },
   disclaimerBox: { backgroundColor: colors.surface.subtle, borderRadius: radii.md, marginTop: spacing.xl, padding: spacing.lg },
   disclaimerText: { color: palette.ink, fontSize: 12, lineHeight: 18 },

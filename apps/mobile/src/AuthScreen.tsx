@@ -48,7 +48,7 @@ export function AuthScreen() {
       if (result.error) {
         setError(result.error.message);
       } else if (mode === "sign-up" && !result.data.session) {
-        setMessage("Account created. Check your email to confirm it, then return here to sign in.");
+        setMessage("Check your email for a confirmation link, then return here to sign in.");
       }
     } catch {
       setError("We could not complete that request. Check your connection and try again.");

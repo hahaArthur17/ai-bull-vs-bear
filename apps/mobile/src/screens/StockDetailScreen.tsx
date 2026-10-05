@@ -106,7 +106,6 @@ export function StockDetailScreen({
   }
   const quoteProvenance = getQuoteProvenance(bundle);
   const {
-    curveSource,
     hasPriceCurve,
     hasVerifiedMarketData,
     preferredChartRange,
@@ -148,7 +147,6 @@ export function StockDetailScreen({
           <PriceResearchCard
             ticker={bundle.stock.ticker}
             quoteProvenance={quoteProvenance}
-            curveSource={curveSource}
             hasPriceCurve={hasPriceCurve}
             dailyPrices={bundle.prices}
             weeklyPrices={bundle.weekly_history}
@@ -157,7 +155,7 @@ export function StockDetailScreen({
           />
           {!workspaceLayout.showReadinessSidebar ? snapshot : null}
           <TechnicalPanels prices={bundle.prices} availability={availability} chartColumns={workspaceLayout.chartColumns} />
-          <MacroContextPanel context={bundle.macro_context} chartColumns={workspaceLayout.chartColumns} />
+          <MacroContextPanel ticker={bundle.stock.ticker} context={bundle.macro_context} chartColumns={workspaceLayout.chartColumns} />
         </View>
         {workspaceLayout.showReadinessSidebar ? (
           <View style={workspaceStyles.readinessSidebar}>
@@ -181,7 +179,6 @@ function StockResearchHeader({
   onToggleWatchlist: () => void;
 }) {
   const isCatalogOnly = stock.coverage_status === "catalog_only";
-  const coverageLabel = isCatalogOnly ? "Watchlist only" : "Research coverage available";
   return (
     <View style={styles.researchHeader}>
       <View style={styles.tickerTile}><Text style={styles.tickerTileText}>{stock.ticker.slice(0, 1)}</Text></View>
@@ -189,7 +186,7 @@ function StockResearchHeader({
         <Text style={styles.eyebrow}>{stock.exchange} · {isCatalogOnly ? "CATALOG IDENTITY" : "STOCK RESEARCH"}</Text>
         <Text style={styles.detailTitle}>{stock.company_name}</Text>
         <Text style={styles.detailTicker}>{stock.ticker} · {stock.sector || "Classification unavailable"}</Text>
-        <Text style={[styles.coverageStatus, isCatalogOnly && styles.coverageStatusCatalog]}>{coverageLabel}</Text>
+        {isCatalogOnly ? <Text style={[styles.coverageStatus, styles.coverageStatusCatalog]}>Watchlist only</Text> : null}
       </View>
       <FocusablePressable
         accessibilityLabel={isWatched ? `Remove ${stock.ticker} from watchlist` : `Add ${stock.ticker} to watchlist`}
@@ -207,7 +204,6 @@ function StockResearchHeader({
 function PriceResearchCard({
   ticker,
   quoteProvenance,
-  curveSource,
   hasPriceCurve,
   dailyPrices,
   weeklyPrices,
@@ -216,7 +212,6 @@ function PriceResearchCard({
 }: {
   ticker: string;
   quoteProvenance: QuoteProvenance;
-  curveSource: string;
   hasPriceCurve: boolean;
   dailyPrices: StockBundle["prices"];
   weeklyPrices: StockBundle["weekly_history"];
@@ -225,21 +220,15 @@ function PriceResearchCard({
 }) {
   return (
     <View style={styles.priceCard}>
-      <View style={styles.priceSummaryHeader}>
-        <Text style={styles.cardLabel}>{quoteProvenance.label.toUpperCase()}</Text>
-        <Text style={styles.priceFreshness}>{quoteProvenance.freshness}</Text>
-      </View>
+      <Text style={styles.cardLabel}>{quoteProvenance.label.toUpperCase()}</Text>
       {quoteProvenance.value !== null ? (
         <Text accessibilityLiveRegion="polite" style={styles.priceValue}>{"$"}{quoteProvenance.value.toFixed(2)}</Text>
       ) : (
         <Text style={styles.unavailablePrice}>—</Text>
       )}
-      <View style={styles.priceProvenance}>
-        <Text style={styles.priceProvenanceText}>Source · {quoteProvenance.source}</Text>
-        <Text style={styles.priceProvenanceText}>{quoteProvenance.timestamp}</Text>
-        <Text style={styles.priceProvenanceText}>Freshness · {quoteProvenance.freshness}</Text>
-        <Text style={styles.priceProvenanceText}>Curve source · {curveSource}</Text>
-      </View>
+      {quoteProvenance.value !== null ? (
+        <Text style={styles.priceMeta}>{quoteProvenance.timestamp.replace(/^[^·]+· /, "As of ")}</Text>
+      ) : null}
       {quoteProvenance.warning ? (
         <View accessibilityLiveRegion="assertive" style={styles.priceWarning}>
           <Text style={styles.priceWarningTitle}>Research warning</Text>
@@ -281,17 +270,13 @@ function SignalSnapshot({
 }) {
   return (
     <View style={workspaceStyles.snapshotPanel}>
-      <SectionHeader title="Signal snapshot" meta="technical agent" />
+      <SectionHeader title="Signal snapshot" />
       <View style={workspaceStyles.readinessMeta}>
-        <Text style={styles.cardLabel}>DATA READINESS</Text>
-        <Text style={styles.mutedText}>
-          {isSimulated
-            ? "SIMULATED REVIEW DATA · NOT A MARKET PRICE"
-            : hasVerifiedMarketData
-              ? "Verified historical market data"
-              : "Historical market-data verification pending"}
-        </Text>
-        <Text style={styles.mutedText}>{historyExplanation}</Text>
+        <Text style={styles.mutedText}>{isSimulated
+          ? "Simulated review data · not a market price"
+          : hasVerifiedMarketData
+            ? "Verified daily data"
+            : "Historical data verification pending"}</Text>
       </View>
       {hasAnyTechnicalData ? (
         <>
@@ -543,11 +528,10 @@ function InteractivePriceChart({
         <Text style={styles.chartRange}>{formatChartDate(points[0].date)} – {formatChartDate(points[points.length - 1].date)}</Text>
       </View>
       <View style={styles.priceChartLegend}>
-        <Text style={styles.priceLegendClose}>Solid line · Close</Text>
-        <Text style={styles.priceLegendMa20}>Solid line · MA20{movingAverageUnit}</Text>
-        <Text style={styles.priceLegendMa50}>Dashed line · MA50{movingAverageUnit}</Text>
+        <Text style={styles.priceLegendClose}>Close</Text>
+        <Text style={styles.priceLegendMa20}>MA20{movingAverageUnit}</Text>
+        <Text style={styles.priceLegendMa50}>MA50{movingAverageUnit} · dashed</Text>
       </View>
-      <Text style={styles.chartTextSummary}>{trendSummary}</Text>
       <View accessibilityRole="tablist" style={styles.rangeSelector}>
         {(["1M", "3M", "6M", "1Y"] as ChartRange[]).map((option) => (
           <FocusablePressable
@@ -622,13 +606,11 @@ function InteractivePriceChart({
       </View>
       <View
         accessible
-        accessibilityLabel={`Selected price details: Date ${formatMarketDate(activePoint.date)}. Close $${activePoint.close.toFixed(2)}. MA20${movingAverageUnit} ${activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}. MA50${movingAverageUnit} ${activePoint.ma50 === null ? "not enough history" : `$${activePoint.ma50.toFixed(2)}`}.`}
+        accessibilityLabel={`Selected price details: Date ${formatMarketDate(activePoint.date)}. Close $${activePoint.close.toFixed(2)}. MA20${movingAverageUnit} ${activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}. MA50${movingAverageUnit} ${activePoint.ma50 === null ? "not enough history" : `$${activePoint.ma50.toFixed(2)}`}. ${frequencyLabel}.`}
         accessibilityLiveRegion="polite"
         style={styles.chartTooltip}
       >
-        <Text style={styles.chartTooltipPrice}>Close · ${activePoint.close.toFixed(2)}</Text>
-        <Text style={styles.chartTooltipMeta}>Date · {formatMarketDate(activePoint.date)} · Selected point {activeIndex + 1} of {points.length}</Text>
-        <Text style={styles.chartTooltipMeta}>{frequencyLabel}</Text>
+        <Text style={styles.chartTooltipPrice}>${activePoint.close.toFixed(2)} <Text style={styles.chartTooltipMeta}>· {formatMarketDate(activePoint.date)}</Text></Text>
         <Text style={styles.chartTooltipMeta}>
           MA20{movingAverageUnit} {activePoint.ma20 === null ? "not enough history" : `$${activePoint.ma20.toFixed(2)}`}
           {" · "}
@@ -690,15 +672,15 @@ function TechnicalPanels({
   return (
     <View style={styles.technicalPanels}>
       <SectionHeader
-        title="Continuous technical panels"
-        meta={latestDate ? `as of ${formatMarketDate(latestDate)}` : "availability-gated daily history"}
+        title="Technical panels"
       />
+      <Text style={workspaceStyles.sectionDate}>{latestDate ? `As of ${formatMarketDate(latestDate)}` : "Daily history unavailable"}</Text>
       <ResponsiveChartGrid columns={chartColumns}>
         <ChartGridItem columns={chartColumns}>
           {availability?.moving_average_20 || availability?.moving_average_50 ? (
             <TechnicalLineChart
               title="Moving averages"
-              subtitle="MA20 / MA50 · daily closes"
+              subtitle="Daily closes"
               series={[
                 ...(availability.moving_average_20 ? [{ label: "MA20", color: palette.bull, points: data.ma20 }] : []),
                 ...(availability.moving_average_50 ? [{ label: "MA50", color: palette.signal, points: data.ma50 }] : []),
@@ -710,7 +692,7 @@ function TechnicalPanels({
           {availability?.rsi ? (
             <TechnicalLineChart
               title="Relative strength"
-              subtitle="RSI 14 · 30 / 70 reference lines"
+              subtitle="RSI 14 · 30/70 bands"
               series={[{ label: "RSI", color: colors.chart.oscillator, points: data.rsi }]}
               references={[30, 70]}
               fixedDomain={[0, 100]}
@@ -735,7 +717,7 @@ function TechnicalPanels({
           {availability?.volatility ? (
             <TechnicalLineChart
               title="Annualised volatility"
-              subtitle="20-session realised volatility"
+              subtitle="20-day realised"
               series={[{ label: "Volatility", color: palette.bear, points: data.volatility }]}
               suffix="%"
             />
@@ -746,7 +728,7 @@ function TechnicalPanels({
   );
 }
 
-function MacroContextPanel({ context, chartColumns }: { context: StockBundle["macro_context"]; chartColumns: 1 | 2 }) {
+function MacroContextPanel({ ticker, context, chartColumns }: { ticker: string; context: StockBundle["macro_context"]; chartColumns: 1 | 2 }) {
   const charts = useMemo(() => ({
     sp500: macroChart(context, "sp500", "S&P 500"),
     vix: macroChart(context, "vix", "VIX"),
@@ -759,29 +741,24 @@ function MacroContextPanel({ context, chartColumns }: { context: StockBundle["ma
   if (!Object.values(charts).some(Boolean)) return null;
   const rateSeries = [charts.effectiveRate, charts.twoYear, charts.tenYear, charts.thirtyYear]
     .filter((chart): chart is MacroChart => chart !== null);
-  const rateLatest = rateSeries
-    .map((chart) => `${chart.label} ${formatMacroValue(chart.latest.value ?? 0, chart.unit)} (${formatChartDate(chart.latest.date)})`)
-    .join(" · ");
+  const rateDate = rateSeries.map((chart) => chart.latest.date).sort().at(-1);
 
   return (
     <View style={styles.macroSection}>
-      <SectionHeader
-        title="Market backdrop"
-        meta={Object.values(charts).some((chart) => chart?.simulated)
-          ? "SIMULATED REVIEW FIXTURE"
-          : "cached daily context"}
-      />
+      <SectionHeader title="Market backdrop" />
       <View style={styles.macroDisclosure}>
-        <Text style={styles.macroDisclosureTitle}>Background, not a price-move explanation</Text>
-        <Text style={styles.macroDisclosureText}>These dated market series can frame broad conditions. They do not prove why a security moved on a particular day and are not personal investment advice.</Text>
+        <Text style={styles.macroDisclosureText}>{Object.values(charts).some((chart) => chart?.simulated)
+          ? "Simulated context · not market data"
+          : `Market context only · does not explain ${ticker} price moves`}</Text>
       </View>
       <ResponsiveChartGrid columns={chartColumns}>
       {charts.sp500 ? (
         <ChartGridItem columns={chartColumns}>
         <TechnicalLineChart
           title={`${charts.sp500.label} · ${formatMacroValue(charts.sp500.latest.value ?? 0, charts.sp500.unit)}`}
-          subtitle={`${charts.sp500.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.sp500.source.toUpperCase()} · latest ${formatMarketDate(charts.sp500.latest.date)} · last 30 observations`}
+          subtitle={`As of ${formatMarketDate(charts.sp500.latest.date)}`}
           series={[{ label: charts.sp500.label, color: colors.chart.positive, points: charts.sp500.points }]}
+          showTrend={false}
         />
         </ChartGridItem>
       ) : null}
@@ -789,8 +766,9 @@ function MacroContextPanel({ context, chartColumns }: { context: StockBundle["ma
         <ChartGridItem columns={chartColumns}>
         <TechnicalLineChart
           title={`${charts.vix.label} · ${formatMacroValue(charts.vix.latest.value ?? 0, charts.vix.unit)}`}
-          subtitle={`${charts.vix.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.vix.source.toUpperCase()} · latest ${formatMarketDate(charts.vix.latest.date)} · last 30 observations`}
+          subtitle={`As of ${formatMarketDate(charts.vix.latest.date)}`}
           series={[{ label: charts.vix.label, color: colors.chart.oscillator, points: charts.vix.points }]}
+          showTrend={false}
         />
         </ChartGridItem>
       ) : null}
@@ -798,13 +776,15 @@ function MacroContextPanel({ context, chartColumns }: { context: StockBundle["ma
         <ChartGridItem columns={chartColumns}>
         <TechnicalLineChart
           title="U.S. rates"
-          subtitle={`${rateSeries.some((chart) => chart.simulated) ? "REVIEW FIXTURE (SIMULATED) · " : ""}${rateLatest}`}
+          subtitle={`As of ${formatMarketDate(rateDate)}`}
           series={rateSeries.map((chart, index) => ({
             label: chart.label,
             color: [colors.action.primary, colors.chart.volume, colors.chart.positive, colors.chart.oscillator][index],
             points: chart.points,
           }))}
           suffix="%"
+          showTrend={false}
+          showValuesInLegend
         />
         </ChartGridItem>
       ) : null}
@@ -812,9 +792,10 @@ function MacroContextPanel({ context, chartColumns }: { context: StockBundle["ma
         <ChartGridItem columns={chartColumns}>
         <TechnicalLineChart
           title={`${charts.wti.label} · ${formatMacroValue(charts.wti.latest.value ?? 0, charts.wti.unit)}`}
-          subtitle={`${charts.wti.simulated ? "REVIEW FIXTURE (SIMULATED)" : charts.wti.source.toUpperCase()} · latest ${formatMarketDate(charts.wti.latest.date)} · last 30 observations`}
+          subtitle={`As of ${formatMarketDate(charts.wti.latest.date)}`}
           series={[{ label: charts.wti.label, color: colors.chart.negative, points: charts.wti.points }]}
           prefix="$"
+          showTrend={false}
         />
         </ChartGridItem>
       ) : null}
@@ -839,6 +820,8 @@ function TechnicalLineChart({
   fixedDomain,
   prefix = "",
   suffix = "",
+  showTrend = true,
+  showValuesInLegend = false,
 }: {
   title: string;
   subtitle: string;
@@ -847,6 +830,8 @@ function TechnicalLineChart({
   fixedDomain?: [number, number];
   prefix?: string;
   suffix?: string;
+  showTrend?: boolean;
+  showValuesInLegend?: boolean;
 }) {
   const [chartWidth, setChartWidth] = useState(320);
   const width = Math.max(chartWidth, 1);
@@ -862,20 +847,33 @@ function TechnicalLineChart({
   const yForValue = (value: number) => padding + (1 - (value - min) / Math.max(max - min, 0.0001)) * plotHeight;
   return (
     <View style={styles.technicalChartCard}>
-      <View style={styles.rowBetween}>
-        <View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{subtitle}</Text></View>
-        <Text style={styles.chartLegend}>{series.map((item) => item.label).join(" · ")}</Text>
-      </View>
-      {series.map((item) => (
-        <View key={`${item.label}-summary`}>
-          <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>
-            {describeTrend(item.label, seriesTrend(item.points), prefix, suffix)}
-          </Text>
-          <Text style={styles.chartNumericText}>{describeLatest(item.label, item.points, prefix, suffix)}</Text>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={workspaceStyles.chartSubtitle}>{subtitle}</Text>
+      {series.length > 1 ? (
+        <View style={workspaceStyles.chartLegendRow}>
+          {series.map((item) => {
+            const latest = latestSeriesValue(item.points);
+            return (
+              <View key={`${item.label}-legend`} style={workspaceStyles.chartLegendItem}>
+                <View style={[workspaceStyles.chartLegendDot, { backgroundColor: item.color }]} />
+                <Text style={workspaceStyles.chartLegendText}>{item.label}{showValuesInLegend && latest !== null
+                  ? ` ${prefix}${latest.toFixed(2)}${suffix}` : ""}</Text>
+              </View>
+            );
+          })}
         </View>
-      ))}
+      ) : null}
+      {showTrend ? (
+        <View style={workspaceStyles.chartTrendRow}>
+          {series.map((item) => (
+            <Text key={`${item.label}-trend`} style={workspaceStyles.chartTrendText}>
+              {compactTrend(series.length > 1 ? item.label : "", seriesTrend(item.points))}
+            </Text>
+          ))}
+        </View>
+      ) : null}
       <View onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
-        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
+        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}. ${series.map((item) => `${describeLatest(item.label, item.points, prefix, suffix)} ${describeTrend(item.label, seriesTrend(item.points), prefix, suffix)}`).join(" ")}`}>
           {[0.25, 0.5, 0.75].map((position) => <Line key={position} x1={padding} x2={width - padding} y1={padding + plotHeight * position} y2={padding + plotHeight * position} stroke={colors.chart.grid} strokeDasharray="3 4" />)}
           {references.map((value) => <Line key={value} x1={padding} x2={width - padding} y1={yForValue(value)} y2={yForValue(value)} stroke={colors.chart.reference} strokeDasharray="5 4" />)}
           {series.map((item) => <Path key={item.label} d={technicalPath(item.points, min, max, width, height, padding)} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinecap="round" />)}
@@ -901,11 +899,19 @@ function MacdChart({ macd, signal, histogram }: { macd: SeriesPoint[]; signal: S
   const baseline = yForValue(0);
   return (
     <View style={styles.technicalChartCard}>
-      <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>MACD</Text><Text style={styles.mutedText}>MACD / signal lines · histogram</Text></View><Text style={styles.chartLegend}>MACD · Signal</Text></View>
-      {macd.some((point) => point.value !== null) ? <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend("MACD", seriesTrend(macd))} {describeLatest("MACD", macd)}</Text> : null}
-      {signal.some((point) => point.value !== null) ? <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend("Signal", seriesTrend(signal))} {describeLatest("Signal", signal)}</Text> : null}
+      <Text style={styles.cardTitle}>MACD</Text>
+      <Text style={workspaceStyles.chartSubtitle}>Signal and histogram</Text>
+      <View style={workspaceStyles.chartLegendRow}>
+        {[{ label: "MACD", color: colors.chart.oscillator, points: macd },
+          { label: "Signal", color: palette.signal, points: signal }].map((item) => (
+          <View key={item.label} style={workspaceStyles.chartLegendItem}>
+            <View style={[workspaceStyles.chartLegendDot, { backgroundColor: item.color }]} />
+            <Text style={workspaceStyles.chartLegendText}>{item.label} {latestSeriesValue(item.points)?.toFixed(2) ?? "—"}</Text>
+          </View>
+        ))}
+      </View>
       <View onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
-        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel="MACD and signal line chart with a positive or negative histogram.">
+        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`MACD and signal line chart with a positive or negative histogram. ${describeLatest("MACD", macd)} ${describeLatest("Signal", signal)}`}>
           <Line x1={padding} x2={width - padding} y1={baseline} y2={baseline} stroke={colors.chart.reference} strokeDasharray="5 4" />
           {histogram.map((point, index) => {
             if (point.value === null) return null;
@@ -935,11 +941,11 @@ function TechnicalBarChart({ title, subtitle, points, color }: { title: string; 
   const plotHeight = height - padding * 2;
   return (
     <View style={styles.technicalChartCard}>
-      <View style={styles.rowBetween}><View><Text style={styles.cardTitle}>{title}</Text><Text style={styles.mutedText}>{subtitle}</Text></View><Text style={styles.chartLegend}>max {(max / 1_000_000).toFixed(1)}M</Text></View>
-      <Text style={[styles.chartTextSummary, styles.technicalChartSummary]}>{describeTrend(title, seriesTrend(points))}</Text>
-      <Text style={styles.chartNumericText}>{describeLatest(title, points, "", "", (value) => `${(value / 1_000_000).toFixed(1)}M shares`)}</Text>
+      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={workspaceStyles.chartSubtitle}>{subtitle}</Text>
+      <Text style={workspaceStyles.chartTrendText}>Latest {((latestSeriesValue(points) ?? 0) / 1_000_000).toFixed(1)}M · Peak {(max / 1_000_000).toFixed(1)}M</Text>
       <View onLayout={(event) => setChartWidth(event.nativeEvent.layout.width)}>
-        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}.`}>
+        <Svg width="100%" height={height} viewBox={`0 0 ${width} ${height}`} accessibilityRole="image" accessibilityLabel={`${title}. ${subtitle}. ${describeLatest(title, points, "", "", (value) => `${(value / 1_000_000).toFixed(1)}M shares`)} ${describeTrend(title, seriesTrend(points))}`}>
           {points.map((point, index) => {
             if (point.value === null) return null;
             const barWidth = Math.max(1.5, plotWidth / points.length - 1);
@@ -983,6 +989,17 @@ function describeLatest(
     : `Latest · ${formatValue ? formatValue(latest.value) : `${prefix}${latest.value.toFixed(2)}${suffix}`} · ${formatMarketDate(latest.date)}`;
 }
 
+function latestSeriesValue(points: SeriesPoint[]): number | null {
+  return [...points].reverse().find((point) => point.value !== null)?.value ?? null;
+}
+
+function compactTrend(label: string, trend: ReturnType<typeof seriesTrend>): string {
+  const name = label ? `${label} ` : "";
+  if (!trend || trend.percentChange === null) return `${name}change unavailable`;
+  const sign = trend.direction === "up" ? "+" : trend.direction === "down" ? "−" : "";
+  return `${name}${sign}${Math.abs(trend.percentChange).toFixed(1)}%`;
+}
+
 const workspaceStyles = StyleSheet.create({
   overview: { minWidth: 0 },
   overviewDesktop: { alignItems: "flex-start", flexDirection: "row", gap: spacing.lg },
@@ -999,6 +1016,14 @@ const workspaceStyles = StyleSheet.create({
     padding: spacing.lg,
   },
   snapshotPanel: { minWidth: 0 },
+  sectionDate: { color: palette.muted, fontSize: 12, lineHeight: 17, marginBottom: spacing.sm },
+  chartSubtitle: { color: palette.muted, fontSize: 12, lineHeight: 18, marginBottom: spacing.sm },
+  chartLegendRow: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.md, rowGap: spacing.xs, marginBottom: spacing.sm, minWidth: 0 },
+  chartLegendItem: { alignItems: "center", flexDirection: "row", gap: spacing.xs, minWidth: 0 },
+  chartLegendDot: { borderRadius: 3, height: 4, width: 16 },
+  chartLegendText: { color: palette.muted, fontSize: 11, fontWeight: "700", flexShrink: 1 },
+  chartTrendRow: { flexDirection: "row", flexWrap: "wrap", columnGap: spacing.md, rowGap: spacing.xs, marginBottom: spacing.sm },
+  chartTrendText: { color: palette.muted, fontSize: 11, lineHeight: 16, marginBottom: spacing.sm },
   readinessMeta: {
     backgroundColor: colors.surface.subtle,
     borderColor: colors.border.subtle,

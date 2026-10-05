@@ -40,8 +40,13 @@ export function FocusablePressable({
 }
 
 
-export function SectionHeader({ title, meta }: { title: string; meta: string }) {
-  return <View style={styles.sectionHeader}><Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text><Text style={styles.mutedText}>{meta}</Text></View>;
+export function SectionHeader({ title, meta }: { title: string; meta?: string }) {
+  return (
+    <View style={styles.sectionHeader}>
+      <Text accessibilityRole="header" style={styles.sectionTitle}>{title}</Text>
+      {meta ? <Text style={styles.sectionMeta}>{meta}</Text> : null}
+    </View>
+  );
 }
 
 export function Metric({ label, value }: { label: string; value: string }) {

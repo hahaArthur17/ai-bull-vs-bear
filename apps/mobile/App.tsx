@@ -76,6 +76,7 @@ function AppContent() {
   const responsiveShell = getResponsiveAppShellLayout(width);
   const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState<Session | null>(null);
+  const [workspaceReady, setWorkspaceReady] = useState(false);
   const [screen, setScreen] = useState<Screen>("watchlist");
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [watchlist, setWatchlist] = useState<string[]>([]);
@@ -99,8 +100,43 @@ function AppContent() {
   const debateAdmissionKey = useRef<string | null>(null);
   const debateStartInFlight = useRef(false);
   const stockLoadEpoch = useRef(0);
+  const accountEpoch = useRef(0);
+  const homeLoadEpoch = useRef(0);
+
+  const resetAccountWorkspace = () => {
+    accountEpoch.current += 1;
+    homeLoadEpoch.current += 1;
+    stockLoadEpoch.current += 1;
+    debateAdmissionKey.current = null;
+    debateStartInFlight.current = false;
+    setWorkspaceReady(false);
+    setScreen("watchlist");
+    setStocks([]);
+    setWatchlist([]);
+    setSelectedTicker("AAPL");
+    setSelectedStock(null);
+    setSelectedBundle(null);
+    setAnalysis(null);
+    setLiveDebate(null);
+    setDebateExperience("legacy");
+    setReviewFixtureMode(false);
+    setSelectedClaim(null);
+    setExamination(null);
+    setExaminationError("");
+    setPendingExaminationQuestion(null);
+    setHistory([]);
+    setDebateHistory([]);
+    setLoading(false);
+    setDebateStarting(false);
+    setActiveDebateRecovery(null);
+    setError("");
+  };
 
   const loadHome = async () => {
+    const requestAccountEpoch = accountEpoch.current;
+    const requestHomeEpoch = ++homeLoadEpoch.current;
+    const isCurrent = () => accountEpoch.current === requestAccountEpoch
+      && homeLoadEpoch.current === requestHomeEpoch;
     try {
       setError("");
       // Older or partially deployed APIs may not expose the optional runtime
@@ -113,9 +149,9 @@ function AppContent() {
       const watchlistRequest = api.getWatchlist();
       const analysisRequest = api.listAnalyses();
       const health = await healthRequest;
+      if (!isCurrent()) return;
       const fixtureMode = health.data_mode === "review_fixture";
       const fixtureV2 = fixtureMode && health.debate_workflow_v2 === true;
-      setReviewFixtureMode(fixtureMode);
       const debateV2Enabled = DEBATE_V2_UI_ENABLED || fixtureV2;
       const [stockResult, watchlistResult, analysisResult, debateResult] = await Promise.all([
         stockRequest,
@@ -128,12 +164,16 @@ function AppContent() {
       const watchedStocks = await Promise.all(
         watchlistResult.tickers.map((ticker) => api.getStock(ticker).catch(() => null)),
       );
+      if (!isCurrent()) return;
+      setReviewFixtureMode(fixtureMode);
       setStocks(mergeStocks(stockResult, watchedStocks.filter((stock): stock is Stock => stock !== null)));
       setWatchlist(watchlistResult.tickers);
       setHistory(analysisResult);
       setDebateHistory(debateResult);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not load the demo API.");
+      if (isCurrent()) setError(requestError instanceof Error ? requestError.message : "Could not load the API.");
+    } finally {
+      if (isCurrent()) setWorkspaceReady(true);
     }
   };
 
@@ -146,22 +186,31 @@ function AppContent() {
     }
     let active = true;
     let previousAccount: string | null = null;
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active) {
-        previousAccount = data.session?.user.id || null;
-        setSession(data.session);
-        setAuthReady(true);
+    let initialized = false;
+    let authEventSeen = false;
+    const adoptSession = (nextSession: Session | null) => {
+      const nextAccount = nextSession?.user.id || null;
+      if (initialized && previousAccount !== nextAccount) {
+        if (previousAccount) {
+          void clearPendingInterruptionsForAccount(AsyncStorage, previousAccount).catch(() => {
+            // Account-scoped records remain inaccessible to the new account.
+          });
+        }
+        resetAccountWorkspace();
       }
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      if (previousAccount && previousAccount !== nextSession?.user.id) {
-        void clearPendingInterruptionsForAccount(AsyncStorage, previousAccount).catch(() => {
-          // Account-scoped records remain inaccessible to the new account.
-        });
-      }
-      previousAccount = nextSession?.user.id || null;
+      initialized = true;
+      previousAccount = nextAccount;
       setSession(nextSession);
       setAuthReady(true);
+    };
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active && !authEventSeen) adoptSession(data.session);
+    }).catch(() => {
+      if (active && !authEventSeen) adoptSession(null);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      authEventSeen = true;
+      if (active) adoptSession(nextSession);
     });
     return () => {
       active = false;
@@ -176,8 +225,11 @@ function AppContent() {
   }, [authReady, session?.access_token]);
 
   const searchStocks = useCallback(async (query: string): Promise<Stock[]> => {
+    const requestAccountEpoch = accountEpoch.current;
     const results = await api.listStocks(query, 20);
-    setStocks((current) => mergeStocks(current, results));
+    if (accountEpoch.current === requestAccountEpoch) {
+      setStocks((current) => mergeStocks(current, results));
+    }
     return results;
   }, []);
 
@@ -214,13 +266,16 @@ function AppContent() {
   };
 
   const toggleWatchlist = async (ticker: string) => {
+    const requestAccountEpoch = accountEpoch.current;
     try {
       const next = watchlist.includes(ticker)
         ? await api.removeFromWatchlist(ticker)
         : await api.addToWatchlist(ticker);
-      setWatchlist(next.tickers);
+      if (accountEpoch.current === requestAccountEpoch) setWatchlist(next.tickers);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not update the watchlist.");
+      if (accountEpoch.current === requestAccountEpoch) {
+        setError(requestError instanceof Error ? requestError.message : "Could not update the watchlist.");
+      }
     }
   };
 
@@ -230,6 +285,7 @@ function AppContent() {
       return;
     }
     if (debateStartInFlight.current) return;
+    const requestAccountEpoch = accountEpoch.current;
     debateStartInFlight.current = true;
     const startingV2 = debateV2Enabled;
     setDebateStarting(startingV2);
@@ -242,6 +298,7 @@ function AppContent() {
         const nextDebate = await api.createDebate(selectedTicker, {
           idempotencyKey: debateAdmissionKey.current,
         });
+        if (accountEpoch.current !== requestAccountEpoch) return;
         debateAdmissionKey.current = null;
         setLiveDebate(nextDebate);
         setDebateHistory((current) => [
@@ -253,11 +310,13 @@ function AppContent() {
         return;
       }
       const nextAnalysis = await api.runAnalysis(selectedTicker);
+      if (accountEpoch.current !== requestAccountEpoch) return;
       setAnalysis(nextAnalysis);
       setDebateExperience("legacy");
       setHistory((current) => [nextAnalysis, ...current.filter((item) => item.analysis_id !== nextAnalysis.analysis_id)]);
       setScreen("debate");
     } catch (requestError) {
+      if (accountEpoch.current !== requestAccountEpoch) return;
       if (startingV2 && isActiveDebateConflict(requestError)) {
         const knownSessions = [
           ...(liveDebate ? [liveDebate.session] : []),
@@ -269,9 +328,11 @@ function AppContent() {
         setError(requestError instanceof Error ? requestError.message : "Could not run the analysis.");
       }
     } finally {
-      debateStartInFlight.current = false;
-      setDebateStarting(false);
-      if (!startingV2) setLoading(false);
+      if (accountEpoch.current === requestAccountEpoch) {
+        debateStartInFlight.current = false;
+        setDebateStarting(false);
+        if (!startingV2) setLoading(false);
+      }
     }
   };
 
@@ -285,45 +346,55 @@ function AppContent() {
 
   const askQuestion = async (questionType: ExaminationResponse["question_type"]) => {
     if (!selectedClaim || !canSubmitExamination(pendingExaminationQuestion)) return;
+    const requestAccountEpoch = accountEpoch.current;
     setPendingExaminationQuestion(questionType);
     setExaminationError("");
     try {
-      setExamination(await api.examineClaim(selectedClaim.id, questionType));
+      const result = await api.examineClaim(selectedClaim.id, questionType);
+      if (accountEpoch.current === requestAccountEpoch) setExamination(result);
     } catch (requestError) {
-      setExaminationError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
+      if (accountEpoch.current === requestAccountEpoch) {
+        setExaminationError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
+      }
     } finally {
-      setPendingExaminationQuestion(null);
+      if (accountEpoch.current === requestAccountEpoch) setPendingExaminationQuestion(null);
     }
   };
 
   const refreshDebateHistory = async () => {
+    const requestAccountEpoch = accountEpoch.current;
     if (!debateV2Enabled) {
       setDebateHistory([]);
       return;
     }
     try {
-      setDebateHistory(await api.listDebates());
+      const nextHistory = await api.listDebates();
+      if (accountEpoch.current === requestAccountEpoch) setDebateHistory(nextHistory);
     } catch {
       // Preserve already loaded canonical history if the optional V2 route is unavailable.
     }
   };
 
   const openSavedDebate = async (sessionSummary: DebateSessionSummary) => {
+    const requestAccountEpoch = accountEpoch.current;
     let stockLoadStarted = false;
     setActiveDebateRecovery(null);
     setLoading(true);
     setError("");
     try {
       const detail = await api.getDebate(sessionSummary.id);
+      if (accountEpoch.current !== requestAccountEpoch) return;
       setLiveDebate(detail);
       setDebateExperience("v2");
       setScreen("debate");
       stockLoadStarted = true;
       await loadSelectedStock(detail.session.ticker);
     } catch (requestError) {
-      setError(requestError instanceof Error ? requestError.message : "Could not load this Debate.");
+      if (accountEpoch.current === requestAccountEpoch) {
+        setError(requestError instanceof Error ? requestError.message : "Could not load this Debate.");
+      }
     } finally {
-      if (!stockLoadStarted) setLoading(false);
+      if (accountEpoch.current === requestAccountEpoch && !stockLoadStarted) setLoading(false);
     }
   };
 
@@ -451,6 +522,13 @@ function AppContent() {
   }
   if (isSupabaseConfigured && !session) {
     return <AuthScreen />;
+  }
+  if (!workspaceReady) {
+    return (
+      <SafeAreaView style={styles.safeArea}>
+        <View style={styles.loading}><ActivityIndicator color={palette.accent} size="large" /></View>
+      </SafeAreaView>
+    );
   }
 
   return (
