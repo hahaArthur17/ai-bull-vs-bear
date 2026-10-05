@@ -13,7 +13,12 @@ from app.domain.agents import (
     DebateTurnStreamEvent,
     DebateTurnStreamUsage,
 )
-from app.services.guardrails import DISCLAIMER, REWRITES, apply_guardrails
+from app.services.guardrails import REWRITES, apply_guardrails
+from app.services.source_attribution import (
+    CanonicalStreamBuffer,
+    SourceAttributionBuffer,
+    sanitize_context_text,
+)
 
 
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
@@ -36,7 +41,6 @@ _TERM_LABELS = (
     "MACD",
 )
 _MAX_STREAM_DELTA_CHARS = 600
-_GUARDRAIL_HOLDBACK_CHARS = max(len(phrase) for phrase in REWRITES) - 1
 _MAX_EVIDENCE_ITEMS = 6
 _MAX_FACTOR_OBSERVATIONS = 12
 _MAX_TRANSCRIPT_MESSAGES = 10
@@ -142,6 +146,7 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         }
         for alias, evidence_id in aliases.items()
     ]
+    excerpts = {item["citation"]: item["excerpt"] or "" for item in evidence}
     factors = [
         {
             "label": _truncate(observation.label, _MAX_FACTOR_LABEL_CHARS),
@@ -166,7 +171,10 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
             "role": message.role,
             "round": message.round_number,
             "exchange": message.exchange_number,
-            "content": _truncate(message.content, _MAX_TRANSCRIPT_CONTENT_CHARS),
+                "content": sanitize_context_text(
+                    _truncate(message.content, _MAX_TRANSCRIPT_CONTENT_CHARS) or "",
+                    excerpts,
+                ),
         }
         for message in request.transcript[-_MAX_TRANSCRIPT_MESSAGES:]
     ]
@@ -184,7 +192,10 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
             else None
         ),
         "previously_used_points": [
-            _truncate(point, _MAX_PREVIOUSLY_USED_POINT_CHARS)
+            sanitize_context_text(
+                _truncate(point, _MAX_PREVIOUSLY_USED_POINT_CHARS) or "",
+                excerpts,
+            )
             for point in request.previously_used_points[
                 -_MAX_PREVIOUSLY_USED_POINTS:
             ]
@@ -194,7 +205,10 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         "unfinished_context_not_evidence": [
             {
                 "role": message.role,
-                "content": _truncate(message.content, _MAX_INTERRUPTED_CONTENT_CHARS),
+                "content": sanitize_context_text(
+                    _truncate(message.content, _MAX_INTERRUPTED_CONTENT_CHARS) or "",
+                    excerpts,
+                ),
                 "is_complete": False,
             }
             for message in request.interrupted_context
@@ -203,8 +217,9 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
     }
     # Interrupted text is user-selected context, never validated evidence.
     citation_rule = (
-        "Support every material factual claim with one or more exact aliases such as [E1]. "
-        "Use only aliases present in frozen_context.evidence."
+        "Link each argument to one or more exact aliases such as [E1], using only aliases "
+        "present in frozen_context.evidence. An alias is a link to context, not proof that "
+        "a specific conclusion follows."
         if aliases
         else "No citable evidence is available. State that limitation and do not invent facts."
     )
@@ -234,6 +249,17 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         "every paragraph must be one or more relevant exact evidence aliases copied from that "
         "list, such as [E1]. Never postpone the first citation until the end of the response. "
         "A response without at least one exact evidence alias will be rejected.\n"
+        "Do not describe what a filing, article, report, or document says; the evidence "
+        "card already displays its excerpt. Discuss only conditional interpretations, "
+        "counterarguments, and missing observations. If source wording is essential, use a short "
+        "verbatim quote from its supplied excerpt in that sentence with its alias, such as "
+        "[E1] The cited excerpt states: \"exact excerpt words\". Put your inference "
+        "in a separate sentence. An alias alone does not verify a source claim. "
+        "For a useful answer, prefer this pattern: [E1] If the development changes "
+        "adoption, the financial outcome could improve; the snapshot does not measure "
+        "that outcome. As Bear, challenge the missing measurement; as Bull, explain "
+        "the conditional mechanism. Do not replace the whole argument with a source "
+        "disclaimer.\n"
         "</response_contract>"
     )
 
@@ -325,7 +351,7 @@ class GroqStreamingDebateProvider:
     """True async text stream whose structured metadata stays server-owned."""
 
     name = "groq-live-debate"
-    version = "v1"
+    version = "v2"
 
     def __init__(
         self,
@@ -365,6 +391,14 @@ class GroqStreamingDebateProvider:
         request: DebateTurnRequest,
     ) -> AsyncIterator[DebateTurnStreamEvent]:
         aliases = _evidence_aliases(request)
+        evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
+        attribution = SourceAttributionBuffer({
+            f"[{alias}]": _truncate(
+                evidence_by_id[evidence_id].excerpt, _MAX_EVIDENCE_EXCERPT_CHARS
+            ) or ""
+            for alias, evidence_id in aliases.items()
+        })
+        canonical_text = CanonicalStreamBuffer()
         try:
             stream = await self.client.chat.completions.create(
                 model=self.model,
@@ -412,12 +446,12 @@ class GroqStreamingDebateProvider:
                 if _forbidden_phrases(raw_content):
                     raise GroqDebateStreamError("Groq Debate failed the financial guardrail")
 
-                safe_prefix_end = max(
-                    len(emitted_content),
-                    len(raw_content) - _GUARDRAIL_HOLDBACK_CHARS,
-                )
-                prefix = raw_content[len(emitted_content) : safe_prefix_end]
-                for fragment in _bounded_fragments(prefix):
+                safe_segment = canonical_text.push(attribution.push(str(delta)))
+                if len(emitted_content) + len(safe_segment) > request.max_output_chars:
+                    raise GroqDebateStreamError("Groq Debate exceeded the output bound")
+                if _forbidden_phrases(emitted_content + safe_segment):
+                    raise GroqDebateStreamError("Groq Debate failed the financial guardrail")
+                for fragment in _bounded_fragments(safe_segment):
                     chunk_index += 1
                     emitted_content += fragment
                     yield DebateTurnStreamDelta(
@@ -438,16 +472,16 @@ class GroqStreamingDebateProvider:
         if not raw_content.strip():
             raise GroqDebateStreamError("Groq Debate returned no user-facing text")
 
-        safe_text, status, rewritten = apply_guardrails(raw_content)
-        safe_content = safe_text.removesuffix(f"\n\n{DISCLAIMER}")
+        safe_tail = canonical_text.push(attribution.finish())
+        if len(emitted_content) + len(safe_tail) > request.max_output_chars:
+            raise GroqDebateStreamError("Groq Debate exceeded the output bound")
+        safe_content = emitted_content + safe_tail
+        _, status, rewritten = apply_guardrails(safe_content)
         if status != "passed" or rewritten:
             raise GroqDebateStreamError("Groq Debate failed the financial guardrail")
         if len(safe_content) > request.max_output_chars:
             raise GroqDebateStreamError("Groq Debate exceeded the output bound")
-        if not safe_content.startswith(emitted_content):
-            raise GroqDebateStreamError("Groq Debate could not be finalized safely")
-
-        final_fragment = safe_content[len(emitted_content) :]
+        final_fragment = safe_tail
         for fragment in _bounded_fragments(final_fragment):
             chunk_index += 1
             emitted_content += fragment

@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import AsyncIterator
 import math
+import time
 from uuid import UUID
 
 import pytest
@@ -17,7 +18,7 @@ from app.domain.agents import (
     DebateTurnStreamEvent,
     DebateTurnStreamUsage,
 )
-from app.domain.debate import DebateDraftCheckpoint, DebateMessage
+from app.domain.debate import DebateDraftCheckpoint, DebateIntervention, DebateMessage
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.streaming_debate import (
     DeterministicStreamingDebateProvider,
@@ -32,7 +33,12 @@ from app.services.debate_orchestrator import (
     DebateOrchestrator,
     DebateRetryableOrchestrationError,
 )
-from test_debate_orchestrator import StepClock, build_queued_round_one
+from test_debate_orchestrator import (
+    INTERVENTION_ID,
+    StepClock,
+    build_queued_round_one,
+    build_round_two_job,
+)
 
 
 class TokenRecordingStreamProvider(DeterministicStreamingDebateProvider):
@@ -81,6 +87,52 @@ class RecordingProviderPacer:
 
     async def wait(self) -> None:
         self.calls += 1
+
+
+class SlowSessionReadRepository(InMemoryDebateRepository):
+    def get_session(self, session_id, user_id):
+        return super().get_session(session_id, user_id)
+
+    def checkpoint_draft(self, message):
+        if message.content and not getattr(self, "delayed_first_checkpoint", False):
+            self.delayed_first_checkpoint = True
+            time.sleep(0.05)
+        return super().checkpoint_draft(message)
+
+
+class EventLoopProbeProvider(DeterministicStreamingDebateProvider):
+    def __init__(self) -> None:
+        super().__init__()
+        self._event_loop_probe_completed = False
+
+    async def stream_turn(
+        self,
+        request: DebateTurnRequest,
+    ) -> AsyncIterator[DebateTurnStreamEvent]:
+        draft = self.generate_turn(request)
+        loop = asyncio.get_running_loop()
+        repository_wait_finished = asyncio.Event()
+        probe_this_stream = not self._event_loop_probe_completed
+        if probe_this_stream:
+            loop.call_later(0.005, repository_wait_finished.set)
+        for chunk_index, character in enumerate(draft.content, start=1):
+            yield DebateTurnStreamDelta(
+                chunk_index=chunk_index,
+                delta=character,
+                source="deterministic",
+            )
+            if (
+                probe_this_stream
+                and chunk_index == DURABLE_DELTA_BATCH_MAX_CHUNKS
+                and not repository_wait_finished.is_set()
+            ):
+                raise RuntimeError("the event loop was blocked during repository I/O")
+            if probe_this_stream and chunk_index == DURABLE_DELTA_BATCH_MAX_CHUNKS:
+                self._event_loop_probe_completed = True
+        yield DebateTurnStreamCompleted(
+            draft=draft,
+            usage=DebateTurnStreamUsage(model_name="event-loop-probe"),
+        )
 
 
 class InterruptingStreamProvider:
@@ -289,6 +341,62 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
     event_count = len(events)
     assert asyncio.run(orchestrator.execute_job_streaming(job.id)) == session
     assert len(broker.replay(session.id)) == event_count
+
+
+def test_streaming_repository_io_does_not_block_the_async_event_loop() -> None:
+    repository = SlowSessionReadRepository()
+    queued, job = build_queued_round_one()
+    repository.create_session_with_job(queued, job)
+    provider = EventLoopProbeProvider()
+    judge_provider = DeterministicStreamingJudgeProvider()
+    broker = InMemoryDebateEventBroker()
+    orchestrator = DebateOrchestrator(
+        repository,
+        provider,
+        provider,
+        streaming_turn_provider=provider,
+        streaming_judge_provider=judge_provider,
+        checkpoint_drafts=True,
+        event_publisher=broker,
+        clock=StepClock(),
+    )
+
+    awaiting = asyncio.run(orchestrator.execute_job_streaming(job.id))
+    round_one_messages = repository.list_messages(
+        awaiting.id,
+        awaiting.user_id,
+        branch_id=awaiting.active_branch_id,
+    )
+    challenge = DebateIntervention(
+        id=INTERVENTION_ID,
+        session_id=awaiting.id,
+        user_id=awaiting.user_id,
+        selected_message_id=round_one_messages[-1].id,
+        selected_text=round_one_messages[-1].content[:32],
+        question="What evidence would distinguish pre-order enthusiasm from realized sales?",
+        mode="challenge",
+        created_at=awaiting.updated_at,
+    )
+    round_two_job = build_round_two_job(awaiting)
+    queued_round_two = orchestrator.submit_challenge(challenge, round_two_job)
+    completed = asyncio.run(orchestrator.execute_job_streaming(round_two_job.id))
+    final_messages = repository.list_messages(
+        completed.id,
+        completed.user_id,
+        branch_id=completed.active_branch_id,
+    )
+
+    assert awaiting.status == "awaiting_user"
+    assert queued_round_two.status == "queued_round_2"
+    assert completed.status == "completed"
+    assert [message.role for message in final_messages[7:]] == [
+        "user", "bull", "bear", "bull", "bear", "judge"
+    ]
+    assert completed.final_judge_message_id == final_messages[-1].id
+    assert len(final_messages) == 13
+    latest_sequence = broker.latest_sequence(completed.id)
+    recent_events = broker.replay(completed.id, after_sequence=latest_sequence - 1)
+    assert any(event.type == "session.completed" for event in recent_events)
 
 
 def test_checkpointed_stream_batches_only_durable_contiguous_deltas() -> None:

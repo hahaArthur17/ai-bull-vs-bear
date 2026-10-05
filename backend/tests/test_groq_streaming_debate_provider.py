@@ -10,6 +10,7 @@ from uuid import UUID
 import pytest
 
 from app.config import Settings
+from app.domain.agents import DebateTurnStreamDelta
 from app.domain.debate import DebateMessage
 from app.domain.factors import FactorObservation, FactorSnapshot
 from app.providers.debate_agents import DebateStreamingTurnProvider
@@ -139,6 +140,7 @@ def test_live_provider_streams_plain_text_and_builds_server_owned_metadata() -> 
         ]
     )
     provider = GroqStreamingDebateProvider(api_key=key, client=client)
+    assert provider.version == "v2"
 
     result = collect(provider)
 
@@ -153,7 +155,7 @@ def test_live_provider_streams_plain_text_and_builds_server_owned_metadata() -> 
     assert result.usage.prompt_tokens == 17
     assert result.usage.completion_tokens == 9
     assert result.usage.total_tokens == 26
-    assert result.delta_count >= 2
+    assert result.delta_count >= 1
 
     request_kwargs = client.completions.kwargs
     assert request_kwargs is not None
@@ -184,6 +186,21 @@ def test_live_provider_accepts_a_smaller_explicit_completion_token_cap() -> None
     assert client.completions.kwargs["max_completion_tokens"] == 220
 
 
+def test_live_provider_buffers_trailing_whitespace_before_canonical_save() -> None:
+    provider = GroqStreamingDebateProvider(
+        api_key="test-key",
+        client=FakeGroqClient([
+            chunk("[E1] Demand might improve, but the result is uncertain.  "),
+            chunk(finish_reason="stop"),
+        ]),
+    )
+
+    result = collect(provider)
+
+    assert result.draft.content.endswith(".")
+    assert not result.draft.content.endswith(".  ")
+
+
 def test_live_provider_rejects_an_invalid_completion_token_cap() -> None:
     with pytest.raises(GroqDebateConfigurationError, match="between 1 and 1600"):
         GroqStreamingDebateProvider(
@@ -205,6 +222,51 @@ def test_prompt_treats_snapshot_text_as_data_and_never_exposes_real_evidence_ids
     assert prompt.index("<response_contract>") > prompt.index("</frozen_context>")
     assert "first non-whitespace characters of every paragraph" in prompt
     assert "Never postpone the first citation" in prompt
+    assert "An alias alone does not verify a source claim" in prompt
+
+
+def test_old_unverified_agent_claim_is_cleaned_before_entering_a_new_prompt() -> None:
+    base = grounded_request()
+    old_message = DebateMessage(
+        id=UUID("00000000-0000-4000-8000-000000000699"),
+        session_id=base.session_id,
+        branch_id=base.branch_id,
+        generation_id=base.generation_id,
+        sequence_number=1,
+        round_number=1,
+        exchange_number=1,
+        role="bull",
+        message_kind="argument",
+        content="[E1] The filing states that camera sales rose.",
+        created_at=datetime(2026, 8, 28, tzinfo=timezone.utc),
+    )
+
+    prompt = build_groq_debate_prompt(base.model_copy(update={"transcript": (old_message,)}))
+
+    assert "camera sales rose" not in prompt
+    assert "The supplied excerpt does not verify" in prompt
+
+
+def test_unverified_document_claim_is_never_streamed_or_saved() -> None:
+    provider = GroqStreamingDebateProvider(
+        api_key="test-key",
+        client=FakeGroqClient(
+            [
+                chunk("[E1] The filing states that camera "),
+                chunk("sales rose. The outcome remains uncertain."),
+                chunk(finish_reason="stop"),
+            ]
+        ),
+    )
+
+    async def exhaust():
+        return [event async for event in provider.stream_turn(grounded_request())]
+
+    events = asyncio.run(exhaust())
+    visible = "".join(event.delta for event in events if isinstance(event, DebateTurnStreamDelta))
+    assert "camera sales rose" not in visible
+    assert "camera sales rose" not in events[-1].draft.content
+    assert "does not verify" in visible
 
 
 def test_turn_prompt_uses_a_bounded_late_round_projection() -> None:

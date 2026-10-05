@@ -318,15 +318,21 @@ class SupabaseStore(DemoStore):
         stock_rows = stock_response.json()
         if not stock_rows:
             return technical
-        evidence_response = self._public_request(
-            "evidence_documents",
-            params={
-                "select": "id,external_id,source_type,title,url,published_at,raw_text,metadata,created_at",
-                "stock_id": f"eq.{stock_rows[0]['id']}",
-                "order": "published_at.desc.nullslast,created_at.desc",
-                "limit": "20",
-            },
-        )
+        # A single newest-first limit can fill entirely with news and hide a
+        # current SEC filing. Live Debate requires both source types.
+        live_rows: list[dict[str, object]] = []
+        for source_type, limit in (("news", 16), ("filing", 4)):
+            evidence_response = self._public_request(
+                "evidence_documents",
+                params={
+                    "select": "id,external_id,source_type,title,url,published_at,raw_text,metadata,created_at",
+                    "stock_id": f"eq.{stock_rows[0]['id']}",
+                    "source_type": f"eq.{source_type}",
+                    "order": "published_at.desc.nullslast,created_at.desc",
+                    "limit": str(limit),
+                },
+            )
+            live_rows.extend(evidence_response.json())
         live_documents = [
             {
                 "id": row.get("external_id") or f"evidence-{row['id']}",
@@ -346,7 +352,7 @@ class SupabaseStore(DemoStore):
                     row.get("published_at"),
                 ),
             }
-            for row in evidence_response.json()
+            for row in live_rows
         ]
         return technical + live_documents if live_documents else technical
 

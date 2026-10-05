@@ -549,17 +549,13 @@ def _debate_message_records(
     session: DebateSession,
 ) -> tuple[DebateMessageRecord, ...]:
     assert debate_preview_service is not None
-    messages = debate_preview_service.repository.list_messages(
+    messages_with_evidence = debate_preview_service.repository.list_messages_with_evidence(
         session.id,
         session.user_id,
         branch_id=session.active_branch_id,
     )
     records: list[DebateMessageRecord] = []
-    for message in messages:
-        citations = debate_preview_service.repository.list_message_evidence(
-            message.id,
-            session.user_id,
-        )
+    for message, citations in messages_with_evidence:
         records.append(
             DebateMessageRecord(
                 message=message,
@@ -638,7 +634,13 @@ def _debate_sse_frames(
             for event in events:
                 cursor = event.sequence
                 yield format_debate_sse(event)
-                if event.type in terminal_types:
+                # A Round 2 connection can replay the Round 1 pause. Keep
+                # streaming until this request's active generation finishes.
+                if (
+                    event.type in terminal_types
+                    and event.payload.get("generation_id")
+                    == str(session.active_generation_id)
+                ):
                     return
             continue
         assert debate_preview_service is not None

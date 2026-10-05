@@ -6,7 +6,7 @@ from uuid import UUID
 
 import pytest
 
-from app.domain.agents import DebateJudgeRequest
+from app.domain.agents import DebateJudgeRequest, DebateJudgeStreamDelta
 from app.domain.debate import DebateMessage
 from app.providers.groq_streaming_judge import (
     GroqStreamingJudgeProvider,
@@ -60,6 +60,7 @@ def test_live_judge_streams_summary_and_reports_usage() -> None:
         model="openai/gpt-oss-20b",
         client=client,
     )
+    assert provider.version == "v2"
 
     result = collect(provider, judge_request(max_output_chars=1200))
 
@@ -71,6 +72,22 @@ def test_live_judge_streams_summary_and_reports_usage() -> None:
     assert client.completions.kwargs is not None
     assert client.completions.kwargs["stream"] is True
     assert client.completions.kwargs["max_completion_tokens"] == 800
+
+
+def test_live_judge_buffers_trailing_whitespace_before_canonical_save() -> None:
+    provider = GroqStreamingJudgeProvider(
+        api_key="test-key",
+        model="openai/gpt-oss-20b",
+        client=FakeGroqClient([
+            chunk("[E1] Both interpretations remain uncertain.  "),
+            chunk(finish_reason="stop"),
+        ]),
+    )
+
+    result = collect(provider)
+
+    assert result.draft.summary.endswith(".")
+    assert not result.draft.summary.endswith(".  ")
 
 
 def test_judge_prompt_uses_a_bounded_projection_and_repeats_citation_contract() -> None:
@@ -99,6 +116,42 @@ def test_judge_prompt_uses_a_bounded_projection_and_repeats_citation_contract() 
     assert prompt.count("A" * 600) == 12
     assert prompt.index("<response_contract>") > prompt.index("</frozen_context>")
     assert "begin the response with one or more relevant exact evidence aliases" in prompt
+    assert "short verbatim quote from its supplied excerpt" in prompt
+
+
+def test_judge_prompt_does_not_repeat_an_old_unsupported_filing_claim() -> None:
+    base = judge_request()
+    old_message = base.transcript[0].model_copy(
+        update={"content": "[E1] The filing states that camera sales rose."}
+    )
+
+    prompt = build_groq_judge_prompt(base.model_copy(update={"transcript": (old_message,)}))
+
+    assert "camera sales rose" not in prompt
+    assert "The supplied excerpt does not verify" in prompt
+
+
+def test_judge_does_not_stream_an_unverified_source_claim() -> None:
+    provider = GroqStreamingJudgeProvider(
+        api_key="test-key",
+        model="openai/gpt-oss-20b",
+        client=FakeGroqClient(
+            [
+                chunk("[E1] The filing states that camera sales rose. "),
+                chunk("Both sides still face uncertainty."),
+                chunk(finish_reason="stop"),
+            ]
+        ),
+    )
+
+    async def exhaust():
+        return [event async for event in provider.stream_judgement(judge_request())]
+
+    events = asyncio.run(exhaust())
+    visible = "".join(event.delta for event in events if isinstance(event, DebateJudgeStreamDelta))
+    assert "camera sales rose" not in visible
+    assert "camera sales rose" not in events[-1].draft.summary
+    assert "does not verify" in visible
 
 
 @pytest.mark.parametrize(

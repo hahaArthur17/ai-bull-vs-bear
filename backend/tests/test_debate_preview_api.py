@@ -1230,6 +1230,42 @@ def test_running_event_stream_emits_an_unbuffered_heartbeat() -> None:
     assert '"latest_sequence":0' in heartbeat
 
 
+def test_round_two_stream_skips_replayed_round_one_terminal_event() -> None:
+    queued, _ = build_queued_round_one()
+    round_two_generation = uuid4()
+    round_two = queued.model_copy(update={
+        "active_generation_id": round_two_generation,
+        "status": "running_round_2",
+    })
+    main.debate_event_broker.publish(
+        queued.id,
+        "session.awaiting_user",
+        payload={"generation_id": str(queued.active_generation_id), "status": "awaiting_user"},
+    )
+    main.debate_event_broker.publish(
+        queued.id,
+        "job.queued",
+        payload={"generation_id": str(round_two_generation)},
+    )
+    main.debate_event_broker.publish(
+        queued.id,
+        "session.completed",
+        payload={"generation_id": str(round_two_generation), "status": "completed"},
+    )
+
+    frames = list(main._debate_sse_frames(
+        round_two,
+        after_sequence=0,
+        initial_events=main.debate_event_broker.replay(queued.id),
+        heartbeat_seconds=0,
+    ))
+
+    assert len(frames) == 3
+    assert "event: session.awaiting_user" in frames[0]
+    assert "event: job.queued" in frames[1]
+    assert "event: session.completed" in frames[2]
+
+
 def test_expired_event_cursor_requires_canonical_message_reload(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

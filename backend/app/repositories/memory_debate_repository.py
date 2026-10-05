@@ -659,6 +659,32 @@ class InMemoryDebateRepository:
                 return ()
             return tuple(_clone(citation) for citation in self._citations.get(message_id, ()))
 
+    def list_messages_with_evidence(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        *,
+        branch_id: UUID,
+    ) -> list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]]:
+        with self._lock:
+            session = self._sessions.get(session_id)
+            if session is None or session.user_id != user_id:
+                return []
+            messages = sorted(
+                (
+                    message for message in self._messages.values()
+                    if message.session_id == session_id and message.branch_id == branch_id
+                ),
+                key=lambda message: message.sequence_number,
+            )
+            return [
+                (
+                    _clone(message),
+                    tuple(_clone(citation) for citation in self._citations.get(message.id, ())),
+                )
+                for message in messages
+            ]
+
     def create_intervention(
         self,
         intervention: DebateIntervention,

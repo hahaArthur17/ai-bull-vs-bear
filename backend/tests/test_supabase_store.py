@@ -16,6 +16,7 @@ class FakePostgrest:
         self.price_rows: list[dict[str, object]] = []
         self.price_status = 200
         self.catalog_searches: list[dict[str, object]] = []
+        self.evidence_source_queries: list[str] = []
         self.stock_rows = [
             {
                 "id": 1,
@@ -143,6 +144,10 @@ class FakePostgrest:
                 ],
             )
         if table == "evidence_documents" and request.method == "GET" and "stock_id" in query:
+            source_type = query.get("source_type", [""])[0]
+            self.evidence_source_queries.append(source_type)
+            if source_type == "eq.news":
+                return httpx.Response(200, json=[])
             return httpx.Response(
                 200,
                 json=[
@@ -276,6 +281,7 @@ def test_supabase_evidence_combines_technical_and_live_documents() -> None:
     filing = next(item for item in evidence if item["id"] == "sec-aapl-example")
     assert filing["metadata"]["sections"] == ["Item 1A — Risk Factors"]
     assert filing["freshness"]["status"] == "stale"
+    assert fake.evidence_source_queries == ["eq.news", "eq.filing"]
 
 
 def test_supabase_search_uses_vector_rpc() -> None:

@@ -263,6 +263,44 @@ class SupabaseDebateRepository:
         )
         return self._models(response.json(), DebateMessage, "Debate message")
 
+    def list_messages_with_evidence(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        *,
+        branch_id: UUID,
+    ) -> list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]]:
+        if self.get_session(session_id, user_id) is None:
+            return []
+        response = self._request(
+            "GET",
+            "debate_messages",
+            params={
+                "select": "*,debate_message_evidence(*)",
+                "session_id": f"eq.{session_id}",
+                "branch_id": f"eq.{branch_id}",
+                "order": "sequence_number.asc",
+            },
+        )
+        rows = response.json()
+        if not isinstance(rows, list):
+            raise DebateRepositoryError("Supabase Debate messages returned invalid rows")
+        result: list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]] = []
+        for row in rows:
+            payload = self._object(row, "Debate message")
+            citations = tuple(self._models(
+                payload.get("debate_message_evidence"),
+                DebateMessageEvidence,
+                "Debate citation",
+            ))
+            message = self._model(
+                {key: value for key, value in payload.items() if key != "debate_message_evidence"},
+                DebateMessage,
+                "Debate message",
+            )
+            result.append((message, tuple(sorted(citations, key=lambda citation: citation.citation_order))))
+        return result
+
     def list_message_evidence(
         self,
         message_id: UUID,

@@ -21,12 +21,16 @@ from app.providers.groq_streaming_debate import (
     _safe_upstream_failure,
     _usage_from_chunk,
 )
-from app.services.guardrails import DISCLAIMER, REWRITES, apply_guardrails
+from app.services.guardrails import apply_guardrails
+from app.services.source_attribution import (
+    CanonicalStreamBuffer,
+    SourceAttributionBuffer,
+    sanitize_context_text,
+)
 
 
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
 _CITATION_TOKEN_PATTERN = re.compile(r"\[E[0-9][^\]\r\n]*\]")
-_GUARDRAIL_HOLDBACK_CHARS = max(len(phrase) for phrase in REWRITES) - 1
 _MAX_EVIDENCE_ITEMS = 6
 _MAX_FACTOR_OBSERVATIONS = 12
 _MAX_TRANSCRIPT_MESSAGES = 12
@@ -51,6 +55,10 @@ def _aliases(request: DebateJudgeRequest) -> dict[str, str]:
 def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 120) -> str:
     aliases = _aliases(request)
     evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
+    excerpts = {
+        f"[{alias}]": evidence_by_id[evidence_id].excerpt[:_MAX_EVIDENCE_EXCERPT_CHARS]
+        for alias, evidence_id in aliases.items()
+    }
     payload = {
         "ticker": request.analysis_context.ticker,
         "as_of": request.analysis_context.as_of,
@@ -85,7 +93,11 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
             ]
         ],
         "unfinished_context_not_evidence": [
-            {"role": message.role, "content": message.content[:900], "is_complete": False}
+            {
+                "role": message.role,
+                "content": sanitize_context_text(message.content[:900], excerpts),
+                "is_complete": False,
+            }
             for message in request.interrupted_context
         ],
         "transcript": [
@@ -93,14 +105,17 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
                 "role": message.role,
                 "round": message.round_number,
                 "exchange": message.exchange_number,
-                "content": message.content[:_MAX_TRANSCRIPT_CONTENT_CHARS],
+                "content": sanitize_context_text(
+                    message.content[:_MAX_TRANSCRIPT_CONTENT_CHARS], excerpts
+                ),
             }
             for message in request.transcript[-_MAX_TRANSCRIPT_MESSAGES:]
         ],
     }
     # Interrupted text is user-selected context, never validated evidence.
     citation_rule = (
-        "Cite material factual claims with only the exact aliases supplied, such as [E1]."
+        "Link the synthesis to only the exact aliases supplied, such as [E1]; an alias "
+        "does not prove an agent's factual claim."
         if aliases
         else "No citable evidence is available; state that limitation and invent no facts."
     )
@@ -117,6 +132,12 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
         "When frozen_context.evidence is non-empty, begin the response with one or more "
         "relevant exact evidence aliases copied from that list, such as [E1]. A response "
         "without at least one exact evidence alias will be rejected.\n"
+        "Describe the Bull and Bear positions as agent claims, not source facts. Avoid "
+        "stating what a filing, article, report, or document says; the evidence card "
+        "already displays its excerpt. When exact source wording is essential, it must "
+        "be a short verbatim quote from its supplied excerpt with the matching alias, "
+        "for example [E1] The cited excerpt states: \"exact excerpt words\". "
+        "Describe other propositions as agent claims or your synthesis, not source text.\n"
         "</response_contract>"
     )
 
@@ -151,7 +172,7 @@ class GroqStreamingJudgeProvider:
     """True async Judge stream with a Judge-specific prompt and server-owned metadata."""
 
     name = "groq-live-judge"
-    version = "v1"
+    version = "v2"
 
     def __init__(self, *, api_key: str | None, model: str, timeout_seconds: float = 45, max_completion_tokens: int = _DEFAULT_MAX_COMPLETION_TOKENS, client: Any | None = None) -> None:
         if not api_key:
@@ -170,6 +191,12 @@ class GroqStreamingJudgeProvider:
 
     async def stream_judgement(self, request: DebateJudgeRequest) -> AsyncIterator[DebateJudgeStreamEvent]:
         aliases = _aliases(request)
+        evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
+        attribution = SourceAttributionBuffer({
+            f"[{alias}]": evidence_by_id[evidence_id].excerpt[:_MAX_EVIDENCE_EXCERPT_CHARS]
+            for alias, evidence_id in aliases.items()
+        })
+        canonical_text = CanonicalStreamBuffer()
         try:
             stream = await self.client.chat.completions.create(
                 model=self.model,
@@ -207,8 +234,12 @@ class GroqStreamingJudgeProvider:
                     raise GroqDebateStreamError("Groq Judge exceeded the output bound")
                 if _forbidden_phrases(raw):
                     raise GroqDebateStreamError("Groq Judge failed the financial guardrail")
-                prefix_end = max(len(emitted), len(raw) - _GUARDRAIL_HOLDBACK_CHARS)
-                for fragment in _bounded_fragments(raw[len(emitted):prefix_end]):
+                safe_segment = canonical_text.push(attribution.push(str(delta)))
+                if len(emitted) + len(safe_segment) > request.max_output_chars:
+                    raise GroqDebateStreamError("Groq Judge exceeded the output bound")
+                if _forbidden_phrases(emitted + safe_segment):
+                    raise GroqDebateStreamError("Groq Judge failed the financial guardrail")
+                for fragment in _bounded_fragments(safe_segment):
                     chunk_index += 1
                     emitted += fragment
                     yield DebateJudgeStreamDelta(chunk_index=chunk_index, delta=fragment, source="live_provider")
@@ -225,11 +256,13 @@ class GroqStreamingJudgeProvider:
             error = GroqDebateStreamError(f"Groq Judge stream did not finish normally: {reason}")
             error.usage = usage
             raise error
-        safe_text, status, rewritten = apply_guardrails(raw)
-        safe = safe_text.removesuffix(f"\n\n{DISCLAIMER}")
-        if status != "passed" or rewritten or not safe.startswith(emitted):
+        safe_tail = canonical_text.push(attribution.finish())
+        if len(emitted) + len(safe_tail) > request.max_output_chars:
+            raise GroqDebateStreamError("Groq Judge exceeded the output bound")
+        _, status, rewritten = apply_guardrails(emitted + safe_tail)
+        if status != "passed" or rewritten:
             raise GroqDebateStreamError("Groq Judge failed the financial guardrail")
-        for fragment in _bounded_fragments(safe[len(emitted):]):
+        for fragment in _bounded_fragments(safe_tail):
             chunk_index += 1
             emitted += fragment
             yield DebateJudgeStreamDelta(chunk_index=chunk_index, delta=fragment, source="live_provider")

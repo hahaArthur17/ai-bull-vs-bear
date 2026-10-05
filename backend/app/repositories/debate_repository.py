@@ -70,6 +70,15 @@ class DebateSessionRepository(Protocol):
     ) -> list[DebateMessage]:
         ...
 
+    def list_messages_with_evidence(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        *,
+        branch_id: UUID,
+    ) -> list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]]:
+        ...
+
     def list_message_evidence(
         self,
         message_id: UUID,

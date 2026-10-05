@@ -4,6 +4,7 @@ import asyncio
 from collections.abc import Callable
 from datetime import datetime, timezone
 import logging
+import traceback
 from uuid import UUID, uuid4, uuid5
 
 from pydantic import JsonValue
@@ -293,10 +294,15 @@ class DebateOrchestrator:
     async def execute_job_streaming(self, job_id: UUID) -> DebateSession:
         """Execute a stage through the async per-turn provider contract."""
 
-        job = self.repository.get_job(job_id)
+        # SupabaseDebateRepository uses synchronous httpx calls. Keep every
+        # repository round trip off FastAPI's event loop while the streaming
+        # worker shares that loop with API requests and SSE subscribers.
+        job = await asyncio.to_thread(self.repository.get_job, job_id)
         if job is None:
             raise DebateOrchestrationError("Debate job not found")
-        session = self.repository.get_session(job.session_id, job.user_id)
+        session = await asyncio.to_thread(
+            self.repository.get_session, job.session_id, job.user_id
+        )
         if session is None:
             raise DebateOrchestrationError("Debate session not found")
         if job.status == "completed":
@@ -313,29 +319,32 @@ class DebateOrchestrator:
         provider_request_count = job.provider_request_count
         prompt_tokens = job.prompt_tokens
         completion_tokens = job.completion_tokens
+        execution_stage = "start_job"
         try:
             running_job = start_job(job, at=self._at_or_after(job.updated_at))
-            running_job = self.repository.update_job(running_job, expected_status="queued")
+            running_job = await asyncio.to_thread(
+                self.repository.update_job, running_job, expected_status="queued"
+            )
             running_session = transition_session(
                 session,
                 running_status,
                 at=self._at_or_after(session.updated_at),
             )
-            running_session = self.repository.update_session(
+            running_session = await asyncio.to_thread(
+                self.repository.update_session,
                 running_session,
                 expected_status=queued_status,
                 expected_generation_id=session.active_generation_id,
             )
             plan = build_round_plan(round_number, running_session.opening_side)
-            transcript = self.repository.list_messages(
+            transcript = await asyncio.to_thread(
+                self.repository.list_messages,
                 running_session.id,
                 running_session.user_id,
                 branch_id=running_session.active_branch_id,
             )
-            running_session, completed_turn_count = self._resume_plan_prefix(
-                running_session,
-                transcript,
-                plan,
+            running_session, completed_turn_count = await asyncio.to_thread(
+                self._resume_plan_prefix, running_session, transcript, plan
             )
             self._emit(
                 session.id,
@@ -358,12 +367,17 @@ class DebateOrchestrator:
             )
 
             for turn in plan.turns[completed_turn_count:]:
-                self._assert_generation_active(running_session, running_status)
+                execution_stage = f"{turn.role}:{turn.exchange_number}:{turn.message_kind}"
+                await asyncio.to_thread(
+                    self._assert_generation_active, running_session, running_status
+                )
                 await self.provider_request_pacer.wait()
                 # A Stop or restart can invalidate the generation while it is
                 # waiting for the provider budget. Never admit or dispatch the
                 # obsolete request after that wait.
-                self._assert_generation_active(running_session, running_status)
+                await asyncio.to_thread(
+                    self._assert_generation_active, running_session, running_status
+                )
                 provider_request_count += 1
                 if turn.role == "judge":
                     running_session, usage = await self._append_streaming_judge(
@@ -386,20 +400,25 @@ class DebateOrchestrator:
                     )
                     prompt_tokens += usage.prompt_tokens
                     completion_tokens += usage.completion_tokens
-                transcript = self.repository.list_messages(
+                transcript = await asyncio.to_thread(
+                    self.repository.list_messages,
                     running_session.id,
                     running_session.user_id,
                     branch_id=running_session.active_branch_id,
                 )
 
+            execution_stage = "finalize_session"
             target_status = "awaiting_user" if round_number == 1 else "completed"
-            self._assert_generation_active(running_session, running_status)
+            await asyncio.to_thread(
+                self._assert_generation_active, running_session, running_status
+            )
             finished_session = transition_session(
                 running_session,
                 target_status,
                 at=self._at_or_after(running_session.updated_at),
             )
-            finished_session = self.repository.update_session(
+            finished_session = await asyncio.to_thread(
+                self.repository.update_session,
                 finished_session,
                 expected_status=running_status,
                 expected_generation_id=running_session.active_generation_id,
@@ -411,7 +430,9 @@ class DebateOrchestrator:
                 prompt_tokens=prompt_tokens,
                 completion_tokens=completion_tokens,
             )
-            self.repository.update_job(completed_job, expected_status="running")
+            await asyncio.to_thread(
+                self.repository.update_job, completed_job, expected_status="running"
+            )
             self._emit(
                 finished_session.id,
                 "session.awaiting_user" if round_number == 1 else "session.completed",
@@ -424,7 +445,8 @@ class DebateOrchestrator:
             )
             return finished_session
         except DebateGenerationCancelled:
-            return self._finish_cancelled_execution(
+            return await asyncio.to_thread(
+                self._finish_cancelled_execution,
                 job.id,
                 session,
                 provider_request_count=provider_request_count,
@@ -432,8 +454,33 @@ class DebateOrchestrator:
                 completion_tokens=completion_tokens,
             )
         except Exception as exc:
-            if self._generation_was_invalidated(session):
-                return self._finish_cancelled_execution(
+            stack = " > ".join(
+                f"{frame.filename.rsplit('/', 1)[-1]}:{frame.lineno}:{frame.name}"
+                for frame in traceback.extract_tb(exc.__traceback__)[-6:]
+            )
+            cause_types: list[str] = []
+            cause = exc.__cause__ or exc.__context__
+            safe_cause_detail = (
+                str(cause) if type(cause).__name__ == "GroqDebateStreamError" else ""
+            )
+            upstream = cause.__cause__ if cause is not None else None
+            upstream_status = getattr(upstream, "status_code", None)
+            while cause is not None and len(cause_types) < 4:
+                cause_types.append(type(cause).__name__)
+                cause = cause.__cause__ or cause.__context__
+            logger.warning(
+                "Debate streaming stage failed safely "
+                "(stage=%s, error_type=%s, cause_types=%s, safe_cause=%s, upstream_status=%s, stack=%s)",
+                execution_stage,
+                type(exc).__name__,
+                ",".join(cause_types) or "none",
+                safe_cause_detail or "unavailable",
+                upstream_status if isinstance(upstream_status, int) else "unavailable",
+                stack or "unavailable",
+            )
+            if await asyncio.to_thread(self._generation_was_invalidated, session):
+                return await asyncio.to_thread(
+                    self._finish_cancelled_execution,
                     job.id,
                     session,
                     provider_request_count=provider_request_count,
@@ -447,7 +494,14 @@ class DebateOrchestrator:
                     prompt_tokens=prompt_tokens,
                     completion_tokens=completion_tokens,
                 ) from exc
-            self._record_safe_failure(job.id, session.id, session.user_id, provider_request_count, session.active_generation_id)
+            await asyncio.to_thread(
+                self._record_safe_failure,
+                job.id,
+                session.id,
+                session.user_id,
+                provider_request_count,
+                session.active_generation_id,
+            )
             raise DebateOrchestrationError("Debate streaming job execution failed") from exc
 
     def _resume_plan_prefix(
@@ -792,7 +846,9 @@ class DebateOrchestrator:
         exchange_number: int,
         user_intervention: str | None,
     ) -> tuple[DebateMessage, DebateTurnStreamUsage]:
-        self._assert_generation_active(session, self._running_status(round_number))
+        await asyncio.to_thread(
+            self._assert_generation_active, session, self._running_status(round_number)
+        )
         target_id, sequence_number, message_id, request = self._prepare_turn(
             session,
             transcript,
@@ -803,13 +859,18 @@ class DebateOrchestrator:
             user_intervention=user_intervention,
         )
 
-        attempt = self._admit_attempt(
+        attempt = await asyncio.to_thread(
+            self._admit_attempt,
             session, message_id=message_id, sequence_number=sequence_number,
             round_number=round_number, exchange_number=exchange_number, role=role,
             message_kind=message_kind, provider=self.streaming_turn_provider,
         )
         if attempt is not None:
-            self.repository.mark_provider_attempt_dispatched(attempt.id, self.clock())
+            await asyncio.to_thread(
+                self.repository.mark_provider_attempt_dispatched,
+                attempt.id,
+                self.clock(),
+            )
         self._emit_turn_started(
             session,
             message_id=message_id,
@@ -822,18 +883,22 @@ class DebateOrchestrator:
 
         durable_batch = _DurableDeltaBatch()
 
-        def flush_durable_batch() -> None:
+        async def flush_durable_batch() -> None:
             batch = durable_batch.take()
             if batch is None:
                 return
             delta_index, delta, source, durable_content = batch
-            self.repository.checkpoint_draft(DebateDraftCheckpoint(
+            checkpoint = DebateDraftCheckpoint(
                 message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
                 generation_id=session.active_generation_id, sequence_number=sequence_number,
                 round_number=round_number, exchange_number=exchange_number, role=role,
                 message_kind=message_kind, content=durable_content,
-                created_at=session.updated_at))
-            self._assert_generation_active(session, self._running_status(round_number))
+                created_at=session.updated_at,
+            )
+            await asyncio.to_thread(self.repository.checkpoint_draft, checkpoint)
+            await asyncio.to_thread(
+                self._assert_generation_active, session, self._running_status(round_number)
+            )
             self._emit_turn_delta(
                 session,
                 message_id=message_id,
@@ -846,12 +911,14 @@ class DebateOrchestrator:
         async def publish_delta(event: DebateTurnStreamDelta) -> None:
             if self.checkpoint_drafts:
                 if durable_batch.pending and durable_batch.source != event.source:
-                    flush_durable_batch()
+                    await flush_durable_batch()
                 durable_batch.append(event.delta, event.source)
                 if durable_batch.ready:
-                    flush_durable_batch()
+                    await flush_durable_batch()
                 return
-            self._assert_generation_active(session, self._running_status(round_number))
+            await asyncio.to_thread(
+                self._assert_generation_active, session, self._running_status(round_number)
+            )
             self._emit_turn_delta(
                 session,
                 message_id=message_id,
@@ -866,23 +933,32 @@ class DebateOrchestrator:
                 self.streaming_turn_provider, request, on_delta=publish_delta,
             )
             if self.checkpoint_drafts:
-                flush_durable_batch()
+                await flush_durable_batch()
         except Exception as exc:
             if attempt is not None:
                 observed = getattr(exc, "usage", None)
-                self.repository.finish_provider_attempt(attempt.id, at=self.clock(), failed=True,
+                await asyncio.to_thread(
+                    self.repository.finish_provider_attempt,
+                    attempt.id,
+                    at=self.clock(),
+                    failed=True,
                     prompt_tokens=observed.prompt_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
                     completion_tokens=observed.completion_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
-                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None)
+                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                )
             raise
         if attempt is not None:
-            self.repository.finish_provider_attempt(
+            await asyncio.to_thread(
+                self.repository.finish_provider_attempt,
                 attempt.id, at=self.clock(), prompt_tokens=collected.usage.prompt_tokens,
                 completion_tokens=collected.usage.completion_tokens,
                 total_tokens=collected.usage.total_tokens,
             )
-        self._assert_generation_active(session, self._running_status(round_number))
-        message = self._persist_turn_draft(
+        await asyncio.to_thread(
+            self._assert_generation_active, session, self._running_status(round_number)
+        )
+        message = await asyncio.to_thread(
+            self._persist_turn_draft,
             session,
             target_id=target_id,
             sequence_number=sequence_number,
@@ -1144,7 +1220,9 @@ class DebateOrchestrator:
         phase: str,
         round_number: int,
     ) -> tuple[DebateSession, DebateTurnStreamUsage]:
-        self._assert_generation_active(session, self._running_status(round_number))
+        await asyncio.to_thread(
+            self._assert_generation_active, session, self._running_status(round_number)
+        )
         request = DebateJudgeRequest(
             session_id=session.id,
             branch_id=session.active_branch_id,
@@ -1158,13 +1236,18 @@ class DebateOrchestrator:
         )
         sequence_number = self._next_sequence(transcript)
         message_id = self._message_id(session, sequence_number)
-        attempt = self._admit_attempt(
+        attempt = await asyncio.to_thread(
+            self._admit_attempt,
             session, message_id=message_id, sequence_number=sequence_number,
             round_number=round_number, exchange_number=0, role="judge",
             message_kind="summary", provider=self.streaming_judge_provider,
         )
         if attempt is not None:
-            self.repository.mark_provider_attempt_dispatched(attempt.id, self.clock())
+            await asyncio.to_thread(
+                self.repository.mark_provider_attempt_dispatched,
+                attempt.id,
+                self.clock(),
+            )
         self._emit_judge_started(
             session,
             message_id=message_id,
@@ -1174,18 +1257,22 @@ class DebateOrchestrator:
 
         durable_batch = _DurableDeltaBatch()
 
-        def flush_durable_batch() -> None:
+        async def flush_durable_batch() -> None:
             batch = durable_batch.take()
             if batch is None:
                 return
             delta_index, delta, source, durable_content = batch
-            self.repository.checkpoint_draft(DebateDraftCheckpoint(
+            checkpoint = DebateDraftCheckpoint(
                 message_id=message_id, session_id=session.id, branch_id=session.active_branch_id,
                 generation_id=session.active_generation_id, sequence_number=sequence_number,
                 round_number=round_number, exchange_number=0, role="judge",
                 message_kind="summary", content=durable_content,
-                created_at=session.updated_at))
-            self._assert_generation_active(session, self._running_status(round_number))
+                created_at=session.updated_at,
+            )
+            await asyncio.to_thread(self.repository.checkpoint_draft, checkpoint)
+            await asyncio.to_thread(
+                self._assert_generation_active, session, self._running_status(round_number)
+            )
             self._emit(
                 session.id,
                 "judge.delta",
@@ -1203,12 +1290,14 @@ class DebateOrchestrator:
         async def publish_delta(event: DebateJudgeStreamDelta) -> None:
             if self.checkpoint_drafts:
                 if durable_batch.pending and durable_batch.source != event.source:
-                    flush_durable_batch()
+                    await flush_durable_batch()
                 durable_batch.append(event.delta, event.source)
                 if durable_batch.ready:
-                    flush_durable_batch()
+                    await flush_durable_batch()
                 return
-            self._assert_generation_active(session, self._running_status(round_number))
+            await asyncio.to_thread(
+                self._assert_generation_active, session, self._running_status(round_number)
+            )
             self._emit(
                 session.id,
                 "judge.delta",
@@ -1228,23 +1317,32 @@ class DebateOrchestrator:
                 self.streaming_judge_provider, request, on_delta=publish_delta,
             )
             if self.checkpoint_drafts:
-                flush_durable_batch()
+                await flush_durable_batch()
         except Exception as exc:
             if attempt is not None:
                 observed = getattr(exc, "usage", None)
-                self.repository.finish_provider_attempt(attempt.id, at=self.clock(), failed=True,
+                await asyncio.to_thread(
+                    self.repository.finish_provider_attempt,
+                    attempt.id,
+                    at=self.clock(),
+                    failed=True,
                     prompt_tokens=observed.prompt_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
                     completion_tokens=observed.completion_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
-                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None)
+                    total_tokens=observed.total_tokens if isinstance(observed, DebateTurnStreamUsage) else None,
+                )
             raise
         if attempt is not None:
-            self.repository.finish_provider_attempt(
+            await asyncio.to_thread(
+                self.repository.finish_provider_attempt,
                 attempt.id, at=self.clock(), prompt_tokens=collected.usage.prompt_tokens,
                 completion_tokens=collected.usage.completion_tokens,
                 total_tokens=collected.usage.total_tokens,
             )
-        self._assert_generation_active(session, self._running_status(round_number))
-        attached = self._persist_judge_draft(
+        await asyncio.to_thread(
+            self._assert_generation_active, session, self._running_status(round_number)
+        )
+        attached = await asyncio.to_thread(
+            self._persist_judge_draft,
             session,
             phase=phase,
             round_number=round_number,

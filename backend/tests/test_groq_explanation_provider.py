@@ -115,11 +115,12 @@ def test_live_provider_limits_prompt_and_owns_evidence_aliases() -> None:
     client = FakeGroqClient(
         completion(
             "A moving average smooths recent price observations so this Bull argument can "
-            "describe trend context without treating it as a forecast. The linked dated "
-            "filing supplies limited background [E1]."
+            "describe trend context without treating it as a forecast. The dated "
+            "context remains limited [E1]."
         )
     )
     provider = GroqExplanationProvider(api_key=key, client=client)
+    assert provider.version == "v2"
 
     draft = provider.generate_explanation(grounded_request())
 
@@ -223,6 +224,26 @@ def test_prompt_marks_interrupted_prefix_as_unfinished() -> None:
 
     assert '"state":"interrupted_prefix"' in prompt
     assert "do not infer its missing conclusion" in prompt
+    assert "Never describe a hypothetical percentage as an actual reported change" in prompt
+    assert "short exact quotation from its linked excerpt" in prompt
+
+
+def test_unverified_filing_attribution_is_not_returned_as_an_explanation() -> None:
+    provider = GroqExplanationProvider(
+        api_key="test-key",
+        client=FakeGroqClient(
+            completion(
+                "The filing states that Apple's camera upgrade increased revenue "
+                "and lifted valuation [E1]."
+            )
+        ),
+    )
+
+    draft = provider.generate_explanation(grounded_request())
+
+    assert "camera upgrade" not in draft.content
+    assert "cannot verify" in draft.content
+    assert draft.evidence_ids == ()
 
 
 def test_prompt_neutralizes_historical_source_citation_aliases() -> None:

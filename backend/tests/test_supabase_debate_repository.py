@@ -37,12 +37,14 @@ class FakeDebatePostgrest:
         self.queue_messages: dict[int, dict[str, object]] = {}
         self.queue_read_counts: dict[int, int] = {}
         self.next_queue_message_id = 1
+        self.request_paths: list[str] = []
 
     def __call__(self, request: httpx.Request) -> httpx.Response:
         assert request.headers["apikey"] == "sb_secret_debate"
         assert "authorization" not in request.headers
         assert request.headers["prefer"] == "return=representation"
         path = request.url.path.split("/rest/v1/", 1)[1]
+        self.request_paths.append(path)
         query = parse_qs(request.url.query.decode())
         body = json.loads(request.content or b"null")
 
@@ -222,6 +224,11 @@ class FakeDebatePostgrest:
             )
             if query.get("select") == ["session_id"]:
                 rows = [{"session_id": row["session_id"]} for row in rows]
+            elif query.get("select") == ["*,debate_message_evidence(*)"]:
+                rows = [
+                    {**row, "debate_message_evidence": self.citations.get(str(row["id"]), [])}
+                    for row in rows
+                ]
             return httpx.Response(200, json=rows)
         if path == "debate_message_evidence":
             message_id = query["message_id"][0].removeprefix("eq.")
@@ -314,6 +321,14 @@ def test_supabase_repository_round_trips_messages_citations_and_interventions() 
     assert repository.append_message(message, (citation,)) == message
     assert repository.list_messages(session.id, USER_ID, branch_id=BRANCH_ID) == [message]
     assert repository.list_message_evidence(message.id, USER_ID) == (citation,)
+    before_bulk_read = len(fake.request_paths)
+    assert repository.list_messages_with_evidence(
+        session.id, USER_ID, branch_id=BRANCH_ID,
+    ) == [(message, (citation,))]
+    assert fake.request_paths[before_bulk_read:] == ["debate_sessions", "debate_messages"]
+    assert repository.list_messages_with_evidence(
+        session.id, UUID("00000000-0000-4000-8000-000000000999"), branch_id=BRANCH_ID,
+    ) == []
 
     intervention = DebateIntervention(
         id=UUID("00000000-0000-4000-8000-000000000107"),
