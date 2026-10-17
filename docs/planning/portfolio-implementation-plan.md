@@ -1483,16 +1483,19 @@ deployment passed five-table owner isolation, authenticated write rejection,
 service-only transaction, expected-status update, idempotency, and cleanup
 checks. Phase 7 is complete: Explanation has a read-only mobile/API path,
 deterministic default, and a bounded explicit Groq provider with a one-request
-opt-in verifier; Challenge/Round 2/Final Judge remain linear. The current coding
-entry point is WP1 of the re-baselined Phase 8 remediation in
-  [`phase-8-design-remediation.md`](phase-8-design-remediation.md). The visual
-  foundation, stock workspace, V2 chronological chat, remaining core surfaces,
-  direct chart-point interaction, and responsive History repair are implemented
-  locally. The next bounded entry point is WP8L: controlled Live AAPL data and
-  Live AI acceptance, including display pacing and immediate interruption,
-  followed by remaining device/product-owner evidence and the existing Render
-  backend release/rollback check.
-  Earlier warm-theme completion marks are not release evidence.
+opt-in verifier; Challenge/Round 2/Final Judge remain linear. The current handoff is final documentation and Phase 8 acceptance/release
+closure, not WP1 implementation. The visual foundation, stock workspace,
+chronological V2 chat, remaining screens, direct chart interaction, interruption
+recovery and account isolation are implemented. As of 2026-10-17 the owner
+reports simulator functionality working; physical-device testing is unperformed.
+Current automated results are 542 backend and 122 mobile tests, TypeScript,
+Expo Doctor 18/18 and Web/iOS/Android exports. The later live AAPL Session is
+complete through Final Judge/History and must not be resumed as an unfinished
+Round 1. Use [current status](current-status.md),
+[V2 resume checklist](v2-beta-resume-checklist.md) and
+[WP8L next steps](wp8l-next-steps.md) for current evidence and remaining device,
+usage UI, source-audit, hosted timing and same-SHA Render release checks.
+Earlier warm-theme completion marks are not release evidence.
 
 Phase 9 remains Planned and starts only after Phase 8 closes. Its Replay,
 observability, resilience, and release-proof scope must not be duplicated inside

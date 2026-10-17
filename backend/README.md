@@ -1,240 +1,180 @@
 # Backend
 
-The backend is a FastAPI service. It runs in deterministic demo mode by default,
-so the project can be explored without API keys or a Supabase project.
+Last reviewed: 2026-10-17.
 
-The public baseline produces one synchronous Bull/Bear/Judge response. A
-default-off `DEBATE_WORKFLOW_V2` path exercises the complete two-round
-Session/Message workflow and exposes bounded lifecycle events through resumable
-SSE. With `DEBATE_QUEUE_ENABLED=false`, it remains a synchronous deterministic
-preview whose deltas come from an already completed Turn. With the Queue flag
-enabled, Round 1 and Round 2 return `202 Accepted`, publish atomically to a
-durable Supabase Queue, and run through bounded background Workers. Redis
-adapters and public stock-search/bundle caching are implemented with a local
-failure fallback. Per-user Debate admission limits and duplicate-request locks
-are wired into the default-off V2 path; Redis never replaces canonical Debate
-persistence. Follow the canonical
-[`portfolio implementation plan`](../docs/planning/portfolio-implementation-plan.md)
-rather than adding these concerns directly to the current analysis service.
+FastAPI serves stock research, owner-scoped Watchlist/History, the legacy
+single-response analysis, and a separately enabled two-round Debate V2. Core
+implementation and local automated checks are complete; physical-device and
+existing-Render release acceptance remain open. See the
+[current status](../docs/planning/current-status.md) for the release boundary.
 
-The Phase 4/5 domain also includes an async per-Turn stream protocol, a
-whole-draft compatibility adapter, a zero-token deterministic async provider,
-an async orchestrator path, and a real Groq `AsyncGroq` Turn adapter. That path
-publishes deltas as they arrive but persists only after a normal completion
-frame passes text, output-bound, rebuttal-target, evidence-ID, and financial
-language validation. `DEBATE_STREAMING_PROVIDER=deterministic` is the safe
-default; `groq` is an explicit, quota-consuming selection. Queue Workers select
-this async path. One quota-controlled local Groq Round 1 passed the live stream,
-canonical persistence, citation, token-accounting, and reconnect gates; the
-provider is still not selected by production configuration. The default-off API
-also exposes generation-scoped cancellation:
-queued work stops immediately, running work stops at its next generation check,
-and the repository rejects any late completion after cancellation.
+## Local setup and deterministic review
 
-## Run locally
+From the repository root on a fresh clone:
 
-    cd backend
-    python3 -m venv .venv
-    source .venv/bin/activate
-    pip install -r requirements.txt
-    uvicorn app.main:app --reload --port 8000
+```sh
+cp .env.example .env
+cd backend
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements.txt
+ENVIRONMENT=development APP_DATA_MODE=review_fixture \
+  .venv/bin/python -m uvicorn app.main:app \
+  --reload --host 0.0.0.0 --port 8000
+```
 
-Open http://localhost:8000/docs for the interactive API documentation.
+Keep an existing ignored `.env` rather than overwriting credentials. Settings
+load that root file regardless of the working directory; shell variables take
+precedence. CI uses Python 3.12 and the Docker runtime uses Python 3.13.
 
-### Review fixture mode
+Open [health](http://localhost:8000/health) or
+[interactive OpenAPI](http://localhost:8000/docs). `/health` reports
+status/environment, data and legacy-provider modes, the V2 flag, and optional
+`build_sha`. Set `APP_BUILD_SHA` to the launched commit when recording acceptance.
 
-For a deterministic UI review, start the backend with the explicit local-only
-profile below:
+`review_fixture` is an explicit local-only profile. It forces demo auth and
+in-memory persistence, deterministic Turn/Judge/Explanation providers, V2 on,
+Queue off, and Redis off, even if the root `.env` contains live credentials.
+It makes no Supabase, market-data, model, or Redis request. AAPL is fresh, GOOG
+stale, NVDA insufficient, TSLA unavailable, and MSFT catalog-only; seven dated
+macro series and all fixture surfaces retain `SIMULATED DATA` labels.
 
-    ENVIRONMENT=development APP_DATA_MODE=review_fixture uvicorn app.main:app --reload --port 8000
+In another terminal, from the repository root:
 
-This profile overrides provider, persistence, auth, Queue, and Redis settings
-from `.env`, and uses only the in-memory deterministic stores. It makes no
-Supabase, market-data, model, or Redis requests. The fixture maps AAPL to a
-fresh history, GOOG to a stale history, NVDA to insufficient history, TSLA to
-an unavailable-price state, and MSFT to a catalog-only identity. It also
-includes seven dated simulated macro series and the deterministic V2 Debate
-flow. Every chart/evidence surface must retain the `SIMULATED DATA` label; the
-fixture is for interface acceptance only and is never selected automatically
-when credentials are absent.
+```sh
+cd apps/mobile
+npm ci
+EXPO_PUBLIC_AUTH_MODE=demo \
+EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED=false \
+EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
+  npx expo start --ios --localhost --clear
+```
 
-In the frontend terminal, use demo authentication explicitly so a root `.env`
-configured for Supabase cannot create an authentication client during review:
+Use the workstation LAN IP for a physical phone, or `10.0.2.2` for the standard
+Android Emulator. See the [mobile README](../apps/mobile/README.md) for client
+compatibility and network setup. This synchronous fixture verifies layout and
+canonical records; queued streaming/Stop/Continue need the standard profile.
 
-    cd apps/mobile
-    EXPO_PUBLIC_AUTH_MODE=demo EXPO_PUBLIC_API_URL=http://localhost:8000 npm run web
+## Runtime modes and flags
 
-## Test
+Plain defaults are `APP_DATA_MODE=standard`, `AUTH_MODE=demo`,
+`PERSISTENCE_MODE=demo`, and `ANALYSIS_PROVIDER=demo`. Use explicit fixture mode
+for a credential-free review when a configured root `.env` already exists.
 
-    cd backend
-    pytest
+| Setting | Default and behavior |
+| --- | --- |
+| `AUTH_MODE`, `PERSISTENCE_MODE` | `demo`; `supabase` enables real Auth and persistence |
+| `ANALYSIS_PROVIDER` | `demo`; legacy JSON analysis can independently select `groq` or `gemini` |
+| `DEBATE_WORKFLOW_V2` | `false`; enables owner-scoped `/debates` routes |
+| `DEBATE_QUEUE_ENABLED` | `false`; when true, create/Challenge return `202` and bounded lifespan consumers execute the stage |
+| `DEBATE_STREAMING_PROVIDER` | `deterministic`; independently selects live Bull/Bear `groq` streaming |
+| `DEBATE_STREAMING_JUDGE_PROVIDER` | `deterministic`; independently selects live `groq` Interim/Final Judges |
+| `DEBATE_INTERRUPTIONS_ENABLED` | `false`; enables Stop, before-output Stop, interjection, Continue/End and provider-attempt audit |
+| `EXPLANATION_PROVIDER` | `deterministic`; optional read-only `groq` explanation |
+| `REDIS_ENABLED` | `false`; optional public cache and admission/idempotency coordination |
 
-## Configuration
+V2 with Queue disabled is a synchronous deterministic preview (`201`);
+`buffered_compatibility` events divide an already completed draft. With Queue
+enabled, the Worker emits actual async deltas and persists validated complete
+messages/citations. Round 1 has six alternating Turns plus an Interim Judge;
+explicit Challenge then queues four Turns and a Final Judge. Live Turn and
+Judge selections do not implicitly enable each other or Explanation.
 
-Copy the repository-level .env.example to .env when you are ready to add
-Supabase or model-provider credentials. The deterministic demo provider remains
-the default until a real provider is selected explicitly.
+Stop freezes the exact displayed prefix as an incomplete record and rotates
+its generation into `interrupted_awaiting_user`. It also works before the first
+output. Saving an interjection does not call a model; explicit Continue
+requires that saved interjection, creates one new generation/Job, and keeps the
+original frozen market snapshot. End settles cancellation. Old-generation
+writes are rejected. Read-only Explanation accepts complete messages and the
+eligible frozen incomplete prefix without promoting partial text to evidence.
 
-`REDIS_ENABLED=false` is also the safe default. When enabled with a valid
-`redis://` or `rediss://` URL, stock search and the public stock bundle use the
-remote cache with bounded timeouts and a process-local fallback. Responses
-expose `X-Cache-Status`; Redis failure must not prevent canonical repository
-reads. `GET /health/cache` exposes only safe mode, reachability, and degraded
-operation counts; add `?probe=true` for a bounded connectivity check. The
-current slice does not use Redis as Debate persistence or Queue transport.
-Reproduce the local stock-search latency and repository-call evidence with:
+`GET /debates/{id}/provider-attempts` exposes owner-scoped dispatch/outcome and
+reported/unknown usage when interruptions are enabled. It remains the audit
+source because V2 in-app model/token diagnostics are not implemented.
 
-    PYTHONPATH=backend backend/.venv/bin/python \
-      scripts/benchmark_stock_search_cache.py
+The [API contract](../docs/api/api-contract.md) specifies bodies, status codes,
+SSE resume, admission limits and failure semantics. The
+[agent workflow](../docs/agents/agent-workflow.md) covers grounding/validation.
 
-The recorded method and non-SLA limits are in the
-[`Week 15 report`](../docs/planning/reports/project-week-15.md).
+## Standard Supabase/live profile
 
-The default V2 request (`question=null`) may also reuse its public normalized
-`FactorSnapshot` for six hours when Redis caching is enabled. Any custom
-question or top-level context metadata forces `BYPASS`. Only the derived factor
-snapshot is reused; every user still receives new canonical Session, Message,
-Job, and history records, and model-generated Debate messages are not cached.
+Apply the base schema and ordered migrations, including Queue and interruption
+RPC/security fixes, before enabling their flags. Follow the
+[Supabase setup](supabase/README.md) and
+[live services guide](../docs/setup/live-services.md). Standard V2 writes use
+the backend-only `SUPABASE_SECRET_KEY`; never expose it through Expo public
+configuration. User-facing reads remain owner-scoped and protected by RLS.
 
-V2 admission also enforces one non-terminal Debate per user and a configurable
-default of three new admissions per hour. `DEBATE_RATE_LIMIT_PER_WINDOW`,
-`DEBATE_RATE_LIMIT_WINDOW_SECONDS`, and `DEBATE_ACTIVE_TTL_SECONDS` control the
-bounded policy. Successful new admissions expose remaining capacity; an active
-Session returns `409`, and an exhausted window returns `429` with
-`Retry-After`. Sequential queued idempotency replays do not consume another
-slot. Queued creation with an idempotency key also acquires an owner-scoped,
-hashed duplicate-request lock before factor work;
-`DEBATE_IDEMPOTENCY_LOCK_TTL_SECONDS` controls its two-minute default. A
-competing request returns `409` with a short `Retry-After`, while deterministic
-IDs and the database transaction/unique constraints remain the final fallback.
+The complete two-terminal live profile is maintained in the
+[V2 resume checklist](../docs/planning/v2-beta-resume-checklist.md). It uses a
+dedicated test user, one API/Worker/SSE process, one Worker, a one-attempt Job
+budget, and a 61-second provider pacer. Do not use hot reload during a live
+Session. Cached-data freshness and actual account quotas must be checked at
+run time; historical live proofs do not establish today's data freshness.
 
-The Explanation Agent is a read-only backend service boundary. It requires an
-exact selection from a complete message on the owned active branch, passes only
-that message's linked evidence to an injected provider, applies the
-financial-language guardrail, and leaves Session/Job/transcript state
-unchanged. Its authenticated HTTP route is available only with Debate V2
-enabled and has a separate per-user fixed-window admission limit (12 requests
-per hour by default) using only a hashed cache key; the mobile Explanation panel
-is mounted for complete-message terms.
+A standalone consumer is available from `backend/`:
 
-`EXPLANATION_PROVIDER=deterministic` is the safe default. Set it to `groq` only
-with a server-side `GROQ_API_KEY`. The Groq provider receives one complete
-source message, the exact selection/question, and only message-linked evidence
-under server-owned `[E1]` aliases. It rejects unknown aliases and oversized
-output before the shared financial-language guardrail runs.
+```sh
+.venv/bin/python -m app.debate_worker_main
+```
 
-`DEBATE_WORKFLOW_V2=false` is the safe default. Enabling it exposes the V2
-routes but does not by itself enable Queue admission. Set
-`DEBATE_QUEUE_ENABLED=true` only after the checked-in catalog, Debate, and Queue
-migrations have been applied to Supabase and the service-role/RLS checks pass.
-This makes create/challenge return `202` and starts
-`DEBATE_WORKER_CONCURRENCY` lifespan consumers (1 by default, maximum 2) using
-`DEBATE_WORKER_VISIBILITY_TIMEOUT_SECONDS` and
-`DEBATE_WORKER_POLL_SECONDS`. The hosted deterministic Queue lifecycle checks
-passed on 2026-08-29. Production still keeps both flags false pending an
-explicit live-provider rollout. Reproduce the checks with:
+The supported live topology keeps the Worker and SSE broker in the API process.
+A standalone Worker does not deliver transient deltas to another process's
+broker. Do not add it alongside lifespan consumers unless extra concurrency
+and that stream limitation are intentional. Docker starts one Uvicorn Worker.
 
-    PYTHONPATH=backend backend/.venv/bin/python \
-      scripts/verify_supabase_debate_queue.py
+## Optional cache and admission
 
-The script prints the exact active/archive Queue message IDs that must be
-removed after the disposable run; never blanket-purge the Queue.
+Redis uses bounded timeouts with a process-local fallback. It never replaces
+canonical Supabase data or Queue transport. Stock search is cached for 30
+minutes, the public bundle core for five minutes, and eligible default V2
+factor snapshots for six hours. The latest quote is resolved outside the bundle
+cache; custom questions/context bypass shared snapshot caching. Generated
+Debate messages and owner history are never shared cache entries.
 
-The same Worker can be run separately from the `backend` directory:
+`X-Cache-Status` reports `BYPASS`, `MISS`, `HIT`, or `DEGRADED`.
+`GET /health/cache?probe=true` performs a bounded connectivity probe without
+exposing connection secrets. V2 admission defaults to one non-terminal Debate
+per user and three new admissions/hour; Explanation has a separate 12/hour
+limit. Duplicate queued idempotency replays do not consume a new slot.
 
-    python -m app.debate_worker_main
+## Verification
 
-Do not run the standalone command at the same time as lifespan consumers unless
-the additional bounded concurrency is intentional.
+From the repository root:
 
-`DEBATE_STREAMING_PROVIDER` is separate from both `DEBATE_WORKFLOW_V2` and
-`ANALYSIS_PROVIDER`. Keep it at `deterministic` for tests and the deployed
-preview. A deliberate local `groq` selection additionally requires
-`GROQ_API_KEY`; `DEBATE_GROQ_MODEL` defaults to `openai/gpt-oss-20b`.
+```sh
+PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q
+PYTHONPATH=backend backend/.venv/bin/python scripts/benchmark_stock_search_cache.py
+```
 
-Run the bounded live Round 1 only with explicit quota confirmation. It makes at
-most six Groq requests, uses a 220-token completion cap per Turn, persists only
-to the in-memory repository, and prints no generated content or credentials:
+The 2026-10-17 suite passes **542 tests**. Tests isolate settings and mock
+external services. Hosted verifiers and scripts with `--confirm-live-quota`
+are separate opt-in checks; they are not ordinary unit tests. The current
+[verification record](../docs/planning/phase-8-verification-record.md) separates
+local results, historical hosted proof and remaining manual acceptance.
 
-    DEBATE_STREAMING_PROVIDER=groq PYTHONPATH=backend \
-      backend/.venv/bin/python scripts/verify_groq_debate_streaming.py \
-      --confirm-live-quota
+## Ingestion
 
-The separate Explanation verifier is also explicit: it makes exactly one Groq
-request using a synthetic in-memory message and prints no generated text or
-credentials. It does not change V2, Queue, or production configuration:
+Run ingestion from the repository root using the backend virtual environment:
 
-    EXPLANATION_PROVIDER=groq PYTHONPATH=backend \
-      backend/.venv/bin/python scripts/verify_groq_explanation.py \
-      --confirm-live-quota
+| Script under `scripts/` | Purpose |
+| --- | --- |
+| `ingest_rss.py --ticker AAPL --url https://example.com/feed.xml` | Print normalized RSS evidence for review |
+| `ingest_live_evidence.py` | Upsert configured RSS, SEC narrative chunks and structured XBRL facts |
+| `ingest_live_prices.py` | Refresh completed daily OHLCV; AAPL and one provider call by default |
+| `ingest_aapl_weekly_history.py` | Refresh labelled weekly history |
+| `ingest_macro_context.py` | Refresh dated FRED/EIA macro observations |
 
-On 2026-08-29, one `openai/gpt-oss-20b` Explanation verification completed with
-625 bounded output characters and one linked evidence citation. All request,
-output, evidence, and term checks passed; no generated text or credentials were
-printed and production remained deterministic.
+For example:
 
-Supported model providers:
+```sh
+PYTHONPATH=backend backend/.venv/bin/python scripts/ingest_live_prices.py
+```
 
-- ANALYSIS_PROVIDER=groq with GROQ_API_KEY and optional GROQ_MODEL.
-- ANALYSIS_PROVIDER=gemini with GEMINI_API_KEY and optional GEMINI_MODEL.
-
-Both providers must return the structured Bull/Bear/Judge JSON shape. The
-backend validates the shape, removes evidence IDs that were not supplied by
-retrieval, records provider token usage, and applies the financial safety
-guardrail before returning the result. No model key is needed in demo mode.
-
-## Evidence import
-
-The RSS importer can turn a feed into the same evidence shape used by the API:
-
-    PYTHONPATH=backend python scripts/ingest_rss.py \
-      --ticker AAPL \
-      --url https://example.com/feed.xml
-
-The command prints JSON so it can be reviewed before being loaded into a
-database or checked into a demo-data fixture.
-
-The live ingestion command upserts the configured RSS feed plus recent 10-K
-and 10-Q filings into Supabase, replaces their text chunks, and lets the
-database trigger generate local evidence vectors:
-
-    PYTHONPATH=backend python scripts/ingest_live_evidence.py
-
-This command requires `SUPABASE_URL`, the server-only
-`SUPABASE_SECRET_KEY`, and a declared `SEC_USER_AGENT` containing the project
-name and a monitored contact email. It downloads selected narrative sections
-from each filing, currently Risk Factors and Management's Discussion and
-Analysis. SEC requests are throttled below 10 requests per second and retry
-temporary rate-limit and server failures. If one filing remains unavailable,
-the ingestion retains its citation-ready metadata with
-`content_status=metadata_only` instead of aborting the whole batch.
-
-## Daily price cache
-
-The price ingestion command fetches the latest 100 daily OHLCV points for AAPL
-from Alpha Vantage (or Finnhub when Alpha Vantage is not configured) and
-upserts them into Supabase:
-
-    PYTHONPATH=backend python scripts/ingest_live_prices.py
-
-It requires `SUPABASE_URL`, the server-only `SUPABASE_SECRET_KEY`, and either
-`ALPHA_VANTAGE_API_KEY` or a `FINNHUB_API_KEY` with daily-candle permission.
-The default batch covers only AAPL and makes one provider call. Run it no more
-than once per trading day and never from an API request handler. A failed ticker
-retains its previous Supabase rows. The read API hides the synthetic price in
-the client when its cache is empty or unavailable, rather than passing it off
-as a market close.
-
-`PRICE_TICKERS` and `PRICE_MAX_CALLS_PER_RUN` can expand this deliberately, but
-the settings validation does not allow a value above three. Each returned price
-is a completed daily close, not an intraday quote.
-
-`PRICE_STALE_AFTER_DAYS` defaults to 5. The price API labels Supabase rows as
-`daily_market_cache` and demo rows as `demo_fallback`, with an `is_stale` flag
-that the mobile stock detail screen displays.
-
-When `FINNHUB_API_KEY` is present, the stock detail request also retrieves a
-current Finnhub quote through the API. The server retains it in memory for 60
-seconds, so active AAPL viewers generate at most one quote-provider request per
-minute per backend instance. The quote is labelled separately from the daily
-price curve.
+Ingestion requires the appropriate server-side provider credentials and
+Supabase secret. SEC calls also require a declared `SEC_USER_AGENT`. Daily
+price refreshes have a hard three-call cap and preserve previous rows on a
+failed ticker; missing/stale prices must remain labelled in the API. Finnhub
+quotes are separate, cached for 60 seconds per backend instance. Scheduled
+refresh workflows live in `.github/workflows/`; no ingestion runs on a stock
+search. See the live services guide for per-source budgets and verifier cleanup.

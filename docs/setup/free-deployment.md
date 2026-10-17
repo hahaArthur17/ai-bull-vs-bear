@@ -1,10 +1,16 @@
-# Current Zero-Cost Demo Deployment
+# Zero-Cost Deployment Baseline and Release Guide
 
 Last detailed deployment audit: 2026-08-16
 
 Public frontend/API health rechecked: 2026-08-27
 
-This document describes the currently deployed single-response baseline. The
+The service addresses, measurements, budgets and checked acceptance below are
+historical records from August 2026, not a fresh production audit. Configuration
+reviewed against the repository on 2026-10-17; live services were not redeployed
+or probed in this pass. Use [current status](../planning/current-status.md) and
+the [V2 handoff](../planning/v2-beta-resume-checklist.md) for current acceptance.
+
+This document describes the recorded single-response deployment baseline. The
 default-off Queue, Redis, and streaming implementation plus the planned Replay
 target are tracked in the
 [`portfolio implementation plan`](../planning/portfolio-implementation-plan.md)
@@ -26,9 +32,10 @@ or temporary suspension until the quota resets.
   persistent data. No Render database or persistent disk is created.
 - Production sets `ANALYSIS_PROVIDER=demo`. Bull, Bear, and Judge responses are
   deterministic and consume no Groq or Gemini tokens.
-- Production sets `DEBATE_WORKFLOW_V2=false`. The code-only synchronous preview
-  is not a deployed Queue/streaming feature and remains inaccessible until its
-  production configuration and server secret are applied deliberately. Hosted
+- The checked-in Blueprint sets `DEBATE_WORKFLOW_V2=false` and
+  `DEBATE_QUEUE_ENABLED=false`. Queued two-round/live V2 is implemented in
+  source but is not claimed enabled on the existing production deployment;
+  rollout requires deliberate configuration, server secret and migrations. Hosted
   schema and deterministic Queue lifecycle checks passed on 2026-08-29.
 - Pytest forces demo auth, persistence, and analysis settings before importing
   the application, so a developer's local `.env` cannot make tests call live
@@ -63,8 +70,10 @@ test tools and unused model SDKs.
 
 Per-service Render build filters conserve the 500 included build minutes:
 backend builds only for its Docker/runtime source paths, and frontend builds
-only for `apps/mobile/**`. Documentation-only commits do not rebuild either
-service. Changes to `render.yaml` are always synchronized by Render.
+only for `apps/mobile/**`. Root `docs/**` changes fall outside these filters. A
+mobile README change matches `apps/mobile/**` and can still trigger that
+service's build when the tracked deployment branch updates. Changes to
+`render.yaml` are always synchronized by Render.
 
 ## Live deployment
 
@@ -118,7 +127,20 @@ Automated tests are also part of the zero-call boundary. Run provider-specific
 tests only with mocks; use a separate deliberate manual command for any live
 model verification.
 
-## Repeatable deployment steps
+## Existing-service release path
+
+For this project, reuse the existing Render API; do not create another
+Blueprint/staging service or require a static Web release. After pending
+physical-device/product acceptance, deploy the accepted commit deliberately
+and set `APP_BUILD_SHA` to it. Keep API/Worker/SSE in one process, verify Auth,
+CORS, dated data, Queue/SSE as enabled, cold start/restart and a recoverable
+rollback revision. Turning V2/Queue/interruptions/providers off does not require
+deleting canonical audit/history data. See [WP8L release steps](../planning/wp8l-next-steps.md).
+
+## Original Blueprint bootstrap steps (new installations only)
+
+These reproduce the legacy zero-cost baseline; they are not the next action
+for the existing deployment. Recheck provider plans/limits before a new setup.
 
 1. Push the repository and open Render's **New Blueprint** flow.
 2. Connect the repository containing `render.yaml`.
@@ -174,7 +196,7 @@ server secret and all provider keys must stay out of the frontend bundle.
   is deterministic.
 - If a free hosting quota is exhausted, wait for the reset; do not upgrade.
 
-## Post-deploy acceptance checks
+## Historical post-deploy acceptance checks (August 2026)
 
 - [x] `GET /health` returns `status=ok`, `environment=production`, and
   `provider=demo`.

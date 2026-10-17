@@ -1,206 +1,121 @@
 # Multi-Agent Workflow
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-10-17.
 
-The steps immediately below describe the deployed single-response workflow.
-The default-off deterministic multi-turn preview and its remaining target
-transport follow it. Development sequencing is canonical in the
-[`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
+Both the legacy single-response workflow and the default-off stateful V2
+workflow are implemented. Production flags and completed acceptance are tracked
+in [current status](../planning/current-status.md), separately from code.
+Bull, Bear, Judge and Explainer are roles with distinct prompts/context and may
+use the same underlying model; they are not independently trained models.
 
-## Implemented single-response workflow
+## Legacy analysis
 
-### Step 1: Technical Agent
+`POST /analysis/{ticker}` builds technical/evidence context and returns one
+validated Bull/Bear/Judge JSON response. Bull and Bear do not see or rebut each
+other's text on this path. The service retrieves/ranks technical, news and
+filing evidence, validates provider output, filters unknown evidence IDs,
+records token usage and applies financial-language guardrails. Fixed claim
+examination remains available through `/claims/{claim_id}/examine`.
 
-Input:
-- OHLCV price data
+`ANALYSIS_PROVIDER=demo` is deterministic; Groq and Gemini are explicit optional
+legacy providers. This choice does not select V2 streaming providers.
 
-Output:
-- RSI
-- MACD
-- moving averages
-- volatility
-- volume spike
-- technical signal summary
+## Stateful V2
 
-### Step 2: News RAG Agent
+### 1. Freeze the input
 
-Input:
-- ticker
-- user question
-- recent news chunks
+The Factor Registry validates technical, market-quote, macro, news/filing and
+structured financial-fact adapters. One immutable Session snapshot preserves
+completed-close prices/indicators, dated evidence, macro observations,
+normalized factors, missing categories, allowed evidence IDs and the initial
+question. Current-data admission checks apply before live provider work.
+Later refreshes and continuation do not silently replace that snapshot.
 
-Output:
-- relevant news evidence
-- news summary
+### 2. Admit Round 1
 
-### Step 3: Filing RAG Agent
+With Queue enabled, Session/Job/identifier-only Queue creation is atomic and
+idempotent; the API returns `202 Accepted`. A bounded lifespan Worker claims
+and executes the stage. Queue-disabled preview runs deterministically in the
+request, returns `201`, and labels chunks `buffered_compatibility`.
 
-Input:
-- ticker
-- company filing chunks
+### 3. Stream three exchanges
 
-Output:
-- relevant filing evidence
-- risk factor summary
+The default Bull opening produces Bull → Bear → Bull → Bear → Bull → Bear;
+`opening_side=bear` reverses the side order. Each rebuttal targets the latest
+opponent message and receives a bounded projection of the prior transcript.
+The async provider streams prose, while citations and metadata remain validated
+on the server. Live Turn selection is independent and defaults to deterministic.
 
-### Step 4: Evidence Aggregator
+Completion requires contiguous/matching text, normal finish, output bounds,
+valid rebuttal target and in-snapshot evidence IDs. Grounded source-quote checks
+reject unsupported attribution; guardrails reject/rewrite disallowed financial
+language. Only a valid complete Turn and its citations are atomically persisted.
+Transport failure does not turn partial text into a complete claim.
 
-Input:
-- technical signals
-- news evidence
-- filing evidence
+### 4. Interim Judge and pause
 
-Output:
-- structured context for AI agents
+The independently configured Judge summarizes agreements, disagreements,
+evidence strength, missing inputs and uncertainty, then the Session becomes
+`awaiting_user`. Queued Judges have their own streamed `judge.delta` events and
+usage records; enabling live Turns does not enable live Judges.
 
-### Step 5: Bull Agent
+### 5. Explain or explicitly challenge
 
-Output:
-- positive claims
-- evidence IDs
-- confidence level
+Explanation uses one owned active-branch message, an exact selected passage
+and only its linked evidence. It returns a read-only panel without appending a
+message, creating a Job, rotating generation or changing Session state. It has
+its own provider and admission window. Complete messages and eligible
+non-empty frozen interrupted prefixes can be explained; partial content is not
+promoted to evidence.
 
-### Step 6: Bear Agent
+At the Interim pause, an explicit Round 2 Challenge requires a selected complete
+message/passage and question. The API atomically persists the intervention and
+User message and enqueues Round 2. The UI keeps read-only inquiry and explicit
+Round 2 submission separate. General message branching is deferred.
 
-Output:
-- risk claims
-- evidence IDs
-- confidence level
+### 6. Round 2 and Final Judge
 
-### Step 7: Judge Agent
+Four alternating Turns address the Challenge, followed by the Final Judge. The
+canonical Session becomes `completed`, and History can reopen its durable
+messages, citations and final summary. A completed Session cannot be continued
+as another Round 2.
 
-Output:
-- neutral summary
-- evidence strength
-- uncertainty
-- risk level
+## Resumable Stop and terminal Cancel
 
-### Step 8: Guardrail Agent
+With `DEBATE_INTERRUPTIONS_ENABLED=true`, Stop can freeze the exact displayed
+prefix or act before first output. The repository validates the prefix against
+checkpoint/canonical content, rotates generation, removes later transcript
+material and enters `interrupted_awaiting_user`. The retained prefix is explicitly
+incomplete; no late completion can overwrite it.
 
-Output:
-- safe final response
-- removed or rewritten unsafe advice
+The user can request read-only Explanation, save an interjection, explicitly
+Continue or End. Saving a point does not dispatch a model. Continue requires
+that point and atomically creates a new generation/Job, retaining the original
+snapshot and bounded remaining role plan. End settles cancellation. Terminal
+Cancel is separate and does not invite continuation.
 
-The deployed legacy provider returns Bull, Bear, and Judge in one validated JSON
-payload. Bull and Bear do not see or rebut each other's text on that path.
+Provider transport cancellation is best effort. A request already dispatched
+can consume tokens even if its output is later discarded. Client reveal pacing
+is also separate from provider admission: it does not guarantee that the next
+role's request waits for the current bubble to finish displaying.
 
-## Target stateful workflow
+## Recovery and accounting
 
-The database-independent session/message/job/event contracts, deterministic
-round plans, state-transition rules, turn/Judge provider inputs, and Phase 3
-persistence adapters described below are now implemented. A credential-free
-provider/orchestrator also executes both rounds and persists the user Challenge.
-Default-off Session, Message, and Challenge API routes now expose that workflow
-as `synchronous_preview`. A bounded event broker and authenticated SSE endpoint
-also expose ordered buffered preview chunks, citations, Judge events,
-heartbeats, and terminal state with resume cursors. A default-off Groq async
-Turn adapter and a resumable Web/React Native client now implement the two ends
-of the live stream boundary, but the current HTTP creation route and screen do
-not select them. Worker/Queue transport, term explanation, mounted live UI, and
-cross-process replay remain target behaviour. Generation-scoped cancellation
-now exists at the orchestrator, repository, API, event, and mobile reducer
-boundaries.
+Queue retry/redelivery resumes from the next missing complete planned Turn;
+transactions and uniqueness prevent duplicate canonical writes. Owner-scoped
+idempotency locks supplement that database boundary. SSE reconnect resumes from
+an ordered cursor; an expired cursor/gap reloads canonical Session/Messages.
+The event broker is process-local, so the supported live topology keeps Worker
+and API together.
 
-### Step 1: Build one immutable analysis context
+Draft checkpoints and provider attempts are separate records. Attempts retain
+admission/dispatch/outcome, provider/model and reported/unknown token usage even
+when Stop shortens a previously completed message. The backend audit endpoint
+is available with interruptions enabled; V2 mobile token diagnostics are still
+a follow-up. Explanation usage is not part of the Debate attempt ledger.
 
-The Factor Registry calls current `FactorProvider` adapters for technical,
-macro, news, filing, and structured financial-fact inputs. It validates and
-freezes one context containing:
-
-- completed-close price and indicator state;
-- dated/freshness-tagged evidence;
-- dated, non-causal macro context;
-- normalized factors and missing categories;
-- allowed evidence IDs; and
-- the initial user question.
-
-All turns in one branch use the same snapshot. A later data refresh cannot
-rewrite an existing Debate.
-
-### Step 2: Queue round one
-
-The API creates a Debate session and stage job, sends the job ID to the durable
-Queue, returns `202 Accepted`, and exposes session/job status plus a stream path.
-The Queue payload contains identifiers only.
-
-The implemented Phase 3 preview stops before this transport boundary: it
-creates the same canonical Session/Job records but executes the deterministic
-stage in the request and returns `201 Created` after completion.
-
-### Step 3: Produce three exchanges
-
-The bounded Worker executes:
-
-1. Bull opening.
-2. Bear rebuttal.
-3. Bull counterargument.
-4. Bear counterargument.
-5. Bull closing position.
-6. Bear closing position.
-
-Every rebuttal receives the complete prior transcript and explicitly targets
-the latest opponent message. Every completed message is guardrailed, filtered
-to allowed citations, stored, and then exposed as complete to the UI.
-
-The deterministic Phase 3 orchestrator now proves the transcript, latest-target,
-citation, persistence, and state-transition parts of this step without Queue or
-streaming.
-
-The Phase 4 compatibility path now divides each already completed deterministic
-draft into whitespace-safe `buffered_compatibility` deltas and publishes them before
-the canonical complete-message event. This proves event ordering and
-reconstruction only; it is not described as provider token streaming.
-
-An async Provider contract and orchestrator path are also implemented in code.
-They accept contiguous whitespace-preserving deltas as they arrive, require one
-normal completion whose full draft exactly matches those deltas, enforce the
-Turn output bound and frozen evidence/rebuttal target, and then persist. A
-mid-stream failure publishes the safe Session failure but never creates a
-complete message for the partial text. The selected HTTP preview still uses the
-compatibility path until one live provider and client stream are verified.
-
-### Step 4: Interim Judge and user pause
-
-The Judge summarizes agreements, disagreements, evidence strength, missing
-evidence, and uncertainty without choosing a trade. The session moves to
-`awaiting_user`.
-
-### Step 5: Explain or challenge
-
-- Explanation Agent: explains a selected term/passage with minimal context and
-  does not alter the Debate state. The client opens this educational path by
-  default when the user asks about a completed point.
-- User challenge: is available only at the durable `awaiting_user` pause,
-  requires a separate explicit Round 2 confirmation, records a free-form
-  intervention against one selected complete message, and queues Round 2 on the
-  active linear branch. General message branching remains deferred;
-  cancellation independently rejects late chunks by `generation_id`.
-
-### Step 6: Produce round two
-
-The Queue runs four messages focused on the user's question:
-
-1. Bull answer.
-2. Bear rebuttal.
-3. Bull counterargument.
-4. Bear closing response.
-
-The final Judge summarizes the complete active branch and the session moves to
-`completed`.
-
-The deterministic Phase 3 path implements this sequence on the current branch;
-the default-off Phase 4 path now implements live provider token streaming and
-cancellation generation handling in code, but the synchronous creation route
-does not yet make mid-generation intervention reachable from the screen.
-
-### Step 7: Recover and audit
-
-Queue redelivery skips already completed planned turns. Database uniqueness and
-Redis idempotency locks prevent duplicate sessions/messages, while token usage,
-job attempts, queue wait, duration, and safe failure codes remain observable.
-
-## Agent naming boundary
-
-Bull, Bear, Judge, and Explainer may use one underlying model with distinct
-role prompts and transcript context. Describe this accurately as stateful
-multi-agent orchestration, not independently trained autonomous models.
+See [API contract](../api/api-contract.md),
+[output contracts](claim-output-format.md), and
+[guardrail policy](guardrail-policy.md) for the exact boundaries. Automated,
+hosted/live and simulator evidence does not certify the pending physical-device
+acceptance.

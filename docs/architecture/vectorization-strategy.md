@@ -1,6 +1,16 @@
 # Financial Evidence Vectorization Strategy
 
-Last reviewed: 2026-08-15
+Research/design baseline: 2026-08-15. Implementation context reconciled:
+2026-10-17.
+
+The source-aware ingestion, separate embedding-profile storage and structured
+SEC financial-fact adapters are implemented. The active retrieval baseline is
+still deterministic `local-hash-v1` with lexical fallback; no learned embedding
+provider is selected by this documentation update. Model/parser candidates and
+dimension comparisons below are historical evaluation proposals, not deployed
+capabilities or a current provider recommendation. See the
+[architecture overview](overview.md) and [schema plan](../database/schema-plan.md)
+for current runtime boundaries.
 
 ## Decision summary
 

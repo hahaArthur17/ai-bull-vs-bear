@@ -1,6 +1,6 @@
 # Live Services Setup
 
-Last reviewed: 2026-09-17
+Last reviewed: 2026-10-17; historical live checkpoints retain their original dates.
 
 This document records the non-secret configuration needed to move AI Bull vs
 Bear from deterministic demo mode to real services.
@@ -145,7 +145,10 @@ Dashboard: <https://supabase.com/dashboard>
 6. Verify row-level security with two separate test users before relying on the
    project for persisted user data.
 
-Before applying the Phase 2 catalog migrations, run this in SQL Editor:
+Apply base schema plus the ordered migrations in the
+[Supabase README](../../backend/supabase/README.md); the base schema alone does
+not include current V2/Queue/interruption behavior. Before applying the Phase 2
+catalog migrations, run this from the repository root in a terminal:
 
 ```shell
 PYTHONPATH=backend backend/.venv/bin/python \
@@ -367,18 +370,22 @@ recorded in the checklist below. See
 scope and acceptance gates are WP8L in
 [`phase-8-design-remediation.md`](../planning/phase-8-design-remediation.md).
 
-Current SDK54 acceptance entry: the mobile baseline includes `1166e67` and
-targets Expo SDK54 and the App Store Expo Go client. The automated baseline
-passes 114 mobile tests, TypeScript typecheck, Expo Web export, Expo Doctor
-18/18, and iOS and Android native bundle exports. The next live product check
-is the saved local V2 beta handoff, followed by a physical iPhone running this
-SHA; record the exact iPhone model, iOS version, and App Store Expo Go version
-in the acceptance matrix before starting.
-No physical-device acceptance has been claimed yet. The current local manual
-handoff is a saved authenticated AAPL V2 Round 1 (`awaiting_user`, seven
-canonical messages, no active Job); resume it with the exact commands and
-checks in [`V2 Beta Resume Checklist`](../planning/v2-beta-resume-checklist.md)
-before creating another live Session.
+Current acceptance position (2026-10-17): source revision `055481b` includes
+the October account-isolation and stream/recovery fixes. The local rerun passes
+542 backend tests, 122 mobile tests, TypeScript, Expo Doctor 18/18 and all three
+platform exports. The owner reports the simulator flow is working;
+physical-device testing has not been performed.
+
+The later authenticated AAPL interaction Session is already complete through
+both Stop/interjection/Continue cycles, Final Judge and History reopen. It is
+not an unfinished Round 1; reopen History read-only for layout checks. It also
+contains pre-source-guard content, so a wholly post-guard source audit remains
+separate. Use the current commands and next checks in the
+[V2 Beta Resume Checklist](../planning/v2-beta-resume-checklist.md).
+
+Check Expo SDK54 client compatibility before a physical run. Do not assume the
+current App Store Expo Go supports SDK54; use a compatible development build
+when needed. See the [mobile setup](../../apps/mobile/README.md).
 
 This profile is deliberately separate from `review_fixture`. A safe
 presence-only audit confirms that the ignored local `.env` has Supabase, Groq,
@@ -473,8 +480,10 @@ in one process because live deltas are currently process-local. Do not use
 ```shell
 cd backend
 ENVIRONMENT=development APP_DATA_MODE=standard \
+AUTH_MODE=supabase PERSISTENCE_MODE=supabase ANALYSIS_PROVIDER=demo \
 DEBATE_WORKFLOW_V2=true DEBATE_QUEUE_ENABLED=true \
 DEBATE_INTERRUPTIONS_ENABLED=true DEBATE_JOB_MAX_ATTEMPTS=1 \
+DEBATE_WORKER_CONCURRENCY=1 EXPLANATION_PROVIDER=deterministic \
 DEBATE_PROVIDER_MIN_INTERVAL_SECONDS=61 \
 DEBATE_STREAMING_PROVIDER=groq DEBATE_STREAMING_JUDGE_PROVIDER=groq \
 APP_BUILD_SHA=$(git rev-parse HEAD) \
@@ -487,11 +496,16 @@ For the iOS Simulator:
 cd apps/mobile
 EXPO_PUBLIC_AUTH_MODE=supabase \
 EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED=true \
 EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
-npx expo start --localhost --clear
+EXPO_PUBLIC_API_TIMEOUT_MS=45000 \
+npx expo start --ios --localhost --clear
 ```
 
-A physical device uses the workstation LAN address instead of loopback. Before
+Start each terminal at the repository root before its `cd` command. A physical
+device uses the workstation LAN address instead of loopback and Metro `--lan`;
+the API already listens on `0.0.0.0` above. Use `--dev-client` for an installed
+development build. Before
 starting Debate, read `/health`, `/stocks/AAPL/quote`,
 `/stocks/AAPL/bundle`, `/stocks/AAPL/evidence`, and the current Debate list.
 Confirm standard mode, fresh/dated provenance, no fixture IDs, no unfinished
@@ -522,21 +536,21 @@ smoke checks on the existing Render API, rollback, quota, and provenance gates
 are recorded. Independent staging and the Render static Web frontend are not
 part of this acceptance path.
 
-### 6. Current SDK54 native acceptance status (2026-09-17)
+### 6. Current native acceptance boundary (2026-10-17)
 
-Stop, before-output interruption, user interjection, and explicit Continue are
-implemented. Their hosted Supabase/PostgREST/Queue verification has passed,
-including durable recovery and idempotent Continue. The current mobile baseline
-includes `1166e67`; automated mobile verification is 114 tests plus TypeScript,
-Expo Doctor 18/18, and native exports. The next local action is the saved AAPL
-V2 Interim → Round 2 beta check in the
-[resume checklist](../planning/v2-beta-resume-checklist.md). The remaining
-native gate is the SDK54 App Store Expo Go client on a physical iPhone; record
-the device, iOS, and Expo Go versions, then validate weak-network behavior,
-background/foreground, force-reopen recovery, keyboard/focus, safe-area/system
-bars, and the full Stop → interjection → Continue flow. Android remains a
-separate native simulator or available-device review; successful native bundles
-do not replace it.
+Stop, before-output interruption, user interjection, explicit Continue and
+History recovery are implemented with automated and historical hosted evidence.
+The owner confirms simulator functionality; no physical-device acceptance is
+claimed. Record the exact launched commit, device/OS/client version and test
+scope, including weak network, background/foreground, force reopen, keyboard,
+safe areas/system bars and Stop → interjection → Continue. Android needs its
+own recorded runtime result. Bundle exports do not replace any of these checks.
+
+V2 in-app provider/token diagnostics, hosted saved-detail cold/warm timing and
+a wholly post-guard source audit remain follow-ups. Use the
+[resume checklist](../planning/v2-beta-resume-checklist.md) for current actions,
+not historical saved-Round-1 instructions. This documentation pass does not
+refresh live data, spend model quota or deploy Render/Supabase changes.
 
 ## Verification checklist
 

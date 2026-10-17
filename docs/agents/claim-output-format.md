@@ -1,10 +1,10 @@
 # Agent Output Contracts
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-10-17
 
 ## Implemented single-response claim
 
-The current provider returns one Bull and one Bear claim in the following
+The legacy provider returns one Bull and one Bear claim in the following
 shape, plus a separate Judge object:
 
 ```json
@@ -24,14 +24,15 @@ shape, plus a separate Judge object:
 }
 ```
 
-## Planned multi-turn message
+## Implemented V2 message record
 
-The portfolio milestone replaces a single claim per side with persisted,
-ordered messages. A completed Bull/Bear message contains:
+The separately enabled V2 workflow persists ordered messages. API detail wraps
+each one as `{ "message": ..., "citations": [...], "presentation": ... }`.
+A completed Bull/Bear message contains:
 
 ```json
 {
-  "message_id": "uuid",
+  "id": "uuid",
   "session_id": "uuid",
   "branch_id": "uuid",
   "generation_id": "uuid",
@@ -41,17 +42,29 @@ ordered messages. A completed Bull/Bear message contains:
   "role": "bear",
   "message_kind": "rebuttal",
   "content": "A cautious rebuttal that addresses the prior Bull point.",
-  "rebuttal_target_message_id": "uuid",
-  "evidence_ids": ["existing-evidence-id"],
+  "metadata": {
+    "responds_to_message_id": "uuid"
+  },
   "signal_strength": "weak",
   "confidence": "low",
-  "risk_meaning": "What uncertainty means for this interpretation.",
   "terms": ["volatility"],
-  "is_complete": true
+  "is_complete": true,
+  "cancelled_at": null,
+  "created_at": "2026-10-17T00:00:00Z"
 }
 ```
 
-Partial text travels through `turn.delta` events and is not treated as a claim.
-Only the complete, guardrailed, citation-filtered message is persisted as the
-canonical turn. Full event and persistence contracts live in the
-[`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
+This is an illustrative message, not a provider response schema. Citations are
+separate `DebateMessageEvidence` records (`message_id`, `evidence_id`, order and
+optional support span), not a top-level `evidence_ids` field on the message.
+The optional server-authored presentation contains `argument`, `facts_used`,
+`interpretation` and `uncertainty` from the frozen snapshot and message metadata.
+
+Partial text travels through `turn.delta` / `judge.delta` and durable draft
+checkpoints; it is not a complete claim. Validated complete output is persisted
+atomically with citations. Explicit Stop can retain a canonical **incomplete**
+prefix with `is_complete=false`, `cancelled_at`, and interruption metadata;
+it must not be presented as a validated complete Turn. Provider attempts retain
+usage independently of that shortened transcript. See the
+[API contract](../api/api-contract.md) and
+[domain models](../../backend/app/domain/debate.py) for authoritative fields.

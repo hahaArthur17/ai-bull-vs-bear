@@ -1,22 +1,18 @@
 # WP8L 当前进度与剩余路线
 
-复核日期：2026-09-17。已提交功能代码基线：`901cddb`；当前 mobile baseline 包含 `1166e67`。Live Queue 验证器、托管 interruption/Queue 修复、真实 provider 节流、Turn/Judge Prompt 上限及下一请求历史论点边界均已提交；本文已同步对应验证证据与剩余路线。
-本文汇总当前执行顺序；详细验收仍以 Phase 8 remediation、UI acceptance matrix 和 verification record 为准。历史 checkpoint 描述的是当时状态，不代表当前待办。
+复核日期：2026-10-17。实现代码对照 `055481b`；本次主要收尾 README、前后端/API/架构/数据库和运行说明。历史 checkpoint 保留原始范围，不能作为当前下一步。
 
-## 2026-09-17 当前 Expo V2 Beta 交接
+## 当前交接
 
-当前已保存一个认证 AAPL Round 1 Session：7 条 canonical 消息、无 active Job、
-状态为 `awaiting_user`。下一次不应再创建 Round 1；应从 History 打开 Interim
-Assessment，先核对顺序、引用和冻结数据，再在明确接受额外 5 次 live provider
-调用的前提下 Continue 到 Round 2 与 Final Judge。单个 Bear provider 尝试曾在
-任何可重放文字前安全失败；completed Bull 保留，移动端空草稿显示已由 `1166e67`
-修正。V2 UI token diagnostics 和 saved-detail serial-read performance 仍未完成，
-但不阻断正常路径验收。精确两终端命令和逐步检查见
-[`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md)。
+用户已确认模拟器功能验证可行；**真机尚未测试**。本地复验通过 542 项后端测试、122 项移动端测试、TypeScript、Expo Doctor 18/18，以及 Web/iOS/Android 导出。导出是打包检查，不是运行时或真机通过证明；本次没有重跑托管数据库或真实模型验证。
+
+认证 AAPL Session `2b6831a2-2f33-5629-bdcc-a403c9ec9c2b` 已经完成两轮，在两轮中均验证过 Stop → Explanation → interjection → Continue，随后 Final Judge 与 History 重开；共 17 条 canonical records（含两个 incomplete prefixes）。它不再处于等待 Round 2 状态，不能继续按旧交接创建第二轮。只读检查优先复用 History。它的早期内容先于 source-quote guard，不能用来证明全部来源断言已受新规则保护。
+
+下一步是补充有设备/OS/提交记录的真机、弱网/生命周期、可访问性与来源检查；V2 in-app token diagnostics、托管 saved-detail 冷/热读取测量、现有 Render 同 SHA 发布/回滚仍为独立待办。精确两终端命令见 [`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md)，实施现状见 [`current-status.md`](current-status.md)。不重新启动已经完成的 UI 实现阶段。
 
 ## 当前位置
 
-当前处于 **Phase 8 / WP8L.6 Expo V2 Beta 正常路径验收**。停止、恢复、插话、Continue、不完整前缀 Explanation、托管 PostgREST/Queue、当前数据预检、完整两轮真实模型运行和 Expo SDK54 本地迁移已经完成；当前手工交接是复用已保存的 AAPL Round 1，完成 Interim → Round 2 → Final Judge 检查。之后仍需补齐 Stop/重连/原生设备体验、V2 token diagnostics、saved-detail 读取性能，以及 Android 原生模拟器或可用设备的 edge-to-edge 验收。
+仍以 Phase 8 / WP8L 的验收和交付边界收口。用户的模拟器确认不自动补齐未记录的具体设备矩阵，也不代表生产环境已经启用 V2。以下历史证据维持原日期，后续验收按目标提交记录。
 
 | 工作包 | 已有证据 | 尚未完成 |
 | --- | --- | --- |
@@ -25,7 +21,7 @@ Assessment，先核对顺序、引用和冻结数据，再在明确接受额外 
 | WP8L.3 Queue 与真实模型 | `64c1c6c` 通过完整标准 AAPL 验证：Queue 202、12/12 Groq attempts、两轮 10 个 Bull/Bear Turn、Interim/Final Judge、40 条引用、持久重载、SSE 双终态、分角色账本、0 retry/unknown usage | 已完成；Expo Go 若运行真实会话仍沿用 61 秒节流、单进程和明确预算，不重复以旧 SHA 做模型验收 |
 | WP8L.4 显示调度 | 英文按词、中文按字素、单一活动气泡；生成完成不强制全文展开；有自动化测试 | 真机流畅度、屏幕阅读器实际播报、后台/重连及与 Stop 的联合体验 |
 | WP8L.5 停止与插话 | provider-attempt 审计、首字前/中途停止、恢复、插话、Continue/End、冻结快照、稳定重试键和不完整前缀 Explanation 已提交；托管迁移、PostgREST/Queue、重启恢复、所有权、幂等和清理验证通过 | 弱网、原生强退/重开、各角色联合流程和 Expo Go 体验验收 |
-| WP8L.6–7 | SDK52→53→54 已逐级完成；Expo `54.0.37`、React Native `0.81.5`、React `19.1.0`、安全区迁移及 iOS/Android native export 已在本地通过 | 产品负责人使用 App Store Expo Go 完成 iPhone 真机验收；Android 原生模拟器或可用设备的 edge-to-edge、重启、拓扑与发布证据 |
+| WP8L.6–7 | SDK52→53→54 已逐级完成；Expo `54.0.37`、React Native `0.81.5`、React `19.1.0`、安全区迁移及 iOS/Android native export 已在本地通过 | 产品负责人使用兼容 SDK54 的客户端完成 iPhone 真机验收；Android 原生模拟器或可用设备的 edge-to-edge、重启、拓扑与发布证据 |
 | WP9 / WP10 | 验收要求已规划 | 产品负责人完成 Expo Go 视觉/交互验收；现有 Render 后端同 SHA 发布检查与回滚复核。不创建独立 staging，不要求测试或发布静态 Web 前端 |
 | Phase 9 | 保留在后续路线中 | Replay、可观测性、韧性/负载、最终发布证明与演示材料 |
 
@@ -100,21 +96,10 @@ attempts/19,791 Tokens，总计 39,269；Bull 15,851、Bear 16,808、Judge
 
 ### 5. Expo Go 和跨状态验收（WP8L.6、WP8 与 WP9）
 
-- SDK52→53→54 已在本地逐级完成，当前客户端为 Expo SDK54（Expo
-  `54.0.37`、React Native `0.81.5`、React `19.1.0`），并已迁移到
-  `react-native-safe-area-context`。iPhone 可直接安装 App Store Expo Go
-  SDK54；Android 真机或模拟器使用匹配的 SDK54 客户端。旧 SDK52/53 Expo Go
-  不能在实体 iPhone 侧载，故原阻塞已解决，剩余是产品负责人真机验收。
-- iPhone 验收：电脑启动 `npx expo start --lan --clear`，手机与电脑加入同一
-  Wi-Fi，在 iPhone Expo Go 中选择 **Scan QR code** 扫描终端二维码；允许
-  iOS 的相机和 Local Network 权限，并把 `EXPO_PUBLIC_API_URL` 指向电脑的
-  局域网地址。Metro 和 API 必须同时运行，`localhost` 不能指向电脑。
-- SDK54 的 Android edge-to-edge 已强制开启；native export 成功不等于运行时
-  通过，必须检查状态栏/导航栏安全区、底部导航位置、键盘避让和返回手势。
-- `npm audit` 的 18 项传递依赖发现（7 moderate、11 high、0 critical）暂不
-  通过 force/override 处理；完整路径会把目标推到 Expo57，破坏当前 App Store
-  Expo Go SDK54 验收目标。Metro 继续只在可信本地网络使用，待 Expo Go 支持更
-  新 SDK 后再升级。
+- SDK52→53→54 的本地迁移、安全区与导出已经完成。当前 SDK54 不等于当前 App Store Expo Go 兼容；物理 iPhone 如不兼容须使用 development build，Android/iOS Simulator 可用匹配的旧 Expo Go。详见 [mobile README](../../apps/mobile/README.md)。
+- 真机必须让 API 监听 `--host 0.0.0.0`，客户端使用电脑 LAN IP；Metro 用 `--lan`，development build 加 `--dev-client`。两端均运行且同网段。不能只改客户端地址而保留 API loopback 监听。
+- Android edge-to-edge 必须记录状态栏/导航栏、安全区、键盘、返回行为。用户确认模拟器正常，仍需保留具体平台与运行时证据；native export 不替代运行验证。
+- 2026-10-17 `npm audit` 为 37 项（9 moderate、27 high、1 critical），critical 来自 DevTools 的 `shell-quote@1.10.0`。旧 18 项无 critical 的结论仅为历史快照；修复为独立依赖维护待办，详见 issue log / verification record。
 - 专门测试账号、standard 模式，单进程单实例 API/Worker/SSE，无热重载；核对手机网络、登录和 API 地址。
 - 验证真实数据标签、冻结快照、Queue 等待、各角色渐进输出、Stop、插话、Continue、结束、重连、后台、重开 History 和费用。
 - **V2 Beta 诊断/费用待办：** 在真机流式验收前，扩展移动端的 V2 Session/Message/Job 读模型，以只读诊断区呈现每个 canonical Bull/Bear/Judge 消息的 provider、model、usage status 及 prompt/completion/total Tokens，并在 Session 级别汇总请求数和 reported/unknown usage。当前移动端没有 provider-attempt ledger 字段，不能可靠显示 V2 的真实 token 用量；不得将真实 provider 用量标为 `demo`。同时在真实流式运行中人工核对：单一活动气泡逐步 reveal、canonical completed 不会提前跳全文、Stop 丢弃未显示文本、断线/前后台重连不会重复或乱序显示。

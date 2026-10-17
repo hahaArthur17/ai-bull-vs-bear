@@ -1,7 +1,8 @@
 # Current Project Status
 
-Last reconciled: 2026-10-05 (local commits `12b20c5`, `0c9fdb2`, `fac5d59`;
-the existing production deployment has not been updated to these commits)
+Last reconciled: 2026-10-17 against source revision `055481b` and the project
+owner's simulator report. The existing production deployment has not been
+reverified or updated by this documentation pass.
 
 This file is the concise implementation baseline. Historical work and commit
 evidence live in [`reports/`](reports/README.md); material incidents live in the
@@ -17,6 +18,15 @@ remains an active product/UI remediation phase.
 
 ## Current execution position
 
+The project owner confirms simulator functionality is working as of
+2026-10-17; physical-device testing has **not been performed**. This report
+does not supply a device/OS matrix or certify the individual manual gates.
+The current local rerun passes 542 backend tests, 122 mobile tests, TypeScript,
+Expo Doctor 18/18, and Web/iOS/Android bundle exports. No hosted database,
+market-data or live-model verifier was run in this pass. The accepted next
+scope is final documentation/verification and pending physical-device/release
+acceptance, not a restart of the completed UI implementation.
+
 Phase 8 / WP8L.6 remains active. Hosted interruption/Queue checks and the
 earlier complete two-round live run remain recorded. A newer authenticated
 AAPL Session (`2b6831a2-2f33-5629-bdcc-a403c9ec9c2b`) exercised Stop,
@@ -31,11 +41,11 @@ retained as a safe-failure test record. See [`issue-log.md`](issue-log.md).
 
 The current local code also adds account-switch state isolation, less crowded
 Watchlist/Stock Detail panels, safer streaming finalization and Round 2
-recovery, and a bounded saved-message/citation read. The last recorded checks
-for this code passed 542 backend tests, 122 mobile tests, and TypeScript
-checking. Those results do not replace native multi-account, visual,
-weak-network, source-claim, or physical-device acceptance. SDK54 iPhone Expo Go
-acceptance and Android edge-to-edge review remain open; V2 in-app token
+recovery, and a bounded saved-message/citation read. The current automated
+checks are recorded above. They do not replace native multi-account, visual,
+weak-network, source-claim, or physical-device acceptance. A compatible SDK54
+iPhone client and separately recorded Android edge-to-edge review remain
+acceptance requirements; V2 in-app token
 diagnostics and hosted saved-detail latency measurement are also open. Use
 [`v2-beta-resume-checklist.md`](v2-beta-resume-checklist.md) for the next
 manual pass. Historical checkpoints below retain their original scope.
@@ -52,18 +62,23 @@ manual pass. Historical checkpoints below retain their original scope.
 | Model adapters | Done | Deterministic, Groq, and Gemini adapters share validated Bull/Bear/Judge contracts. Explanation independently defaults to deterministic and offers a bounded Groq provider. Live Turn output repeats an explicit citation contract after frozen data; both Turn and Judge inputs use bounded evidence/factor/transcript projections and an 800-Token default completion cap. A shared 61-second pacer respects the current Groq free 8K TPM envelope without Worker retries. |
 | Controlled Live Acceptance | In progress | Stop, waiting/recovery, interjection, Continue/End and incomplete-prefix Explanation have local and hosted coverage. The earlier `ee8409eb-f415-54b3-892e-d47d85516ae4` Session completed a standard AAPL two-round flow with 39,269 reported Tokens. The newer `2b6831a2-2f33-5629-bdcc-a403c9ec9c2b` Session completed both rounds with Stop → Explanation → interjection → Continue in each, Final Judge, and durable History reopen. Its reported Debate usage was 50,380 Tokens plus one unknown-usage attempt; source-quote guard was not active for its first Bull message. V2 in-app usage diagnostics, a wholly post-guard source audit, device acceptance, and saved-detail timing remain open. |
 | Deployment | In progress | Render and Supabase services exist and the production provider remains deterministic. `cf8b9e7` adds an explicit `APP_BUILD_SHA` value to `/health`, but it has not been deployed or used to prove the running backend revision. The project will not create an independent staging environment or require a static Web frontend release. The remaining release gate deploys the accepted SHA to the existing Render API and records smoke checks plus a reversible rollback target. |
-| Automated verification | In progress | The last recorded local pass for the Oct 5 code is 542 backend tests, 122 mobile tests, and TypeScript checking. Earlier Expo Doctor 18/18, SDK54 iOS/Android exports, isolated PostgreSQL interruption/replay, hosted Queue checks, and feature-enabled Web export retain their recorded scope. These checks do not establish physical-device, visual-owner, weak-network, or existing-Render release acceptance. |
+| Automated verification | In progress | The 2026-10-17 local pass is 542 backend tests, 122 mobile tests, TypeScript, Expo Doctor 18/18, and Web/iOS/Android exports. Earlier Expo Doctor 18/18, SDK54 iOS/Android exports, isolated PostgreSQL interruption/replay, hosted Queue checks, and feature-enabled Web export retain their recorded scope. These checks do not establish physical-device, visual-owner, weak-network, or existing-Render release acceptance. |
 | Phase 8 preservation baseline | Done | WP0 maps all required functional states to their implementation, existing automated evidence, missing manual proof, and later owner in [`phase-8-preservation-matrix.md`](phase-8-preservation-matrix.md). Representative 390/1280 Web characterization confirms the current warm UI, hidden AAPL charts, and Legacy card-style Debate; this evidence freezes regressions and is not design approval. |
 | Phase 8 authentication UI | In progress | The Prototype-derived responsive Auth surface is implemented. Client state is now reset on account change and old account-scoped responses are ignored. Earlier four-width Web inspection found no horizontal overflow; sign-up/confirmation, two-account switching, native keyboard/screen-reader, and device acceptance remain open. |
 | Phase 8 Discovery and Watchlist UI | In progress | Coverage-aware search, concise saved-stock rows, and a responsive layout use the shared dark system. A prior catalog-only MSFT search and four-width no-overflow check passed before the Oct 5 simplification; current persistence/reload, narrow-width visual review, recovery-state, native, and product-owner acceptance remain open. |
-| Native-device verification | In progress | The SDK52→53→54 upgrade, safe-area migration, Expo Doctor 18/18, and iOS/Android native exports pass locally. The next gate is product-owner Expo Go acceptance on a physical iPhone using the SDK54 App Store client; Android mandatory edge-to-edge behavior then needs its own native simulator or available-device review. See [`issue-log.md`](issue-log.md) and [`phase-8-verification-record.md`](phase-8-verification-record.md). |
+| Native-device verification | In progress | The SDK52→53→54 upgrade, safe-area migration, Expo Doctor 18/18, and iOS/Android native exports pass locally. Simulator functionality is owner-confirmed; the next gate is physical-iPhone acceptance using a compatible SDK54 client; Android mandatory edge-to-edge behavior then needs its own native simulator or available-device review. See [`issue-log.md`](issue-log.md) and [`phase-8-verification-record.md`](phase-8-verification-record.md). |
 
-The current SDK54 dependency graph reports 18 `npm audit` findings (7
-moderate, 11 high, 0 critical) in transitive Expo/Metro/config-build tooling.
-The only complete npm remediation path proposes Expo57, which would invalidate
-the current App Store Expo Go SDK54 target. Do not force or override those
-transitive versions; Metro remains restricted to a trusted local network until
-Expo Go supports a newer SDK target.
+The 2026-10-17 audit reports **37 findings: 9 moderate, 27 high, 1 critical**.
+The critical finding is `shell-quote@1.10.0` through React Native DevTools;
+dependency remediation remains open and this is not a clean security sign-off.
+See the [verification record](phase-8-verification-record.md) and
+[issue log](issue-log.md) for evidence and follow-up. No forced SDK upgrade or
+lockfile change is part of this documentation pass.
+
+The repository remains SDK54, while Expo Go supports the latest SDK. Do not
+assume the current physical-iPhone App Store client supports SDK54; use a
+compatible development build when needed. Matching older Expo Go clients are
+available for Android/iOS Simulator. See the [mobile guide](../../apps/mobile/README.md).
 
 The historical public verification on 2026-08-27 returned `200` from the
 deployed frontend, returned a healthy production API with `provider=demo`, and
@@ -73,9 +88,10 @@ gaps described in the 2026-09-06 baseline.
 
 ## Current product limitations
 
-These are limitations of the current implementation, not completed features:
+These boundaries distinguish the default/deployed baseline from the enabled
+local V2 implementation and the remaining acceptance work:
 
-- The deployed/mobile Debate remains one synchronous
+- With V2 off, the legacy Debate remains one synchronous
   `POST /analysis/{ticker}` request. It returns one Bull claim, one Bear claim,
   and one Judge summary only after the full JSON response has been generated.
 - A default-off V2 path now runs stateful mutual rebuttals and both rounds. With
@@ -109,11 +125,10 @@ These are limitations of the current implementation, not completed features:
   free-form Challenge only at the Interim Judge pause. The context-bounded
   Explanation service is available through an authenticated default-off HTTP
   endpoint and its mobile panel is connected for exact terms in complete
-  messages. It defaults to the credential-free deterministic provider; the
+  messages and eligible non-empty frozen interrupted prefixes. It defaults to the credential-free deterministic provider; the
   bounded Groq provider is an explicit local/deployment selection, passed one
-  local synthetic-message verification, and remains disabled in production. The
-  mid-generation cancellation protocol is not yet reachable from the deployed
-  screen.
+  local synthetic-message verification, and remains disabled in production. The hosted production rollout remains separate from the enabled local
+  interruption UI.
 - The hosted catalog now contains 7,695 searchable identities, but only the
   four curated `debate_ready` stocks have verified price, evidence, indicator,
   and Debate coverage. The other 7,691 rows remain Watchlist-only by design.
@@ -136,8 +151,9 @@ These are limitations of the current implementation, not completed features:
 
 ## Accepted product direction
 
-The next portfolio milestone is a demonstrable engineering system, not a claim
-of production-scale market-traffic capacity. It will:
+The accepted portfolio scope is a demonstrable engineering system. The
+following capabilities are implemented behind the documented defaults, with
+rollout/manual acceptance kept separate:
 
 - keep the zero-cost deployment boundary and the existing data sources;
 - add extension points for future factors without integrating new live factor
@@ -166,18 +182,18 @@ streaming completion gate. Explanation now has a stable read-only mobile/API
 path plus a bounded optional Groq provider. At the Interim Judge pause,
 “Ask about this point” opens that educational path in a dismissible modal; only
 a separate confirmation can queue Round 2. Phase 7 is complete in its linear
-interaction scope. Phase 8 is not complete: the active work is the
-Prototype-based dark UI migration, chart and technical-indicator review,
-chat-style V2 Debate transcript with visible facts/citations, deterministic
-review fixtures, data/release integrity, existing-backend release proof, and
-native/physical device acceptance. WP8 has locally implemented the active-Debate recovery
+interaction scope. Phase 8 remains open for acceptance/release closure. The
+Prototype-derived dark UI, chart workspace, chronological V2 transcript,
+visible evidence/citations, fixtures and recovery implementation are present;
+remaining gaps are recorded at the top of this file. WP8 has locally implemented the active-Debate recovery
 interaction in `0e7c813`: the backend `409` is preserved, duplicate submissions
 are protected, a nearby recovery card is shown, and the current Debate/History
 actions are available. The local gate reports 370 backend and 80 mobile tests,
 with typecheck and Web export passing. V2 transient proxy coverage for
 reconnect/retry/cancel/failure is recorded in `8c9278c` with 15 passing tests.
-Product-owner visual confirmation remains pending; Xcode/native simulator,
-physical-device, and final visual acceptance are not complete. Product-owner
+This was a historical WP8 automated checkpoint. The owner now reports
+simulator functionality working; physical-device and separately recorded
+final visual acceptance remain open. Product-owner
 page checks can be performed from a concise checklist and fed back to
 engineering; engineering owns reproduction, code changes, and automated
 evidence. Replay, observability, resilience, and release proof follow this

@@ -1,6 +1,6 @@
 # Database Schema Plan
 
-Last reviewed: 2026-08-28
+Last reviewed: 2026-10-17 (repository DDL; hosted evidence remains dated separately).
 
 The authoritative repository DDL is `backend/supabase/schema.sql` plus its
 migrations. This document distinguishes checked-in schema work from the hosted
@@ -13,18 +13,20 @@ In particular, Phase 1 changes domain contracts but does not alter the hosted
 database. Debate business tables arrive in Phase 3, while the `pgmq` Queue is a
 separate Phase 5 migration.
 
-Phase 1 introduced validated database-independent models and repository
-protocols. The resulting Debate business and Queue migrations are now checked
-in; none of the 2026-08-27/28 migrations is considered hosted until the live
-verification procedure records it.
+Catalog, V2 persistence and Queue hosted verification passed on 2026-08-29.
+Interruption/checkpoint/provider-attempt and the later RPC security/transport
+fixes have their separate September verification records. These historical
+checks do not enable production flags or establish a new hosted pass today.
+The complete installation order is maintained in the
+[Supabase README](../../backend/supabase/README.md).
 
 ## Implemented tables
 
 ### stocks
 
 Stores catalog identities and their configured data/Debate coverage. The Phase
-2 fields and seed are implemented in repository migrations but are not yet
-applied to the hosted project.
+2 fields and seed are implemented and have recorded hosted capacity, search
+and RLS verification.
 
 Fields:
 - id
@@ -184,7 +186,8 @@ Fields:
 
 ### token_usage
 
-Stores estimated token usage.
+Stores legacy-analysis token usage; deterministic demo counts are estimates.
+V2 provider-attempt usage is tracked separately below.
 
 Fields:
 - id
@@ -226,9 +229,9 @@ Coverage describes configured capabilities. Response-level source/freshness
 still determines whether cached data is safe to display or use. Repository, API,
 and mobile integration are implemented: Supabase is authoritative when
 available, ranked search is bounded to 25, and catalog-only identities can be
-saved without triggering market-data work. Remaining work is to apply the three
-migrations to the hosted project after the size preflight and record relation
-size plus RLS verification.
+saved without triggering market-data work. Hosted catalog relation-size,
+public-search and RLS verification passed on 2026-08-29; future imports still
+require capacity preflight and fresh verification.
 
 [`ADR-0002`](../architecture/decisions/0002-sec-static-stock-catalog.md)
 selects a checked-in snapshot derived from the SEC ticker/exchange association
@@ -249,7 +252,8 @@ Canonical state and immutable context for one multi-turn Debate:
 - safe error code and timestamps.
 
 Implemented in repository migration
-`20260827_v2_debate_persistence.sql`; hosted deployment remains pending.
+`20260827_v2_debate_persistence.sql`; hosted deployment/owner-isolation evidence
+is recorded for 2026-08-29.
 
 ### `debate_jobs`
 
@@ -272,7 +276,7 @@ not contain credentials, raw authorization headers, or protected prompt text.
 
 ### `debate_messages`
 
-Ordered, branch-aware completed or cancelled messages:
+Ordered, branch-aware complete messages and explicitly incomplete interrupted prefixes:
 
 - session, branch, generation, sequence, round, and exchange;
 - Bull/Bear/Judge/User/Explainer role and message kind;
@@ -308,6 +312,28 @@ configured test users: each saw all five of its own fixture rows and none of the
 other user's, authenticated table and transaction-RPC writes were rejected,
 and the server-only repository completed atomic/idempotent writes plus expected-
 status updates. Both disposable Sessions and cascading children were removed.
+
+### Draft checkpoints and provider attempts
+
+`20260909_debate_draft_interruption.sql` adds:
+
+- `debate_draft_checkpoints`: server-only provider-text checkpoints for exact
+  visible-prefix validation; these are not completed evidence claims;
+- `debate_provider_attempts`: durable provider/model/role/generation identities,
+  admission/dispatch/finish timestamps, outcome and reported/unknown usage,
+  independent of whether output remains in the canonical transcript;
+- resumable `interrupted_awaiting_user` state and atomic Stop, before-output
+  Stop, interjection and Continue functions.
+
+All three `20260911_*` fixes are part of the current installation: Continue
+Queue security, PostgREST `409` mapping and exact transport replay for attempt
+dispatch. Interruption rotates generation and may shorten a completed message
+while preserving usage. Saving a point does not dispatch a model; Continue
+atomically admits a new generation/Job against the original snapshot.
+
+Checkpoint tables have no direct client access. Provider-attempt reads are
+owner-scoped, and privileged mutation functions reject client invocation.
+See the [API contract](../api/api-contract.md) for bodies and status codes.
 
 ### Factor storage decision
 

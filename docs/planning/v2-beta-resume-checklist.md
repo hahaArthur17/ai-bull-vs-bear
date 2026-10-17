@@ -1,12 +1,17 @@
 # V2 Beta Resume Checklist
 
-Last updated: 2026-10-05. This is the practical handoff for the next local
+Last updated: 2026-10-17. This is the practical handoff for the next local
 Expo V2 beta session. It complements the broader
 [WP8L route](wp8l-next-steps.md); use this file first when resuming the current
 manual test.
 
 ## Current position
 
+- The project owner reports the simulator flow is working on 2026-10-17.
+  Physical-device testing has not been performed. Latest local gates pass 542
+  backend and 122 mobile tests, TypeScript, Expo Doctor 18/18 and all three
+  platform exports. Individual native/weak-network gates still need recorded
+  evidence; this documentation pass does not repeat live model calls.
 - SDK54 Expo Go/simulator UI review, real-data display, and a Legacy Groq
   smoke were completed locally before the Oct 5 UI simplification.
 - A newer authenticated AAPL V2 Session
@@ -31,14 +36,14 @@ manual test.
 
 ## Start the local V2 beta profile
 
-Use two terminals. These commands contain no secrets; they read required
-Supabase and Groq credentials from the ignored root `.env` file. Do not add a
+Use two terminals, each starting at the repository root. These commands contain
+no secrets; they read required Supabase and Groq credentials from the ignored root `.env` file. Do not add a
 secret, access token, or password to this document or the shell command.
 
 ### Terminal A — API, Queue Worker, and SSE
 
 ```sh
-cd "/Users/miao/Documents/BSemester576/AI Bull vs Bear/ai-bull-vs-bear/backend"
+cd backend
 
 ENVIRONMENT=development \
 APP_DATA_MODE=standard \
@@ -69,7 +74,7 @@ retried.
 ### Terminal B — iOS Simulator Expo client
 
 ```sh
-cd "/Users/miao/Documents/BSemester576/AI Bull vs Bear/ai-bull-vs-bear/apps/mobile"
+cd apps/mobile
 
 EXPO_PUBLIC_AUTH_MODE=supabase \
 EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
@@ -79,9 +84,15 @@ EXPO_PUBLIC_API_TIMEOUT_MS=45000 \
 npx expo start --ios --clear
 ```
 
-For a physical phone, replace `127.0.0.1` with the computer's LAN IP and use
-`npx expo start --lan --clear`. A phone's `localhost` is the phone itself, not
-the computer.
+For a physical phone, change Terminal A to `--host 0.0.0.0`, use the
+computer's LAN IP in Terminal B's API URL, and start Metro with
+`npx expo start --lan --clear`. A phone's `localhost` is the phone itself.
+The standard Android Emulator uses `http://10.0.2.2:8000`.
+
+Check SDK54 client compatibility before a device pass. Current App Store Expo
+Go is not guaranteed to support this older SDK; use a compatible development
+build when needed (`--dev-client` for Metro once installed). See the
+[mobile README](../../apps/mobile/README.md) for the compatibility boundary.
 
 Before a new model-bearing action, visit `http://127.0.0.1:8000/health` and
 confirm `data_mode` is `standard`, `debate_workflow_v2` is `true`, and the

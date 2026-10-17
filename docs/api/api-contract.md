@@ -1,10 +1,10 @@
 # API Contract
 
-Last reviewed: 2026-08-29
+Last reviewed: 2026-10-17 against `backend/app/main.py` and `debate_schemas.py`.
 
-Endpoints in the first section are implemented. The portfolio target is
-explicitly marked planned and must not be presented as available before its
-phase acceptance tests pass.
+The endpoints below are implemented, with V2/interruptions controlled by
+explicit flags. This contract describes source behavior, not production
+rollout or physical-device acceptance. See [current status](../planning/current-status.md).
 
 ## Implemented API
 
@@ -13,6 +13,13 @@ phase acceptance tests pass.
 Supabase mode requires `Authorization: Bearer <access-token>` for user-owned
 watchlist, analysis, and enabled Debate endpoints. Demo mode retains the local
 credential-free fallback.
+
+### Health
+
+`GET /health` returns `status`, `environment`, legacy `provider`, `data_mode`,
+`debate_workflow_v2`, and optional `build_sha`.
+`GET /health/cache` returns safe cache mode/degradation metadata; `probe=true`
+performs a bounded connectivity check. Neither endpoint exposes credentials.
 
 ### Stocks
 
@@ -60,6 +67,10 @@ is populated from the configured provider (Alpha Vantage when available,
 otherwise Finnhub); it is not an intraday quote. Returns an empty list for a
 catalog-only identity.
 
+GET /stocks/{ticker}/price-history?frequency=weekly
+Returns labelled weekly history. Only `weekly` is accepted; catalog-only
+identities return an empty list. Weekly points are distinct from daily prices.
+
 GET /stocks/{ticker}/quote
 Returns a current Finnhub quote when `FINNHUB_API_KEY` is configured, or `null`
 when it is not available. The backend caches this response for 60 seconds. It
@@ -85,6 +96,15 @@ explicit local review profile. The public core is cached for five minutes when R
 current quote is resolved after the cache read and is not stored in the bundle
 cache. A catalog-only identity returns `409 Conflict`. `X-Cache-Status` uses the
 same values as stock search.
+
+### Macro context
+
+- `GET /macro/series`: available dated series definitions.
+- `GET /macro/series/{series_code}?limit=400`: observations; limit 1–1000.
+- `GET /macro/context?limit=60`: definitions plus observations; limit 2–400.
+
+The bundle includes macro context for AAPL. Missing/stale/simulated observations
+must retain their metadata and are not an assertion of causal price prediction.
 
 ### AI Analysis
 
@@ -131,6 +151,7 @@ GET  /debates/{session_id}/messages
 GET  /debates/{session_id}/events
 POST /debates/{session_id}/explanations
 POST /debates/{session_id}/interventions
+POST /debates/{session_id}/cancel
 ```
 
 Create request:
@@ -158,8 +179,9 @@ non-terminal Debate and remains within the configured generation window
 `X-RateLimit-Remaining`. Another active Debate returns `409`; an exhausted
 window returns `429` with a bounded `Retry-After`. A repository-confirmed
 sequential retry of the same queued idempotency key returns the existing
-Session/Job without consuming another admission. The distributed concurrency
-lock for simultaneous duplicate requests remains a separate Phase 6 slice.
+Session/Job without consuming another admission. An owner-scoped hashed
+idempotency lock also coordinates simultaneous queued creation; a competing request returns `409` with a short `Retry-After`.
+Database transactions/unique constraints remain the final fallback.
 
 Explanation has an independent per-user fixed-window admission limit (12 per
 hour by default). Accepted requests expose `X-RateLimit-Limit` and
@@ -178,7 +200,12 @@ separate `DEBATE_QUEUE_ENABLED` flag:
   route returns `202 Accepted` immediately with `execution_mode=queued`, and a
   bounded background Worker performs Round 1.
 
-Both responses contain `session`, `messages`, `job`, and `job_id`. A supplied
+Both mutation responses contain `session`, `messages`, `job`, `job_id`, and
+`execution_mode`. Detail returns the same canonical Session/message records and
+current Job, without a required `job_id`. Each message record wraps `message`,
+`citations`, and a server-authored `presentation` of frozen facts/evidence,
+interpretation, uncertainty and missing metadata. The presentation is not an
+independent source of model-generated facts. A supplied
 idempotency key must be 8–80 URL-safe alphanumeric/underscore/hyphen characters.
 Repeating the same key and same request returns the same queued Session/Job;
 conflicting reuse returns `409`.
@@ -194,8 +221,8 @@ Challenge request:
 }
 ```
 
-The target must belong to the owner's active branch and the selected text must
-occur in that message. With Queue disabled, a valid Challenge persists the user
+The target must be a complete message on the owner's active branch, the exact
+selected text must occur in it, and the Session must be at `awaiting_user`. With Queue disabled, a valid Challenge persists the user
 question, runs four alternating turns plus the Final Judge synchronously, and
 returns `201`. With Queue enabled, intervention, user question, Session/Job
 transition, and Queue publication are atomic; the route returns `202` and the
@@ -256,49 +283,84 @@ safe terminal failure when attempts are exhausted.
 The authenticated Web/React Native stream client and reducer are mounted behind
 `EXPO_PUBLIC_DEBATE_V2_ENABLED=false`. The screen renders Queue/Worker states,
 temporary drafts, durable messages, cancellation, exact selected-passage
-Challenge input, queued Round 2, and a separate complete-message term
-Explanation panel. Cross-process transient-event replay is not implemented.
+Challenge input, queued Round 2, and read-only Explanation. Its independently
+flagged interruption controls add visible-prefix Stop/interjection/Continue/End.
+Cross-process transient-event replay is not implemented.
 Redis-backed admission limits and owner-scoped idempotency coordination are
 implemented with safe local/database fallbacks. Public stock search/bundle
-caching is implemented but remains disabled by default. In Supabase persistence mode V2 additionally requires the
-server-only secret and deployed catalog/Debate/Queue migrations. Those hosted
-schema and deterministic Queue lifecycle gates passed on 2026-08-29;
+caching is implemented but remains disabled by default. In Supabase persistence
+mode V2 additionally requires the server-only secret and deployed catalog/Debate migrations, plus Queue and
+interruption migrations/security fixes when those features are enabled. Catalog,
+V2 persistence and deterministic Queue gates passed on 2026-08-29;
+interruption/security fixes have separate September hosted evidence, and
 production remains disabled pending deliberate rollout and a live-provider
 smoke test.
 
-## Planned portfolio API
+## Read-only Explanation
 
-The canonical request/response and SSE event shapes live in the
-[`portfolio implementation plan`](../planning/portfolio-implementation-plan.md).
+`POST /debates/{session_id}/explanations` accepts:
 
-### Queue and streaming additions
-
-Queued Round 1 and Round 2 creation, Worker events, live async deltas, retry,
-redelivery, terminal handling, and the feature-flagged visible V2 screen are
-implemented. Controlled hosted Supabase admission, retry, restart, exhaustion,
-authorization, and cleanup verification passed on 2026-08-29.
-
-### Human interaction
-
-```text
-POST /debates/{session_id}/explanations
+```json
+{
+  "message_id": "uuid",
+  "selected_text": "exact passage from the source message",
+  "question": "What does this term mean here?"
+}
 ```
 
-Explanation will not change Debate state. The Challenge endpoint and mounted V2
-screen already queue Round 2 from an exact passage in a complete message. The
-cancel route is generation-scoped and is reachable while a queued/running Job
-is active; V2 remains linear and message branching is deferred. The read-only
-Explanation service core validates owned active-branch messages, exact
-selections, message-linked evidence, guardrails, and safe provider failure.
-`EXPLANATION_PROVIDER=deterministic` is the default; the explicit `groq`
-provider receives only the selected complete message and linked evidence under
-server-owned aliases. Its authenticated, default-off route accepts `message_id`,
-`selected_text`, and `question`, then returns the bounded result without
-creating a Job or changing the Session. Missing owned sources return `404`, an
-invalid selection returns `409`, and provider failures return a safe `503`.
+The source must be owned and on the active branch. Complete messages and
+non-empty incomplete messages marked `metadata.interrupted=true` are eligible;
+the selected passage must occur exactly in the retained text. Explanation
+receives only that source's linked evidence, never treating the frozen partial
+text as completed evidence. It returns `200` with bounded content, evidence IDs,
+provider name/version and guardrail status. It does not change Session, Job,
+generation or transcript.
 
-### Compatibility
+Missing owned sources return `404`, invalid selections return `409`, and safe
+provider failures return `503`. `EXPLANATION_PROVIDER=deterministic` is the
+default; `groq` is a separate explicit live selection. The default 12/hour
+admission window is independent of Debate admission. Explanation usage is not
+included in the Debate provider-attempt ledger.
 
-Current `/analysis` and `/claims/{claim_id}/examine` routes remain during the
-feature-flagged migration. Legacy single analyses are not rewritten as
-multi-turn sessions.
+## Default-off interruptions and provider audit
+
+These owner-scoped routes additionally require
+`DEBATE_INTERRUPTIONS_ENABLED=true`; otherwise they return `404` and are hidden
+from OpenAPI. Continue also requires Queue enabled.
+
+| Route suffix under `/debates/{session_id}` | Request body | Success |
+| --- | --- | --- |
+| `POST /interrupt` | `generation_id`, `message_id`, `visible_prefix` (0–6000 characters, exact retained prefix) | `200` detail at `interrupted_awaiting_user` |
+| `POST /interrupt-before-output` | `generation_id` | `200` detail with an empty interruption marker |
+| `POST /interjections` | Waiting `generation_id`, `content` (1–500 characters), required `idempotency_key` | `201` detail; saves the point without calling a model |
+| `POST /continue` | Waiting `generation_id`, saved `interjection_id`, required `idempotency_key` | `202` detail with a new generation and queued Job |
+| `POST /end-interruption` | `interrupted_message_id` | `202` detail; cancellation may still be settling |
+| `GET /provider-attempts` | No body | `200` owner-scoped attempts and usage aggregates |
+
+Stop validates the visible prefix against durable checkpoint/canonical content,
+rotates generation, removes later transcript material and retains an incomplete
+record. It supports stopping a completed provider message whose client display
+is still catching up. Identical retries are idempotent; stale generations,
+invented prefixes, conflicting idempotency reuse and invalid states return
+`409`. Wrong ownership returns `404`.
+
+Continue requires a saved interjection and atomically enqueues the remaining
+stage using the original frozen snapshot. It cannot create another round on a
+completed Session. End targets the interruption marker, including a competing
+Continue descended from that marker; it rejects a newer interruption point.
+Provider cancellation is best effort, and already dispatched work may consume
+tokens even when no complete message is retained.
+
+The audit response contains `attempts`, `admitted_count`, `dispatch_attempts`,
+`reported_tokens`, and `unknown_usage_attempts`. Each attempt records provider,
+model, role, generation/message IDs, admission/dispatch/finish times, outcome,
+usage status and nullable token counts. Unknown usage is not zero usage.
+V2 mobile diagnostics do not yet consume this endpoint.
+
+## Compatibility and deferred work
+
+Current `/analysis` and `/claims/{claim_id}/examine` remain available with V2
+off. Legacy analyses are not rewritten into multi-turn Sessions. General
+branching, Replay and shared cross-process transient-event transport remain
+future work; validated domain event names alone do not mean a route emits every
+possible event. Runtime models/OpenAPI are authoritative for complete schemas.

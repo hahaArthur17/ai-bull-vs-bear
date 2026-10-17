@@ -2,7 +2,7 @@
 
 **Status:** Active for Phase 8  
 **Owner:** Mobile application  
-**Last updated:** 2026-09-12
+**Last updated:** 2026-10-17
 
 This matrix is the visual and interaction acceptance contract for the
 financial-research UI redesign. It supplements executable checks; it does not
@@ -22,29 +22,31 @@ work on native mobile and Expo Web.
 
 ## Current SDK54 physical-device acceptance entry
 
-The next native acceptance entry is the mobile client at commit
-`0f7036609eaa16aab0108f49416a6e211d29ff49` (`0f70366`) in the SDK54-compatible
-Expo Go client from the Apple App Store, run first on a physical iPhone. The
-automated baseline passes 112 mobile tests, TypeScript typecheck, Expo Web
-export, Expo Doctor 18/18, and iOS and Android native bundle exports. This is
-not a real-device pass.
+The owner reports simulator functionality working on 2026-10-17.
+Physical-device testing has **not been performed**. The current automated
+baseline passes 542 backend tests, 122 mobile tests, TypeScript, Expo Doctor
+18/18 and Web/iOS/Android exports. The older `0f70366` SDK54 checkpoint is
+historical and must not be used as the target for the October recovery fixes.
 
-Complete this capture block before marking the entry executed; do not infer any
-of the device or client versions from the Git commit:
+Capture the actual tested commit at the time of acceptance rather than pinning
+this checklist to a superseded SHA:
 
 | Acceptance field | Value to record | Current status |
 | --- | --- | --- |
-| Client commit SHA | `0f7036609eaa16aab0108f49416a6e211d29ff49` | Fixed for this entry |
-| Expo SDK / runtime | Expo SDK 54 / `expo 54.0.37` / React Native `0.81.5` | Fixed for this entry |
-| Device | Physical iPhone — exact model | Pending physical run |
-| iOS version | Exact version from Settings → General → About | Pending physical run |
-| Expo Go version | Exact App Store version shown in Expo Go | Pending physical run |
-| Result | Native flow result and limitation | Not yet accepted |
+| Client and backend commit SHA | `git rev-parse HEAD` and `/health.build_sha` | Pending physical run |
+| Expo SDK / runtime | SDK54 / `expo 54.0.37` / React Native `0.81.5` | Repository baseline |
+| Device and OS | Exact physical model and OS version | Pending physical run |
+| Client | Compatible Expo Go or development-build identity/version | Pending compatibility check |
+| Simulator evidence | Platform, OS/client version, commit and cases exercised | Owner reports working; detailed matrix not supplied |
+| Physical result | Native flow result and limitation | Not yet executed |
 
-The iPhone run must use the workstation LAN address, not `localhost` or
-`127.0.0.1`. An iPhone result does not certify Android; Android needs its own
-native simulator or available-device edge-to-edge, system-bar, keyboard,
-bottom-navigation, and back-behavior review.
+The API must listen on `--host 0.0.0.0`; the phone uses the workstation LAN IP,
+not loopback. Current App Store Expo Go is not guaranteed to support SDK54;
+use a compatible development build if needed. See the
+[mobile guide](../../apps/mobile/README.md) for network/client setup. An iPhone
+result does not certify Android; separately record Android edge-to-edge,
+system bars, keyboard, bottom-navigation and back behavior. Neither automated
+exports nor this owner-reported simulator result replace physical acceptance.
 
 ### Design-system acceptance
 

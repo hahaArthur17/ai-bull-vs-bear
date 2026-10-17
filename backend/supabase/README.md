@@ -1,50 +1,80 @@
 # Supabase setup
 
-1. Create a Supabase project at https://supabase.com/dashboard.
-2. Open SQL Editor and run `schema.sql`.
-3. Run every file in `migrations/` in filename order. Migrations are idempotent
-   and are also required after pulling new database work into an existing
-   project.
-4. Enable Email or OAuth authentication under Authentication.
-5. Copy the project URL and anon key into a local `.env` file.
-6. Keep `ANALYSIS_PROVIDER=demo` until the provider adapter is configured.
+Last reviewed: 2026-10-17.
 
-The current backend intentionally uses the deterministic DemoStore so the
-application is usable before Supabase credentials are available. The SQL schema
-and environment variables are prepared for the persistence/authentication
-milestone.
+Supabase Auth/persistence, the catalog, V2 Debate, Queue and interruption
+adapters are implemented. Demo defaults remain available without credentials;
+code availability does not enable hosted V2 automatically. Historical hosted
+verification is recorded in [current status](../../docs/planning/current-status.md)
+and [live services setup](../../docs/setup/live-services.md).
 
-The Phase 2 stock catalog uses three migrations. Apply them in filename order:
+## Setup and migration order
 
-1. `20260827_stock_catalog_coverage.sql`
-2. `20260827_stock_catalog_search.sql`
-3. `20260827_stock_catalog_seed.sql`
+1. Use the existing project for this repository, or create a dedicated project
+   for a new installation at [Supabase Dashboard](https://supabase.com/dashboard).
+2. For a **new database**, run [schema.sql](schema.sql), then the checked-in
+   [migrations](migrations) in filename order. For an existing database, inspect
+   the applied schema and run only missing changes; do not reset user history.
+3. Configure the sign-in method and dedicated non-production acceptance users.
+4. Keep project URL/public key and server secret in the ignored root `.env`.
+   Set `AUTH_MODE=supabase` and `PERSISTENCE_MODE=supabase` explicitly when ready.
+5. Verify public market reads, two-user isolation, rejected direct client writes
+   and service-only RPC behavior before enabling dependent features.
 
-Before applying them to Supabase Free, verify the database is below 400 MB as
-documented in [`live-services.md`](../../docs/setup/live-services.md). Afterward,
-verify that `public.stocks`, including indexes, is no more than 15 MiB and rerun
-public-read plus two-user Watchlist RLS checks.
+The base schema alone is insufficient. Later feature groups depend on all
+earlier groups:
 
-The generated seed uses 16 bounded upsert statements inside one transaction and
-preserves existing coverage, sector, country, and aliases on conflict. Do not
-edit its generated rows manually; regenerate it from the reviewed artifact
-under `data/catalog`.
+| Migration group | Files / boundary |
+| --- | --- |
+| User persistence, evidence, vectors, facts, market/macro caches | All `20260813_*` through `20260821_*` migrations |
+| Catalog coverage/search/seed | `20260827_stock_catalog_coverage.sql`, `20260827_stock_catalog_search.sql`, `20260827_stock_catalog_seed.sql` |
+| Five canonical V2 relations and atomic writes | `20260827_v2_debate_persistence.sql`, `20260827_v2_debate_persistence_rpc.sql` |
+| Durable Queue and atomic stage admission | `20260828_v2_debate_queue.sql` |
+| Draft checkpoints, provider attempts, Stop/interjection/Continue | `20260909_debate_draft_interruption.sql` |
+| Service-only Continue, PostgREST conflict status, ambiguous transport replay | All three `20260911_*` migrations |
 
-Phase 3 adds two V2 Debate migrations after the catalog files:
+Review the individual SQL before applying it; a feature flag is not a migration
+runner. Before catalog import, preserve the documented 400 MB capacity gate and
+15 MiB catalog relation budget. The generated seed has 16 bounded upserts in
+one transaction and preserves existing coverage/sector/country/aliases. Never
+manually edit generated rows; regenerate from the reviewed catalog artifact.
 
-1. `20260827_v2_debate_persistence.sql`
-2. `20260827_v2_debate_persistence_rpc.sql`
+## Credentials and authorization
 
-The first creates the five canonical relations, constraints, indexes, grants,
-and owner-read RLS. The second adds service-only transaction boundaries for the
-initial Session+Job pair and a complete Message+citations write. Neither file
-enables Supabase Queue transport. Apply them to a hosted project only after the
-catalog capacity gate, then verify two-user read isolation, rejected client
-writes, and service-role creation/update before marking Phase 3 persistence
-deployed.
+The public key can be supplied as backend `SUPABASE_ANON_KEY` and client
+`EXPO_PUBLIC_SUPABASE_PUBLISHABLE_KEY` (or the legacy anon-key variable), along
+with the corresponding URL. `SUPABASE_SECRET_KEY` is server-only and is needed
+for ingestion and standard V2 atomic writes/Queue operations. Current
+`sb_secret_...` and legacy service-role keys are supported by backend adapters.
+See [Supabase key guidance](https://supabase.com/docs/guides/getting-started/api-keys).
 
-The evidence schema separates canonical chunks from provider-specific
-embeddings. `local-hash-v1` is the deterministic offline baseline; real Gemini,
-Qwen, BGE, or other profiles belong in `chunk_embeddings` and must never be
-compared across profiles. SEC XBRL values belong in `financial_facts` so period,
-unit, and arithmetic semantics are not lost in vectorized text.
+Canonical Debate tables have owner-read RLS; direct authenticated writes and
+privileged RPC calls are rejected. Draft checkpoints are server-only; provider
+attempts have owner-read access. API mutations validate ownership and
+state/generation before service-only transactions. Never ship the server secret
+through Expo configuration.
+
+## Verification
+
+From the repository root:
+
+```sh
+PYTHONPATH=backend backend/.venv/bin/python scripts/verify_supabase_migration_preflight.py
+```
+
+This is a read-only schema/API preflight. Follow the separate procedures in
+[live services setup](../../docs/setup/live-services.md) for RLS, Debate
+persistence, Queue and interruption verifiers. Those verifiers can create
+bounded disposable records; retain their reported IDs and clean up only their
+own fixtures/Queue messages. Never blanket-purge shared Queue state.
+
+Hosted checks are not part of the ordinary credential-free test suite. This
+2026-10-17 documentation pass does not apply migrations or rerun hosted tests.
+
+## Evidence storage
+
+Canonical chunks and provider-specific embeddings are separate. `local-hash-v1`
+is the deterministic offline baseline, not a learned semantic model. Future
+embedding profiles must not mix similarity comparisons across models/dimensions.
+Structured SEC XBRL belongs in `financial_facts`, preserving period/unit and
+arithmetic semantics instead of flattening values into vectors.

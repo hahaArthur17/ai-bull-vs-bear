@@ -3,6 +3,15 @@
 This directory separates current project truth from historical records. Do not
 use an old weekly checklist to choose new work.
 
+## Current handoff (2026-10-17)
+
+Core implementation is in final verification/documentation. The owner reports
+simulator functionality working; physical-device testing has not been performed.
+The later AAPL V2 Session is completed, not waiting for Round 2. Start with the
+current resume checklist/status; older saved-session commands, test counts and
+App Store compatibility statements are historical. The latest verification
+record separates rerun checks, audit findings and remaining release gates.
+
 ## Resume here
 
 When resuming development:

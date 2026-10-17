@@ -63,16 +63,20 @@ See the [architecture overview](docs/architecture/overview.md) and
 
 ## Current status
 
-Last verified on **2026-09-17**:
+Documentation reconciled with the repository on **2026-10-17**. Simulator
+functionality is reported working by the project owner; physical-device testing
+has **not been performed**. Local automated results and historical hosted/live
+evidence are recorded separately below.
 
 | Area | Status |
 | --- | --- |
-| Mobile and backend feature implementation | Implemented; SDK54 native exports pass; final physical-device/product acceptance remains open |
-| Backend automated suite | 516 tests passing |
-| Mobile verification | 114 tests and TypeScript passing; Expo Doctor 18/18; iOS and Android native exports pass |
+| Mobile and backend feature implementation | Core flow implemented, including two-round V2 Debate, Stop/interjection/Continue, History recovery, and account-state isolation |
+| Backend automated suite | 542 tests passing on 2026-10-17 |
+| Mobile automated suite | 122 tests, TypeScript, Expo Doctor 18/18, and Web/iOS/Android exports passing on 2026-10-17 |
 | Hosted Supabase Catalog, RLS, Debate persistence, Queue, restart, and interruption checks | Passed |
-| Current-data and full two-round live-model verification | Passed: 12/12 provider attempts, both Judges, 40 citations, resumable SSE, 39,269 reported tokens, no retry or unknown usage |
-| Expo Go physical-device and interface acceptance | **In progress — a saved AAPL V2 Round 1 is ready for its Interim → Round 2 device flow; Stop/recovery and Android native regression follow** |
+| Full two-round live-model verification | Historical pass: 12/12 provider attempts, both Judges, 40 citations, resumable SSE, 39,269 reported tokens, no retry or unknown usage; refresh-time provenance still requires preflight |
+| Later live interaction run | Both rounds, Stop → Explanation → interjection → Continue, Final Judge and History reopen observed; 50,380 reported Debate tokens plus one unknown-usage attempt |
+| Simulator / physical device | Simulator flow reported working by the owner on 2026-10-17; **physical device not yet tested** |
 | Existing Render API same-SHA deployment, cold start, restart, smoke, and rollback proof | Pending physical-device acceptance |
 
 V2, Queue, live Turn/Judge providers, and interruptions remain explicit
@@ -80,15 +84,20 @@ feature flags; the deployed production baseline does not enable them merely
 because their implementation tests passed. The authoritative project truth is
 maintained in [Current Project Status](docs/planning/current-status.md), with
 the remaining order in [WP8L Next Steps](docs/planning/wp8l-next-steps.md).
-For the exact next local V2 action and two-terminal commands, start with the
+The later saved Session is complete; it is for read-only History review, not
+another Round 2 submission. Open follow-ups include V2 in-app usage diagnostics,
+hosted reopen timing, and a wholly post-source-guard audit. For the local V2
+profile and two-terminal commands, start with the
 [V2 Beta Resume Checklist](docs/planning/v2-beta-resume-checklist.md).
 
 ## Prerequisites
 
 - Git
 - Python **3.12 or newer** (CI uses 3.12; the runtime container uses 3.13)
-- Node.js **20.19.4 or newer** and npm
-- Expo Go from the App Store on iPhone (SDK54), or a matching Android client/simulator
+- Node.js **24** and npm (verified locally and used by CI; locked Supabase
+  dependencies require Node >=22)
+- An Expo SDK54-compatible client or development build, plus Xcode for the iOS
+  Simulator or Android Studio for the Android Emulator
 - Optional for standard/live mode: an existing Supabase project and the
   provider credentials described in [Live Services Setup](docs/setup/live-services.md)
 
@@ -97,12 +106,13 @@ The mobile app now targets **Expo SDK 54** (`expo 54.0.37`, React Native
 (52 → 53 → 54), and the safe-area migration plus iOS/Android native exports
 have passed. These are local/build checks, not physical-device acceptance.
 
-For iPhone, install **Expo Go from the Apple App Store**; the App Store client
-supports SDK54. Then use the same-Wi-Fi QR flow below. Do not try to side-load
-an older SDK52/53 Expo Go client on a physical iPhone. Android can use the
-matching SDK54 client from the [Expo Go version archive](https://expo.dev/go)
-if the Google Play client lags behind. Do not count a Web browser or native
-export as device acceptance.
+Check client compatibility before a physical run. Expo Go supports the latest
+SDK; this repository remains on SDK54. Matching older clients are available for
+Android and iOS Simulator from [expo.dev/go](https://expo.dev/go). Physical
+iPhones can install only the current App Store Expo Go, so use an SDK54
+development build if that client no longer supports this project. See
+[Expo's SDK compatibility guidance](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/).
+Do not count a Web browser or native export as device acceptance.
 
 SDK54 changes Android to mandatory edge-to-edge layout. The Android native
 gate must therefore check status-bar and navigation-bar insets, bottom
@@ -152,19 +162,19 @@ npm ci
 
 EXPO_PUBLIC_AUTH_MODE=demo \
 EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED=false \
 EXPO_PUBLIC_API_URL=http://YOUR_COMPUTER_LAN_IP:8000 \
   npx expo start --lan --clear
 ```
 
 Replace `YOUR_COMPUTER_LAN_IP` with the computer's LAN address, for example
 `192.168.1.20`. On macOS, `ipconfig getifaddr en0` commonly prints the Wi-Fi
-address. For an iPhone App Store Expo Go review, then:
+address. For a compatible iPhone client, then:
 
-1. Install and open **Expo Go** from the iPhone App Store.
+1. Install and open the compatible client described above.
 2. Put the iPhone and computer on the same Wi-Fi network, and allow Expo Go
    access to the local network and camera when iOS asks.
-3. In Expo Go, choose **Scan QR code** and scan the QR code shown by the
-   `npx expo start --lan` terminal.
+3. Open the Metro QR/deep link using the iPhone Camera or the client's scanner.
 4. Keep both terminal processes running during review.
 5. Confirm `/health` reports `data_mode: "review_fixture"` and that the app
    shows its simulated-data label.
@@ -174,14 +184,21 @@ computer. If LAN discovery is blocked by the router, Expo can tunnel the Metro
 bundle with `npx expo start --tunnel`, but the phone still needs a reachable
 backend URL; tunnelling Metro does not expose the FastAPI port.
 
-For a simulator on the same computer, use loopback instead:
+For the iOS Simulator on the same computer, use loopback instead:
 
 ```shell
 EXPO_PUBLIC_AUTH_MODE=demo \
 EXPO_PUBLIC_DEBATE_V2_ENABLED=true \
+EXPO_PUBLIC_DEBATE_INTERRUPTIONS_ENABLED=false \
 EXPO_PUBLIC_API_URL=http://127.0.0.1:8000 \
-  npx expo start --localhost --clear
+  npx expo start --ios --localhost --clear
 ```
+
+The standard Android Emulator reaches the workstation API at
+`http://10.0.2.2:8000`; see the [mobile setup](apps/mobile/README.md).
+The synchronous fixture is suitable for layout and canonical transcript
+review. Use the queued standard profile for Stop/Continue and real provider
+streaming acceptance.
 
 ## Controlled Expo Go standard/live acceptance
 
@@ -223,8 +240,9 @@ EXPO_PUBLIC_API_TIMEOUT_MS=45000 \
   npx expo start --ios --clear
 ```
 
-For a physical device, change the API URL to `http://YOUR_COMPUTER_LAN_IP:8000`
-and use `npx expo start --lan --clear` instead. The complete next-click order,
+For a physical device, also start the API with `--host 0.0.0.0`, change the
+client API URL to `http://YOUR_COMPUTER_LAN_IP:8000`, and use
+`npx expo start --lan --clear`. The complete acceptance order,
 model-cost boundary, and post-Round-2 checks are in the
 [V2 Beta Resume Checklist](docs/planning/v2-beta-resume-checklist.md).
 
@@ -276,12 +294,10 @@ npx expo-doctor
 acceptance entry point; the project does not use a Render static Web frontend
 as a Phase 8/9 release gate.
 
-The SDK54 dependency graph currently reports 18 `npm audit` findings (7
-moderate, 11 high, 0 critical), all in transitive Expo/Metro/config-build
-tooling. The only complete npm remediation path proposes Expo57, which would
-break the current App Store Expo Go SDK54 target. Do not use `npm audit fix
---force` or transitive overrides; keep Metro on a trusted local network and
-revisit the audit when Expo Go supports the newer SDK target.
+Dependency advisories change independently of the lockfile. The audit snapshot
+and its limits are recorded in the [verification record](docs/planning/phase-8-verification-record.md).
+Use `npm audit` to reassess the current graph; an SDK upgrade or forced
+transitive override needs its own compatibility check and native regression.
 
 Live verification scripts are opt-in, bounded, and may consume provider quota.
 Use the procedures in [Live Services Setup](docs/setup/live-services.md) rather
@@ -292,7 +308,7 @@ than running them as part of an ordinary test suite.
 The remaining release sequence is deliberately small:
 
 1. Complete Expo Go physical-device and interface acceptance from a recorded
-   commit, beginning with iPhone via App Store Expo Go; follow with Android
+   commit, beginning with a compatible iPhone client; follow with Android
    SDK54 edge-to-edge checks in a native simulator or available device.
 2. Deploy that accepted commit to the **existing Render API**.
 3. Verify `/health.build_sha`, Auth/CORS, current data, Queue/SSE, cold start,

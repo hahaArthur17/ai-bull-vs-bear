@@ -21,6 +21,42 @@ duplicating implementation detail.
 
 ---
 
+## 2026-10-17 — Dependency audit changed and Node 20 CI became stale
+
+**Status:** CI runtime corrected; dependency remediation remains open.
+Related historical record: 2026-09-12 SDK54 npm audit findings below.
+
+**Symptom and evidence**
+
+A clean locked install audited 709 packages and reported 37 findings (9
+moderate, 27 high, 1 critical), superseding the old 18/zero-critical count.
+`npm ls shell-quote --all` traced the critical npm finding to
+`react-native@0.81.5 → react-devtools-core@6.1.5 → shell-quote@1.10.0`.
+The [upstream advisory](https://github.com/advisories/GHSA-pqg4-j6r4-53mv)
+identifies 1.11.0 as patched. No exploit was reproduced in this pass.
+Separately, locked Supabase packages declare Node >=22, while CI still
+selected Node 20 and the mobile tests use native TypeScript execution.
+
+**Mitigation and verification**
+
+Documentation now records the dated audit rather than claiming zero critical
+findings or assuming an SDK jump is the only fix. CI selects Node 24, matching
+the locally verified runtime. A stale local types directory caused the first
+typecheck failure; `npm ci` restored it without manifest/lockfile edits.
+542 backend tests, 122 mobile tests, typecheck, Expo Doctor 18/18 and all three
+platform exports pass locally. No hosted deployment, provider run or database
+change was made.
+
+**Remaining follow-up / owner**
+
+The developer should prepare a focused dependency/lockfile remediation,
+verify SDK compatibility and native tooling, then rerun tests/exports/audit.
+The critical finding remains unresolved by this documentation change. The
+physical SDK54 client must also be checked against current Expo Go support;
+a development build is the fallback for an incompatible physical-iPhone client.
+
+---
+
 ## 2026-10-05 — AAPL live Debate Stop and Round 2 recovery regressions
 
 **Status:** Corrected locally; one complete real-model AAPL Session passed. A

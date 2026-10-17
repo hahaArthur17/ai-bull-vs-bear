@@ -20,6 +20,79 @@ The checks use only deterministic tests or the demo backend and
 `EXPO_PUBLIC_AUTH_MODE=demo`; no credentials, external market calls, or model
 calls were used.
 
+## 2026-10-17 — Final documentation and local regression pass
+
+**Source baseline:** `055481b` on `codex/phase-8-design-remediation`; this pass
+changes documentation and CI's Node version, not application behavior.
+
+The project owner reports simulator functionality is working. Physical-device
+testing has **not been performed**. No device/OS/case matrix was supplied, so
+this report does not mark every manual acceptance row complete. Historical
+hosted/live results below keep their original scope and date. The later AAPL
+Session is complete through Final Judge/History and is no longer an unfinished
+Round 1 handoff.
+
+| Check | Result |
+| --- | --- |
+| `PYTHONPATH=backend backend/.venv/bin/python -m pytest backend/tests -q` | 542 passed; one Starlette/TestClient deprecation warning |
+| `npm run test:stream` | 122 passed |
+| `npm run typecheck` | Passed after clean locked dependency installation |
+| `npm run build:web` | Passed |
+| `npx expo-doctor` | 18/18 passed |
+| `npx expo export --platform ios --output-dir dist-ios` | Passed; bundle export, not native runtime acceptance |
+| `npx expo export --platform android --output-dir dist-android` | Passed; bundle export, not native runtime acceptance |
+| Fixture API/OpenAPI contract smoke | Health, all documented routes, interruption request fields, AAPL bundle `200` and catalog-only bundle `409` verified without live services |
+| Markdown relative links | 50 tracked Markdown files checked; no missing relative inline-link destinations |
+| Supabase / provider / market live verifiers | Not run in this documentation pass |
+| Physical device | Not executed |
+| Render deployment / rollback | Not executed |
+
+Local runtimes are Python 3.13 and Node 24.11.0 / npm 11.6.1. Initial typecheck
+failed because the existing ignored `node_modules/@types` contained duplicate
+names ending in ` 3`. `npm ci` restored the locked graph without changing
+`package.json` or the lockfile; typecheck and all three exports then passed.
+CI now selects Node 24: locked Supabase packages require Node >=22 and mobile
+tests use built-in TypeScript support. The prior Node 20 setting no longer
+matched that graph. Hosted GitHub Actions results are separate from these local
+checks.
+
+### Dependency audit and client compatibility
+
+`npm audit` on 2026-10-17 reports **37 findings: 9 moderate, 27 high, 1 critical**.
+The critical npm finding is `shell-quote@1.10.0`, reached through
+`react-native@0.81.5 → react-devtools-core@6.1.5 → shell-quote`. The
+[upstream advisory](https://github.com/advisories/GHSA-pqg4-j6r4-53mv) identifies
+1.11.0 as the patched version. This supersedes the September 18-finding,
+zero-critical snapshot; a clean test/export result is not a clean audit result.
+
+No dependency upgrade/override was applied here. Follow up with a focused
+lockfile remediation and SDK-compatible regression, then rerun the audit for
+remaining findings. Do not assume all 37 have the same execution path or that a
+major SDK jump is the only repair. Developer/Metro access remains limited to
+trusted local use while this is unresolved.
+
+The repository remains on SDK54. [Expo's current compatibility guidance](https://docs.expo.dev/workflow/upgrading-expo-sdk-walkthrough/)
+says Expo Go supports the latest SDK, older clients are available for Android
+and iOS Simulator, and physical iPhones can install only current App Store
+Expo Go. Therefore physical SDK54 acceptance must first confirm a compatible
+client or use a development build. This pass does not perform that build,
+upgrade the SDK or claim a physical run.
+
+### Documentation scope and remaining gates
+
+Root/mobile/backend setup, architecture, API, output/guardrail contracts,
+Supabase/schema instructions and active handoffs are reconciled with source.
+Commands now distinguish iOS loopback, Android Emulator `10.0.2.2` and physical
+LAN access (including API `--host 0.0.0.0`). Historical weekly reports and ADR
+choices retain their original evidence rather than being rewritten as new
+verification.
+
+Outstanding: recorded physical-device/accessibility/lifecycle and weak-network
+acceptance, V2 in-app provider/token diagnostics, hosted saved-detail cold/warm
+measurement, wholly post-source-guard live audit, dependency remediation, and
+same-SHA existing-Render release/rollback. Reuse saved History/deterministic
+fixtures for visual review; no new model quota was consumed here.
+
 ## WP8 integrated regression baseline on 2026-09-08
 
 WP8 began from revision `1f9adfe`. Luna ran the complete local automated gate

@@ -1,7 +1,7 @@
 # Phase 8 Design Remediation Execution Plan
 
 **Status:** In progress  
-**Last updated:** 2026-09-08
+**Plan baseline:** 2026-09-08; current-position note reconciled 2026-10-17
 **Parent plan:** [`portfolio-implementation-plan.md`](portfolio-implementation-plan.md)  
 **Visual reference:** [`../../prototype.html`](../../prototype.html)
 
@@ -12,11 +12,15 @@ breakdown for Phase 8. It adds implementation detail to the Phase 8 checklist
 in `portfolio-implementation-plan.md`; it does not establish a parallel product
 plan, replace the portfolio phase order, or move Phase 9 work into Phase 8.
 
-Phase 8 was re-baselined because the earlier implementation preserved and
-tested many product states but did not match the accepted visual direction or
-the desired Debate interaction. The project is therefore not one periodic
-device check away from completion. The existing UI is a functional foundation,
-not an approved final presentation.
+Phase 8 was re-baselined on 2026-09-06 around the dark visual reference.
+Its work packages below retain their original implementation/acceptance
+criteria. The core UI and interruption/recovery implementation has since been
+completed; on 2026-10-17 the owner confirms simulator functionality works.
+Physical-device testing is not performed. Current results and remaining
+acceptance/release gaps are in [current status](current-status.md),
+[WP8L next steps](wp8l-next-steps.md) and the
+[V2 handoff](v2-beta-resume-checklist.md). Do not restart earlier work packages
+or infer a physical-device pass from historical automated/export evidence.
 
 ## 2. Accepted product direction
 
