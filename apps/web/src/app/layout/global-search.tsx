@@ -1,7 +1,13 @@
 import { useEffect, useState } from "react";
 import { Search, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { useStocks } from "@/features/research/hooks";
@@ -37,6 +43,7 @@ export function GlobalSearch() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Find your next perspective</DialogTitle>
+            <DialogDescription>Search the demonstration company catalog.</DialogDescription>
           </DialogHeader>
           <Input
             autoFocus
@@ -46,7 +53,11 @@ export function GlobalSearch() {
             aria-label="Search company or ticker"
           />
           <div className="max-h-80 overflow-y-auto">
-            {result.isError ? (
+            {result.isPending || result.isDebouncing ? (
+              <p role="status" className="p-4 text-sm text-muted-foreground">
+                Searching companies…
+              </p>
+            ) : result.isError ? (
               <p role="alert" className="p-4 text-sm">
                 Search is unavailable. Try again shortly.
               </p>

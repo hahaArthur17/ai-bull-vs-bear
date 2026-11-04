@@ -2,7 +2,13 @@ import { useState } from "react";
 import { Menu, Moon, Sun, ArrowUpRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetTitle,
+  SheetTrigger,
+  SheetDescription,
+} from "@/components/ui/sheet";
 import { useTheme } from "@/app/providers/theme-context";
 import { config } from "@/app/config/env";
 import { Brand } from "./brand";
@@ -61,6 +67,9 @@ function MobileNavigation() {
       </SheetTrigger>
       <SheetContent side="left" className="w-72 p-6">
         <SheetTitle className="sr-only">Navigation</SheetTitle>
+        <SheetDescription className="sr-only">
+          Explore research, history and your workspace preferences.
+        </SheetDescription>
         <Brand />
         <Navigation onNavigate={() => setOpen(false)} />
       </SheetContent>

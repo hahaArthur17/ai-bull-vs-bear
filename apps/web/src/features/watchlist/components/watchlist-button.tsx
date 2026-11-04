@@ -1,5 +1,6 @@
 import { Bookmark, BookmarkCheck } from "lucide-react";
 import { toast } from "sonner";
+import { useIsMutating } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToggleWatchlist, useWatchlist } from "../hooks";
 
@@ -12,6 +13,7 @@ export function WatchlistButton({
 }) {
   const watchlist = useWatchlist();
   const mutation = useToggleWatchlist();
+  const busy = useIsMutating({ mutationKey: ["watchlist", "toggle"] }) > 0;
   const watched = watchlist.data?.includes(ticker) ?? false;
   const label = `${watched ? "Remove" : "Add"} ${ticker} ${watched ? "from" : "to"} watchlist`;
   function toggle() {
@@ -27,7 +29,7 @@ export function WatchlistButton({
     <Button
       variant={compact ? "ghost" : "outline"}
       size={compact ? "icon" : "sm"}
-      disabled={mutation.isPending || watchlist.isPending || watchlist.isError}
+      disabled={busy || watchlist.isPending || watchlist.isError}
       onClick={toggle}
       aria-label={label}
       aria-pressed={watched}

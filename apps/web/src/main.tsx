@@ -4,8 +4,6 @@ import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { AppProviders } from "@/app/providers/app-providers";
-import { router } from "@/app/router/router";
-import { startMocks } from "@/mocks/browser/start";
 
 const root = createRoot(document.getElementById("root")!);
 root.render(
@@ -17,8 +15,14 @@ root.render(
   </div>,
 );
 
-startMocks()
-  .then(() => {
+async function startApplication() {
+  const { startMocks } = await import("@/mocks/browser/start");
+  await startMocks();
+  return import("@/app/router/router");
+}
+
+startApplication()
+  .then(({ router }) => {
     root.render(
       <StrictMode>
         <AppProviders>
