@@ -8,7 +8,7 @@ import { FeedbackForm } from "@/features/feedback/components/feedback-form";
 
 export function FeedbackPage() {
   return (
-    <div className="space-y-8">
+    <div className="page-content space-y-8">
       <Button asChild variant="ghost" size="sm" className="-ml-3 text-muted-foreground">
         <Link to="/user#feedback">
           <ArrowLeft className="size-4" />

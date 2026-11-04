@@ -44,7 +44,7 @@ function DemoHistoryPage() {
   };
 
   return (
-    <div className="space-y-7">
+    <div className="page-content space-y-7">
       <HistoryHeading count={records.length} />
       <HistoryFilters
         query={query}
@@ -132,16 +132,18 @@ function HistoryError({ onRetry }: { onRetry: () => void }) {
 
 function HistoryUnavailable() {
   return (
-    <div className="rounded-2xl border bg-card px-6 py-16 text-center">
-      <BookOpen size={28} className="mx-auto mb-5 text-primary" strokeWidth={1.5} />
-      <h1 className="font-serif text-3xl">A place to return to.</h1>
-      <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
-        Saved research sessions aren't available in this experience yet. You can keep exploring
-        stocks and their evidence.
-      </p>
-      <Button asChild className="mt-6">
-        <Link to="/">Back to research</Link>
-      </Button>
+    <div className="page-content">
+      <div className="rounded-2xl border bg-card px-6 py-16 text-center">
+        <BookOpen size={28} className="mx-auto mb-5 text-primary" strokeWidth={1.5} />
+        <h1 className="font-serif text-3xl">A place to return to.</h1>
+        <p className="mx-auto mt-3 max-w-sm text-sm leading-6 text-muted-foreground">
+          Saved research sessions aren't available in this experience yet. You can keep exploring
+          stocks and their evidence.
+        </p>
+        <Button asChild className="mt-6">
+          <Link to="/">Back to research</Link>
+        </Button>
+      </div>
     </div>
   );
 }

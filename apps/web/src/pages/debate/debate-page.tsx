@@ -13,7 +13,7 @@ export function DebatePage() {
   const debate = useDebateRecord(sessionId, ticker);
 
   return (
-    <div className="space-y-7">
+    <div className="page-content space-y-7">
       <header>
         <Link
           to={debate.data ? `/stocks/${debate.data.ticker}` : "/"}

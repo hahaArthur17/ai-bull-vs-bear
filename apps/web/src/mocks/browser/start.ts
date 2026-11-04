@@ -61,7 +61,7 @@ async function initializeWorker(): Promise<void> {
       { status: 501 },
     ),
   );
-  const worker = setupWorker(...handlers, missing);
+  const worker = setupWorker(...handlers, ...(config.dataMode === "demo" ? [missing] : []));
   await worker.start({
     quiet: true,
     onUnhandledRequest: "bypass",
