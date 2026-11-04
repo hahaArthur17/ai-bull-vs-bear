@@ -5,7 +5,6 @@ from app.services.evidence_freshness import (
     is_current_for_analysis,
 )
 
-
 NOW = datetime(2026, 8, 21, 12, 0, tzinfo=timezone.utc)
 
 
@@ -38,6 +37,10 @@ def test_missing_or_invalid_dates_are_unknown() -> None:
 
 def test_only_current_external_evidence_is_eligible_for_analysis() -> None:
     assert is_current_for_analysis({"source_type": "technical"}) is True
-    assert is_current_for_analysis({"source_type": "news", "freshness": {"status": "current"}}) is True
-    assert is_current_for_analysis({"source_type": "news", "freshness": {"status": "stale"}}) is False
+    assert (
+        is_current_for_analysis({"source_type": "news", "freshness": {"status": "current"}}) is True
+    )
+    assert (
+        is_current_for_analysis({"source_type": "news", "freshness": {"status": "stale"}}) is False
+    )
     assert is_current_for_analysis({"source_type": "filing"}) is False

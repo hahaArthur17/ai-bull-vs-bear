@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { DebateDraft, DebateStreamSnapshot } from "./debateStream.ts";
 import {
   activeInterruptionDraft,
   canStopBeforeOutput,
@@ -11,7 +12,6 @@ import {
   shouldReconnectAfterInterruptionEnd,
   shouldStopBeforeOutput,
 } from "./interruptionState.ts";
-import type { DebateDraft, DebateStreamSnapshot } from "./debateStream.ts";
 import type { DebateMessageRecord } from "./types.ts";
 
 function snapshot(
@@ -70,10 +70,17 @@ test("Stop can freeze a displayed prefix after its provider turn became canonica
     is_complete: true,
     metadata: {},
   });
-  const current = { ...snapshot("running_round_2"), canonicalMessages: [completed] };
+  const current = {
+    ...snapshot("running_round_2"),
+    canonicalMessages: [completed],
+  };
   const nextDraft: DebateDraft = {
-    messageId: "message-2", generationId: "waiting-generation", role: "bear",
-    content: "Visible next turn", nextDeltaIndex: 1, citations: [],
+    messageId: "message-2",
+    generationId: "waiting-generation",
+    role: "bear",
+    content: "Visible next turn",
+    nextDeltaIndex: 1,
+    citations: [],
   };
   assert.equal(canStopBeforeOutput(current), false);
   assert.equal(shouldStopBeforeOutput(current), false);
@@ -92,7 +99,13 @@ test("visible Stop only accepts agent drafts during an interruptible phase", () 
   };
   assert.equal(canStopVisibleDraft(snapshot("running_round_1"), draft), true);
   assert.equal(canStopVisibleDraft(snapshot("interrupted_awaiting_user"), draft), false);
-  assert.equal(canStopVisibleDraft(snapshot("running_round_1"), { ...draft, role: "explainer" }), false);
+  assert.equal(
+    canStopVisibleDraft(snapshot("running_round_1"), {
+      ...draft,
+      role: "explainer",
+    }),
+    false,
+  );
 });
 
 test("Stop uses the received provider text even before the reveal scheduler renders it", () => {
@@ -104,8 +117,14 @@ test("Stop uses the received provider text even before the reveal scheduler rend
     nextDeltaIndex: 0,
     citations: [],
   };
-  const receivedDraft = { ...displayedDraft, content: "Buffered but not rendered" };
-  const current = { ...snapshot("running_round_1"), drafts: { [receivedDraft.messageId]: receivedDraft } };
+  const receivedDraft = {
+    ...displayedDraft,
+    content: "Buffered but not rendered",
+  };
+  const current = {
+    ...snapshot("running_round_1"),
+    drafts: { [receivedDraft.messageId]: receivedDraft },
+  };
 
   assert.equal(activeInterruptionDraft(current, displayedDraft)?.content, receivedDraft.content);
   assert.equal(shouldStopBeforeOutput(current, displayedDraft), false);
@@ -136,7 +155,10 @@ test("interjection lookup uses the post-Stop generation, preserving the frozen g
 
   assert.equal(findInterruptedMessage(records)?.message.id, "message-1");
   assert.equal(findInterjection(records, "message-1", "old-generation"), null);
-  assert.equal(findInterjection(records, "message-1", "waiting-generation")?.message.id, "interjection-1");
+  assert.equal(
+    findInterjection(records, "message-1", "waiting-generation")?.message.id,
+    "interjection-1",
+  );
 });
 
 test("interruption mutation keys are stable for safe retries and change with the input", () => {

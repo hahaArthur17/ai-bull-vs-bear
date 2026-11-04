@@ -102,7 +102,9 @@ class DebateEvidencePresentation(BaseModel):
     support_span: str | None = None
     source_destination: str | None = None
     missing_metadata: tuple[
-        Literal["evidence_type", "title", "fact", "source", "date", "support_span", "source_destination"],
+        Literal[
+            "evidence_type", "title", "fact", "source", "date", "support_span", "source_destination"
+        ],
         ...,
     ] = ()
 
@@ -136,13 +138,13 @@ class DebateMutationResponse(DebateSessionDetail):
 class DebateInterjectionRequest(BaseModel):
     generation_id: UUID
     content: str = Field(min_length=1, max_length=500)
-    idempotency_key: str = Field(min_length=8, max_length=80, pattern=r'^[A-Za-z0-9_-]+$')
+    idempotency_key: str = Field(min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class DebateContinueRequest(BaseModel):
     generation_id: UUID
     interjection_id: UUID
-    idempotency_key: str = Field(min_length=8, max_length=80, pattern=r'^[A-Za-z0-9_-]+$')
+    idempotency_key: str = Field(min_length=8, max_length=80, pattern=r"^[A-Za-z0-9_-]+$")
 
 
 class DebateEndInterruptionRequest(BaseModel):

@@ -9,17 +9,24 @@ from app.domain.base import ImmutableDomainModel
 from app.domain.debate import DebateMessage
 from app.domain.factors import AnalysisContext, FactorSnapshot
 
-
 BoundedPoint = Annotated[str, Field(min_length=1, max_length=300)]
 BoundedTerm = Annotated[str, Field(min_length=1, max_length=100)]
 
 
-def _validate_interrupted_context(messages: tuple[DebateMessage, ...], session_id: UUID, branch_id: UUID) -> None:
-    if any(message.session_id != session_id or message.branch_id != branch_id
-           or message.role not in {"bull", "bear", "judge"}
-           or message.is_complete or message.metadata.get("interrupted") is not True
-           for message in messages):
-        raise ValueError("Interrupted context must contain explicitly incomplete messages from this branch")
+def _validate_interrupted_context(
+    messages: tuple[DebateMessage, ...], session_id: UUID, branch_id: UUID
+) -> None:
+    if any(
+        message.session_id != session_id
+        or message.branch_id != branch_id
+        or message.role not in {"bull", "bear", "judge"}
+        or message.is_complete
+        or message.metadata.get("interrupted") is not True
+        for message in messages
+    ):
+        raise ValueError(
+            "Interrupted context must contain explicitly incomplete messages from this branch"
+        )
 
 
 class DebateTurnRequest(ImmutableDomainModel):

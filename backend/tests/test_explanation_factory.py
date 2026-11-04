@@ -1,5 +1,4 @@
 import pytest
-
 from app.config import Settings
 from app.providers.explanation import DeterministicExplanationProvider
 from app.providers.explanation_factory import (

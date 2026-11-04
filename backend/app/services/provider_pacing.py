@@ -16,10 +16,7 @@ class ProviderRequestPacer:
         monotonic: Callable[[], float] | None = None,
         sleep: Callable[[float], Awaitable[None]] | None = None,
     ) -> None:
-        if (
-            not math.isfinite(min_interval_seconds)
-            or min_interval_seconds < 0
-        ):
+        if not math.isfinite(min_interval_seconds) or min_interval_seconds < 0:
             raise ValueError("Provider request interval must be finite and non-negative")
         self.min_interval_seconds = min_interval_seconds
         self._monotonic = monotonic or time.monotonic

@@ -1,10 +1,8 @@
 from pathlib import Path
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 QUEUE_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260828_v2_debate_queue.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260828_v2_debate_queue.sql"
 ).read_text(encoding="utf-8")
 
 

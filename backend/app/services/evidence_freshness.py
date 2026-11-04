@@ -5,7 +5,6 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Literal
 
-
 FreshnessStatus = Literal["current", "stale", "unknown"]
 
 # These are deliberately source-specific. A filing remains useful context for

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from datetime import date
 import re
+from datetime import date
 
 from app.services.stock_catalog import CATALOG_SCHEMA_VERSION, MAX_CATALOG_ROWS
-
 
 _CANONICAL_EXCHANGES = {"CBOE", "NASDAQ", "NYSE"}
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")

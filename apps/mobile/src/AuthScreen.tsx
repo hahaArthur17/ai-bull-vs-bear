@@ -12,11 +12,11 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { supabase } from "./supabase";
-import { colors, interaction, layout, palette, radii, spacing, typography } from "./theme";
+import type { AuthenticationMode } from "./authState";
 import { isAuthenticationButtonSubmitting } from "./authState";
 import { FocusablePressable } from "./components/common";
-import type { AuthenticationMode } from "./authState";
+import { supabase } from "./supabase";
+import { colors, interaction, layout, palette, radii, spacing, typography } from "./theme";
 
 function validEmail(value: string): boolean {
   return /^\S+@\S+\.\S+$/.test(value);
@@ -42,9 +42,13 @@ export function AuthScreen() {
     setError("");
     setMessage("");
     try {
-      const result = mode === "sign-in"
-        ? await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
-        : await supabase.auth.signUp({ email: normalizedEmail, password });
+      const result =
+        mode === "sign-in"
+          ? await supabase.auth.signInWithPassword({
+              email: normalizedEmail,
+              password,
+            })
+          : await supabase.auth.signUp({ email: normalizedEmail, password });
       if (result.error) {
         setError(result.error.message);
       } else if (mode === "sign-up" && !result.data.session) {
@@ -81,94 +85,164 @@ export function AuthScreen() {
           keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
           keyboardShouldPersistTaps="handled"
         >
-        <View style={[styles.authFrame, isWideLayout && styles.authFrameWide]}>
-          <View style={[styles.introPanel, isWideLayout && styles.introPanelWide]}>
-            <View style={styles.brandRow} accessibilityRole="header">
-              <View style={styles.brandMark}><Text style={styles.brandMarkText}>B/B</Text></View>
-              <View><Text style={styles.brandName}>AI BULL VS BEAR</Text><Text style={styles.brandMeta}>RESEARCH WORKSPACE</Text></View>
+          <View style={[styles.authFrame, isWideLayout && styles.authFrameWide]}>
+            <View style={[styles.introPanel, isWideLayout && styles.introPanelWide]}>
+              <View style={styles.brandRow} accessibilityRole="header">
+                <View style={styles.brandMark}>
+                  <Text style={styles.brandMarkText}>B/B</Text>
+                </View>
+                <View>
+                  <Text style={styles.brandName}>AI BULL VS BEAR</Text>
+                  <Text style={styles.brandMeta}>RESEARCH WORKSPACE</Text>
+                </View>
+              </View>
+              <View style={styles.introCopy}>
+                <Text style={styles.introEyebrow}>PRIVATE RESEARCH ACCESS</Text>
+                <Text style={styles.introTitle}>Make each market question traceable.</Text>
+                <Text style={styles.introBody}>
+                  A calm, evidence-first workspace for your watchlist, research history, and Bull vs
+                  Bear sessions.
+                </Text>
+              </View>
+              <View style={styles.assuranceCard}>
+                <Text style={styles.assuranceTitle}>YOUR RESEARCH, IN CONTEXT</Text>
+                <Text style={styles.assuranceText}>
+                  Saved symbols and sessions stay scoped to your account. This workspace is
+                  educational research—not financial advice.
+                </Text>
+              </View>
             </View>
-            <View style={styles.introCopy}>
-              <Text style={styles.introEyebrow}>PRIVATE RESEARCH ACCESS</Text>
-              <Text style={styles.introTitle}>Make each market question traceable.</Text>
-              <Text style={styles.introBody}>A calm, evidence-first workspace for your watchlist, research history, and Bull vs Bear sessions.</Text>
-            </View>
-            <View style={styles.assuranceCard}>
-              <Text style={styles.assuranceTitle}>YOUR RESEARCH, IN CONTEXT</Text>
-              <Text style={styles.assuranceText}>Saved symbols and sessions stay scoped to your account. This workspace is educational research—not financial advice.</Text>
+            <View style={[styles.card, isWideLayout && styles.cardWide]}>
+              <Text style={styles.eyebrow}>PRIVATE RESEARCH ACCESS</Text>
+              <Text style={styles.title}>Welcome back.</Text>
+              <Text style={styles.body}>
+                Sign in or create an account to continue to your research workspace.
+              </Text>
+              <View style={styles.divider} />
+              <View style={styles.fieldGroup}>
+                <Text nativeID="auth-email-label" style={styles.label}>
+                  EMAIL ADDRESS
+                </Text>
+                <TextInput
+                  {...(Platform.OS === "web"
+                    ? {
+                        "aria-describedby": "auth-email-hint",
+                        "aria-invalid": emailInvalid,
+                        "aria-required": true,
+                      }
+                    : {})}
+                  accessibilityHint={emailHint}
+                  accessibilityLabel="Email address"
+                  accessibilityLabelledBy="auth-email-label"
+                  autoCapitalize="none"
+                  autoComplete="email"
+                  keyboardType="email-address"
+                  onChangeText={setEmail}
+                  placeholder="you@example.com"
+                  placeholderTextColor={palette.muted}
+                  style={styles.input}
+                  textContentType="emailAddress"
+                  value={email}
+                />
+                <Text
+                  accessibilityLiveRegion="polite"
+                  nativeID="auth-email-hint"
+                  style={styles.fieldHint}
+                >
+                  {emailHint}
+                </Text>
+              </View>
+              <View style={styles.fieldGroup}>
+                <Text nativeID="auth-password-label" style={styles.label}>
+                  PASSWORD
+                </Text>
+                <TextInput
+                  {...(Platform.OS === "web"
+                    ? {
+                        "aria-describedby": "auth-password-hint",
+                        "aria-invalid": passwordInvalid,
+                        "aria-required": true,
+                      }
+                    : {})}
+                  accessibilityHint={passwordHint}
+                  accessibilityLabel="Password"
+                  accessibilityLabelledBy="auth-password-label"
+                  autoCapitalize="none"
+                  autoComplete="password"
+                  onChangeText={setPassword}
+                  placeholder="At least 6 characters"
+                  placeholderTextColor={palette.muted}
+                  secureTextEntry
+                  style={styles.input}
+                  textContentType="password"
+                  value={password}
+                />
+                <Text
+                  accessibilityLiveRegion="polite"
+                  nativeID="auth-password-hint"
+                  style={styles.fieldHint}
+                >
+                  {passwordHint}
+                </Text>
+              </View>
+              {error ? (
+                <Text
+                  accessibilityLiveRegion="assertive"
+                  nativeID="auth-form-error"
+                  style={styles.error}
+                >
+                  {error}
+                </Text>
+              ) : null}
+              {message ? (
+                <Text accessibilityLiveRegion="polite" style={styles.message}>
+                  {message}
+                </Text>
+              ) : null}
+              <FocusablePressable
+                accessibilityLabel="Sign in to workspace"
+                accessibilityHint="Signs in with the email address and password above."
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: !canSubmit,
+                  busy: isAuthenticationButtonSubmitting(submittingMode, "sign-in"),
+                }}
+                disabled={!canSubmit}
+                onPress={() => void authenticate("sign-in")}
+                style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
+              >
+                {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? (
+                  <ActivityIndicator color={colors.content.onSignal} />
+                ) : (
+                  <Text style={styles.primaryText}>Sign in to workspace</Text>
+                )}
+              </FocusablePressable>
+              <FocusablePressable
+                accessibilityLabel="Create an account"
+                accessibilityHint="Creates an account with the email address and password above."
+                accessibilityRole="button"
+                accessibilityState={{
+                  disabled: !canSubmit,
+                  busy: isAuthenticationButtonSubmitting(submittingMode, "sign-up"),
+                }}
+                disabled={!canSubmit}
+                onPress={() => void authenticate("sign-up")}
+                style={[styles.secondaryButton, !canSubmit && styles.secondaryButtonDisabled]}
+              >
+                {isAuthenticationButtonSubmitting(submittingMode, "sign-up") ? (
+                  <ActivityIndicator color={palette.accent} />
+                ) : (
+                  <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>
+                    Create an account
+                  </Text>
+                )}
+              </FocusablePressable>
+              <Text style={styles.note}>
+                Authentication is handled by Supabase. Never paste passwords, API keys, or tokens
+                into a research prompt.
+              </Text>
             </View>
           </View>
-          <View style={[styles.card, isWideLayout && styles.cardWide]}>
-            <Text style={styles.eyebrow}>PRIVATE RESEARCH ACCESS</Text>
-            <Text style={styles.title}>Welcome back.</Text>
-            <Text style={styles.body}>
-              Sign in or create an account to continue to your research workspace.
-            </Text>
-            <View style={styles.divider} />
-            <View style={styles.fieldGroup}>
-              <Text nativeID="auth-email-label" style={styles.label}>EMAIL ADDRESS</Text>
-              <TextInput
-                {...(Platform.OS === "web" ? { "aria-describedby": "auth-email-hint", "aria-invalid": emailInvalid, "aria-required": true } : {})}
-                accessibilityHint={emailHint}
-                accessibilityLabel="Email address"
-                accessibilityLabelledBy="auth-email-label"
-                autoCapitalize="none"
-                autoComplete="email"
-                keyboardType="email-address"
-                onChangeText={setEmail}
-                placeholder="you@example.com"
-                placeholderTextColor={palette.muted}
-                style={styles.input}
-                textContentType="emailAddress"
-                value={email}
-              />
-              <Text accessibilityLiveRegion="polite" nativeID="auth-email-hint" style={styles.fieldHint}>{emailHint}</Text>
-            </View>
-            <View style={styles.fieldGroup}>
-              <Text nativeID="auth-password-label" style={styles.label}>PASSWORD</Text>
-              <TextInput
-                {...(Platform.OS === "web" ? { "aria-describedby": "auth-password-hint", "aria-invalid": passwordInvalid, "aria-required": true } : {})}
-                accessibilityHint={passwordHint}
-                accessibilityLabel="Password"
-                accessibilityLabelledBy="auth-password-label"
-                autoCapitalize="none"
-                autoComplete="password"
-                onChangeText={setPassword}
-                placeholder="At least 6 characters"
-                placeholderTextColor={palette.muted}
-                secureTextEntry
-                style={styles.input}
-                textContentType="password"
-                value={password}
-              />
-              <Text accessibilityLiveRegion="polite" nativeID="auth-password-hint" style={styles.fieldHint}>{passwordHint}</Text>
-            </View>
-            {error ? <Text accessibilityLiveRegion="assertive" nativeID="auth-form-error" style={styles.error}>{error}</Text> : null}
-            {message ? <Text accessibilityLiveRegion="polite" style={styles.message}>{message}</Text> : null}
-            <FocusablePressable
-              accessibilityHint="Signs in with the email address and password above."
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-in") }}
-              disabled={!canSubmit}
-              onPress={() => void authenticate("sign-in")}
-              style={[styles.primaryButton, !canSubmit && styles.buttonDisabled]}
-            >
-              {isAuthenticationButtonSubmitting(submittingMode, "sign-in") ? <ActivityIndicator color={colors.content.onSignal} /> : <Text style={styles.primaryText}>Sign in to workspace</Text>}
-            </FocusablePressable>
-            <FocusablePressable
-              accessibilityHint="Creates an account with the email address and password above."
-              accessibilityRole="button"
-              accessibilityState={{ disabled: !canSubmit, busy: isAuthenticationButtonSubmitting(submittingMode, "sign-up") }}
-              disabled={!canSubmit}
-              onPress={() => void authenticate("sign-up")}
-              style={[styles.secondaryButton, !canSubmit && styles.secondaryButtonDisabled]}
-            >
-              {isAuthenticationButtonSubmitting(submittingMode, "sign-up") ? <ActivityIndicator color={palette.accent} /> : <Text style={[styles.secondaryText, !canSubmit && styles.secondaryTextDisabled]}>Create an account</Text>}
-            </FocusablePressable>
-            <Text style={styles.note}>
-              Authentication is handled by Supabase. Never paste passwords, API keys, or tokens into a research prompt.
-            </Text>
-          </View>
-        </View>
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -178,41 +252,197 @@ export function AuthScreen() {
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: palette.paper },
   keyboardAvoider: { flex: 1 },
-  scrollContent: { alignItems: "center", flexGrow: 1, justifyContent: "center", padding: spacing.xl },
+  scrollContent: {
+    alignItems: "center",
+    flexGrow: 1,
+    justifyContent: "center",
+    padding: spacing.xl,
+  },
   authFrame: { alignSelf: "center", maxWidth: 960, width: "100%" },
-  authFrameWide: { alignItems: "stretch", flexDirection: "row", gap: spacing.xl },
+  authFrameWide: {
+    alignItems: "stretch",
+    flexDirection: "row",
+    gap: spacing.xl,
+  },
   introPanel: { marginBottom: spacing.lg },
-  introPanelWide: { flex: 1, justifyContent: "space-between", marginBottom: 0, paddingVertical: spacing.sm },
+  introPanelWide: {
+    flex: 1,
+    justifyContent: "space-between",
+    marginBottom: 0,
+    paddingVertical: spacing.sm,
+  },
   brandRow: { alignItems: "center", flexDirection: "row", gap: spacing.sm },
-  brandMark: { alignItems: "center", backgroundColor: palette.accent, borderRadius: radii.md, height: interaction.minTargetSize, justifyContent: "center", width: interaction.minTargetSize },
-  brandMarkText: { color: colors.content.inverse, fontSize: 11, fontWeight: "900", letterSpacing: 0.4 },
-  brandName: { color: palette.ink, fontSize: 12, fontWeight: "900", letterSpacing: 1.1 },
-  brandMeta: { color: palette.muted, fontSize: 10, fontWeight: "800", letterSpacing: 0.8, marginTop: 2 },
+  brandMark: {
+    alignItems: "center",
+    backgroundColor: palette.accent,
+    borderRadius: radii.md,
+    height: interaction.minTargetSize,
+    justifyContent: "center",
+    width: interaction.minTargetSize,
+  },
+  brandMarkText: {
+    color: colors.content.inverse,
+    fontSize: 11,
+    fontWeight: "900",
+    letterSpacing: 0.4,
+  },
+  brandName: {
+    color: palette.ink,
+    fontSize: 12,
+    fontWeight: "900",
+    letterSpacing: 1.1,
+  },
+  brandMeta: {
+    color: palette.muted,
+    fontSize: 10,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginTop: 2,
+  },
   introCopy: { marginTop: spacing.xxxl },
-  introEyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.sm },
-  introTitle: { color: palette.ink, fontSize: typography.display.fontSize, fontWeight: typography.display.fontWeight, lineHeight: typography.display.lineHeight, maxWidth: 390 },
-  introBody: { color: palette.muted, fontSize: typography.body.fontSize, lineHeight: typography.body.lineHeight, marginTop: spacing.md, maxWidth: 390 },
-  assuranceCard: { backgroundColor: colors.surface.subtle, borderColor: palette.line, borderRadius: radii.lg, borderWidth: 1, marginTop: spacing.xl, padding: spacing.lg },
-  assuranceTitle: { color: palette.accent, fontSize: 10, fontWeight: "900", letterSpacing: 0.9, marginBottom: spacing.xs },
+  introEyebrow: {
+    color: palette.signal,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    letterSpacing: typography.label.letterSpacing,
+    marginBottom: spacing.sm,
+  },
+  introTitle: {
+    color: palette.ink,
+    fontSize: typography.display.fontSize,
+    fontWeight: typography.display.fontWeight,
+    lineHeight: typography.display.lineHeight,
+    maxWidth: 390,
+  },
+  introBody: {
+    color: palette.muted,
+    fontSize: typography.body.fontSize,
+    lineHeight: typography.body.lineHeight,
+    marginTop: spacing.md,
+    maxWidth: 390,
+  },
+  assuranceCard: {
+    backgroundColor: colors.surface.subtle,
+    borderColor: palette.line,
+    borderRadius: radii.lg,
+    borderWidth: 1,
+    marginTop: spacing.xl,
+    padding: spacing.lg,
+  },
+  assuranceTitle: {
+    color: palette.accent,
+    fontSize: 10,
+    fontWeight: "900",
+    letterSpacing: 0.9,
+    marginBottom: spacing.xs,
+  },
   assuranceText: { color: palette.muted, fontSize: 12, lineHeight: 18 },
-  card: { alignSelf: "center", backgroundColor: palette.card, borderColor: palette.line, borderRadius: radii.xl, borderWidth: 1, maxWidth: 480, padding: spacing.xl, width: "100%" },
+  card: {
+    alignSelf: "center",
+    backgroundColor: palette.card,
+    borderColor: palette.line,
+    borderRadius: radii.xl,
+    borderWidth: 1,
+    maxWidth: 480,
+    padding: spacing.xl,
+    width: "100%",
+  },
   cardWide: { flex: 1, maxWidth: 440 },
-  eyebrow: { color: palette.signal, fontSize: typography.label.fontSize, fontWeight: typography.label.fontWeight, letterSpacing: typography.label.letterSpacing, marginBottom: spacing.sm },
-  title: { color: palette.ink, fontSize: typography.pageTitle.fontSize, fontWeight: typography.pageTitle.fontWeight, lineHeight: typography.pageTitle.lineHeight, marginBottom: spacing.sm },
+  eyebrow: {
+    color: palette.signal,
+    fontSize: typography.label.fontSize,
+    fontWeight: typography.label.fontWeight,
+    letterSpacing: typography.label.letterSpacing,
+    marginBottom: spacing.sm,
+  },
+  title: {
+    color: palette.ink,
+    fontSize: typography.pageTitle.fontSize,
+    fontWeight: typography.pageTitle.fontWeight,
+    lineHeight: typography.pageTitle.lineHeight,
+    marginBottom: spacing.sm,
+  },
   body: { color: palette.muted, fontSize: 15, lineHeight: 23 },
-  divider: { backgroundColor: palette.line, height: 1, marginVertical: spacing.lg },
+  divider: {
+    backgroundColor: palette.line,
+    height: 1,
+    marginVertical: spacing.lg,
+  },
   fieldGroup: { marginBottom: spacing.md },
-  label: { color: palette.ink, fontSize: 11, fontWeight: "800", letterSpacing: 0.8, marginBottom: spacing.xs },
-  input: { borderColor: palette.line, borderRadius: radii.md, borderWidth: 1, color: palette.ink, fontSize: 16, minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  fieldHint: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: spacing.xs },
-  error: { backgroundColor: colors.surface.danger, borderRadius: radii.sm, color: colors.content.danger, fontSize: 12, lineHeight: 18, marginBottom: spacing.md, padding: spacing.sm },
-  message: { backgroundColor: colors.surface.positive, borderRadius: radii.sm, color: palette.accent, fontSize: 12, lineHeight: 18, marginBottom: spacing.md, padding: spacing.sm },
-  primaryButton: { alignItems: "center", backgroundColor: palette.signal, borderRadius: radii.md, justifyContent: "center", minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
-  primaryText: { color: colors.content.onSignal, fontSize: 14, fontWeight: "800" },
+  label: {
+    color: palette.ink,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
+    marginBottom: spacing.xs,
+  },
+  input: {
+    borderColor: palette.line,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    color: palette.ink,
+    fontSize: 16,
+    minHeight: interaction.minTargetSize,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  fieldHint: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: spacing.xs,
+  },
+  error: {
+    backgroundColor: colors.surface.danger,
+    borderRadius: radii.sm,
+    color: colors.content.danger,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: spacing.md,
+    padding: spacing.sm,
+  },
+  message: {
+    backgroundColor: colors.surface.positive,
+    borderRadius: radii.sm,
+    color: palette.accent,
+    fontSize: 12,
+    lineHeight: 18,
+    marginBottom: spacing.md,
+    padding: spacing.sm,
+  },
+  primaryButton: {
+    alignItems: "center",
+    backgroundColor: palette.signal,
+    borderRadius: radii.md,
+    justifyContent: "center",
+    minHeight: interaction.minTargetSize,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
+  primaryText: {
+    color: colors.content.onSignal,
+    fontSize: 14,
+    fontWeight: "800",
+  },
   buttonDisabled: { opacity: 0.45 },
-  secondaryButton: { alignItems: "center", borderColor: palette.accent, borderRadius: radii.md, borderWidth: 1, justifyContent: "center", marginTop: spacing.sm, minHeight: interaction.minTargetSize, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
+  secondaryButton: {
+    alignItems: "center",
+    borderColor: palette.accent,
+    borderRadius: radii.md,
+    borderWidth: 1,
+    justifyContent: "center",
+    marginTop: spacing.sm,
+    minHeight: interaction.minTargetSize,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+  },
   secondaryButtonDisabled: { borderColor: palette.line },
   secondaryText: { color: palette.accent, fontSize: 14, fontWeight: "800" },
   secondaryTextDisabled: { color: palette.muted },
-  note: { color: palette.muted, fontSize: 11, lineHeight: 17, marginTop: spacing.lg },
+  note: {
+    color: palette.muted,
+    fontSize: 11,
+    lineHeight: 17,
+    marginTop: spacing.lg,
+  },
 });

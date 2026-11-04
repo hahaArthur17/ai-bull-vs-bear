@@ -34,6 +34,10 @@ test("all production Pressable call sites use the shared focus contract", () => 
   for (const sourcePath of productionSources) {
     const source = readFileSync(join(process.cwd(), sourcePath), "utf8");
     assert.match(source, /\bFocusablePressable\b/, `${sourcePath} must use shared focus treatment`);
-    assert.doesNotMatch(source, /\bPressable\b/, `${sourcePath} must not bypass shared focus treatment`);
+    assert.doesNotMatch(
+      source,
+      /\bPressable\b/,
+      `${sourcePath} must not bypass shared focus treatment`,
+    );
   }
 });

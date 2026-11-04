@@ -1,6 +1,5 @@
 import httpx
 import pytest
-
 from app.services.evidence_ingestion import (
     SecEdgarClient,
     extract_filing_sections,
@@ -272,9 +271,7 @@ def test_fetch_sec_companyfacts_uses_companyfacts_endpoint() -> None:
     )
 
     assert facts == []
-    assert requested_urls == [
-        "https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json"
-    ]
+    assert requested_urls == ["https://data.sec.gov/api/xbrl/companyfacts/CIK0001045810.json"]
 
 
 def test_live_evidence_rejects_tickers_without_a_sec_mapping() -> None:

@@ -22,4 +22,3 @@ def _require_aware_datetime(value: datetime) -> datetime:
 
 
 AwareDatetime = Annotated[datetime, AfterValidator(_require_aware_datetime)]
-

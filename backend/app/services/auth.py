@@ -5,7 +5,6 @@ from dataclasses import dataclass
 import httpx
 from fastapi import HTTPException, status
 
-
 AUTHENTICATION_ERROR = "Invalid or expired access token"
 
 
@@ -60,13 +59,31 @@ class SupabaseAuthVerifier:
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="Authentication service unavailable",
             ) from exc
+        # An outage or rate limit says nothing about the user's credentials.
+        # Keep it retryable so clients do not treat it as an expired session.
+        if response.status_code == 429 or response.status_code >= 500:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable",
+            )
         if response.status_code != status.HTTP_200_OK:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail=AUTHENTICATION_ERROR,
                 headers={"WWW-Authenticate": "Bearer"},
             )
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable",
+            ) from exc
+        if not isinstance(payload, dict):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Authentication service unavailable",
+            )
         user_id = payload.get("id")
         if not isinstance(user_id, str) or not user_id:
             raise HTTPException(

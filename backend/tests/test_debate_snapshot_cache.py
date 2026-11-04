@@ -9,7 +9,6 @@ from app.services.response_cache import (
     standard_debate_snapshot_cache_key,
 )
 
-
 PROVIDER_CONTRACT = {"providers": [], "expected_categories": []}
 
 
@@ -80,21 +79,30 @@ def test_custom_question_and_top_level_metadata_always_bypass_shared_cache() -> 
         update={"question": None, "metadata": {"user_id": "private-user"}}
     )
 
-    assert cache.get_or_collect(
-        private_question,
-        collect,
-        provider_contract=PROVIDER_CONTRACT,
-    ).status == "BYPASS"
-    assert cache.get_or_collect(
-        private_question,
-        collect,
-        provider_contract=PROVIDER_CONTRACT,
-    ).status == "BYPASS"
-    assert cache.get_or_collect(
-        private_metadata,
-        collect,
-        provider_contract=PROVIDER_CONTRACT,
-    ).status == "BYPASS"
+    assert (
+        cache.get_or_collect(
+            private_question,
+            collect,
+            provider_contract=PROVIDER_CONTRACT,
+        ).status
+        == "BYPASS"
+    )
+    assert (
+        cache.get_or_collect(
+            private_question,
+            collect,
+            provider_contract=PROVIDER_CONTRACT,
+        ).status
+        == "BYPASS"
+    )
+    assert (
+        cache.get_or_collect(
+            private_metadata,
+            collect,
+            provider_contract=PROVIDER_CONTRACT,
+        ).status
+        == "BYPASS"
+    )
     assert len(calls) == 3
     assert response_cache.metrics.snapshot()["BYPASS"] == 3
     assert backend.writes == []

@@ -7,7 +7,6 @@ const TERMINAL_DEBATE_STATUSES = new Set<DebateSessionSummary["status"]>([
   "failed",
 ]);
 
-
 export type DebateHistoryCopy = {
   label: string;
   title: string;
@@ -19,25 +18,22 @@ export type DebateHistoryCopy = {
 export function isActiveDebateConflict(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   const responseError = error as Error & { detail?: unknown; status?: unknown };
-  const detail = typeof responseError.detail === "string"
-    ? responseError.detail
-    : responseError.message;
+  const detail =
+    typeof responseError.detail === "string" ? responseError.detail : responseError.message;
   return responseError.status === 409 && detail === ACTIVE_DEBATE_CONFLICT_DETAIL;
 }
 
-export function findActiveDebate(
-  sessions: DebateSessionSummary[],
-): DebateSessionSummary | null {
+export function findActiveDebate(sessions: DebateSessionSummary[]): DebateSessionSummary | null {
   return sessions.find((session) => !TERMINAL_DEBATE_STATUSES.has(session.status)) ?? null;
 }
-
 
 export function debateHistoryCopy(session: DebateSessionSummary): DebateHistoryCopy {
   if (session.status === "completed" && session.final_judge_message_id) {
     return {
       label: "FINAL JUDGE",
       title: "Final neutral assessment is ready",
-      detail: "Round 2 is complete. Its canonical transcript and final Judge remain available to review.",
+      detail:
+        "Round 2 is complete. Its canonical transcript and final Judge remain available to review.",
       action: "Review final assessment",
       kind: "final",
     };
@@ -46,7 +42,8 @@ export function debateHistoryCopy(session: DebateSessionSummary): DebateHistoryC
     return {
       label: "INTERIM JUDGE",
       title: "Round 1 is ready for your question",
-      detail: "The interim Judge has paused the Debate. Ask for an explanation, then decide whether to continue to Round 2.",
+      detail:
+        "The interim Judge has paused the Debate. Ask for an explanation, then decide whether to continue to Round 2.",
       action: "Open interim assessment",
       kind: "interim",
     };

@@ -1,26 +1,20 @@
 from pathlib import Path
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260827_v2_debate_persistence.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260827_v2_debate_persistence.sql"
 ).read_text(encoding="utf-8")
 RPC_MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260827_v2_debate_persistence_rpc.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260827_v2_debate_persistence_rpc.sql"
 ).read_text(encoding="utf-8")
 INTERRUPTION_MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260909_debate_draft_interruption.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260909_debate_draft_interruption.sql"
 ).read_text(encoding="utf-8")
 CONFLICT_MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260911_postgrest_conflict_status.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260911_postgrest_conflict_status.sql"
 ).read_text(encoding="utf-8")
 TRANSPORT_REPLAY_MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260911_provider_attempt_transport_replay.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260911_provider_attempt_transport_replay.sql"
 ).read_text(encoding="utf-8")
 
 

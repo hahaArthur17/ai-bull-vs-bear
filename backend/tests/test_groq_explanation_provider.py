@@ -5,7 +5,6 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-
 from app.config import Settings
 from app.domain.debate import DebateMessage
 from app.domain.explanations import ExplanationAgentRequest
@@ -21,7 +20,6 @@ from app.providers.groq_explanation import (
     build_groq_explanation_prompt,
 )
 from app.services.analysis_context import build_analysis_context
-
 
 SESSION_ID = UUID("00000000-0000-4000-8000-000000000801")
 BRANCH_ID = UUID("00000000-0000-4000-8000-000000000802")
@@ -52,9 +50,7 @@ class FakeGroqClient:
 
 
 def completion(content: str | None) -> Any:
-    return SimpleNamespace(
-        choices=[SimpleNamespace(message=SimpleNamespace(content=content))]
-    )
+    return SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content=content))])
 
 
 def grounded_request() -> ExplanationAgentRequest:
@@ -218,9 +214,7 @@ def test_prompt_marks_interrupted_prefix_as_unfinished() -> None:
         }
     )
 
-    prompt = build_groq_explanation_prompt(
-        request.model_copy(update={"source_message": source})
-    )
+    prompt = build_groq_explanation_prompt(request.model_copy(update={"source_message": source}))
 
     assert '"state":"interrupted_prefix"' in prompt
     assert "do not infer its missing conclusion" in prompt
@@ -250,9 +244,7 @@ def test_prompt_neutralizes_historical_source_citation_aliases() -> None:
     request = grounded_request()
     source = request.source_message.model_copy(
         update={
-            "content": (
-                "The moving average has an original source citation [E2] and another [E3]."
-            )
+            "content": ("The moving average has an original source citation [E2] and another [E3].")
         }
     )
     prompt = build_groq_explanation_prompt(request.model_copy(update={"source_message": source}))

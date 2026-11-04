@@ -8,7 +8,6 @@ import {
 } from "./debateHistoryView.ts";
 import type { DebateSessionSummary } from "./types";
 
-
 const baseSession: DebateSessionSummary = {
   id: "session-1",
   ticker: "AAPL",
@@ -20,38 +19,30 @@ const baseSession: DebateSessionSummary = {
   updated_at: "2026-08-29T00:10:00Z",
 };
 
-
 test("History distinguishes the durable final Judge from interim and active sessions", () => {
-  assert.deepEqual(
-    debateHistoryCopy({ ...baseSession, final_judge_message_id: "judge-2" }),
-    {
-      label: "FINAL JUDGE",
-      title: "Final neutral assessment is ready",
-      detail: "Round 2 is complete. Its canonical transcript and final Judge remain available to review.",
-      action: "Review final assessment",
-      kind: "final",
-    },
-  );
-  assert.deepEqual(
-    debateHistoryCopy({ ...baseSession, status: "awaiting_user" }),
-    {
-      label: "INTERIM JUDGE",
-      title: "Round 1 is ready for your question",
-      detail: "The interim Judge has paused the Debate. Ask for an explanation, then decide whether to continue to Round 2.",
-      action: "Open interim assessment",
-      kind: "interim",
-    },
-  );
-  assert.deepEqual(
-    debateHistoryCopy({ ...baseSession, status: "running_round_2" }),
-    {
-      label: "IN PROGRESS",
-      title: "Canonical Debate is still running",
-      detail: "Open the durable session to see its current transcript.",
-      action: "Open live transcript",
-      kind: "active",
-    },
-  );
+  assert.deepEqual(debateHistoryCopy({ ...baseSession, final_judge_message_id: "judge-2" }), {
+    label: "FINAL JUDGE",
+    title: "Final neutral assessment is ready",
+    detail:
+      "Round 2 is complete. Its canonical transcript and final Judge remain available to review.",
+    action: "Review final assessment",
+    kind: "final",
+  });
+  assert.deepEqual(debateHistoryCopy({ ...baseSession, status: "awaiting_user" }), {
+    label: "INTERIM JUDGE",
+    title: "Round 1 is ready for your question",
+    detail:
+      "The interim Judge has paused the Debate. Ask for an explanation, then decide whether to continue to Round 2.",
+    action: "Open interim assessment",
+    kind: "interim",
+  });
+  assert.deepEqual(debateHistoryCopy({ ...baseSession, status: "running_round_2" }), {
+    label: "IN PROGRESS",
+    title: "Canonical Debate is still running",
+    detail: "Open the durable session to see its current transcript.",
+    action: "Open live transcript",
+    kind: "active",
+  });
 });
 
 test("active Debate recovery recognises only the admission conflict", () => {
@@ -63,13 +54,27 @@ test("active Debate recovery recognises only the admission conflict", () => {
     },
   );
   assert.equal(isActiveDebateConflict(activeConflict), true);
-  assert.equal(isActiveDebateConflict(Object.assign(new Error("Other conflict"), { status: 409 })), false);
-  assert.equal(isActiveDebateConflict(Object.assign(new Error(activeConflict.message), { status: 503 })), false);
+  assert.equal(
+    isActiveDebateConflict(Object.assign(new Error("Other conflict"), { status: 409 })),
+    false,
+  );
+  assert.equal(
+    isActiveDebateConflict(Object.assign(new Error(activeConflict.message), { status: 503 })),
+    false,
+  );
 });
 
 test("active Debate recovery selects a canonical unfinished session", () => {
-  const completed = { ...baseSession, id: "completed", status: "completed" as const };
-  const paused = { ...baseSession, id: "paused", status: "awaiting_user" as const };
+  const completed = {
+    ...baseSession,
+    id: "completed",
+    status: "completed" as const,
+  };
+  const paused = {
+    ...baseSession,
+    id: "paused",
+    status: "awaiting_user" as const,
+  };
   const failed = { ...baseSession, id: "failed", status: "failed" as const };
   assert.equal(findActiveDebate([completed, paused, failed])?.id, "paused");
   assert.equal(findActiveDebate([completed, failed]), null);

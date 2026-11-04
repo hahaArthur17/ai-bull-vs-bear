@@ -1,0 +1,108 @@
+{
+  "schema_version": 1,
+  "status": "fixed_with_regression_checks",
+  "issues": [
+    {
+      "id": "BB-001",
+      "trigger": "Persistence fails after an analysis parent or output has been written.",
+      "resolution": "A JWT-owned SECURITY INVOKER RPC persists all rows in one transaction and accepts identical retries.",
+      "regression": [
+        "backend/tests/sql/test_analysis_atomicity.sql",
+        "backend/tests/test_supabase_store.py::test_bb001_failed_atomic_rpc_never_falls_back_to_partial_table_writes"
+      ]
+    },
+    {
+      "id": "BB-002",
+      "trigger": "A cited chunk ID is incorrectly queried as a document external ID.",
+      "resolution": "Resolve chunk and document IDs inside the transaction; unresolved citations roll back rather than silently disappearing.",
+      "regression": [
+        "backend/tests/sql/test_analysis_atomicity.sql"
+      ]
+    },
+    {
+      "id": "BB-003",
+      "trigger": "A model argument has missing or invented citation IDs.",
+      "resolution": "Withhold the ungrounded assertion and its synthesis; never attach unrelated fallback sources. Source membership alone is not an entailment guarantee.",
+      "regression": [
+        "backend/tests/test_analysis.py::test_bb003_unsupported_provider_claim_is_withheld_without_fabricated_links",
+        "backend/tests/test_analysis.py::test_bb003_valid_source_membership_is_preserved_without_adding_other_sources"
+      ]
+    },
+    {
+      "id": "BB-004",
+      "trigger": "A response for an old claim arrives after another claim or account was opened.",
+      "resolution": "Claim-context generations and a synchronous submission lock discard stale answers, errors and completion state.",
+      "regression": [
+        "apps/mobile/src/__tests__/workspaceRaces.test.tsx"
+      ]
+    },
+    {
+      "id": "BB-005",
+      "trigger": "Rapid watchlist changes return full-list snapshots out of order.",
+      "resolution": "Serialize changes per account using the settled list; discard abandoned account requests.",
+      "regression": [
+        "apps/mobile/src/__tests__/workspaceRaces.test.tsx"
+      ]
+    },
+    {
+      "id": "BB-006",
+      "trigger": "Pure-function checks miss failures between screen transitions, the HTTP client and backend services.",
+      "resolution": "Run mounted React screens against an isolated review API through both rounds, explanation and saved-history reopening.",
+      "regression": [
+        "apps/mobile/src/__tests__/appFlow.test.tsx",
+        "scripts/run_ui_integration.py"
+      ]
+    },
+    {
+      "id": "BB-007",
+      "trigger": "A platform returns no accessibility subscription object during cleanup.",
+      "resolution": "Make subscription disposal optional while retaining the platform no-animation fallback.",
+      "regression": [
+        "apps/mobile/src/__tests__/appFlow.test.tsx"
+      ]
+    },
+    {
+      "id": "BB-008",
+      "trigger": "History requires one HTTP read per saved result and claim lookup scans all history.",
+      "resolution": "Fetch bounded history pages in two queries, index claim lookup and merge overlapping frontend pages by ID.",
+      "regression": [
+        "backend/tests/test_supabase_store.py::test_history_reads_a_bounded_page_in_two_requests_and_can_find_older_claims",
+        "apps/mobile/src/__tests__/historyPaging.test.tsx"
+      ]
+    },
+    {
+      "id": "BB-009",
+      "trigger": "Opening a saved analysis and then another security reuses old evidence or returns to the wrong stock detail.",
+      "resolution": "Research visits clear prior analysis context, evidence uses the current stock bundle, and saved results load their own research context. Abandoned history requests cannot overwrite newer navigation errors.",
+      "regression": [
+        "apps/mobile/src/__tests__/workspaceContext.test.tsx"
+      ]
+    },
+    {
+      "id": "BB-010",
+      "trigger": "Weekly history exceeds 260 records and an ascending query limits away the newest weeks.",
+      "resolution": "Limit newest-first in storage, then restore chronological chart order.",
+      "regression": [
+        "backend/tests/test_supabase_store.py::test_bb010_weekly_history_limits_the_newest_rows_then_restores_chart_order"
+      ]
+    },
+    {
+      "id": "BB-011",
+      "trigger": "A quote provider returns NaN, infinite, nonpositive or contradictory OHLC prices.",
+      "resolution": "Reject invalid prices before they reach the quote cache or JSON API; preserve the existing optional-quote recovery path.",
+      "regression": [
+        "backend/tests/test_market_data.py::test_bb011_quote_rejects_nonfinite_or_nonpositive_prices",
+        "backend/tests/test_market_data.py::test_bb011_quote_rejects_inconsistent_ohlc"
+      ]
+    },
+    {
+      "id": "BB-012",
+      "trigger": "An upstream persistence service returns HTTP 200 with invalid JSON or a non-row payload.",
+      "resolution": "Check all read and search-RPC payloads at the repository boundary and return safe retryable 503 JSON without exposing the upstream body.",
+      "regression": [
+        "backend/tests/test_supabase_store.py::test_bb012_invalid_upstream_rows_use_the_repository_error_boundary",
+        "backend/tests/test_api.py::test_bb012_malformed_persistence_payload_returns_safe_retryable_json"
+      ]
+    }
+  ]
+}

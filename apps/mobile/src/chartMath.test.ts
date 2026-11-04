@@ -2,10 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
-  chartBarScaleMaximum,
   calculateMacd,
   calculateRsi,
   calculateVolatility,
+  chartBarScaleMaximum,
   chartScale,
   nearestChartPointIndex,
   seriesTrend,
@@ -22,7 +22,11 @@ test("chart calculations retain gaps and use complete trailing windows", () => {
   assert.deepEqual(simpleMovingAverage([1, 2, 3, 4], 3), [null, null, 2, 3]);
   assert.equal(
     technicalPath(
-      [{ date: "2026-01-01", value: 1 }, { date: "2026-01-02", value: null }, { date: "2026-01-03", value: 3 }],
+      [
+        { date: "2026-01-01", value: 1 },
+        { date: "2026-01-02", value: null },
+        { date: "2026-01-03", value: 3 },
+      ],
       0,
       4,
       100,
@@ -34,34 +38,104 @@ test("chart calculations retain gaps and use complete trailing windows", () => {
 });
 
 test("chart scale pads data domains but preserves fixed reference domains", () => {
-  assert.deepEqual(chartScale([[{ date: "2026-01-01", value: 10 }, { date: "2026-01-02", value: 20 }]]), { min: 8.8, max: 21.2 });
-  assert.deepEqual(chartScale([[{ date: "2026-01-01", value: 10 }]], [30, 70], [0, 100]), { min: 0, max: 100 });
+  assert.deepEqual(
+    chartScale([
+      [
+        { date: "2026-01-01", value: 10 },
+        { date: "2026-01-02", value: 20 },
+      ],
+    ]),
+    { min: 8.8, max: 21.2 },
+  );
+  assert.deepEqual(chartScale([[{ date: "2026-01-01", value: 10 }]], [30, 70], [0, 100]), {
+    min: 0,
+    max: 100,
+  });
 });
 
 test("chart gestures choose the closest horizontal price point and clamp chart gutters", () => {
-  const options = { chartWidth: 300, pointCount: 7, paddingLeft: 12, paddingRight: 12 };
-  assert.equal(nearestChartPointIndex(12, options.chartWidth, options.pointCount, options.paddingLeft, options.paddingRight), 0);
-  assert.equal(nearestChartPointIndex(155, options.chartWidth, options.pointCount, options.paddingLeft, options.paddingRight), 3);
-  assert.equal(nearestChartPointIndex(288, options.chartWidth, options.pointCount, options.paddingLeft, options.paddingRight), 6);
-  assert.equal(nearestChartPointIndex(-20, options.chartWidth, options.pointCount, options.paddingLeft, options.paddingRight), 0);
-  assert.equal(nearestChartPointIndex(350, options.chartWidth, options.pointCount, options.paddingLeft, options.paddingRight), 6);
+  const options = {
+    chartWidth: 300,
+    pointCount: 7,
+    paddingLeft: 12,
+    paddingRight: 12,
+  };
+  assert.equal(
+    nearestChartPointIndex(
+      12,
+      options.chartWidth,
+      options.pointCount,
+      options.paddingLeft,
+      options.paddingRight,
+    ),
+    0,
+  );
+  assert.equal(
+    nearestChartPointIndex(
+      155,
+      options.chartWidth,
+      options.pointCount,
+      options.paddingLeft,
+      options.paddingRight,
+    ),
+    3,
+  );
+  assert.equal(
+    nearestChartPointIndex(
+      288,
+      options.chartWidth,
+      options.pointCount,
+      options.paddingLeft,
+      options.paddingRight,
+    ),
+    6,
+  );
+  assert.equal(
+    nearestChartPointIndex(
+      -20,
+      options.chartWidth,
+      options.pointCount,
+      options.paddingLeft,
+      options.paddingRight,
+    ),
+    0,
+  );
+  assert.equal(
+    nearestChartPointIndex(
+      350,
+      options.chartWidth,
+      options.pointCount,
+      options.paddingLeft,
+      options.paddingRight,
+    ),
+    6,
+  );
   assert.equal(nearestChartPointIndex(120, 0, 1), 0);
 });
 
 test("chart trend retains the selected date range and does not invent a percentage from zero", () => {
-  assert.deepEqual(seriesTrend([
-    { date: "2026-08-01", value: 100 },
-    { date: "2026-08-02", value: 112 },
-  ]), {
-    startDate: "2026-08-01",
-    endDate: "2026-08-02",
-    startValue: 100,
-    endValue: 112,
-    absoluteChange: 12,
-    percentChange: 12,
-    direction: "up",
-  });
-  assert.equal(seriesTrend([{ date: "2026-08-01", value: 0 }, { date: "2026-08-02", value: 3 }])?.percentChange, null);
+  assert.deepEqual(
+    seriesTrend([
+      { date: "2026-08-01", value: 100 },
+      { date: "2026-08-02", value: 112 },
+    ]),
+    {
+      startDate: "2026-08-01",
+      endDate: "2026-08-02",
+      startValue: 100,
+      endValue: 112,
+      absoluteChange: 12,
+      percentChange: 12,
+      direction: "up",
+    },
+  );
+  assert.equal(
+    seriesTrend([
+      { date: "2026-08-01", value: 0 },
+      { date: "2026-08-02", value: 3 },
+    ])?.percentChange,
+    null,
+  );
   assert.equal(seriesTrend([{ date: "2026-08-01", value: null }]), null);
 });
 

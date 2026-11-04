@@ -43,8 +43,7 @@ class DebateJudgeProvider(Protocol):
     name: str
     version: str
 
-    def generate_judgement(self, request: DebateJudgeRequest) -> DebateJudgeDraft:
-        ...
+    def generate_judgement(self, request: DebateJudgeRequest) -> DebateJudgeDraft: ...
 
 
 @runtime_checkable

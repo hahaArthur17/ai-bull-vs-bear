@@ -7,7 +7,6 @@ from typing import Any
 from app.domain.explanations import ExplanationAgentRequest, ExplanationDraft
 from app.services.source_attribution import SourceAttributionBuffer
 
-
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
 _CITATION_TOKEN_PATTERN = re.compile(r"\[E[^\]\r\n]*\]")
 _HISTORICAL_CITATION_PATTERN = re.compile(r"\[E[0-9]+\]")
@@ -55,11 +54,7 @@ def build_groq_explanation_prompt(request: ExplanationAgentRequest) -> str:
         "source_message": {
             "role": request.source_message.role,
             "round": request.source_message.round_number,
-            "state": (
-                "complete"
-                if request.source_message.is_complete
-                else "interrupted_prefix"
-            ),
+            "state": ("complete" if request.source_message.is_complete else "interrupted_prefix"),
             "content": _neutralize_historical_citations(request.source_message.content),
         },
         "linked_evidence": [
@@ -201,10 +196,12 @@ class GroqExplanationProvider:
             raise GroqExplanationError("Groq Explanation exceeded the output bound")
         evidence_ids = _ordered_evidence_ids(safe_content, aliases)
         evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
-        attribution = SourceAttributionBuffer({
-            f"[{alias}]": _truncate(evidence_by_id[evidence_id].excerpt, 700) or ""
-            for alias, evidence_id in aliases.items()
-        })
+        attribution = SourceAttributionBuffer(
+            {
+                f"[{alias}]": _truncate(evidence_by_id[evidence_id].excerpt, 700) or ""
+                for alias, evidence_id in aliases.items()
+            }
+        )
         attribution.push(safe_content)
         attribution.finish()
         if attribution.replacements:

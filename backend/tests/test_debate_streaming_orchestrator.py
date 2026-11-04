@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator
 import math
 import time
+from collections.abc import AsyncIterator
 from uuid import UUID
 
 import pytest
-
 from app.domain.agents import (
     DebateJudgeRequest,
     DebateJudgeStreamCompleted,
@@ -26,9 +25,9 @@ from app.providers.streaming_debate import (
     preview_text_chunks,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
+from app.services.debate_draft_stream import DURABLE_DELTA_BATCH_MAX_CHUNKS
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_orchestrator import (
-    DURABLE_DELTA_BATCH_MAX_CHUNKS,
     DebateOrchestrationError,
     DebateOrchestrator,
     DebateRetryableOrchestrationError,
@@ -315,15 +314,12 @@ def test_async_orchestrator_streams_then_persists_complete_messages_and_usage() 
     assert messages[-1].metadata["model_name"] == "judge-token-stream-test"
     assert messages[-1].metadata["provider"] == judge_provider.name
     assert all(
-        event.payload["source"] == "deterministic"
-        for event in events
-        if event.type == "turn.delta"
+        event.payload["source"] == "deterministic" for event in events if event.type == "turn.delta"
     )
     first_turn_events = [
         event
         for event in events
-        if event.type == "turn.delta"
-        and event.payload["message_id"] == str(messages[0].id)
+        if event.type == "turn.delta" and event.payload["message_id"] == str(messages[0].id)
     ]
     assert [event.payload["delta_index"] for event in first_turn_events] == list(
         range(1, len(first_turn_events) + 1)
@@ -390,7 +386,12 @@ def test_streaming_repository_io_does_not_block_the_async_event_loop() -> None:
     assert queued_round_two.status == "queued_round_2"
     assert completed.status == "completed"
     assert [message.role for message in final_messages[7:]] == [
-        "user", "bull", "bear", "bull", "bear", "judge"
+        "user",
+        "bull",
+        "bear",
+        "bull",
+        "bear",
+        "judge",
     ]
     assert completed.final_judge_message_id == final_messages[-1].id
     assert len(final_messages) == 13
@@ -425,9 +426,7 @@ def test_checkpointed_stream_batches_only_durable_contiguous_deltas() -> None:
         branch_id=session.active_branch_id,
     )
     delta_events = [
-        event
-        for event in broker.replay(session.id)
-        if event.type in {"turn.delta", "judge.delta"}
+        event for event in broker.replay(session.id) if event.type in {"turn.delta", "judge.delta"}
     ]
 
     assert len(operation_log) == len(delta_events) * 2
@@ -442,9 +441,7 @@ def test_checkpointed_stream_batches_only_durable_contiguous_deltas() -> None:
 
     for message in messages:
         matching_events = [
-            event
-            for event in delta_events
-            if event.payload["message_id"] == str(message.id)
+            event for event in delta_events if event.payload["message_id"] == str(message.id)
         ]
         provider_chunks = preview_text_chunks(message.content, max_characters=1)
         assert "".join(str(event.payload["delta"]) for event in matching_events) == message.content
@@ -492,9 +489,7 @@ def test_interrupted_stream_never_persists_an_incomplete_canonical_message() -> 
     assert any(event.type == "turn.delta" for event in events)
     assert not any(event.type == "turn.completed" for event in events)
     assert events[-1].type == "session.failed"
-    assert "private upstream disconnect" not in "".join(
-        event.model_dump_json() for event in events
-    )
+    assert "private upstream disconnect" not in "".join(event.model_dump_json() for event in events)
     assert failed_session is not None and failed_session.status == "failed"
     assert failed_job is not None and failed_job.status == "failed"
     assert failed_job.provider_request_count == 1
@@ -592,9 +587,7 @@ def test_retry_resumes_after_complete_turn_prefix_without_duplicates() -> None:
         branch_id=queued.active_branch_id,
     )
     completed_job = repository.get_job(job.id)
-    started_events = [
-        event for event in broker.replay(queued.id) if event.type == "job.started"
-    ]
+    started_events = [event for event in broker.replay(queued.id) if event.type == "job.started"]
 
     assert len(first_messages) == 2
     assert completed.status == "awaiting_user"
@@ -720,8 +713,14 @@ def test_interruption_preserves_prefix_and_cancels_worker_without_failure() -> N
         await asyncio.wait_for(provider.first_delta_sent.wait(), timeout=1)
         delta = next(event for event in broker.replay(queued.id) if event.type == "turn.delta")
         prefix = delta.payload["delta"][:3]
-        repository.interrupt_generation(queued.id, queued.user_id, queued.active_generation_id,
-            UUID(delta.payload["message_id"]), prefix, queued.updated_at)
+        repository.interrupt_generation(
+            queued.id,
+            queued.user_id,
+            queued.active_generation_id,
+            UUID(delta.payload["message_id"]),
+            prefix,
+            queued.updated_at,
+        )
 
         provider.release_late_output.set()
         cancelled = await asyncio.wait_for(execution, timeout=1)
@@ -767,9 +766,7 @@ def test_before_output_stop_discards_an_uncheckpointed_pending_delta() -> None:
 
         execution = asyncio.create_task(orchestrator.execute_job_streaming(job.id))
         await asyncio.wait_for(provider.first_delta_sent.wait(), timeout=1)
-        assert not any(
-            event.type == "turn.delta" for event in broker.replay(queued.id)
-        )
+        assert not any(event.type == "turn.delta" for event in broker.replay(queued.id))
 
         stopped = repository.interrupt_before_output_generation(
             queued.id,

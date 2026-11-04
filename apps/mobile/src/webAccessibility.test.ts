@@ -6,15 +6,18 @@ import { colors, interaction, layout, palette } from "./theme/tokens.ts";
 
 function luminance(hex: string): number {
   const channels = hex.match(/[a-f\d]{2}/gi)?.map((channel) => Number.parseInt(channel, 16) / 255);
-  if (!channels || channels.length !== 3) throw new Error(`Expected a six-digit hex colour, received ${hex}`);
-  const [red, green, blue] = channels.map((channel) => (
-    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4
-  ));
+  if (!channels || channels.length !== 3)
+    throw new Error(`Expected a six-digit hex colour, received ${hex}`);
+  const [red, green, blue] = channels.map((channel) =>
+    channel <= 0.04045 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4,
+  );
   return red * 0.2126 + green * 0.7152 + blue * 0.0722;
 }
 
 function contrastRatio(foreground: string, background: string): number {
-  const [lighter, darker] = [luminance(foreground), luminance(background)].sort((left, right) => right - left);
+  const [lighter, darker] = [luminance(foreground), luminance(background)].sort(
+    (left, right) => right - left,
+  );
   return (lighter + 0.05) / (darker + 0.05);
 }
 
@@ -25,15 +28,21 @@ function nonTextContrast(foreground: string, background: string): number {
 test("responsive web shell keeps every required viewport inside its frame", () => {
   for (const viewport of [320, 390, 768, 1280]) {
     const shell = getResponsiveAppShellLayout(viewport);
-    const navigationWidth = (
-      shell.navigationPadding * 2
-      + interaction.minTargetSize * 4
-      + shell.navigationGap * 3
+    const navigationWidth =
+      shell.navigationPadding * 2 + interaction.minTargetSize * 4 + shell.navigationGap * 3;
+    assert.ok(
+      navigationWidth <= shell.navigationMaxWidth,
+      `${viewport}px should keep all four navigation targets reachable`,
     );
-    assert.ok(navigationWidth <= shell.navigationMaxWidth, `${viewport}px should keep all four navigation targets reachable`);
-    assert.ok(shell.contentMaxWidth + shell.contentGutter * 2 <= viewport, `${viewport}px should keep the root content frame inside the viewport`);
+    assert.ok(
+      shell.contentMaxWidth + shell.contentGutter * 2 <= viewport,
+      `${viewport}px should keep the root content frame inside the viewport`,
+    );
   }
-  assert.ok(layout.contentMaxWidth < layout.breakpoints.desktop, "desktop content must not span a 1280px viewport");
+  assert.ok(
+    layout.contentMaxWidth < layout.breakpoints.desktop,
+    "desktop content must not span a 1280px viewport",
+  );
   assert.ok(interaction.focusRingWidth >= 2, "keyboard focus needs a visible ring");
 });
 

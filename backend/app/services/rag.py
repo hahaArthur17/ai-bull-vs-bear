@@ -4,7 +4,6 @@ import re
 from collections.abc import Iterable
 from hashlib import sha256
 
-
 STOPWORDS = {
     "a",
     "an",
@@ -48,9 +47,7 @@ def _filing_sections(
     section_titles: list[str],
 ) -> list[tuple[str | None, str]]:
     positions = [
-        (position, title)
-        for title in section_titles
-        if (position := text.find(f"{title}\n")) >= 0
+        (position, title) for title in section_titles if (position := text.find(f"{title}\n")) >= 0
     ]
     if not positions:
         return [(None, text)]
@@ -156,6 +153,9 @@ def retrieve_evidence(
     query: str,
     limit: int = 6,
 ) -> list[dict[str, object]]:
-    scored = [(score_evidence(document, query), index, document) for index, document in enumerate(documents)]
+    scored = [
+        (score_evidence(document, query), index, document)
+        for index, document in enumerate(documents)
+    ]
     scored.sort(key=lambda item: (-item[0], item[1]))
     return [document.copy() for _, _, document in scored[:limit]]

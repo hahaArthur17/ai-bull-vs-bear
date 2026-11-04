@@ -25,9 +25,5 @@ export function apiRequestError(status: number, detail = ""): ApiRequestError {
       detail,
     );
   }
-  return new ApiRequestError(
-    status,
-    detail || `The API request failed (${status}).`,
-    detail,
-  );
+  return new ApiRequestError(status, detail || `The API request failed (${status}).`, detail);
 }

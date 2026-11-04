@@ -1,4 +1,10 @@
+import { apiRequestError } from "./apiRequestError";
+import type { DebateStreamSnapshot } from "./debateStream";
+import { DebateStreamClient } from "./debateStream";
+import { serializeExplanationRequest } from "./explanationRequest";
+import { supabase } from "./supabase";
 import type {
+  AnalysisHistoryPage,
   AnalysisResponse,
   DebateMessageRecord,
   DebateMutationResponse,
@@ -11,22 +17,19 @@ import type {
   StockBundle,
   WatchlistResponse,
 } from "./types";
-import { DebateStreamClient } from "./debateStream";
-import type { DebateStreamSnapshot } from "./debateStream";
-import { apiRequestError } from "./apiRequestError";
-import { serializeExplanationRequest } from "./explanationRequest";
-import { supabase } from "./supabase";
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || "http://localhost:8000";
 const configuredTimeout = Number(process.env.EXPO_PUBLIC_API_TIMEOUT_MS || "15000");
-const REQUEST_TIMEOUT_MS = Number.isFinite(configuredTimeout) && configuredTimeout > 0
-  ? configuredTimeout
-  : 15000;
+const REQUEST_TIMEOUT_MS =
+  Number.isFinite(configuredTimeout) && configuredTimeout > 0 ? configuredTimeout : 15000;
+// Generation includes evidence retrieval and a bounded provider call. Allow
+// it to complete before reporting a client timeout; retain longer user settings.
+const MODEL_REQUEST_TIMEOUT_MS = Math.max(REQUEST_TIMEOUT_MS, 45000);
 
 async function responseError(response: Response): Promise<Error> {
   let detail = "";
   try {
-    const payload = await response.json() as { detail?: unknown };
+    const payload = (await response.json()) as { detail?: unknown };
     if (typeof payload.detail === "string") detail = payload.detail;
   } catch {
     // Non-JSON provider and proxy errors use the safe status-specific message below.
@@ -53,7 +56,7 @@ async function request<T>(
       },
     });
     if (!response.ok) throw await responseError(response);
-    return await response.json() as T;
+    return (await response.json()) as T;
   } catch (error) {
     if (controller.signal.aborted) {
       throw new Error("The request timed out. Check the connection and retry.");
@@ -68,8 +71,10 @@ async function request<T>(
 }
 
 export const api = {
-  getHealth: (): Promise<{ data_mode?: string; debate_workflow_v2?: boolean }> =>
-    request<{ data_mode?: string; debate_workflow_v2?: boolean }>("/health"),
+  getHealth: (): Promise<{
+    data_mode?: string;
+    debate_workflow_v2?: boolean;
+  }> => request<{ data_mode?: string; debate_workflow_v2?: boolean }>("/health"),
 
   listStocks: (query = "", limit = 20): Promise<Stock[]> => {
     const params = new URLSearchParams();
@@ -83,29 +88,29 @@ export const api = {
 
   getWatchlist: (): Promise<WatchlistResponse> => request<WatchlistResponse>("/watchlist"),
 
-  listAnalyses: (): Promise<AnalysisResponse[]> => request<AnalysisResponse[]>("/analysis"),
+  listAnalyses: (limit = 50, offset = 0): Promise<AnalysisResponse[]> =>
+    request<AnalysisResponse[]>(`/analysis?limit=${limit}&offset=${offset}`),
+
+  getAnalysisPage: (limit = 50, offset = 0): Promise<AnalysisHistoryPage> =>
+    request<AnalysisHistoryPage>(`/analysis/page?limit=${limit}&offset=${offset}`),
 
   getDebate: (sessionId: string): Promise<DebateSessionDetail> =>
     request<DebateSessionDetail>("/debates/" + encodeURIComponent(sessionId)),
 
   getDebateMessages: (sessionId: string): Promise<DebateMessageRecord[]> =>
-    request<DebateMessageRecord[]>(
-      "/debates/" + encodeURIComponent(sessionId) + "/messages",
-    ),
+    request<DebateMessageRecord[]>("/debates/" + encodeURIComponent(sessionId) + "/messages"),
 
   listDebates: (limit = 50): Promise<DebateSessionSummary[]> =>
     request<DebateSessionSummary[]>("/debates?limit=" + encodeURIComponent(String(limit))),
 
-  explainDebate: (
-    sessionId: string,
-    explanation: ExplanationRequest,
-  ): Promise<ExplanationResult> =>
+  explainDebate: (sessionId: string, explanation: ExplanationRequest): Promise<ExplanationResult> =>
     request<ExplanationResult>(
       "/debates/" + encodeURIComponent(sessionId) + "/explanations",
       {
         method: "POST",
         body: JSON.stringify(serializeExplanationRequest(explanation)),
       },
+      MODEL_REQUEST_TIMEOUT_MS,
     ),
 
   createDebate: (
@@ -149,26 +154,34 @@ export const api = {
       45000,
     ),
 
-  interruptDebate: (sessionId: string, target: {
-    generationId: string; messageId: string; content: string;
-  }): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
-    "/debates/" + encodeURIComponent(sessionId) + "/interrupt", {
-      method: "POST",
-      body: JSON.stringify({ generation_id: target.generationId,
-        message_id: target.messageId, visible_prefix: target.content }),
+  interruptDebate: (
+    sessionId: string,
+    target: {
+      generationId: string;
+      messageId: string;
+      content: string;
     },
-  ),
+  ): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>("/debates/" + encodeURIComponent(sessionId) + "/interrupt", {
+      method: "POST",
+      body: JSON.stringify({
+        generation_id: target.generationId,
+        message_id: target.messageId,
+        visible_prefix: target.content,
+      }),
+    }),
 
   interruptBeforeOutputDebate: (
     sessionId: string,
     generationId: string,
-  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
-    "/debates/" + encodeURIComponent(sessionId) + "/interrupt-before-output",
-    {
-      method: "POST",
-      body: JSON.stringify({ generation_id: generationId }),
-    },
-  ),
+  ): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>(
+      "/debates/" + encodeURIComponent(sessionId) + "/interrupt-before-output",
+      {
+        method: "POST",
+        body: JSON.stringify({ generation_id: generationId }),
+      },
+    ),
 
   interjectDebate: (
     sessionId: string,
@@ -178,17 +191,15 @@ export const api = {
       content: string;
       idempotencyKey: string;
     },
-  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
-    "/debates/" + encodeURIComponent(sessionId) + "/interjections",
-    {
+  ): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>("/debates/" + encodeURIComponent(sessionId) + "/interjections", {
       method: "POST",
       body: JSON.stringify({
         generation_id: interjection.generationId,
         content: interjection.content,
         idempotency_key: interjection.idempotencyKey,
       }),
-    },
-  ),
+    }),
 
   continueInterruptedDebate: (
     sessionId: string,
@@ -198,37 +209,33 @@ export const api = {
       interjectionId: string;
       idempotencyKey: string;
     },
-  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
-    "/debates/" + encodeURIComponent(sessionId) + "/continue",
-    {
+  ): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>("/debates/" + encodeURIComponent(sessionId) + "/continue", {
       method: "POST",
       body: JSON.stringify({
         generation_id: continuation.generationId,
         interjection_id: continuation.interjectionId,
         idempotency_key: continuation.idempotencyKey,
       }),
-    },
-  ),
+    }),
 
   endInterruptedDebate: (
     sessionId: string,
     interruptedMessageId: string,
-  ): Promise<DebateSessionDetail> => request<DebateSessionDetail>(
-    "/debates/" + encodeURIComponent(sessionId) + "/end-interruption",
-    {
-      method: "POST",
-      body: JSON.stringify({ interrupted_message_id: interruptedMessageId }),
-    },
-  ),
-
-  cancelDebate: (sessionId: string, generationId: string): Promise<DebateSessionDetail> =>
+  ): Promise<DebateSessionDetail> =>
     request<DebateSessionDetail>(
-      "/debates/" + encodeURIComponent(sessionId) + "/cancel",
+      "/debates/" + encodeURIComponent(sessionId) + "/end-interruption",
       {
         method: "POST",
-        body: JSON.stringify({ generation_id: generationId }),
+        body: JSON.stringify({ interrupted_message_id: interruptedMessageId }),
       },
     ),
+
+  cancelDebate: (sessionId: string, generationId: string): Promise<DebateSessionDetail> =>
+    request<DebateSessionDetail>("/debates/" + encodeURIComponent(sessionId) + "/cancel", {
+      method: "POST",
+      body: JSON.stringify({ generation_id: generationId }),
+    }),
 
   addToWatchlist: (ticker: string): Promise<WatchlistResponse> =>
     request<WatchlistResponse>("/watchlist", {
@@ -237,22 +244,28 @@ export const api = {
     }),
 
   removeFromWatchlist: (ticker: string): Promise<WatchlistResponse> =>
-    request<WatchlistResponse>("/watchlist/" + ticker, { method: "DELETE" }),
+    request<WatchlistResponse>("/watchlist/" + encodeURIComponent(ticker), {
+      method: "DELETE",
+    }),
 
   getStockBundle: (ticker: string): Promise<StockBundle> =>
     request<StockBundle>("/stocks/" + encodeURIComponent(ticker) + "/bundle"),
 
   runAnalysis: (ticker: string, question?: string): Promise<AnalysisResponse> =>
-    request<AnalysisResponse>("/analysis/" + ticker, {
-      method: "POST",
-      body: JSON.stringify({ question }),
-    }),
+    request<AnalysisResponse>(
+      "/analysis/" + encodeURIComponent(ticker),
+      {
+        method: "POST",
+        body: JSON.stringify({ question }),
+      },
+      MODEL_REQUEST_TIMEOUT_MS,
+    ),
 
   examineClaim: (
     claimId: string,
     questionType: ExaminationResponse["question_type"],
   ): Promise<ExaminationResponse> =>
-    request<ExaminationResponse>("/claims/" + claimId + "/examine", {
+    request<ExaminationResponse>("/claims/" + encodeURIComponent(claimId) + "/examine", {
       method: "POST",
       body: JSON.stringify({ question_type: questionType }),
     }),

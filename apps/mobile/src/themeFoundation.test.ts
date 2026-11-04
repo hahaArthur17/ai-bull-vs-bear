@@ -1,7 +1,17 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { colors, elevation, layout, motion, motionForPreference, palette, radii, spacing, typography } from "./theme/tokens.ts";
+import {
+  colors,
+  elevation,
+  layout,
+  motion,
+  motionForPreference,
+  palette,
+  radii,
+  spacing,
+  typography,
+} from "./theme/tokens.ts";
 
 test("prototype-derived theme foundation uses deep semantic surfaces and role colours", () => {
   assert.equal(colors.surface.canvas, "#09101d");
@@ -14,7 +24,11 @@ test("prototype-derived theme foundation uses deep semantic surfaces and role co
   assert.equal(colors.action.primary, "#ffc66f");
   assert.equal(colors.action.secondary, "#6cd8c8");
   assert.equal(colors.market.bear, "#f59ba8");
-  assert.notEqual(colors.surface.canvas, "#f5f1e8", "warm-paper canvas must not reappear in the shared shell");
+  assert.notEqual(
+    colors.surface.canvas,
+    "#f5f1e8",
+    "warm-paper canvas must not reappear in the shared shell",
+  );
 });
 
 test("foundation exposes one typography, spacing, radius, focus, and elevation contract", () => {

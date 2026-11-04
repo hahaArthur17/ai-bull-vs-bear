@@ -11,15 +11,14 @@ local PostgreSQL benchmark alone.
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
 import json
 import math
 import time
+from collections.abc import Callable
+from datetime import datetime, timedelta, timezone
 from uuid import UUID, uuid4
 
 import httpx
-
 from app.config import get_settings
 from app.domain.debate import DebateDraftCheckpoint, DebateSession, ProviderAttempt
 from app.domain.factors import AnalysisContext, FactorSnapshot
@@ -179,16 +178,13 @@ class HostedDebateInterruptionVerifier:
                 ]
             finally:
                 cleanup_removed = (
-                    self.persistence._cleanup_sessions(tuple(session_ids))
-                    if session_ids
-                    else True
+                    self.persistence._cleanup_sessions(tuple(session_ids)) if session_ids else True
                 )
                 for client in self.clients:
                     client.close()
 
         report["cleanup"] = {
-            "queue_messages_archived": bool(queue_message_ids)
-            and all(archive_results),
+            "queue_messages_archived": bool(queue_message_ids) and all(archive_results),
             "sessions_removed": cleanup_removed,
         }
         if not all(report["cleanup"].values()):
@@ -447,8 +443,7 @@ class HostedDebateInterruptionVerifier:
                     and messages[0].id == queued.active_generation_id
                     and messages[0].content == ""
                     and not messages[0].is_complete
-                    and messages[0].metadata
-                    == {"interrupted": True, "before_output": True}
+                    and messages[0].metadata == {"interrupted": True, "before_output": True}
                     and stored_job is not None
                     and stored_job.status == "cancelled"
                 )

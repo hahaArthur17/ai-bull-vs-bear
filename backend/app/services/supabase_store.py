@@ -1,23 +1,31 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
 import logging
-from typing import Any
+from datetime import date, datetime, timezone
 
 import httpx
 from pydantic import ValidationError
 
-from app.schemas import AnalysisResponse, Stock
+from app.schemas import AnalysisHistoryPage, AnalysisResponse, Stock
 from app.services.demo_store import DemoStore
 from app.services.evidence_freshness import classify_evidence_freshness
 from app.services.rag import retrieve_evidence
-
 
 logger = logging.getLogger(__name__)
 
 
 class RepositoryError(RuntimeError):
     pass
+
+
+def _require_row_payload(response: httpx.Response) -> None:
+    """Treat malformed successful upstream responses as a persistence outage."""
+    try:
+        rows = response.json()
+    except ValueError as exc:
+        raise RepositoryError("Supabase returned an invalid JSON row payload") from exc
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        raise RepositoryError("Supabase returned an invalid row payload")
 
 
 class SupabaseStore(DemoStore):
@@ -134,6 +142,10 @@ class SupabaseStore(DemoStore):
             raise RepositoryError(
                 f"Supabase {table} request failed with status {response.status_code}"
             )
+        # Void writes legitimately return 204. Row reads always need an array,
+        # even when a proxy incorrectly labels an HTML error page as HTTP 200.
+        if method.upper() == "GET":
+            _require_row_payload(response)
         return response
 
     def _stock_id(self, ticker: str, access_token: str) -> int:
@@ -227,7 +239,9 @@ class SupabaseStore(DemoStore):
                 "select": "trading_date,open,high,low,close,volume,frequency,source,retrieved_at",
                 "stock_id": f"eq.{stock_rows[0]['id']}",
                 "frequency": f"eq.{frequency}",
-                "order": "trading_date.asc",
+                # Limit the newest weeks before restoring chronological chart
+                # order; ascending first would freeze a full five-year window.
+                "order": "trading_date.desc",
                 "limit": "260",
             },
         )
@@ -243,7 +257,7 @@ class SupabaseStore(DemoStore):
                 "source": row["source"],
                 "retrieved_at": row["retrieved_at"],
             }
-            for row in response.json()
+            for row in reversed(response.json())
         ]
 
     def _demo_prices(self, ticker: str) -> list[dict[str, object]]:
@@ -257,19 +271,34 @@ class SupabaseStore(DemoStore):
         ]
 
     def get_financial_facts(self, ticker: str) -> list[dict[str, object]]:
-        stocks = self._public_request("stocks", params={
-            "select": "id", "ticker": f"eq.{ticker.upper()}", "limit": "1",
-        }).json()
+        stocks = self._public_request(
+            "stocks",
+            params={
+                "select": "id",
+                "ticker": f"eq.{ticker.upper()}",
+                "limit": "1",
+            },
+        ).json()
         if not stocks:
             return []
-        response = self._public_request("financial_facts", params={
-            "select": "id,taxonomy,concept,label,unit,value,period_start,period_end,filed_at,form,accession_number,source_url,fiscal_year,fiscal_period,metadata",
-            "stock_id": f"eq.{stocks[0]['id']}",
-            "order": "filed_at.desc,period_end.desc,id.desc", "limit": "200",
-        })
-        return [{**row, "id": f"financial-fact:{row['id']}", "ticker": ticker.upper(),
-                 "metadata": {**(row.get("metadata") or {}), "storage": "supabase"}}
-                for row in response.json()]
+        response = self._public_request(
+            "financial_facts",
+            params={
+                "select": "id,taxonomy,concept,label,unit,value,period_start,period_end,filed_at,form,accession_number,source_url,fiscal_year,fiscal_period,metadata",
+                "stock_id": f"eq.{stocks[0]['id']}",
+                "order": "filed_at.desc,period_end.desc,id.desc",
+                "limit": "200",
+            },
+        )
+        return [
+            {
+                **row,
+                "id": f"financial-fact:{row['id']}",
+                "ticker": ticker.upper(),
+                "metadata": {**(row.get("metadata") or {}), "storage": "supabase"},
+            }
+            for row in response.json()
+        ]
 
     def get_macro_series(self) -> list[dict[str, object]]:
         response = self._public_request(
@@ -439,6 +468,7 @@ class SupabaseStore(DemoStore):
             raise RepositoryError(
                 f"Supabase {table} request failed with status {response.status_code}"
             )
+        _require_row_payload(response)
         return response
 
     def _public_rpc(self, function: str, payload: object) -> httpx.Response:
@@ -462,6 +492,7 @@ class SupabaseStore(DemoStore):
             raise RepositoryError(
                 f"Supabase RPC {function} failed with status {response.status_code}"
             )
+        _require_row_payload(response)
         return response
 
     def add_watchlist(
@@ -508,86 +539,18 @@ class SupabaseStore(DemoStore):
         response: object,
         access_token: str | None = None,
     ) -> None:
-        if not access_token:
-            raise RepositoryError("A user access token is required for Supabase persistence")
+        """Persist all related rows in one database transaction (BB-001/BB-002)."""
         analysis = AnalysisResponse.model_validate(response)
-        stock_id = self._stock_id(analysis.ticker, access_token)
+        if analysis_id != analysis.analysis_id:
+            raise RepositoryError("Analysis ID does not match the response")
+        # Never fall back to separate inserts: a missing migration should fail
+        # clearly rather than acknowledge an incomplete or unlinked result.
         self._request(
             "POST",
-            "analysis_runs",
+            "rpc/save_analysis_response",
             access_token,
-            json={
-                "id": analysis_id,
-                "user_id": user_id,
-                "stock_id": stock_id,
-                "question": analysis.question,
-                "final_summary": analysis.judge.summary,
-                "guardrail_status": analysis.guardrail_status,
-                "risk_level": analysis.judge.risk_level,
-                "created_at": analysis.created_at,
-            },
-            prefer="return=minimal",
+            json={"p_analysis": analysis.model_dump(mode="json")},
         )
-        outputs = [
-            {"analysis_run_id": analysis_id, "agent_name": "bull", "output_json": analysis.bull.model_dump(mode="json")},
-            {"analysis_run_id": analysis_id, "agent_name": "bear", "output_json": analysis.bear.model_dump(mode="json")},
-            {"analysis_run_id": analysis_id, "agent_name": "judge", "output_json": analysis.judge.model_dump(mode="json")},
-            {"analysis_run_id": analysis_id, "agent_name": "trace", "output_json": [step.model_dump(mode="json") for step in analysis.trace]},
-            {"analysis_run_id": analysis_id, "agent_name": "response", "output_json": analysis.model_dump(mode="json")},
-        ]
-        self._request(
-            "POST",
-            "agent_outputs",
-            access_token,
-            json=outputs,
-            prefer="return=minimal",
-        )
-        self._request(
-            "POST",
-            "token_usage",
-            access_token,
-            json={"analysis_run_id": analysis_id, **analysis.token_usage.model_dump(mode="json")},
-            prefer="return=minimal",
-        )
-        self._save_claim_evidence(analysis, access_token)
-
-    def _save_claim_evidence(self, analysis: AnalysisResponse, access_token: str) -> None:
-        evidence_ids = sorted(set(analysis.bull.evidence_ids + analysis.bear.evidence_ids))
-        if not evidence_ids:
-            return
-        response = self._request(
-            "GET",
-            "evidence_documents",
-            access_token,
-            params={
-                "select": "id,external_id",
-                "external_id": f"in.({','.join(evidence_ids)})",
-            },
-        )
-        document_ids = {
-            row["external_id"]: row["id"]
-            for row in response.json()
-            if row.get("external_id") and row.get("id") is not None
-        }
-        links: list[dict[str, Any]] = []
-        for claim in (analysis.bull, analysis.bear):
-            links.extend(
-                {
-                    "claim_id": claim.id,
-                    "analysis_run_id": analysis.analysis_id,
-                    "evidence_document_id": document_ids[evidence_id],
-                }
-                for evidence_id in claim.evidence_ids
-                if evidence_id in document_ids
-            )
-        if links:
-            self._request(
-                "POST",
-                "claim_evidence",
-                access_token,
-                json=links,
-                prefer="return=minimal",
-            )
 
     def get_analysis(
         self,
@@ -629,7 +592,21 @@ class SupabaseStore(DemoStore):
         self,
         user_id: str,
         access_token: str | None = None,
+        *,
+        limit: int = 50,
+        offset: int = 0,
     ) -> list[AnalysisResponse]:
+        return self.get_analysis_page(user_id, access_token, limit=limit, offset=offset).items
+
+    def get_analysis_page(
+        self,
+        user_id: str,
+        access_token: str | None = None,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> AnalysisHistoryPage:
+        """Read a bounded page with two requests rather than one per result."""
         response = self._request(
             "GET",
             "analysis_runs",
@@ -637,11 +614,58 @@ class SupabaseStore(DemoStore):
             params={
                 "select": "id",
                 "user_id": f"eq.{user_id}",
-                "order": "created_at.desc",
+                "order": "created_at.desc,id.desc",
+                "limit": str(max(1, min(limit, 100))),
+                "offset": str(max(0, offset)),
             },
         )
-        analyses = [
-            self.get_analysis(user_id, row["id"], access_token)
-            for row in response.json()
-        ]
-        return [analysis for analysis in analyses if analysis is not None]
+        run_ids = [str(row["id"]) for row in response.json()]
+        if not run_ids:
+            return AnalysisHistoryPage(items=[])
+        outputs = self._request(
+            "GET",
+            "agent_outputs",
+            access_token,
+            params={
+                "select": "analysis_run_id,output_json",
+                "agent_name": "eq.response",
+                "analysis_run_id": f"in.({','.join(run_ids)})",
+            },
+        )
+        by_run = {
+            row["analysis_run_id"]: self._parse_stored_analysis(row["output_json"])
+            for row in outputs.json()
+        }
+        # Cursor progress follows stored rows, not successfully parsed rows.
+        # An incompatible legacy response must not hide subsequent valid pages.
+        next_offset = (
+            max(0, offset) + len(run_ids) if len(run_ids) == max(1, min(limit, 100)) else None
+        )
+        return AnalysisHistoryPage(
+            items=[by_run[run_id] for run_id in run_ids if by_run.get(run_id) is not None],
+            next_offset=next_offset,
+        )
+
+    def find_analysis_by_claim(
+        self,
+        user_id: str,
+        claim_id: str,
+        access_token: str | None = None,
+    ) -> AnalysisResponse | None:
+        # Claim lookup must still find records beyond the first history page.
+        response = self._request(
+            "GET",
+            "agent_outputs",
+            access_token,
+            params={
+                "select": "analysis_run_id,analysis_runs!inner(user_id)",
+                "analysis_runs.user_id": f"eq.{user_id}",
+                "agent_name": "in.(bull,bear)",
+                "output_json->>id": f"eq.{claim_id}",
+                "limit": "1",
+            },
+        )
+        rows = response.json()
+        return (
+            self.get_analysis(user_id, rows[0]["analysis_run_id"], access_token) if rows else None
+        )

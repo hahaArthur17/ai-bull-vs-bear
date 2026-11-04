@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from urllib.parse import parse_qs
 
 import httpx
-
+import pytest
 from app.services.analysis import AnalysisService
 from app.services.demo_store import DemoStore
-from app.services.supabase_store import SupabaseStore
+from app.services.supabase_store import RepositoryError, SupabaseStore
 
 
 class FakePostgrest:
@@ -182,24 +182,108 @@ class FakePostgrest:
         if table == "watchlists" and request.method == "DELETE":
             self.watchlist.discard(int(query["stock_id"][0].removeprefix("eq.")))
             return httpx.Response(204)
+        if table == "save_analysis_response" and request.method == "POST":
+            analysis = body["p_analysis"]
+            if analysis["analysis_id"] not in self.analysis_ids:
+                self.analysis_ids.append(analysis["analysis_id"])
+            self.responses[analysis["analysis_id"]] = analysis
+            return httpx.Response(204)
         if table == "analysis_runs" and request.method == "POST":
             self.analysis_ids.append(body["id"])
             return httpx.Response(201)
         if table == "analysis_runs" and request.method == "GET":
-            return httpx.Response(200, json=[{"id": item} for item in self.analysis_ids])
+            offset = int(query.get("offset", ["0"])[0])
+            limit = int(query.get("limit", ["50"])[0])
+            return httpx.Response(
+                200, json=[{"id": item} for item in self.analysis_ids[offset : offset + limit]]
+            )
         if table == "agent_outputs" and request.method == "POST":
             response_row = next(row for row in body if row["agent_name"] == "response")
             self.responses[response_row["analysis_run_id"]] = response_row["output_json"]
             return httpx.Response(201)
         if table == "agent_outputs" and request.method == "GET":
-            analysis_id = query["analysis_run_id"][0].removeprefix("eq.")
-            payload = self.responses.get(analysis_id)
+            if "output_json->>id" in query:
+                claim_id = query["output_json->>id"][0].removeprefix("eq.")
+                matches = [
+                    {"analysis_run_id": run_id}
+                    for run_id, payload in self.responses.items()
+                    if any(payload[side]["id"] == claim_id for side in ("bull", "bear"))
+                ]
+                return httpx.Response(200, json=matches[:1])
+            run_filter = query["analysis_run_id"][0]
+            if run_filter.startswith("in.("):
+                ids = run_filter[4:-1].split(",")
+                return httpx.Response(
+                    200,
+                    json=[
+                        {"analysis_run_id": run_id, "output_json": self.responses[run_id]}
+                        for run_id in ids
+                        if run_id in self.responses
+                    ],
+                )
+            payload = self.responses.get(run_filter.removeprefix("eq."))
             return httpx.Response(200, json=[{"output_json": payload}] if payload else [])
         if table == "token_usage":
             return httpx.Response(201)
         if table == "evidence_documents":
             return httpx.Response(200, json=[])
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
+
+
+def test_bb010_weekly_history_limits_the_newest_rows_then_restores_chart_order() -> None:
+    # More than one response page exposes a query that silently drops recent weeks.
+    dates = [(date(2020, 1, 3) + timedelta(weeks=index)).isoformat() for index in range(300)]
+
+    def handle(request: httpx.Request) -> httpx.Response:
+        if request.url.path.endswith("/stocks"):
+            return httpx.Response(200, json=[{"id": 1}])
+        assert request.url.path.endswith("/stock_price_history")
+        descending = request.url.params["order"] == "trading_date.desc"
+        selected = sorted(dates, reverse=descending)[: int(request.url.params["limit"])]
+        return httpx.Response(
+            200,
+            json=[
+                {
+                    "trading_date": day,
+                    "open": 99,
+                    "high": 102,
+                    "low": 98,
+                    "close": 100,
+                    "volume": 1000,
+                    "frequency": "weekly",
+                    "source": "alpha_vantage_weekly",
+                    "retrieved_at": "2026-10-17T00:00:00Z",
+                }
+                for day in selected
+            ],
+        )
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        rows = SupabaseStore("https://example.supabase.co", "anon-key", client).get_price_history(
+            "AAPL"
+        )
+    assert [row["date"] for row in rows] == dates[-260:]
+
+
+@pytest.mark.parametrize(
+    "payload", [b"<html>upstream proxy failure</html>", b"null", b"{}", b"[null]"]
+)
+@pytest.mark.parametrize("operation", ["private_rows", "public_rows", "search_rpc"])
+def test_bb012_invalid_upstream_rows_use_the_repository_error_boundary(
+    payload: bytes, operation: str
+) -> None:
+    def handle(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=payload)
+
+    with httpx.Client(transport=httpx.MockTransport(handle)) as client:
+        store = SupabaseStore("https://example.supabase.co", "anon-key", client)
+        with pytest.raises(RepositoryError, match="invalid.*payload"):
+            if operation == "private_rows":
+                store.get_watchlist("user-1", "user-token")
+            elif operation == "public_rows":
+                store.get_macro_series()
+            else:
+                store._public_rpc("match_evidence_chunks", {"query_text": "supply"})
 
 
 def build_store(fake: FakePostgrest) -> SupabaseStore:
@@ -254,6 +338,45 @@ def test_supabase_analysis_round_trip() -> None:
     assert store.list_analyses("user-1", "user-token") == [response]
 
 
+def test_bb001_failed_atomic_rpc_never_falls_back_to_partial_table_writes() -> None:
+    calls = []
+
+    def fail(request: httpx.Request) -> httpx.Response:
+        calls.append((request.method, request.url.path))
+        return httpx.Response(503, json={"message": "Controlled failure"})
+
+    with httpx.Client(transport=httpx.MockTransport(fail)) as client:
+        store = SupabaseStore("https://example.supabase.co", "anon-key", client)
+        response = AnalysisService(DemoStore()).create("AAPL")
+        with pytest.raises(RepositoryError):
+            store.save_analysis("user-1", response.analysis_id, response, "user-token")
+    assert calls == [("POST", "/rest/v1/rpc/save_analysis_response")]
+
+
+def test_history_reads_a_bounded_page_in_two_requests_and_can_find_older_claims() -> None:
+    fake = FakePostgrest()
+    calls = []
+
+    def record(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        return fake(request)
+
+    with httpx.Client(transport=httpx.MockTransport(record)) as client:
+        store = SupabaseStore("https://example.supabase.co", "anon-key", client)
+        analyses = [AnalysisService(DemoStore()).create("AAPL") for _ in range(4)]
+        for response in analyses:
+            store.save_analysis("user-1", response.analysis_id, response, "user-token")
+        calls.clear()
+        assert store.list_analyses("user-1", "user-token", limit=2, offset=1) == analyses[1:3]
+        assert len(calls) == 2
+        calls.clear()
+        assert (
+            store.find_analysis_by_claim("user-1", analyses[-1].bear.id, "user-token")
+            == analyses[-1]
+        )
+        assert len(calls) == 2
+
+
 def test_supabase_history_omits_legacy_response_without_a_snapshot() -> None:
     response = AnalysisService(DemoStore()).create("AAPL")
     fake = FakePostgrest()
@@ -268,6 +391,19 @@ def test_supabase_history_omits_legacy_response_without_a_snapshot() -> None:
 
     assert store.get_analysis("user-1", legacy_id, "user-token") is None
     assert store.list_analyses("user-1", "user-token") == [response]
+
+
+def test_history_cursor_advances_past_a_page_of_incompatible_legacy_rows() -> None:
+    response = AnalysisService(DemoStore()).create("AAPL")
+    fake = FakePostgrest()
+    fake.analysis_ids = ["legacy", response.analysis_id]
+    fake.responses = {"legacy": {}, response.analysis_id: response.model_dump(mode="json")}
+    store = build_store(fake)
+    page = store.get_analysis_page("user-1", "user-token", limit=1)
+    assert page.items == [] and page.next_offset == 1
+    assert store.get_analysis_page(
+        "user-1", "user-token", limit=1, offset=page.next_offset
+    ).items == [response]
 
 
 def test_supabase_evidence_combines_technical_and_live_documents() -> None:
@@ -334,9 +470,7 @@ def test_supabase_search_falls_back_to_stored_documents_when_vector_rpc_is_unava
             )
         raise AssertionError(f"Unexpected request: {request.method} {request.url}")
 
-    client = httpx.Client(
-        transport=httpx.MockTransport(vector_search_is_unavailable)
-    )
+    client = httpx.Client(transport=httpx.MockTransport(vector_search_is_unavailable))
     store = SupabaseStore("https://example.supabase.co", "anon-key", client)
 
     evidence = store.search_evidence("AAPL", "risk factors")

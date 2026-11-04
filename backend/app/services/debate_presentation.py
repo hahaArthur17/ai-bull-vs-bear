@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import re
 from ipaddress import ip_address
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from app.debate_schemas import (
     DebateEvidencePresentation,
@@ -23,9 +24,12 @@ def safe_source_destination(value: str | None) -> str | None:
     try:
         parsed = urlsplit(value)
         _ = parsed.port
-    except ValueError:
+        # Match browser host normalization before applying local-host rules:
+        # DNS root dots, escaped labels and Unicode dots must not bypass them.
+        hostname = unquote(parsed.hostname or "", errors="strict").encode("idna").decode("ascii")
+        hostname = hostname.lower().removesuffix(".")
+    except (ValueError, UnicodeError):
         return None
-    hostname = parsed.hostname.lower() if parsed.hostname else ""
     if (
         parsed.scheme.lower() != "https"
         or not hostname
@@ -33,12 +37,21 @@ def safe_source_destination(value: str | None) -> str | None:
         or parsed.password is not None
         or hostname == "localhost"
         or hostname.endswith((".localhost", ".local", ".internal"))
+        or ":" in hostname
     ):
         return None
     try:
         address = ip_address(hostname)
     except ValueError:
-        pass
+        labels = hostname.split(".")
+        if len(labels) < 2 or not all(
+            re.fullmatch(r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?", label) for label in labels
+        ):
+            return None
+        # Browsers interpret short, octal and hexadecimal numeric hosts as
+        # IPv4. Only canonical addresses checked above are accepted here.
+        if labels[-1].isdigit() or re.fullmatch(r"0x[0-9a-f]+", labels[-1]):
+            return None
     else:
         if not address.is_global:
             return None

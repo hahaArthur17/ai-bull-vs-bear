@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from typing import Any, TypeVar
 from datetime import datetime
+from typing import Any, TypeVar
 from uuid import UUID
 
 import httpx
@@ -9,8 +9,8 @@ from pydantic import ValidationError
 
 from app.domain.base import ImmutableDomainModel
 from app.domain.debate import (
-    DebateIntervention,
     DebateDraftCheckpoint,
+    DebateIntervention,
     DebateMessage,
     DebateMessageEvidence,
     DebateSession,
@@ -33,7 +33,6 @@ from app.services.debate_persistence import (
     validate_session_update,
 )
 from app.services.supabase_headers import service_headers
-
 
 DomainModel = TypeVar("DomainModel", bound=ImmutableDomainModel)
 
@@ -100,29 +99,41 @@ class SupabaseDebateRepository:
         expected_generation_id: UUID | None = None,
     ) -> DebateSession:
         current = self.get_session(session.id, session.user_id)
-        if (current is None or current.status != expected_status
-                or (expected_generation_id is not None and current.active_generation_id != expected_generation_id)):
+        if (
+            current is None
+            or current.status != expected_status
+            or (
+                expected_generation_id is not None
+                and current.active_generation_id != expected_generation_id
+            )
+        ):
             raise DebateConcurrencyError("Debate session status changed concurrently")
         try:
             validate_session_update(current, session)
         except DebatePersistenceValidationError as exc:
             raise DebateRepositoryError(str(exc)) from exc
-        payload = session.model_dump(mode="json", include={
-            "status",
-            "active_branch_id",
-            "active_generation_id",
-            "interim_judge_message_id",
-            "final_judge_message_id",
-            "guardrail_status",
-            "safe_error_code",
-            "updated_at",
-            "completed_at",
-        })
+        payload = session.model_dump(
+            mode="json",
+            include={
+                "status",
+                "active_branch_id",
+                "active_generation_id",
+                "interim_judge_message_id",
+                "final_judge_message_id",
+                "guardrail_status",
+                "safe_error_code",
+                "updated_at",
+                "completed_at",
+            },
+        )
         response = self._request(
             "PATCH",
             "debate_sessions",
-            params={"id": f"eq.{session.id}", "status": f"eq.{expected_status}",
-                    "active_generation_id": f"eq.{expected_generation_id or current.active_generation_id}"},
+            params={
+                "id": f"eq.{session.id}",
+                "status": f"eq.{expected_status}",
+                "active_generation_id": f"eq.{expected_generation_id or current.active_generation_id}",
+            },
             json=payload,
         )
         updated = self._optional_model(response.json(), DebateSession, "Debate session")
@@ -143,49 +154,92 @@ class SupabaseDebateRepository:
             transport_attempts=2,
         )
 
-    def admit_provider_attempt(self, attempt: ProviderAttempt,
-                               checkpoint: DebateDraftCheckpoint) -> ProviderAttempt:
-        response = self._request("POST", "rpc/admit_debate_provider_attempt", json={
-            "attempt_payload": attempt.model_dump(mode="json"),
-            "checkpoint_payload": checkpoint.model_dump(mode="json"),
-        }, transport_attempts=2)
+    def admit_provider_attempt(
+        self, attempt: ProviderAttempt, checkpoint: DebateDraftCheckpoint
+    ) -> ProviderAttempt:
+        response = self._request(
+            "POST",
+            "rpc/admit_debate_provider_attempt",
+            json={
+                "attempt_payload": attempt.model_dump(mode="json"),
+                "checkpoint_payload": checkpoint.model_dump(mode="json"),
+            },
+            transport_attempts=2,
+        )
         return self._model(response.json(), ProviderAttempt, "Provider attempt")
 
     def mark_provider_attempt_dispatched(self, attempt_id: UUID, at: datetime) -> ProviderAttempt:
-        response = self._request("POST", "rpc/dispatch_debate_provider_attempt", json={
-            "requested_attempt_id": str(attempt_id), "dispatched_at": at.isoformat(),
-        }, transport_attempts=2)
+        response = self._request(
+            "POST",
+            "rpc/dispatch_debate_provider_attempt",
+            json={
+                "requested_attempt_id": str(attempt_id),
+                "dispatched_at": at.isoformat(),
+            },
+            transport_attempts=2,
+        )
         return self._model(response.json(), ProviderAttempt, "Provider attempt")
 
-    def finish_provider_attempt(self, attempt_id: UUID, *, at: datetime,
-                                prompt_tokens: int | None = None,
-                                completion_tokens: int | None = None,
-                                total_tokens: int | None = None,
-                                failed: bool = False) -> ProviderAttempt:
-        response = self._request("POST", "rpc/finish_debate_provider_attempt", json={
-            "requested_attempt_id": str(attempt_id), "finished_at": at.isoformat(),
-            "reported_prompt_tokens": prompt_tokens,
-            "reported_completion_tokens": completion_tokens,
-            "reported_total_tokens": total_tokens, "attempt_failed": failed,
-        }, transport_attempts=2)
+    def finish_provider_attempt(
+        self,
+        attempt_id: UUID,
+        *,
+        at: datetime,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        failed: bool = False,
+    ) -> ProviderAttempt:
+        response = self._request(
+            "POST",
+            "rpc/finish_debate_provider_attempt",
+            json={
+                "requested_attempt_id": str(attempt_id),
+                "finished_at": at.isoformat(),
+                "reported_prompt_tokens": prompt_tokens,
+                "reported_completion_tokens": completion_tokens,
+                "reported_total_tokens": total_tokens,
+                "attempt_failed": failed,
+            },
+            transport_attempts=2,
+        )
         return self._model(response.json(), ProviderAttempt, "Provider attempt")
 
     def list_provider_attempts(self, session_id: UUID, user_id: UUID) -> list[ProviderAttempt]:
         if self.get_session(session_id, user_id) is None:
             return []
-        response = self._request("GET", "debate_provider_attempts", params={
-            "select": "*", "session_id": f"eq.{session_id}",
-            "order": "admitted_at.asc,id.asc",
-        })
+        response = self._request(
+            "GET",
+            "debate_provider_attempts",
+            params={
+                "select": "*",
+                "session_id": f"eq.{session_id}",
+                "order": "admitted_at.asc,id.asc",
+            },
+        )
         return self._models(response.json(), ProviderAttempt, "Provider attempt")
 
-    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
-                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
-        response = self._request("POST", "rpc/interrupt_debate_generation", json={
-            "requested_session_id": str(session_id), "requested_user_id": str(user_id),
-            "requested_generation_id": str(generation_id), "requested_message_id": str(message_id),
-            "visible_prefix": visible_prefix, "interrupted_at": at.isoformat(),
-        })
+    def interrupt_generation(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        generation_id: UUID,
+        message_id: UUID,
+        visible_prefix: str,
+        at: datetime,
+    ) -> DebateSession:
+        response = self._request(
+            "POST",
+            "rpc/interrupt_debate_generation",
+            json={
+                "requested_session_id": str(session_id),
+                "requested_user_id": str(user_id),
+                "requested_generation_id": str(generation_id),
+                "requested_message_id": str(message_id),
+                "visible_prefix": visible_prefix,
+                "interrupted_at": at.isoformat(),
+            },
+        )
         return self._model(response.json(), DebateSession, "Interrupted Debate")
 
     def interrupt_before_output_generation(
@@ -195,29 +249,51 @@ class SupabaseDebateRepository:
         generation_id: UUID,
         at: datetime,
     ) -> DebateSession:
-        response = self._request("POST", "rpc/interrupt_debate_before_output_generation", json={
-            "requested_session_id": str(session_id),
-            "requested_user_id": str(user_id),
-            "requested_generation_id": str(generation_id),
-            "interrupted_at": at.isoformat(),
-        })
+        response = self._request(
+            "POST",
+            "rpc/interrupt_debate_before_output_generation",
+            json={
+                "requested_session_id": str(session_id),
+                "requested_user_id": str(user_id),
+                "requested_generation_id": str(generation_id),
+                "interrupted_at": at.isoformat(),
+            },
+        )
         return self._model(response.json(), DebateSession, "Before-output Interrupted Debate")
 
     def record_interjection(self, point: DebateMessage) -> DebateMessage:
-        response = self._request("POST", "rpc/record_debate_interjection",
-            json={"message_payload": point.model_dump(mode="json")})
+        response = self._request(
+            "POST",
+            "rpc/record_debate_interjection",
+            json={"message_payload": point.model_dump(mode="json")},
+        )
         return self._model(response.json(), DebateMessage, "Interjection")
 
-    def continue_interrupted(self, session: DebateSession, job: DebateJob, message: DebateQueueMessage,
-                             *, expected_generation_id: UUID, interjection_id: UUID,
-                             ) -> tuple[DebateSession, DebateJob]:
-        response = self._request("POST", "rpc/continue_interrupted_debate", json={
-            "session_payload": session.model_dump(mode="json"), "job_payload": job.model_dump(mode="json"),
-            "queue_payload": message.model_dump(mode="json"), "expected_generation_id": str(expected_generation_id),
-            "requested_interjection_id": str(interjection_id)})
+    def continue_interrupted(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+        *,
+        expected_generation_id: UUID,
+        interjection_id: UUID,
+    ) -> tuple[DebateSession, DebateJob]:
+        response = self._request(
+            "POST",
+            "rpc/continue_interrupted_debate",
+            json={
+                "session_payload": session.model_dump(mode="json"),
+                "job_payload": job.model_dump(mode="json"),
+                "queue_payload": message.model_dump(mode="json"),
+                "expected_generation_id": str(expected_generation_id),
+                "requested_interjection_id": str(interjection_id),
+            },
+        )
         payload = self._object(response.json(), "Continue transaction")
-        return (self._model(payload.get("session"), DebateSession, "Debate session"),
-                self._model(payload.get("job"), DebateJob, "Debate job"))
+        return (
+            self._model(payload.get("session"), DebateSession, "Debate session"),
+            self._model(payload.get("job"), DebateJob, "Debate job"),
+        )
 
     def append_message(
         self,
@@ -288,17 +364,21 @@ class SupabaseDebateRepository:
         result: list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]] = []
         for row in rows:
             payload = self._object(row, "Debate message")
-            citations = tuple(self._models(
-                payload.get("debate_message_evidence"),
-                DebateMessageEvidence,
-                "Debate citation",
-            ))
+            citations = tuple(
+                self._models(
+                    payload.get("debate_message_evidence"),
+                    DebateMessageEvidence,
+                    "Debate citation",
+                )
+            )
             message = self._model(
                 {key: value for key, value in payload.items() if key != "debate_message_evidence"},
                 DebateMessage,
                 "Debate message",
             )
-            result.append((message, tuple(sorted(citations, key=lambda citation: citation.citation_order))))
+            result.append(
+                (message, tuple(sorted(citations, key=lambda citation: citation.citation_order)))
+            )
         return result
 
     def list_message_evidence(
@@ -393,19 +473,22 @@ class SupabaseDebateRepository:
             validate_job_update(current, job)
         except DebatePersistenceValidationError as exc:
             raise DebateRepositoryError(str(exc)) from exc
-        payload = job.model_dump(mode="json", include={
-            "status",
-            "queue_message_id",
-            "attempt_count",
-            "started_at",
-            "finished_at",
-            "safe_error_code",
-            "provider_request_count",
-            "prompt_tokens",
-            "completion_tokens",
-            "total_tokens",
-            "updated_at",
-        })
+        payload = job.model_dump(
+            mode="json",
+            include={
+                "status",
+                "queue_message_id",
+                "attempt_count",
+                "started_at",
+                "finished_at",
+                "safe_error_code",
+                "provider_request_count",
+                "prompt_tokens",
+                "completion_tokens",
+                "total_tokens",
+                "updated_at",
+            },
+        )
         response = self._request(
             "PATCH",
             "debate_jobs",
@@ -600,11 +683,15 @@ class SupabaseDebateRepository:
         prompt_tokens: int = 0,
         completion_tokens: int = 0,
     ) -> tuple[DebateSession, DebateJob]:
-        if expected_attempt_count < 1 or min(
-            provider_request_count,
-            prompt_tokens,
-            completion_tokens,
-        ) < 0:
+        if (
+            expected_attempt_count < 1
+            or min(
+                provider_request_count,
+                prompt_tokens,
+                completion_tokens,
+            )
+            < 0
+        ):
             raise DebateRepositoryError("Debate retry observations are outside safe bounds")
         response = self._request(
             "POST",
@@ -661,9 +748,7 @@ class SupabaseDebateRepository:
             or session.status != "failed"
             or session.safe_error_code != "debate_retry_exhausted"
         ):
-            raise DebateConcurrencyError(
-                "Supabase exhausted Debate Job returned conflicting state"
-            )
+            raise DebateConcurrencyError("Supabase exhausted Debate Job returned conflicting state")
         return session, job
 
     def _request(

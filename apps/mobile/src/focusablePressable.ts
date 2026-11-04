@@ -6,10 +6,7 @@ import { colors, interaction } from "./theme/tokens.ts";
  * The returned style is intentionally null outside keyboard focus so existing
  * native, disabled, and pressed styles keep their current precedence.
  */
-export function focusablePressableStyle(
-  focused: boolean,
-  disabled = false,
-) {
+export function focusablePressableStyle(focused: boolean, disabled = false) {
   if (!focused || disabled) return null;
   return {
     borderColor: colors.action.focus,

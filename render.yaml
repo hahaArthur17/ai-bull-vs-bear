@@ -1,3 +1,6 @@
+# Complete credential-free assessment profile:
+#   python3 scripts/run_project_review.py
+# Hosted V2/worker flags stay opt-in until their migrations and providers are configured.
 services:
   - type: web
     name: ai-bull-vs-bear-api

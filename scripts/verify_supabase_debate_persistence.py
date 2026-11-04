@@ -9,13 +9,12 @@ returning.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-import json
 from uuid import UUID, uuid4
 
 import httpx
-
 from app.config import get_settings
 from app.domain.debate import (
     DebateIntervention,
@@ -134,8 +133,7 @@ class HostedDebatePersistenceVerifier:
                         item["service_expected_status_updates"] for item in service_checks
                     ),
                     "service_atomic_message_citations": all(
-                        item["service_atomic_message_citations"]
-                        for item in service_checks
+                        item["service_atomic_message_citations"] for item in service_checks
                     ),
                     "service_intervention_write": all(
                         item["service_intervention_write"] for item in service_checks
@@ -152,8 +150,7 @@ class HostedDebatePersistenceVerifier:
                 cross_b.values()
             )
             report["authenticated_table_writes_rejected"] = all(
-                self._authenticated_write_rejected(user_a, table)
-                for table in self.TABLES
+                self._authenticated_write_rejected(user_a, table) for table in self.TABLES
             )
             report["authenticated_rpcs_rejected"] = self._authenticated_rpcs_rejected(
                 user_a,
@@ -195,7 +192,9 @@ class HostedDebatePersistenceVerifier:
         )
         stored_intervention = self.repository.create_intervention(fixture.intervention)
         return {
-            "service_atomic_session_job": first == replay == (
+            "service_atomic_session_job": first
+            == replay
+            == (
                 fixture.session,
                 fixture.job,
             ),

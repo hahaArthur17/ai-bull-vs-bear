@@ -2,7 +2,6 @@ import json
 
 import httpx
 import pytest
-
 from app.services.market_data import (
     AlphaVantageClient,
     FinnhubClient,
@@ -124,7 +123,9 @@ def test_alpha_vantage_client_requests_weekly_series() -> None:
         assert "outputsize" not in request.url.params
         return httpx.Response(200, json=weekly_payload())
 
-    client = AlphaVantageClient("test-key", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    client = AlphaVantageClient(
+        "test-key", client=httpx.Client(transport=httpx.MockTransport(handler))
+    )
 
     assert client.fetch_weekly("aapl")[-1]["date"] == "2026-08-14"
 
@@ -183,7 +184,9 @@ def test_finnhub_quote_client_normalizes_latest_quote() -> None:
     }
     client = FinnhubQuoteClient(
         "test-key",
-        client=httpx.Client(transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload))),
+        client=httpx.Client(
+            transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+        ),
     )
 
     quote = client.fetch_quote("aapl")
@@ -219,8 +222,29 @@ def test_quote_cache_avoids_repeat_provider_calls_until_expiry() -> None:
     assert cache.get("AAPL")["retrieved_at"] == first["retrieved_at"]
     now[0] = 60.0
     cache.get("AAPL")
-
     assert provider.calls == 2
+
+
+@pytest.mark.parametrize("field", ["c", "o", "h", "l", "pc"])
+@pytest.mark.parametrize("value", ["NaN", "Infinity", "-Infinity", 0, -1])
+def test_bb011_quote_rejects_nonfinite_or_nonpositive_prices(field: str, value: object) -> None:
+    payload = {"c": 100, "o": 99, "h": 102, "l": 98, "pc": 99, "t": 1_787_169_600}
+    payload[field] = value
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+    ) as client:
+        with pytest.raises(MarketDataError, match="invalid quote"):
+            FinnhubQuoteClient("test-key", client=client).fetch_quote("AAPL")
+
+
+@pytest.mark.parametrize("prices", [{"h": 99}, {"l": 101}, {"o": 103}])
+def test_bb011_quote_rejects_inconsistent_ohlc(prices: dict[str, float]) -> None:
+    payload = {"c": 100, "o": 99, "h": 102, "l": 98, "pc": 99, "t": 1_787_169_600, **prices}
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, json=payload))
+    ) as client:
+        with pytest.raises(MarketDataError, match="invalid quote"):
+            FinnhubQuoteClient("test-key", client=client).fetch_quote("AAPL")
 
 
 def test_supabase_price_writer_upserts_daily_cache() -> None:
@@ -502,6 +526,7 @@ def test_live_price_ingestion_rejects_duplicate_or_out_of_order_provider_rows() 
         [first, {**second, "date": first["date"]}],
         [second, first],
     ):
+
         class FakeProvider:
             def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
                 return points
@@ -521,6 +546,7 @@ def test_live_price_ingestion_rejects_invalid_ohlcv_values() -> None:
         {**parse_alpha_vantage_daily(daily_payload())[0], "close": float("nan")},
     ]
     for row in invalid_rows:
+
         class FakeProvider:
             def fetch_daily(self, ticker: str) -> list[dict[str, object]]:
                 return [row]

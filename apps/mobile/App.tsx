@@ -1,47 +1,39 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { clearPendingInterruptionsForAccount } from "./src/pendingInterruption";
 import { StatusBar } from "expo-status-bar";
 import { useCallback, useEffect, useRef, useState } from "react";
-import type { Session } from "@supabase/supabase-js";
-import {
-  ActivityIndicator,
-  Text,
-  useWindowDimensions,
-  View,
-} from "react-native";
+import { ActivityIndicator, Text, useWindowDimensions, View } from "react-native";
 import {
   initialWindowMetrics,
   SafeAreaProvider,
   SafeAreaView,
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
+import { useAnalysisHistory } from "./src/hooks/useAnalysisHistory";
+import { useWorkspaceAuth } from "./src/hooks/useWorkspaceAuth";
+import { loadWorkspaceHome, mergeStocks } from "./src/workspaceData";
 
 import { api } from "./src/api";
-import { AuthScreen } from "./src/AuthScreen";
-import {
-  FocusablePressable,
-  NavButton,
-} from "./src/components/common";
 import { getBottomNavigationOffset, getResponsiveAppShellLayout } from "./src/appShell";
-import { canSubmitExamination } from "./src/examinationState";
+import { AuthScreen } from "./src/AuthScreen";
+import { FocusablePressable, NavButton } from "./src/components/common";
 import { findActiveDebate, isActiveDebateConflict } from "./src/debateHistoryView";
+import { useClaimExamination } from "./src/hooks/useClaimExamination";
+import { useWatchlistActions } from "./src/hooks/useWatchlistActions";
 import { AboutScreen } from "./src/screens/AboutScreen";
-import { LegacyDebateScreen } from "./src/screens/LegacyDebateScreen";
-import { HistoryScreen } from "./src/screens/HistoryScreen";
-import { LiveDebateScreen } from "./src/screens/LiveDebateScreen";
 import { EvidenceScreen } from "./src/screens/EvidenceScreen";
 import { ExaminationScreen } from "./src/screens/ExaminationScreen";
+import { HistoryScreen } from "./src/screens/HistoryScreen";
+import { LegacyDebateScreen } from "./src/screens/LegacyDebateScreen";
+import { LiveDebateScreen } from "./src/screens/LiveDebateScreen";
 import { StockDetailScreen } from "./src/screens/StockDetailScreen";
 import { WatchlistScreen } from "./src/screens/WatchlistScreen";
 import { loadStockDetail } from "./src/stockDetail";
 import { isSupabaseConfigured, supabase } from "./src/supabase";
-import { appStyles as styles, palette } from "./src/theme";
+import { palette, appStyles as styles } from "./src/theme";
 import type {
   AnalysisResponse,
   Claim,
   DebateSessionDetail,
   DebateSessionSummary,
-  ExaminationResponse,
   Stock,
   StockBundle,
 } from "./src/types";
@@ -56,12 +48,6 @@ function newDebateIdempotencyKey(ticker: string): string {
   return `round1_${ticker}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function mergeStocks(...groups: Stock[][]): Stock[] {
-  const byTicker = new Map<string, Stock>();
-  groups.flat().forEach((stock) => byTicker.set(stock.ticker, stock));
-  return [...byTicker.values()].sort((left, right) => left.ticker.localeCompare(right.ticker));
-}
-
 export default function App() {
   return (
     <SafeAreaProvider initialMetrics={initialWindowMetrics}>
@@ -74,10 +60,15 @@ function AppContent() {
   const { width } = useWindowDimensions();
   const { bottom: bottomSafeAreaInset } = useSafeAreaInsets();
   const responsiveShell = getResponsiveAppShellLayout(width);
-  const [authReady, setAuthReady] = useState(false);
-  const [session, setSession] = useState<Session | null>(null);
   const [workspaceReady, setWorkspaceReady] = useState(false);
-  const [screen, setScreen] = useState<Screen>("watchlist");
+  const [screen, setScreenState] = useState<Screen>("watchlist");
+  const navigationEpoch = useRef(0);
+  const setScreen = useCallback((next: Screen) => {
+    // Returning to the same screen is still a new visit. A pending request
+    // from the old visit must not navigate or show an error in the new one.
+    navigationEpoch.current += 1;
+    setScreenState(next);
+  }, []);
   const [stocks, setStocks] = useState<Stock[]>([]);
   const [watchlist, setWatchlist] = useState<string[]>([]);
   const [selectedTicker, setSelectedTicker] = useState("AAPL");
@@ -87,15 +78,31 @@ function AppContent() {
   const [liveDebate, setLiveDebate] = useState<DebateSessionDetail | null>(null);
   const [debateExperience, setDebateExperience] = useState<DebateExperience>("legacy");
   const [reviewFixtureMode, setReviewFixtureMode] = useState(false);
-  const [selectedClaim, setSelectedClaim] = useState<Claim | null>(null);
-  const [examination, setExamination] = useState<ExaminationResponse | null>(null);
-  const [examinationError, setExaminationError] = useState("");
-  const [pendingExaminationQuestion, setPendingExaminationQuestion] = useState<ExaminationResponse["question_type"] | null>(null);
-  const [history, setHistory] = useState<AnalysisResponse[]>([]);
+  const {
+    claim: selectedClaim,
+    result: examination,
+    error: examinationError,
+    pendingQuestion: pendingExaminationQuestion,
+    open: selectExamination,
+    reset: resetExamination,
+    ask: askQuestion,
+  } = useClaimExamination(api.examineClaim);
+  const {
+    history,
+    setHistory,
+    replace: replaceHistory,
+    reset: resetHistory,
+    hasMore: historyHasMore,
+    loading: historyLoading,
+    error: historyPageError,
+    loadMore: loadMoreHistory,
+  } = useAnalysisHistory(api.getAnalysisPage);
   const [debateHistory, setDebateHistory] = useState<DebateSessionSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [debateStarting, setDebateStarting] = useState(false);
-  const [activeDebateRecovery, setActiveDebateRecovery] = useState<ActiveDebateRecovery | null>(null);
+  const [activeDebateRecovery, setActiveDebateRecovery] = useState<ActiveDebateRecovery | null>(
+    null,
+  );
   const [error, setError] = useState("");
   const debateAdmissionKey = useRef<string | null>(null);
   const debateStartInFlight = useRef(false);
@@ -103,7 +110,7 @@ function AppContent() {
   const accountEpoch = useRef(0);
   const homeLoadEpoch = useRef(0);
 
-  const resetAccountWorkspace = () => {
+  const resetAccountWorkspace = useCallback(() => {
     accountEpoch.current += 1;
     homeLoadEpoch.current += 1;
     stockLoadEpoch.current += 1;
@@ -120,103 +127,40 @@ function AppContent() {
     setLiveDebate(null);
     setDebateExperience("legacy");
     setReviewFixtureMode(false);
-    setSelectedClaim(null);
-    setExamination(null);
-    setExaminationError("");
-    setPendingExaminationQuestion(null);
-    setHistory([]);
+    resetExamination();
+    resetHistory();
     setDebateHistory([]);
     setLoading(false);
     setDebateStarting(false);
     setActiveDebateRecovery(null);
     setError("");
-  };
+  }, [resetExamination, resetHistory, setScreen]);
+
+  const { authReady, session } = useWorkspaceAuth(resetAccountWorkspace);
 
   const loadHome = async () => {
     const requestAccountEpoch = accountEpoch.current;
     const requestHomeEpoch = ++homeLoadEpoch.current;
-    const isCurrent = () => accountEpoch.current === requestAccountEpoch
-      && homeLoadEpoch.current === requestHomeEpoch;
+    const isCurrent = () =>
+      accountEpoch.current === requestAccountEpoch && homeLoadEpoch.current === requestHomeEpoch;
     try {
       setError("");
-      // Older or partially deployed APIs may not expose the optional runtime
-      // metadata yet. Preserve the existing stock flow in that case.
-      const healthRequest = api.getHealth().catch(() => ({
-        data_mode: undefined,
-        debate_workflow_v2: undefined,
-      }));
-      const stockRequest = api.listStocks();
-      const watchlistRequest = api.getWatchlist();
-      const analysisRequest = api.listAnalyses();
-      const health = await healthRequest;
+      const home = await loadWorkspaceHome(api, DEBATE_V2_UI_ENABLED);
       if (!isCurrent()) return;
-      const fixtureMode = health.data_mode === "review_fixture";
-      const fixtureV2 = fixtureMode && health.debate_workflow_v2 === true;
-      const debateV2Enabled = DEBATE_V2_UI_ENABLED || fixtureV2;
-      const [stockResult, watchlistResult, analysisResult, debateResult] = await Promise.all([
-        stockRequest,
-        watchlistRequest,
-        analysisRequest,
-        debateV2Enabled
-          ? api.listDebates().catch(() => [])
-          : Promise.resolve<DebateSessionSummary[]>([]),
-      ]);
-      const watchedStocks = await Promise.all(
-        watchlistResult.tickers.map((ticker) => api.getStock(ticker).catch(() => null)),
-      );
-      if (!isCurrent()) return;
-      setReviewFixtureMode(fixtureMode);
-      setStocks(mergeStocks(stockResult, watchedStocks.filter((stock): stock is Stock => stock !== null)));
-      setWatchlist(watchlistResult.tickers);
-      setHistory(analysisResult);
-      setDebateHistory(debateResult);
+      setReviewFixtureMode(home.reviewFixtureMode);
+      setStocks(home.stocks);
+      setWatchlist(home.watchlist);
+      replaceHistory({ items: home.analyses, next_offset: home.analysisNextOffset });
+      setDebateHistory(home.debates);
     } catch (requestError) {
-      if (isCurrent()) setError(requestError instanceof Error ? requestError.message : "Could not load the API.");
+      if (isCurrent())
+        setError(requestError instanceof Error ? requestError.message : "Could not load the API.");
     } finally {
       if (isCurrent()) setWorkspaceReady(true);
     }
   };
 
   const debateV2Enabled = DEBATE_V2_UI_ENABLED || reviewFixtureMode;
-
-  useEffect(() => {
-    if (!supabase) {
-      setAuthReady(true);
-      return;
-    }
-    let active = true;
-    let previousAccount: string | null = null;
-    let initialized = false;
-    let authEventSeen = false;
-    const adoptSession = (nextSession: Session | null) => {
-      const nextAccount = nextSession?.user.id || null;
-      if (initialized && previousAccount !== nextAccount) {
-        if (previousAccount) {
-          void clearPendingInterruptionsForAccount(AsyncStorage, previousAccount).catch(() => {
-            // Account-scoped records remain inaccessible to the new account.
-          });
-        }
-        resetAccountWorkspace();
-      }
-      initialized = true;
-      previousAccount = nextAccount;
-      setSession(nextSession);
-      setAuthReady(true);
-    };
-    void supabase.auth.getSession().then(({ data }) => {
-      if (active && !authEventSeen) adoptSession(data.session);
-    }).catch(() => {
-      if (active && !authEventSeen) adoptSession(null);
-    });
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      authEventSeen = true;
-      if (active) adoptSession(nextSession);
-    });
-    return () => {
-      active = false;
-      data.subscription.unsubscribe();
-    };
-  }, []);
 
   useEffect(() => {
     if (authReady && (!isSupabaseConfigured || session)) {
@@ -251,7 +195,9 @@ function AppContent() {
       }
     } catch (requestError) {
       if (stockLoadEpoch.current === requestEpoch) {
-        setError(requestError instanceof Error ? requestError.message : "Could not load stock details.");
+        setError(
+          requestError instanceof Error ? requestError.message : "Could not load stock details.",
+        );
       }
     } finally {
       if (stockLoadEpoch.current === requestEpoch) {
@@ -261,23 +207,17 @@ function AppContent() {
   };
 
   const openStock = async (ticker: string) => {
+    // A research visit owns the current stock bundle. Saved analysis evidence
+    // stays in History and must not leak into another security's research.
+    setAnalysis(null);
+    setLiveDebate(null);
+    resetExamination();
     setScreen("stock");
     await loadSelectedStock(ticker);
   };
 
-  const toggleWatchlist = async (ticker: string) => {
-    const requestAccountEpoch = accountEpoch.current;
-    try {
-      const next = watchlist.includes(ticker)
-        ? await api.removeFromWatchlist(ticker)
-        : await api.addToWatchlist(ticker);
-      if (accountEpoch.current === requestAccountEpoch) setWatchlist(next.tickers);
-    } catch (requestError) {
-      if (accountEpoch.current === requestAccountEpoch) {
-        setError(requestError instanceof Error ? requestError.message : "Could not update the watchlist.");
-      }
-    }
-  };
+  const toggleWatchlist = useWatchlistActions({ watchlist, setWatchlist, setError, accountEpoch });
+  const savedDebateRequest = useRef(0);
 
   const startDebate = async () => {
     if (selectedStock && selectedStock.coverage_status !== "debate_ready") {
@@ -287,6 +227,12 @@ function AppContent() {
     if (debateStartInFlight.current) return;
     const requestAccountEpoch = accountEpoch.current;
     debateStartInFlight.current = true;
+    const requestStockEpoch = stockLoadEpoch.current;
+    const requestNavigationEpoch = navigationEpoch.current;
+    const isCurrentStock = () =>
+      accountEpoch.current === requestAccountEpoch &&
+      stockLoadEpoch.current === requestStockEpoch &&
+      navigationEpoch.current === requestNavigationEpoch;
     const startingV2 = debateV2Enabled;
     setDebateStarting(startingV2);
     if (!startingV2) setLoading(true);
@@ -298,7 +244,7 @@ function AppContent() {
         const nextDebate = await api.createDebate(selectedTicker, {
           idempotencyKey: debateAdmissionKey.current,
         });
-        if (accountEpoch.current !== requestAccountEpoch) return;
+        if (!isCurrentStock()) return;
         debateAdmissionKey.current = null;
         setLiveDebate(nextDebate);
         setDebateHistory((current) => [
@@ -310,55 +256,37 @@ function AppContent() {
         return;
       }
       const nextAnalysis = await api.runAnalysis(selectedTicker);
-      if (accountEpoch.current !== requestAccountEpoch) return;
+      if (!isCurrentStock()) return;
       setAnalysis(nextAnalysis);
       setDebateExperience("legacy");
-      setHistory((current) => [nextAnalysis, ...current.filter((item) => item.analysis_id !== nextAnalysis.analysis_id)]);
+      setHistory((current) => [
+        nextAnalysis,
+        ...current.filter((item) => item.analysis_id !== nextAnalysis.analysis_id),
+      ]);
       setScreen("debate");
     } catch (requestError) {
-      if (accountEpoch.current !== requestAccountEpoch) return;
+      if (!isCurrentStock()) return;
       if (startingV2 && isActiveDebateConflict(requestError)) {
-        const knownSessions = [
-          ...(liveDebate ? [liveDebate.session] : []),
-          ...debateHistory,
-        ];
+        const knownSessions = [...(liveDebate ? [liveDebate.session] : []), ...debateHistory];
         debateAdmissionKey.current = null;
         setActiveDebateRecovery({ session: findActiveDebate(knownSessions) });
       } else {
-        setError(requestError instanceof Error ? requestError.message : "Could not run the analysis.");
+        setError(
+          requestError instanceof Error ? requestError.message : "Could not run the analysis.",
+        );
       }
     } finally {
       if (accountEpoch.current === requestAccountEpoch) {
         debateStartInFlight.current = false;
         setDebateStarting(false);
-        if (!startingV2) setLoading(false);
+        if (!startingV2 && stockLoadEpoch.current === requestStockEpoch) setLoading(false);
       }
     }
   };
 
   const openExamination = (claim: Claim) => {
-    setSelectedClaim(claim);
-    setExamination(null);
-    setExaminationError("");
-    setPendingExaminationQuestion(null);
+    selectExamination(claim);
     setScreen("examine");
-  };
-
-  const askQuestion = async (questionType: ExaminationResponse["question_type"]) => {
-    if (!selectedClaim || !canSubmitExamination(pendingExaminationQuestion)) return;
-    const requestAccountEpoch = accountEpoch.current;
-    setPendingExaminationQuestion(questionType);
-    setExaminationError("");
-    try {
-      const result = await api.examineClaim(selectedClaim.id, questionType);
-      if (accountEpoch.current === requestAccountEpoch) setExamination(result);
-    } catch (requestError) {
-      if (accountEpoch.current === requestAccountEpoch) {
-        setExaminationError(requestError instanceof Error ? requestError.message : "Could not examine the claim.");
-      }
-    } finally {
-      if (accountEpoch.current === requestAccountEpoch) setPendingExaminationQuestion(null);
-    }
   };
 
   const refreshDebateHistory = async () => {
@@ -377,25 +305,46 @@ function AppContent() {
 
   const openSavedDebate = async (sessionSummary: DebateSessionSummary) => {
     const requestAccountEpoch = accountEpoch.current;
+    const requestId = ++savedDebateRequest.current;
+    const requestNavigationEpoch = navigationEpoch.current;
+    const isCurrent = () =>
+      accountEpoch.current === requestAccountEpoch &&
+      savedDebateRequest.current === requestId &&
+      navigationEpoch.current === requestNavigationEpoch;
     let stockLoadStarted = false;
     setActiveDebateRecovery(null);
     setLoading(true);
     setError("");
     try {
       const detail = await api.getDebate(sessionSummary.id);
-      if (accountEpoch.current !== requestAccountEpoch) return;
+      if (!isCurrent()) return;
       setLiveDebate(detail);
       setDebateExperience("v2");
       setScreen("debate");
       stockLoadStarted = true;
       await loadSelectedStock(detail.session.ticker);
     } catch (requestError) {
-      if (accountEpoch.current === requestAccountEpoch) {
-        setError(requestError instanceof Error ? requestError.message : "Could not load this Debate.");
+      if (isCurrent()) {
+        setError(
+          requestError instanceof Error ? requestError.message : "Could not load this Debate.",
+        );
       }
     } finally {
-      if (accountEpoch.current === requestAccountEpoch && !stockLoadStarted) setLoading(false);
+      if (isCurrent() && !stockLoadStarted) setLoading(false);
     }
+  };
+
+  const openSavedAnalysis = (item: AnalysisResponse) => {
+    // Invalidate a pending V2 history request before opening a classic result.
+    savedDebateRequest.current += 1;
+    setAnalysis(item);
+    setLiveDebate(null);
+    resetExamination();
+    setDebateExperience("legacy");
+    setScreen("debate");
+    // The frozen analysis remains visible while its own research page loads.
+    // Returning to research must never show the previously visited stock.
+    void loadSelectedStock(item.ticker);
   };
 
   const renderScreen = () => {
@@ -409,13 +358,16 @@ function AppContent() {
           error={error}
           debateStarting={debateStarting}
           activeDebate={recoverableDebate}
-          onBack={() => { setError(""); setScreen("watchlist"); }}
+          onBack={() => {
+            setError("");
+            setScreen("watchlist");
+          }}
           onRetry={() => void openStock(selectedTicker)}
           onEvidence={() => setScreen("evidence")}
           onDebate={startDebate}
-          onOpenActiveDebate={recoverableDebate
-            ? () => void openSavedDebate(recoverableDebate)
-            : undefined}
+          onOpenActiveDebate={
+            recoverableDebate ? () => void openSavedDebate(recoverableDebate) : undefined
+          }
           onOpenDebateHistory={() => {
             setScreen("history");
             void refreshDebateHistory();
@@ -453,10 +405,10 @@ function AppContent() {
       return (
         <EvidenceScreen
           ticker={selectedTicker}
-          evidence={analysis?.evidence || selectedBundle?.evidence || []}
+          evidence={selectedBundle?.evidence || []}
           error={error}
           loading={loading}
-          onBack={() => setScreen(analysis ? "debate" : "stock")}
+          onBack={() => setScreen("stock")}
           onRetry={() => void openStock(selectedTicker)}
         />
       );
@@ -468,7 +420,10 @@ function AppContent() {
           error={examinationError}
           pendingQuestion={pendingExaminationQuestion}
           result={examination}
-          onBack={() => setScreen("debate")}
+          onBack={() => {
+            resetExamination();
+            setScreen("debate");
+          }}
           onAsk={askQuestion}
         />
       );
@@ -477,13 +432,12 @@ function AppContent() {
       return (
         <HistoryScreen
           history={history}
+          hasMore={historyHasMore}
+          loadingMore={historyLoading}
+          pageError={historyPageError}
+          onLoadMore={() => void loadMoreHistory()}
           debates={debateHistory}
-          onOpen={(item) => {
-            setSelectedTicker(item.ticker);
-            setAnalysis(item);
-            setDebateExperience("legacy");
-            setScreen("debate");
-          }}
+          onOpen={openSavedAnalysis}
           onOpenDebate={(sessionSummary) => void openSavedDebate(sessionSummary)}
         />
       );
@@ -516,7 +470,9 @@ function AppContent() {
   if (!authReady) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loading}><ActivityIndicator color={palette.accent} size="large" /></View>
+        <View style={styles.loading}>
+          <ActivityIndicator color={palette.accent} size="large" />
+        </View>
       </SafeAreaView>
     );
   }
@@ -526,7 +482,9 @@ function AppContent() {
   if (!workspaceReady) {
     return (
       <SafeAreaView style={styles.safeArea}>
-        <View style={styles.loading}><ActivityIndicator color={palette.accent} size="large" /></View>
+        <View style={styles.loading}>
+          <ActivityIndicator color={palette.accent} size="large" />
+        </View>
       </SafeAreaView>
     );
   }
@@ -537,7 +495,9 @@ function AppContent() {
       <View style={styles.appShell}>
         {reviewFixtureMode ? (
           <View accessibilityRole="text" style={styles.fixtureBanner}>
-            <Text style={styles.fixtureBannerText}>SIMULATED DATA · LOCAL UI REVIEW · NOT A MARKET PRICE</Text>
+            <Text style={styles.fixtureBannerText}>
+              SIMULATED DATA · LOCAL UI REVIEW · NOT A MARKET PRICE
+            </Text>
           </View>
         ) : null}
         {error && screen !== "watchlist" && !(screen === "stock" && !selectedBundle) ? (
@@ -560,17 +520,36 @@ function AppContent() {
           accessibilityRole="tablist"
           style={[styles.bottomNav, { bottom: getBottomNavigationOffset(bottomSafeAreaInset) }]}
         >
-          <View style={[
-            styles.bottomNavContent,
-            {
-              columnGap: responsiveShell.navigationGap,
-              maxWidth: responsiveShell.navigationMaxWidth,
-              paddingHorizontal: responsiveShell.navigationPadding,
-            },
-          ]}>
-            <NavButton label="Watchlist" active={screen === "watchlist"} onPress={() => nav("watchlist")} />
-            <NavButton label="Signals" active={screen === "stock" || screen === "debate" || screen === "evidence" || screen === "examine"} onPress={() => void openStock(selectedTicker)} />
-            <NavButton label="History" active={screen === "history"} onPress={() => nav("history")} />
+          <View
+            style={[
+              styles.bottomNavContent,
+              {
+                columnGap: responsiveShell.navigationGap,
+                maxWidth: responsiveShell.navigationMaxWidth,
+                paddingHorizontal: responsiveShell.navigationPadding,
+              },
+            ]}
+          >
+            <NavButton
+              label="Watchlist"
+              active={screen === "watchlist"}
+              onPress={() => nav("watchlist")}
+            />
+            <NavButton
+              label="Signals"
+              active={
+                screen === "stock" ||
+                screen === "debate" ||
+                screen === "evidence" ||
+                screen === "examine"
+              }
+              onPress={() => void openStock(selectedTicker)}
+            />
+            <NavButton
+              label="History"
+              active={screen === "history"}
+              onPress={() => nav("history")}
+            />
             <NavButton label="About" active={screen === "about"} onPress={() => nav("about")} />
           </View>
         </View>

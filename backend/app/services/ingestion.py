@@ -6,6 +6,8 @@ from html import unescape
 from xml.etree import ElementTree
 
 import httpx
+from defusedxml.common import DefusedXmlException
+from defusedxml.ElementTree import fromstring
 
 
 def _tag_name(tag: str) -> str:
@@ -22,7 +24,12 @@ def _text(element: ElementTree.Element | None) -> str:
 def parse_rss(xml_text: str, ticker: str, limit: int = 20) -> list[dict[str, object]]:
     """Parse RSS 2 or Atom XML into the API's evidence shape."""
 
-    root = ElementTree.fromstring(xml_text)
+    # RSS is untrusted network input. Reject DTDs/entities before walking it so
+    # a feed cannot expand attacker-controlled entities or read external data.
+    try:
+        root = fromstring(xml_text, forbid_dtd=True)
+    except (DefusedXmlException, ElementTree.ParseError) as exc:
+        raise ValueError("Unsafe or invalid RSS feed") from exc
     entries: list[ElementTree.Element] = []
     for element in root.iter():
         if _tag_name(element.tag) in {"item", "entry"}:
@@ -41,7 +48,9 @@ def parse_rss(xml_text: str, ticker: str, limit: int = 20) -> list[dict[str, obj
             )
         )
         link_element = next((child for child in entry if _tag_name(child.tag) == "link"), None)
-        link = (link_element.attrib.get("href") if link_element is not None else None) or _text(link_element)
+        link = (link_element.attrib.get("href") if link_element is not None else None) or _text(
+            link_element
+        )
         published = _text(
             next(
                 (
@@ -61,7 +70,7 @@ def parse_rss(xml_text: str, ticker: str, limit: int = 20) -> list[dict[str, obj
                 # Feed positions change whenever a new article is published.
                 # Hashing the provider's stable identity prevents an upsert from
                 # overwriting yesterday's article with today's first entry.
-                "id": f"rss-{ticker.lower()}-{sha1(identity.encode('utf-8')).hexdigest()[:16]}",
+                "id": f"rss-{ticker.lower()}-{sha1(identity.encode('utf-8'), usedforsecurity=False).hexdigest()[:16]}",
                 "ticker": ticker.upper(),
                 "source_type": "news",
                 "title": title,
@@ -89,7 +98,7 @@ def load_text_evidence(path: str, ticker: str, title: str) -> dict[str, object]:
     with open(path, encoding="utf-8") as source:
         content = source.read().strip()
     return {
-        "id": f"filing-{ticker.lower()}-{sha1(path.encode('utf-8')).hexdigest()[:8]}",
+        "id": f"filing-{ticker.lower()}-{sha1(path.encode('utf-8'), usedforsecurity=False).hexdigest()[:8]}",
         "ticker": ticker.upper(),
         "source_type": "filing",
         "title": title,

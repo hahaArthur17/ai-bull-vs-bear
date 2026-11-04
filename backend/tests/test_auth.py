@@ -1,8 +1,7 @@
 import httpx
 import pytest
-from fastapi import HTTPException
-
 from app.services.auth import SupabaseAuthVerifier, extract_bearer_token
+from fastapi import HTTPException
 
 
 def test_extract_bearer_token_requires_valid_scheme() -> None:
@@ -39,3 +38,33 @@ def test_supabase_auth_verifier_rejects_invalid_token_without_leaking_details() 
 
     assert invalid.value.status_code == 401
     assert invalid.value.detail == "Invalid or expired access token"
+
+
+@pytest.mark.parametrize("status_code", [429, 500, 502, 503])
+def test_auth_outage_does_not_discard_a_valid_session(status_code: int) -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(status_code, text="private upstream detail")
+        )
+    )
+    verifier = SupabaseAuthVerifier("https://example.supabase.co", "anon-key", client)
+
+    with pytest.raises(HTTPException) as unavailable:
+        verifier.verify("valid-token")
+
+    assert unavailable.value.status_code == 503
+    assert unavailable.value.detail == "Authentication service unavailable"
+
+
+@pytest.mark.parametrize("body", ["not-json", "[]", "null", '"user"'])
+def test_malformed_auth_response_fails_safely(body: str) -> None:
+    client = httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=body))
+    )
+    verifier = SupabaseAuthVerifier("https://example.supabase.co", "anon-key", client)
+
+    with pytest.raises(HTTPException) as unavailable:
+        verifier.verify("valid-token")
+
+    assert unavailable.value.status_code == 503
+    assert unavailable.value.detail == "Authentication service unavailable"

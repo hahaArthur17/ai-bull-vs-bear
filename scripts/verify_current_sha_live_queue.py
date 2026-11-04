@@ -31,17 +31,16 @@ not bounded.
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
 import json
 import math
 import os
 import re
 from collections.abc import Callable, Iterable, Iterator, Sequence
+from dataclasses import dataclass
 from typing import Any
 from uuid import uuid4
 
 import httpx
-
 
 DEFAULT_PROVIDER_REQUEST_BUDGET = 12
 ROUND_ONE_PROVIDER_REQUESTS = 7
@@ -51,15 +50,17 @@ DEFAULT_HTTP_TIMEOUT_SECONDS = 30.0
 DEFAULT_CHALLENGE = "Does this rebuttal underweight the filing risk?"
 DEFAULT_EXPECTED_TURN_PROVIDER = "groq-live-debate"
 DEFAULT_EXPECTED_JUDGE_PROVIDER = "groq-live-judge"
-EXPECTED_MACRO_SERIES = frozenset({
-    "effective_fed_funds_rate",
-    "sp500",
-    "treasury_10y_yield",
-    "treasury_2y_yield",
-    "treasury_30y_yield",
-    "vix",
-    "wti_spot",
-})
+EXPECTED_MACRO_SERIES = frozenset(
+    {
+        "effective_fed_funds_rate",
+        "sp500",
+        "treasury_10y_yield",
+        "treasury_2y_yield",
+        "treasury_30y_yield",
+        "vix",
+        "wti_spot",
+    }
+)
 SHA_KEYS = ("commit_sha", "git_sha", "release_sha", "build_sha", "source_sha")
 SHA_HEADER_KEYS = ("x-commit-sha", "x-git-sha", "x-release-sha", "x-build-sha")
 _HEX_SHA = re.compile(r"^[0-9a-fA-F]{7,64}$")
@@ -102,9 +103,7 @@ class AcceptanceConfig:
         if not self.access_token.strip():
             raise ValueError("An authenticated API token is required")
         if self.provider_request_budget < DEFAULT_PROVIDER_REQUEST_BUDGET:
-            raise ValueError(
-                "The full two-round Debate requires a provider budget of at least 12"
-            )
+            raise ValueError("The full two-round Debate requires a provider budget of at least 12")
         if (
             not isinstance(self.max_reconnects, int)
             or isinstance(self.max_reconnects, bool)
@@ -219,9 +218,7 @@ class ProviderBudget:
 
     def require_room(self, required: int) -> None:
         if required < 0 or self.observed + required > self.limit:
-            raise AcceptanceError(
-                "Provider request budget leaves insufficient room for Round 2"
-            )
+            raise AcceptanceError("Provider request budget leaves insufficient room for Round 2")
 
 
 class AuthenticatedApi:
@@ -237,9 +234,9 @@ class AuthenticatedApi:
         self.config = config
         self.base_url = config.base_url.strip().rstrip("/")
         self._client = client or (
-            client_factory() if client_factory is not None else httpx.Client(
-                timeout=config.timeout_seconds
-            )
+            client_factory()
+            if client_factory is not None
+            else httpx.Client(timeout=config.timeout_seconds)
         )
         self._owns_client = client is None
 
@@ -388,7 +385,11 @@ def _sha_matches(expected: str, actual: str) -> bool:
 
 def _phase_for_message(message: dict[str, Any]) -> int | None:
     value = message.get("round_number")
-    return value if isinstance(value, int) and not isinstance(value, bool) and value in {1, 2} else None
+    return (
+        value
+        if isinstance(value, int) and not isinstance(value, bool) and value in {1, 2}
+        else None
+    )
 
 
 def _canonical_ids(records: Iterable[dict[str, Any]]) -> dict[str, dict[str, Any]]:
@@ -470,23 +471,30 @@ def _check_provider_metadata(
         provider_version = metadata.get("provider_version")
         stream_mode = metadata.get("stream_mode")
         if not all(
-            isinstance(value, str) and value.strip()
-            for value in (provider, provider_version)
+            isinstance(value, str) and value.strip() for value in (provider, provider_version)
         ):
             passed = False
             continue
         if stream_mode != "async_provider":
             passed = False
         by_role.setdefault(str(role), set()).add(
-            (str(provider), str(model) if isinstance(model, str) and model.strip() else "unknown-model")
+            (
+                str(provider),
+                str(model) if isinstance(model, str) and model.strip() else "unknown-model",
+            )
         )
         usage = metadata.get("usage")
         if usage is not None:
             if not isinstance(usage, dict):
                 passed = False
                 continue
-            token_values = [usage.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens")]
-            if not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in token_values):
+            token_values = [
+                usage.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+            ]
+            if not all(
+                isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                for value in token_values
+            ):
                 passed = False
             elif token_values[2] != token_values[0] + token_values[1]:
                 passed = False
@@ -511,8 +519,7 @@ def _check_expected_providers(
     for role, expected_provider in expected_by_role.items():
         observed = provider_models.get(role, [])
         if not observed or any(
-            not provider_model.startswith(f"{expected_provider}:")
-            for provider_model in observed
+            not provider_model.startswith(f"{expected_provider}:") for provider_model in observed
         ):
             return False
     return True
@@ -535,22 +542,26 @@ def _snapshot_summary(context: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
         for item in prices
         if isinstance(item, dict) and isinstance(item.get("date"), str)
     ]
-    price_sources = sorted({
-        str(item.get("source"))
-        for item in prices
-        if isinstance(item, dict) and isinstance(item.get("source"), str)
-    })
+    price_sources = sorted(
+        {
+            str(item.get("source"))
+            for item in prices
+            if isinstance(item, dict) and isinstance(item.get("source"), str)
+        }
+    )
     evidence_items = [item for item in evidence if isinstance(item, dict)]
     macro_items = [item for item in macro if isinstance(item, dict)]
     financial_items = [item for item in financial if isinstance(item, dict)]
-    evidence_types = sorted({
-        str(item.get("source_type")) for item in evidence_items
-        if isinstance(item.get("source_type"), str)
-    })
-    macro_codes = sorted({
-        str(item.get("code")) for item in macro_items
-        if isinstance(item.get("code"), str)
-    })
+    evidence_types = sorted(
+        {
+            str(item.get("source_type"))
+            for item in evidence_items
+            if isinstance(item.get("source_type"), str)
+        }
+    )
+    macro_codes = sorted(
+        {str(item.get("code")) for item in macro_items if isinstance(item.get("code"), str)}
+    )
     quote_freshness = quote.get("freshness")
     quote_freshness = quote_freshness if isinstance(quote_freshness, dict) else {}
     snapshot_valid = (
@@ -639,8 +650,7 @@ def _check_attempts(
     phase_message_ids: set[str] = {
         identifier
         for identifier, message in messages_by_id.items()
-        if _phase_for_message(message) == phase
-        and message.get("role") in {"bull", "bear", "judge"}
+        if _phase_for_message(message) == phase and message.get("role") in {"bull", "bear", "judge"}
     }
     phase_attempt_message_ids: set[str] = set()
     completed_message_ids: set[str] = set()
@@ -676,21 +686,22 @@ def _check_attempts(
             phase_attempt_message_ids.add(message_id)
             if attempt.get("outcome") == "completed":
                 completed_message_ids.add(message_id)
-    phase_roles = _role_counts(
-        {"role": attempt.get("role")} for attempt in phase_attempts
+    phase_roles = _role_counts({"role": attempt.get("role")} for attempt in phase_attempts)
+    expected_roles = (
+        {"bull": 3, "bear": 3, "judge": 1} if phase == 1 else {"bull": 2, "bear": 2, "judge": 1}
     )
-    expected_roles = {"bull": 3, "bear": 3, "judge": 1} if phase == 1 else {"bull": 2, "bear": 2, "judge": 1}
     usage_unknown = 0
     reported_prompt = reported_completion = reported_total = 0
     metadata_passed = True
     for attempt in phase_attempts:
-        if not isinstance(attempt.get("admitted_at"), str) or not attempt.get("admitted_at", "").strip():
+        if (
+            not isinstance(attempt.get("admitted_at"), str)
+            or not attempt.get("admitted_at", "").strip()
+        ):
             metadata_passed = False
         for timestamp_key in ("dispatched_at", "finished_at"):
             timestamp = attempt.get(timestamp_key)
-            if timestamp is not None and (
-                not isinstance(timestamp, str) or not timestamp.strip()
-            ):
+            if timestamp is not None and (not isinstance(timestamp, str) or not timestamp.strip()):
                 metadata_passed = False
         provider = attempt.get("provider")
         model = attempt.get("model")
@@ -711,13 +722,18 @@ def _check_attempts(
         if not attempt.get("dispatched_at") or not attempt.get("finished_at"):
             metadata_passed = False
         usage_status = attempt.get("usage_status")
-        values = [attempt.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens")]
+        values = [
+            attempt.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+        ]
         if usage_status == "unknown":
             usage_unknown += 1
             if any(value is not None for value in values):
                 metadata_passed = False
         elif usage_status == "reported":
-            if not all(isinstance(value, int) and not isinstance(value, bool) and value >= 0 for value in values):
+            if not all(
+                isinstance(value, int) and not isinstance(value, bool) and value >= 0
+                for value in values
+            ):
                 metadata_passed = False
             elif values[2] != values[0] + values[1]:
                 metadata_passed = False
@@ -741,9 +757,7 @@ def _check_attempts(
         if attempt.get("usage_status") == "reported"
         and isinstance(attempt.get("total_tokens"), int)
     )
-    all_unknown_usage = sum(
-        attempt.get("usage_status") == "unknown" for attempt in attempts
-    )
+    all_unknown_usage = sum(attempt.get("usage_status") == "unknown" for attempt in attempts)
     summary_values = {
         "admitted_count": len(attempts),
         "dispatch_attempts": sum(bool(attempt.get("dispatched_at")) for attempt in attempts),
@@ -826,17 +840,14 @@ def _summarize_failure_attempts(
     for attempt in attempts:
         usage_status = attempt.get("usage_status")
         values = tuple(
-            attempt.get(key)
-            for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+            attempt.get(key) for key in ("prompt_tokens", "completion_tokens", "total_tokens")
         )
         if usage_status == "unknown":
             unknown_usage += 1
             usage_valid = usage_valid and all(value is None for value in values)
         elif usage_status == "reported":
             valid_values = all(
-                isinstance(value, int)
-                and not isinstance(value, bool)
-                and value >= 0
+                isinstance(value, int) and not isinstance(value, bool) and value >= 0
                 for value in values
             )
             if not valid_values or values[2] != values[0] + values[1]:
@@ -860,15 +871,10 @@ def _summarize_failure_attempts(
     )
     return {
         **summary_values,
-        "completed_attempts": sum(
-            attempt.get("outcome") == "completed" for attempt in attempts
-        ),
-        "failed_attempts": sum(
-            attempt.get("outcome") == "failed" for attempt in attempts
-        ),
+        "completed_attempts": sum(attempt.get("outcome") == "completed" for attempt in attempts),
+        "failed_attempts": sum(attempt.get("outcome") == "failed" for attempt in attempts),
         "unsettled_attempts": sum(
-            attempt.get("outcome") not in {"completed", "failed"}
-            for attempt in attempts
+            attempt.get("outcome") not in {"completed", "failed"} for attempt in attempts
         ),
         "reported_prompt_tokens": reported_prompt,
         "reported_completion_tokens": reported_completion,
@@ -930,9 +936,7 @@ def _check_phase_events(events: Sequence[SseEvent], *, phase: int) -> dict[str, 
         if identifier is not None
     }
     citation_ids = {
-        identifier
-        for identifier in map(_event_message_id, citations)
-        if identifier is not None
+        identifier for identifier in map(_event_message_id, citations) if identifier is not None
     }
     stream_events_valid = True
     delta_indices: dict[str, list[int]] = {}
@@ -940,10 +944,7 @@ def _check_phase_events(events: Sequence[SseEvent], *, phase: int) -> dict[str, 
         identifier = _event_message_id(stream_event)
         message = completed_by_id.get(identifier or "")
         nested = _event_payload(stream_event)
-        if (
-            message is None
-            or nested.get("generation_id") != message.get("generation_id")
-        ):
+        if message is None or nested.get("generation_id") != message.get("generation_id"):
             stream_events_valid = False
         if stream_event.event_type in {"turn.delta", "judge.delta"}:
             delta = nested.get("delta")
@@ -960,10 +961,7 @@ def _check_phase_events(events: Sequence[SseEvent], *, phase: int) -> dict[str, 
                 stream_events_valid = False
             elif identifier is not None:
                 delta_indices.setdefault(identifier, []).append(delta_index)
-    if any(
-        indices != list(range(1, len(indices) + 1))
-        for indices in delta_indices.values()
-    ):
+    if any(indices != list(range(1, len(indices) + 1)) for indices in delta_indices.values()):
         stream_events_valid = False
     judge_rounds: list[object] = []
     judge_phases: list[object] = []
@@ -1062,7 +1060,9 @@ class CurrentShaLiveQueueVerifier:
             self._provider_audit_available = False
             return {"attempts": []}
         if response.status_code != 200:
-            raise HttpApiError("GET", f"/debates/{self.session_id}/provider-attempts", response.status_code)
+            raise HttpApiError(
+                "GET", f"/debates/{self.session_id}/provider-attempts", response.status_code
+            )
         try:
             payload = response.json()
         except (ValueError, json.JSONDecodeError) as exc:
@@ -1090,20 +1090,27 @@ class CurrentShaLiveQueueVerifier:
                     try:
                         latest = int(latest_header or "-1")
                     except ValueError as exc:
-                        raise AcceptanceError("Expired SSE cursor had no valid latest sequence") from exc
+                        raise AcceptanceError(
+                            "Expired SSE cursor had no valid latest sequence"
+                        ) from exc
                     if latest < cursor:
                         raise AcceptanceError("Expired SSE cursor moved backwards")
                     # Reloading here proves that cursor recovery uses canonical
                     # state before attaching to newer transient events.
                     detail, _ = self._reload()
                     status = _object(detail.get("session"), "Debate session").get("status")
-                    if status in {"awaiting_user", "completed", "failed", "cancelled"} and latest == cursor:
+                    if (
+                        status in {"awaiting_user", "completed", "failed", "cancelled"}
+                        and latest == cursor
+                    ):
                         break
                     cursor = latest
                     reconnects += 1
                     continue
                 if response.status_code != 200:
-                    raise HttpApiError("GET", f"/debates/{self.session_id}/events", response.status_code)
+                    raise HttpApiError(
+                        "GET", f"/debates/{self.session_id}/events", response.status_code
+                    )
                 parser = SseFrameParser()
                 saw_terminal = False
                 for line in response.iter_lines():
@@ -1115,7 +1122,9 @@ class CurrentShaLiveQueueVerifier:
                         if event.event_id is not None and event.event_id != str(event.sequence):
                             raise AcceptanceError("SSE id did not match its event sequence")
                         if event.sequence <= cursor or event.sequence != cursor + 1:
-                            raise AcceptanceError("SSE event sequence was not contiguous from the cursor")
+                            raise AcceptanceError(
+                                "SSE event sequence was not contiguous from the cursor"
+                            )
                         cursor = event.sequence
                         events.append(event)
                         if event.event_type in {"session.failed", "session.cancelled"}:
@@ -1144,7 +1153,9 @@ class CurrentShaLiveQueueVerifier:
                         if event.payload.get("session_id") != self.session_id:
                             raise AcceptanceError("SSE event belonged to another Debate session")
                         if event.sequence <= cursor or event.sequence != cursor + 1:
-                            raise AcceptanceError("SSE event sequence was not contiguous from the cursor")
+                            raise AcceptanceError(
+                                "SSE event sequence was not contiguous from the cursor"
+                            )
                         cursor = event.sequence
                         events.append(event)
                         if event.event_type in {"session.failed", "session.cancelled"}:
@@ -1219,7 +1230,9 @@ class CurrentShaLiveQueueVerifier:
         try:
             health_response, health_body = self.api.json_request("GET", "/health")
             health = _object(health_body, "Health response")
-            checks["health_ok"] = health_response.status_code == 200 and health.get("status") == "ok"
+            checks["health_ok"] = (
+                health_response.status_code == 200 and health.get("status") == "ok"
+            )
             checks["standard_mode"] = health.get("data_mode") == "standard"
             checks["v2_enabled"] = health.get("debate_workflow_v2") is True
             if "debate_queue_enabled" in health:
@@ -1228,7 +1241,9 @@ class CurrentShaLiveQueueVerifier:
             report["server_sha_present"] = server_sha is not None
             report["server_sha"] = server_sha
             if self.config.expected_sha:
-                checks["current_sha"] = server_sha is not None and _sha_matches(self.config.expected_sha, server_sha)
+                checks["current_sha"] = server_sha is not None and _sha_matches(
+                    self.config.expected_sha, server_sha
+                )
             elif self.config.require_current_sha:
                 checks["current_sha"] = False
                 report["current_sha"] = "required_but_not_configured"
@@ -1239,7 +1254,8 @@ class CurrentShaLiveQueueVerifier:
             health_checks = {
                 key: value
                 for key, value in checks.items()
-                if key in {"health_ok", "standard_mode", "v2_enabled", "queue_enabled", "current_sha"}
+                if key
+                in {"health_ok", "standard_mode", "v2_enabled", "queue_enabled", "current_sha"}
             }
             if not all(health_checks.values()):
                 raise AcceptanceError("Health/current-SHA preflight failed; no Debate was admitted")
@@ -1269,7 +1285,9 @@ class CurrentShaLiveQueueVerifier:
                 and job.get("session_id") == self.session_id
             )
             initial_job_request_count = job.get("provider_request_count")
-            checks["initial_budget_zero"] = isinstance(initial_job_request_count, int) and initial_job_request_count == 0
+            checks["initial_budget_zero"] = (
+                isinstance(initial_job_request_count, int) and initial_job_request_count == 0
+            )
             worker_max_attempts = job.get("max_attempts")
             report["worker_max_attempts"] = worker_max_attempts
             if self.config.require_no_worker_retries:
@@ -1281,7 +1299,9 @@ class CurrentShaLiveQueueVerifier:
                 phase=1,
             )
             r1_event_check = _check_phase_events(round_one_events, phase=1)
-            checks["round_one_sse_interim_judge"] = bool(r1_event_check["passed"] and r1_event_check["last_event"] == "session.awaiting_user")
+            checks["round_one_sse_interim_judge"] = bool(
+                r1_event_check["passed"] and r1_event_check["last_event"] == "session.awaiting_user"
+            )
             report["round_one_sse"] = r1_event_check
             round_one_cursor = round_one_events[-1].sequence
 
@@ -1294,8 +1314,14 @@ class CurrentShaLiveQueueVerifier:
                 and r1_session.get("interim_judge_message_id") == r1_messages[-1].get("id")
                 and r1_session.get("final_judge_message_id") is None
             )
-            checks["round_one_role_counts"] = _role_counts(r1_messages) == {"bull": 3, "bear": 3, "judge": 1}
-            checks["round_one_sequence"] = [message.get("sequence_number") for message in r1_messages] == list(range(1, 8))
+            checks["round_one_role_counts"] = _role_counts(r1_messages) == {
+                "bull": 3,
+                "bear": 3,
+                "judge": 1,
+            }
+            checks["round_one_sequence"] = [
+                message.get("sequence_number") for message in r1_messages
+            ] == list(range(1, 8))
             allowed = set()
             context = r1_session.get("analysis_context")
             if isinstance(context, dict) and isinstance(context.get("allowed_evidence_ids"), list):
@@ -1306,7 +1332,9 @@ class CurrentShaLiveQueueVerifier:
                 snapshot_ok, snapshot = False, {}
             checks["current_aapl_snapshot"] = snapshot_ok
             report["snapshot"] = snapshot
-            citations_ok, citation_count = _check_citations(r1_records, allowed_evidence_ids=allowed)
+            citations_ok, citation_count = _check_citations(
+                r1_records, allowed_evidence_ids=allowed
+            )
             metadata_ok, metadata = _check_provider_metadata(r1_records)
             checks["round_one_citations"] = citations_ok
             checks["round_one_provider_metadata"] = metadata_ok
@@ -1336,7 +1364,9 @@ class CurrentShaLiveQueueVerifier:
             report["round_one_accounting"] = r1_accounting
             checks["round_one_usage_accounting"] = bool(r1_accounting.get("passed"))
             if self._provider_audit_available and not r1_accounting.get("passed"):
-                raise AcceptanceError("Round 1 provider accounting did not match the canonical transcript")
+                raise AcceptanceError(
+                    "Round 1 provider accounting did not match the canonical transcript"
+                )
 
             self.budget.require_room(ROUND_TWO_PROVIDER_REQUESTS)
             target = next(
@@ -1385,7 +1415,9 @@ class CurrentShaLiveQueueVerifier:
                 phase=2,
             )
             r2_event_check = _check_phase_events(round_two_events, phase=2)
-            checks["round_two_sse_final_judge"] = bool(r2_event_check["passed"] and r2_event_check["last_event"] == "session.completed")
+            checks["round_two_sse_final_judge"] = bool(
+                r2_event_check["passed"] and r2_event_check["last_event"] == "session.completed"
+            )
             report["round_two_sse"] = r2_event_check
 
             final_detail, final_records = self._reload()
@@ -1396,13 +1428,24 @@ class CurrentShaLiveQueueVerifier:
                 and len(final_messages) == 13
                 and final_session.get("final_judge_message_id") == final_messages[-1].get("id")
             )
-            checks["final_role_counts"] = _role_counts(final_messages) == {"bull": 5, "bear": 5, "judge": 2, "user": 1}
-            checks["final_sequence"] = [message.get("sequence_number") for message in final_messages] == list(range(1, 14))
+            checks["final_role_counts"] = _role_counts(final_messages) == {
+                "bull": 5,
+                "bear": 5,
+                "judge": 2,
+                "user": 1,
+            }
+            checks["final_sequence"] = [
+                message.get("sequence_number") for message in final_messages
+            ] == list(range(1, 14))
             final_allowed = set()
             final_context = final_session.get("analysis_context")
-            if isinstance(final_context, dict) and isinstance(final_context.get("allowed_evidence_ids"), list):
+            if isinstance(final_context, dict) and isinstance(
+                final_context.get("allowed_evidence_ids"), list
+            ):
                 final_allowed = {str(item) for item in final_context["allowed_evidence_ids"]}
-            final_citations_ok, final_citation_count = _check_citations(final_records, allowed_evidence_ids=final_allowed)
+            final_citations_ok, final_citation_count = _check_citations(
+                final_records, allowed_evidence_ids=final_allowed
+            )
             final_metadata_ok, final_metadata = _check_provider_metadata(final_records)
             checks["final_citations"] = final_citations_ok
             checks["final_provider_metadata"] = final_metadata_ok
@@ -1432,9 +1475,21 @@ class CurrentShaLiveQueueVerifier:
             report["round_two_accounting"] = final_accounting
             checks["round_two_usage_accounting"] = bool(final_accounting.get("passed"))
             report["observed_provider_requests"] = self.budget.observed
-            checks["provider_request_budget"] = self.budget.observed <= self.config.provider_request_budget
-            report["sse_cursors"] = {"round_one_terminal": round_one_cursor, "round_two_terminal": round_two_events[-1].sequence}
-        except (AcceptanceError, AttributeError, IndexError, KeyError, TypeError, ValueError) as exc:
+            checks["provider_request_budget"] = (
+                self.budget.observed <= self.config.provider_request_budget
+            )
+            report["sse_cursors"] = {
+                "round_one_terminal": round_one_cursor,
+                "round_two_terminal": round_two_events[-1].sequence,
+            }
+        except (
+            AcceptanceError,
+            AttributeError,
+            IndexError,
+            KeyError,
+            TypeError,
+            ValueError,
+        ) as exc:
             report["error"] = str(exc)
             checks["workflow_error_free"] = False
             if self.session_id is not None:
@@ -1465,9 +1520,23 @@ class CurrentShaLiveQueueVerifier:
             report["session_id"] = self.session_id
             report["observed_provider_requests"] = self.budget.observed
         report["checks"] = checks
-        required_checks = [value for key, value in checks.items() if key != "current_sha" or self.config.require_current_sha or self.config.expected_sha]
+        required_checks = [
+            value
+            for key, value in checks.items()
+            if key != "current_sha" or self.config.require_current_sha or self.config.expected_sha
+        ]
         if not self._provider_audit_available and self.config.allow_missing_provider_audit:
-            required_checks = [value for key, value in checks.items() if key not in {"provider_audit_available", "round_one_usage_accounting", "round_two_usage_accounting", "provider_audit_total"}]
+            required_checks = [
+                value
+                for key, value in checks.items()
+                if key
+                not in {
+                    "provider_audit_available",
+                    "round_one_usage_accounting",
+                    "round_two_usage_accounting",
+                    "provider_audit_total",
+                }
+            ]
         report["passed"] = bool(required_checks) and all(required_checks)
         return report
 
@@ -1523,7 +1592,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=os.getenv("DEBATE_API_TOKEN") or os.getenv("API_TOKEN"),
         help="Bearer token (prefer DEBATE_API_TOKEN)",
     )
-    parser.add_argument("--provider-request-budget", type=_positive_int, default=int(os.getenv("DEBATE_PROVIDER_REQUEST_BUDGET", str(DEFAULT_PROVIDER_REQUEST_BUDGET))))
+    parser.add_argument(
+        "--provider-request-budget",
+        type=_positive_int,
+        default=int(
+            os.getenv("DEBATE_PROVIDER_REQUEST_BUDGET", str(DEFAULT_PROVIDER_REQUEST_BUDGET))
+        ),
+    )
     parser.add_argument(
         "--expected-sha",
         "--current-sha",
@@ -1545,7 +1620,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         ),
     )
     sha_group = parser.add_mutually_exclusive_group()
-    sha_group.add_argument("--require-current-sha", dest="require_current_sha", action="store_true", default=True)
+    sha_group.add_argument(
+        "--require-current-sha", dest="require_current_sha", action="store_true", default=True
+    )
     sha_group.add_argument(
         "--allow-missing-current-sha",
         dest="require_current_sha",
@@ -1561,7 +1638,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--allow-missing-provider-audit", action="store_true")
     parser.add_argument("--max-reconnects", type=_nonnegative_int, default=DEFAULT_MAX_RECONNECTS)
     parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_HTTP_TIMEOUT_SECONDS)
-    parser.add_argument("--cleanup-endpoint", dest="cleanup_endpoint_template", default=None, help="Exact DELETE path template, e.g. /internal/acceptance/debates/{session_id}")
+    parser.add_argument(
+        "--cleanup-endpoint",
+        dest="cleanup_endpoint_template",
+        default=None,
+        help="Exact DELETE path template, e.g. /internal/acceptance/debates/{session_id}",
+    )
     args = parser.parse_args(argv)
     if not args.base_url:
         parser.error("--base-url or DEBATE_API_BASE_URL is required")

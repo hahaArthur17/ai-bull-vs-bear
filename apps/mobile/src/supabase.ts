@@ -3,10 +3,12 @@ import { createClient, processLock } from "@supabase/supabase-js";
 import Constants from "expo-constants";
 import "react-native-url-polyfill/auto";
 
-const projectConfig = Constants.expoConfig?.extra as {
-  supabaseUrl?: string;
-  supabaseAnonKey?: string;
-} | undefined;
+const projectConfig = Constants.expoConfig?.extra as
+  | {
+      supabaseUrl?: string;
+      supabaseAnonKey?: string;
+    }
+  | undefined;
 
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || projectConfig?.supabaseUrl;
 const supabaseKey =

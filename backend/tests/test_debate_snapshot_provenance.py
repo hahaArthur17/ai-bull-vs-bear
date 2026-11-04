@@ -1,7 +1,6 @@
 from datetime import datetime, timezone
 
 import pytest
-
 from app.services.debate_snapshot_provenance import (
     completed_close_cutoff,
     require_live_debate_history,
@@ -30,9 +29,18 @@ def _prices(count: int = 50) -> list[dict[str, object]]:
 
 
 def test_completed_close_cutoff_never_treats_regular_session_today_as_complete() -> None:
-    assert completed_close_cutoff(datetime(2026, 8, 19, 18, tzinfo=timezone.utc)).isoformat() == "2026-08-18"
-    assert completed_close_cutoff(datetime(2026, 8, 19, 21, tzinfo=timezone.utc)).isoformat() == "2026-08-19"
-    assert completed_close_cutoff(datetime(2026, 8, 23, 18, tzinfo=timezone.utc)).isoformat() == "2026-08-21"
+    assert (
+        completed_close_cutoff(datetime(2026, 8, 19, 18, tzinfo=timezone.utc)).isoformat()
+        == "2026-08-18"
+    )
+    assert (
+        completed_close_cutoff(datetime(2026, 8, 19, 21, tzinfo=timezone.utc)).isoformat()
+        == "2026-08-19"
+    )
+    assert (
+        completed_close_cutoff(datetime(2026, 8, 23, 18, tzinfo=timezone.utc)).isoformat()
+        == "2026-08-21"
+    )
 
 
 def test_live_history_fails_closed_for_insufficient_stale_and_intraday_rows() -> None:

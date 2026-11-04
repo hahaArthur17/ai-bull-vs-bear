@@ -1,15 +1,14 @@
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from hashlib import sha256
-import json
 from threading import RLock
 from time import time
 from typing import Callable, Literal
 
 from app.domain.factors import AnalysisContext
 from app.services.cache import ResilientCacheBackend
-
 
 CacheStatus = Literal["HIT", "MISS", "BYPASS", "DEGRADED"]
 

@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-from datetime import date, datetime, timezone
 import math
+from datetime import date, datetime, timezone
 from statistics import mean, pstdev
 from typing import Iterable
-
 
 COMPLETE_HISTORY_RECORDS = 50
 RSI_PERIOD = 14
@@ -52,11 +51,8 @@ def _latest_rsi(values: list[float], period: int = RSI_PERIOD) -> float | None:
 def _latest_volatility(values: list[float], period: int = VOLATILITY_PERIOD) -> float | None:
     if len(values) <= period:
         return None
-    window = values[-(period + 1):]
-    returns = [
-        math.log(window[index] / window[index - 1])
-        for index in range(1, len(window))
-    ]
+    window = values[-(period + 1) :]
+    returns = [math.log(window[index] / window[index - 1]) for index in range(1, len(window))]
     return pstdev(returns) * math.sqrt(TRADING_DAYS_PER_YEAR) * 100
 
 
@@ -97,8 +93,7 @@ def assess_price_history(
             close = float(point["close"])
             volume = int(point["volume"])
             if not all(
-                math.isfinite(value) and value > 0
-                for value in (open_price, high, low, close)
+                math.isfinite(value) and value > 0 for value in (open_price, high, low, close)
             ):
                 valid_ohlcv = False
             if high < max(open_price, close) or low > min(open_price, close) or low > high:
@@ -109,8 +104,7 @@ def assess_price_history(
             valid_ohlcv = False
 
     is_ordered = valid_dates and all(
-        parsed_dates[index] < parsed_dates[index + 1]
-        for index in range(len(parsed_dates) - 1)
+        parsed_dates[index] < parsed_dates[index + 1] for index in range(len(parsed_dates) - 1)
     )
     has_unique_dates = valid_dates and len(set(parsed_dates)) == len(parsed_dates)
     completed_close_count = sum(item <= cutoff for item in parsed_dates) if valid_dates else 0
@@ -127,7 +121,11 @@ def assess_price_history(
 
     sources = {str(point.get("source", "")) for point in points}
     if sources == {"daily_market_cache"}:
-        provenance = "live_stale" if any(bool(point.get("is_stale", True)) for point in points) else "live_fresh"
+        provenance = (
+            "live_stale"
+            if any(bool(point.get("is_stale", True)) for point in points)
+            else "live_fresh"
+        )
     elif sources == {"review_fixture"}:
         provenance = "review_fixture"
     else:
@@ -146,7 +144,9 @@ def assess_price_history(
         "volume": usable_count >= 1,
         "volatility": usable_count >= VOLATILITY_PERIOD + 1,
     }
-    complete_view = bool(is_valid and has_verified_provenance and len(points) >= COMPLETE_HISTORY_RECORDS)
+    complete_view = bool(
+        is_valid and has_verified_provenance and len(points) >= COMPLETE_HISTORY_RECORDS
+    )
 
     if not points:
         explanation = "No daily close history is available."
@@ -161,7 +161,9 @@ def assess_price_history(
     elif not has_verified_provenance:
         explanation = "Daily history provenance is not verified for market presentation."
     elif len(points) < COMPLETE_HISTORY_RECORDS:
-        history_label = "simulated review closes" if provenance == "review_fixture" else "verified closes"
+        history_label = (
+            "simulated review closes" if provenance == "review_fixture" else "verified closes"
+        )
         explanation = f"{len(points)} {history_label} are available; {COMPLETE_HISTORY_RECORDS} are required for the complete technical view."
     elif provenance == "review_fixture":
         explanation = "Simulated review history is sufficient for the complete technical view."
@@ -237,7 +239,9 @@ def calculate_indicators(ticker: str, prices: Iterable[dict[str, object]]) -> di
     latest_close = closes[-1] if closes else None
 
     if latest_close is None or moving_average_20 is None or macd is None or macd_signal is None:
-        signal_summary = "Technical signals are unavailable until sufficient valid history is present."
+        signal_summary = (
+            "Technical signals are unavailable until sufficient valid history is present."
+        )
     elif latest_close >= moving_average_20 and macd >= macd_signal:
         signal_summary = "Momentum appears constructive, with medium uncertainty."
     elif latest_close < moving_average_20 and macd < macd_signal:

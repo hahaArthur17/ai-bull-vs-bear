@@ -21,7 +21,13 @@ export function getBottomNavigationOffset(bottomSafeAreaInset: number): number {
 export function getResponsiveAppShellLayout(viewportWidth: number): ResponsiveAppShellLayout {
   const isDesktop = viewportWidth >= layout.breakpoints.desktop;
   const isTablet = viewportWidth >= layout.breakpoints.tablet;
-  const contentGutter = isDesktop ? spacing.xxxl : isTablet ? spacing.xxl : viewportWidth >= layout.breakpoints.phone ? spacing.xl : spacing.lg;
+  const contentGutter = isDesktop
+    ? spacing.xxxl
+    : isTablet
+      ? spacing.xxl
+      : viewportWidth >= layout.breakpoints.phone
+        ? spacing.xl
+        : spacing.lg;
   const frameWidth = Math.max(0, viewportWidth - contentGutter * 2);
 
   if (viewportWidth >= layout.breakpoints.desktop) {

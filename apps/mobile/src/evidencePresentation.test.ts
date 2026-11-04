@@ -1,7 +1,13 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import test from "node:test";
+import { URL as NodeURL } from "node:url";
 
-import { isSafeEvidenceDestination, presentDebateEvidence, presentEvidence } from "./evidencePresentation.ts";
+import {
+  isSafeEvidenceDestination,
+  presentDebateEvidence,
+  presentEvidence,
+} from "./evidencePresentation.ts";
 import type { DebateEvidencePresentation, EvidenceItem } from "./types.ts";
 
 function evidence(overrides: Partial<EvidenceItem> = {}): EvidenceItem {
@@ -13,7 +19,11 @@ function evidence(overrides: Partial<EvidenceItem> = {}): EvidenceItem {
     excerpt: "Evidence excerpt",
     metadata: { source: "Reuters" },
     published_at: "2026-08-29T00:00:00Z",
-    freshness: { status: "current", age_days: 1, evaluated_at: "2026-08-30T00:00:00Z" },
+    freshness: {
+      status: "current",
+      age_days: 1,
+      evaluated_at: "2026-08-30T00:00:00Z",
+    },
     ...overrides,
   };
 }
@@ -29,12 +39,14 @@ test("evidence presentation preserves source, dated provenance, and freshness", 
 });
 
 test("evidence presentation makes missing dates and stale data explicit", () => {
-  const result = presentEvidence(evidence({
-    source_type: "filing",
-    metadata: {},
-    published_at: null,
-    freshness: { status: "stale", age_days: 90 },
-  }));
+  const result = presentEvidence(
+    evidence({
+      source_type: "filing",
+      metadata: {},
+      published_at: null,
+      freshness: { status: "stale", age_days: 90 },
+    }),
+  );
 
   assert.equal(result.source, "filing source");
   assert.equal(result.date, "Date unavailable");
@@ -93,4 +105,16 @@ test("evidence destinations accept only public credential-free HTTPS URLs", () =
   assert.equal(isSafeEvidenceDestination(" https://example.com/evidence"), false);
   assert.equal(isSafeEvidenceDestination("not a URL"), false);
   assert.equal(isSafeEvidenceDestination(null), false);
+});
+
+test("source destinations follow the same URL normalization cases as the backend", () => {
+  const cases = JSON.parse(
+    readFileSync(
+      new NodeURL("../../../data/security/evidence-url-cases.json", import.meta.url),
+      "utf8",
+    ),
+  ) as { url: string; safe: boolean }[];
+  for (const entry of cases) {
+    assert.equal(isSafeEvidenceDestination(entry.url), entry.safe, entry.url);
+  }
 });

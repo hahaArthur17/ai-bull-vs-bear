@@ -1,7 +1,6 @@
 from datetime import timedelta
 
 import pytest
-
 from app.services.debate_job_state import (
     DebateJobTransitionError,
     cancel_job,

@@ -5,8 +5,8 @@ from typing import Protocol, runtime_checkable
 from uuid import UUID
 
 from app.domain.debate import (
-    DebateIntervention,
     DebateDraftCheckpoint,
+    DebateIntervention,
     DebateMessage,
     DebateMessageEvidence,
     DebateSession,
@@ -31,19 +31,16 @@ class DebateConcurrencyError(DebateRepositoryError):
 
 @runtime_checkable
 class DebateSessionRepository(Protocol):
-    def create_session(self, session: DebateSession) -> DebateSession:
-        ...
+    def create_session(self, session: DebateSession) -> DebateSession: ...
 
-    def get_session(self, session_id: UUID, user_id: UUID) -> DebateSession | None:
-        ...
+    def get_session(self, session_id: UUID, user_id: UUID) -> DebateSession | None: ...
 
     def list_sessions(
         self,
         user_id: UUID,
         *,
         limit: int = 50,
-    ) -> list[DebateSession]:
-        ...
+    ) -> list[DebateSession]: ...
 
     def update_session(
         self,
@@ -51,15 +48,13 @@ class DebateSessionRepository(Protocol):
         *,
         expected_status: DebateSessionStatus,
         expected_generation_id: UUID | None = None,
-    ) -> DebateSession:
-        ...
+    ) -> DebateSession: ...
 
     def append_message(
         self,
         message: DebateMessage,
         citations: tuple[DebateMessageEvidence, ...] = (),
-    ) -> DebateMessage:
-        ...
+    ) -> DebateMessage: ...
 
     def list_messages(
         self,
@@ -67,8 +62,7 @@ class DebateSessionRepository(Protocol):
         user_id: UUID,
         *,
         branch_id: UUID,
-    ) -> list[DebateMessage]:
-        ...
+    ) -> list[DebateMessage]: ...
 
     def list_messages_with_evidence(
         self,
@@ -76,77 +70,86 @@ class DebateSessionRepository(Protocol):
         user_id: UUID,
         *,
         branch_id: UUID,
-    ) -> list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]]:
-        ...
+    ) -> list[tuple[DebateMessage, tuple[DebateMessageEvidence, ...]]]: ...
 
     def list_message_evidence(
         self,
         message_id: UUID,
         user_id: UUID,
-    ) -> tuple[DebateMessageEvidence, ...]:
-        ...
+    ) -> tuple[DebateMessageEvidence, ...]: ...
 
     def create_intervention(
         self,
         intervention: DebateIntervention,
-    ) -> DebateIntervention:
-        ...
+    ) -> DebateIntervention: ...
 
 
 @runtime_checkable
 class DebateJobRepository(Protocol):
-    def create_job(self, job: DebateJob) -> DebateJob:
-        ...
+    def create_job(self, job: DebateJob) -> DebateJob: ...
 
-    def get_job(self, job_id: UUID) -> DebateJob | None:
-        ...
+    def get_job(self, job_id: UUID) -> DebateJob | None: ...
 
-    def get_active_job(self, session_id: UUID, user_id: UUID) -> DebateJob | None:
-        ...
+    def get_active_job(self, session_id: UUID, user_id: UUID) -> DebateJob | None: ...
 
     def update_job(
         self,
         job: DebateJob,
         *,
         expected_status: DebateJobStatus,
-    ) -> DebateJob:
-        ...
+    ) -> DebateJob: ...
 
 
 @runtime_checkable
 class DebateInterruptionRepository(Protocol):
-    def record_interjection(self, point: DebateMessage) -> DebateMessage:
-        ...
+    def record_interjection(self, point: DebateMessage) -> DebateMessage: ...
 
-    def continue_interrupted(self, session: DebateSession, job: DebateJob, message: DebateQueueMessage,
-                             *, expected_generation_id: UUID, interjection_id: UUID,
-                             ) -> tuple[DebateSession, DebateJob]:
-        ...
+    def continue_interrupted(
+        self,
+        session: DebateSession,
+        job: DebateJob,
+        message: DebateQueueMessage,
+        *,
+        expected_generation_id: UUID,
+        interjection_id: UUID,
+    ) -> tuple[DebateSession, DebateJob]: ...
 
-    def checkpoint_draft(self, checkpoint: DebateDraftCheckpoint) -> None:
-        ...
+    def checkpoint_draft(self, checkpoint: DebateDraftCheckpoint) -> None: ...
 
-    def admit_provider_attempt(self, attempt: ProviderAttempt, checkpoint: DebateDraftCheckpoint) -> ProviderAttempt:
+    def admit_provider_attempt(
+        self, attempt: ProviderAttempt, checkpoint: DebateDraftCheckpoint
+    ) -> ProviderAttempt:
         """Atomically admit an attempt and seed its empty draft under the session lock."""
         ...
 
-    def mark_provider_attempt_dispatched(self, attempt_id: UUID, at: datetime) -> ProviderAttempt:
-        ...
+    def mark_provider_attempt_dispatched(
+        self, attempt_id: UUID, at: datetime
+    ) -> ProviderAttempt: ...
 
-    def finish_provider_attempt(self, attempt_id: UUID, *, at: datetime,
-                                prompt_tokens: int | None = None,
-                                completion_tokens: int | None = None,
-                                total_tokens: int | None = None,
-                                failed: bool = False) -> ProviderAttempt:
+    def finish_provider_attempt(
+        self,
+        attempt_id: UUID,
+        *,
+        at: datetime,
+        prompt_tokens: int | None = None,
+        completion_tokens: int | None = None,
+        total_tokens: int | None = None,
+        failed: bool = False,
+    ) -> ProviderAttempt:
         """Finish even after generation cancellation; missing usage stays unknown."""
         ...
 
-    def list_provider_attempts(self, session_id: UUID, user_id: UUID) -> list[ProviderAttempt]:
-        ...
+    def list_provider_attempts(self, session_id: UUID, user_id: UUID) -> list[ProviderAttempt]: ...
 
-    def interrupt_generation(self, session_id: UUID, user_id: UUID, generation_id: UUID,
-                             message_id: UUID, visible_prefix: str, at: datetime) -> DebateSession:
-        ...
+    def interrupt_generation(
+        self,
+        session_id: UUID,
+        user_id: UUID,
+        generation_id: UUID,
+        message_id: UUID,
+        visible_prefix: str,
+        at: datetime,
+    ) -> DebateSession: ...
 
     def interrupt_before_output_generation(
         self,
@@ -199,14 +202,11 @@ class DebateQueueRepository(Protocol):
         self,
         *,
         visibility_timeout_seconds: int,
-    ) -> ClaimedDebateQueueMessage | None:
-        ...
+    ) -> ClaimedDebateQueueMessage | None: ...
 
-    def archive_job_message(self, queue_message_id: int) -> bool:
-        ...
+    def archive_job_message(self, queue_message_id: int) -> bool: ...
 
-    def retry_job_message(self, queue_message_id: int, *, delay_seconds: int) -> bool:
-        ...
+    def retry_job_message(self, queue_message_id: int, *, delay_seconds: int) -> bool: ...
 
     def requeue_running_job(
         self,

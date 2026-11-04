@@ -13,7 +13,6 @@ from typing import Literal
 from app.services.demo_store import DemoStore
 from app.services.macro_data import DEFAULT_MACRO_SERIES
 
-
 REVIEW_FIXTURE_NOTICE = "SIMULATED DATA · LOCAL UI REVIEW · NOT A MARKET PRICE"
 ReviewScenario = Literal["fresh", "stale", "insufficient", "unavailable", "catalog_only"]
 
@@ -134,7 +133,7 @@ def _macro_observations(series_code: str, *, index: int, limit: int) -> list[dic
                 "retrieved_at": "2025-04-02T00:00:00Z",
             }
         )
-    return rows[-max(1, min(limit, len(rows))):]
+    return rows[-max(1, min(limit, len(rows))) :]
 
 
 class ReviewFixtureStore(DemoStore):
@@ -151,9 +150,15 @@ class ReviewFixtureStore(DemoStore):
     def __init__(self) -> None:
         super().__init__()
         self._prices = {
-            "AAPL": _price_series(start=date(2025, 1, 2), count=55, base=184.0, drift=0.44, stale=False),
-            "GOOG": _price_series(start=date(2025, 1, 2), count=55, base=171.0, drift=-0.18, stale=True),
-            "NVDA": _price_series(start=date(2025, 1, 2), count=19, base=116.0, drift=0.75, stale=False),
+            "AAPL": _price_series(
+                start=date(2025, 1, 2), count=55, base=184.0, drift=0.44, stale=False
+            ),
+            "GOOG": _price_series(
+                start=date(2025, 1, 2), count=55, base=171.0, drift=-0.18, stale=True
+            ),
+            "NVDA": _price_series(
+                start=date(2025, 1, 2), count=19, base=116.0, drift=0.75, stale=False
+            ),
             "TSLA": [],
         }
         self._weekly_prices = {
@@ -164,9 +169,7 @@ class ReviewFixtureStore(DemoStore):
         }
         self._macro_series = _macro_series()
         self._macro_observations = {
-            str(series["code"]): _macro_observations(
-                str(series["code"]), index=index, limit=90
-            )
+            str(series["code"]): _macro_observations(str(series["code"]), index=index, limit=90)
             for index, series in enumerate(self._macro_series)
         }
         for stock in self._stocks:
@@ -174,8 +177,7 @@ class ReviewFixtureStore(DemoStore):
             if ticker in {"NVDA", "TSLA"}:
                 stock["coverage_status"] = "price_cached"
         self._evidence = {
-            ticker: self._fixture_evidence(ticker)
-            for ticker in ("AAPL", "GOOG", "NVDA")
+            ticker: self._fixture_evidence(ticker) for ticker in ("AAPL", "GOOG", "NVDA")
         }
 
     @staticmethod

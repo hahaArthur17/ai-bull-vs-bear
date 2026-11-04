@@ -1,6 +1,6 @@
 from app.domain.agents import DebateJudgeRequest, DebateTurnRequest
-from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.debate_agents import DebateJudgeProvider, DebateTurnProvider
+from app.providers.deterministic_debate import DeterministicDebateProvider
 from test_debate_agent_contract import (
     BRANCH_ID,
     GENERATION_ID,

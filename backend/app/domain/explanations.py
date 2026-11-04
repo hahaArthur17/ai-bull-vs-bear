@@ -9,7 +9,6 @@ from app.domain.base import ImmutableDomainModel
 from app.domain.debate import DebateMessage
 from app.domain.factors import AnalysisContext, FactorSnapshot
 
-
 ExplanationTerm = Annotated[str, Field(min_length=1, max_length=100)]
 
 
@@ -51,9 +50,7 @@ class ExplanationAgentRequest(ImmutableDomainModel):
             and self.source_message.metadata.get("interrupted") is True
         )
         if not self.source_message.is_complete and not is_interrupted_prefix:
-            raise ValueError(
-                "Explanation source must be complete or an interrupted prefix"
-            )
+            raise ValueError("Explanation source must be complete or an interrupted prefix")
         if self.selected_text not in self.source_message.content:
             raise ValueError("Selected text must occur in the source message")
         if self.analysis_context.ticker != self.ticker:

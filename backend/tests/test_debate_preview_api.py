@@ -5,8 +5,6 @@ from datetime import timedelta
 from uuid import NAMESPACE_URL, UUID, uuid4, uuid5
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import main
 from app.domain.debate import DebateDraftCheckpoint
 from app.domain.explanations import ExplanationDraft
@@ -24,9 +22,9 @@ from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
 from app.services.explanation_admission import ExplanationAdmissionPolicy
 from app.services.response_cache import JsonResponseCache
+from fastapi.testclient import TestClient
 from test_cache_backend import BrokenBackend
 from test_debate_orchestrator import build_queued_round_one
-
 
 client = TestClient(main.app)
 
@@ -104,19 +102,19 @@ def create_round_one(
 def test_preview_is_hidden_by_default_while_legacy_analysis_still_works() -> None:
     assert client.get("/debates").status_code == 404
     assert client.post("/debates", json={"ticker": "AAPL"}).status_code == 404
-    assert client.post(
-        f"/debates/{uuid4()}/explanations",
-        json={
-            "message_id": str(uuid4()),
-            "selected_text": "frozen snapshot",
-            "question": "What does this mean here?",
-        },
-    ).status_code == 404
-    assert "/debates" not in client.get("/openapi.json").json()["paths"]
     assert (
-        "/debates/{session_id}/explanations"
-        not in client.get("/openapi.json").json()["paths"]
+        client.post(
+            f"/debates/{uuid4()}/explanations",
+            json={
+                "message_id": str(uuid4()),
+                "selected_text": "frozen snapshot",
+                "question": "What does this mean here?",
+            },
+        ).status_code
+        == 404
     )
+    assert "/debates" not in client.get("/openapi.json").json()["paths"]
+    assert "/debates/{session_id}/explanations" not in client.get("/openapi.json").json()["paths"]
 
     legacy = client.post("/analysis/AAPL", json={})
 
@@ -178,18 +176,12 @@ def test_create_round_one_exposes_three_exchanges_and_interim_judge(
     assert any(record["citations"] for record in messages)
     assert all(record["presentation"] is not None for record in messages)
     assert all(
-        record["presentation"]["argument"] == record["message"]["content"]
-        for record in messages
+        record["presentation"]["argument"] == record["message"]["content"] for record in messages
     )
     assert all(
-        len(record["presentation"]["facts_used"]) == len(record["citations"])
-        for record in messages
+        len(record["presentation"]["facts_used"]) == len(record["citations"]) for record in messages
     )
-    assert all(
-        fact["fact"]
-        for record in messages
-        for fact in record["presentation"]["facts_used"]
-    )
+    assert all(fact["fact"] for record in messages for fact in record["presentation"]["facts_used"])
 
     session_id = session["id"]
     headers = {"X-User-Id": "preview-user"}
@@ -247,11 +239,14 @@ def test_explanation_endpoint_returns_a_bounded_read_only_result(
     }
     assert repository.get_session(session_id, user_id) == session_before
     assert repository.get_job(job_id) == job_before
-    assert repository.list_messages(
-        session_id,
-        user_id,
-        branch_id=session_before.active_branch_id,
-    ) == messages_before
+    assert (
+        repository.list_messages(
+            session_id,
+            user_id,
+            branch_id=session_before.active_branch_id,
+        )
+        == messages_before
+    )
 
 
 def test_explanation_endpoint_accepts_a_frozen_interrupted_prefix_without_mutation(
@@ -315,11 +310,14 @@ def test_explanation_endpoint_accepts_a_frozen_interrupted_prefix_without_mutati
     assert "interrupted Bull prefix" in response.json()["content"]
     assert repository.get_session(stopped.id, stopped.user_id) == stopped
     assert repository.get_job(job.id) == job_before
-    assert repository.list_messages(
-        stopped.id,
-        stopped.user_id,
-        branch_id=stopped.active_branch_id,
-    ) == messages_before
+    assert (
+        repository.list_messages(
+            stopped.id,
+            stopped.user_id,
+            branch_id=stopped.active_branch_id,
+        )
+        == messages_before
+    )
 
 
 def test_explanation_endpoint_hides_ownership_and_selection_details(
@@ -348,9 +346,7 @@ def test_explanation_endpoint_hides_ownership_and_selection_details(
         json={**request, "selected_text": "not in the source message"},
     )
     assert invalid.status_code == 409
-    assert invalid.json() == {
-        "detail": "Explanation request is not valid for this Debate message"
-    }
+    assert invalid.json() == {"detail": "Explanation request is not valid for this Debate message"}
 
 
 def test_explanation_endpoint_hides_provider_failure_details(
@@ -536,9 +532,7 @@ def test_one_active_debate_is_enforced_before_new_factor_work(
     assert first.headers["x-ratelimit-remaining"] == "2"
     assert second.status_code == 409
     assert context_calls == 1
-    assert second.json() == {
-        "detail": "Finish or cancel the active Debate before starting another"
-    }
+    assert second.json() == {"detail": "Finish or cancel the active Debate before starting another"}
 
 
 def test_debate_rate_limit_allows_terminal_sessions_then_returns_retry_after(
@@ -582,9 +576,7 @@ def test_debate_rate_limit_allows_terminal_sessions_then_returns_retry_after(
 
     assert limited.status_code == 429
     assert limited.headers["retry-after"] == "3500"
-    assert limited.json() == {
-        "detail": "Debate generation limit reached; retry later"
-    }
+    assert limited.json() == {"detail": "Debate generation limit reached; retry later"}
 
 
 def test_standard_debate_does_not_reuse_a_prior_capture_across_users(
@@ -629,8 +621,9 @@ def test_standard_debate_does_not_reuse_a_prior_capture_across_users(
     assert collect_calls == 2
     assert first.json()["session"]["user_id"] != second.json()["session"]["user_id"]
     assert first.json()["session"]["id"] != second.json()["session"]["id"]
-    assert first.json()["messages"][0]["message"]["id"] != (
-        second.json()["messages"][0]["message"]["id"]
+    assert (
+        first.json()["messages"][0]["message"]["id"]
+        != (second.json()["messages"][0]["message"]["id"])
     )
 
 
@@ -733,10 +726,7 @@ def test_queued_create_returns_before_worker_and_is_http_idempotent(
     admitted_job = repository.get_job(UUID(first.json()["job_id"]))
     assert admitted_job is not None and admitted_job.queue_message_id == 1
     assert [
-        event.type
-        for event in main.debate_event_broker.replay(
-            UUID(first.json()["session"]["id"])
-        )
+        event.type for event in main.debate_event_broker.replay(UUID(first.json()["session"]["id"]))
     ] == ["session.created", "job.queued"]
 
     worker = DebateWorker(
@@ -1066,10 +1056,13 @@ def test_debate_reads_are_owner_scoped(monkeypatch: pytest.MonkeyPatch) -> None:
     payload = create_round_one(monkeypatch, user="owner-a")
     session_id = payload["session"]["id"]
 
-    assert client.get(
-        f"/debates/{session_id}",
-        headers={"X-User-Id": "owner-b"},
-    ).status_code == 404
+    assert (
+        client.get(
+            f"/debates/{session_id}",
+            headers={"X-User-Id": "owner-b"},
+        ).status_code
+        == 404
+    )
     assert client.get("/debates", headers={"X-User-Id": "owner-b"}).json() == []
     assert len(client.get("/debates", headers={"X-User-Id": "owner-a"}).json()) == 1
 
@@ -1106,13 +1099,8 @@ def test_challenge_persists_user_question_and_completes_round_two(
         "bear",
         "judge",
     ]
-    assert payload["session"]["final_judge_message_id"] == payload["messages"][-1][
-        "message"
-    ]["id"]
-    assert any(
-        question in record["message"]["content"]
-        for record in payload["messages"][8:12]
-    )
+    assert payload["session"]["final_judge_message_id"] == payload["messages"][-1]["message"]["id"]
+    assert any(question in record["message"]["content"] for record in payload["messages"][8:12])
 
 
 def test_event_stream_replays_ordered_round_one_and_supports_resume(
@@ -1129,11 +1117,19 @@ def test_event_stream_replays_ordered_round_one_and_supports_resume(
     assert response.headers["cache-control"] == "no-cache, no-transform"
     frames = [frame for frame in response.text.strip().split("\n\n") if frame]
     event_types = [
-        next(line.removeprefix("event: ") for line in frame.splitlines() if line.startswith("event: "))
+        next(
+            line.removeprefix("event: ")
+            for line in frame.splitlines()
+            if line.startswith("event: ")
+        )
         for frame in frames
     ]
     event_ids = [
-        int(next(line.removeprefix("id: ") for line in frame.splitlines() if line.startswith("id: ")))
+        int(
+            next(
+                line.removeprefix("id: ") for line in frame.splitlines() if line.startswith("id: ")
+            )
+        )
         for frame in frames
     ]
     assert event_ids == list(range(1, len(event_ids) + 1))
@@ -1206,9 +1202,7 @@ def test_cancel_endpoint_is_owner_scoped_generation_safe_and_idempotent(
     assert repeated.status_code == 202
     assert cancelled.json() == repeated.json()
     assert cancelled.json()["session"]["status"] == "cancelled"
-    assert cancelled.json()["session"]["active_generation_id"] != session[
-        "active_generation_id"
-    ]
+    assert cancelled.json()["session"]["active_generation_id"] != session["active_generation_id"]
     assert len(cancelled.json()["messages"]) == 7
 
 
@@ -1233,10 +1227,12 @@ def test_running_event_stream_emits_an_unbuffered_heartbeat() -> None:
 def test_round_two_stream_skips_replayed_round_one_terminal_event() -> None:
     queued, _ = build_queued_round_one()
     round_two_generation = uuid4()
-    round_two = queued.model_copy(update={
-        "active_generation_id": round_two_generation,
-        "status": "running_round_2",
-    })
+    round_two = queued.model_copy(
+        update={
+            "active_generation_id": round_two_generation,
+            "status": "running_round_2",
+        }
+    )
     main.debate_event_broker.publish(
         queued.id,
         "session.awaiting_user",
@@ -1253,12 +1249,14 @@ def test_round_two_stream_skips_replayed_round_one_terminal_event() -> None:
         payload={"generation_id": str(round_two_generation), "status": "completed"},
     )
 
-    frames = list(main._debate_sse_frames(
-        round_two,
-        after_sequence=0,
-        initial_events=main.debate_event_broker.replay(queued.id),
-        heartbeat_seconds=0,
-    ))
+    frames = list(
+        main._debate_sse_frames(
+            round_two,
+            after_sequence=0,
+            initial_events=main.debate_event_broker.replay(queued.id),
+            heartbeat_seconds=0,
+        )
+    )
 
     assert len(frames) == 3
     assert "event: session.awaiting_user" in frames[0]
@@ -1362,41 +1360,97 @@ def test_enabled_preview_does_not_change_legacy_analysis_contract(
 
 def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatch):
     from datetime import datetime, timedelta, timezone
-    from fastapi import HTTPException
+
     from app.schemas import MarketQuote
     from app.services.debate_snapshot_provenance import completed_close_cutoff
+    from fastapi import HTTPException
 
     now = datetime.now(timezone.utc)
     end = completed_close_cutoff(now)
-    prices = [dict(date=(end - timedelta(days=49-i)).isoformat(), open=100,
-                   high=102, low=99, close=101, volume=100,
-                   source="daily_market_cache", is_stale=False) for i in range(50)]
+    prices = [
+        dict(
+            date=(end - timedelta(days=49 - i)).isoformat(),
+            open=100,
+            high=102,
+            low=99,
+            close=101,
+            volume=100,
+            source="daily_market_cache",
+            is_stale=False,
+        )
+        for i in range(50)
+    ]
     monkeypatch.setattr(main.settings, "app_data_mode", "standard")
     monkeypatch.setattr(main.settings, "debate_streaming_provider", "groq")
     monkeypatch.setattr(main.store, "get_prices", lambda ticker: prices)
     from app.services.macro_data import DEFAULT_MACRO_SERIES
+
     definitions = {item.code: item for item in DEFAULT_MACRO_SERIES}
-    series_rows = [dict(code=item.code, name=item.name, source=item.source,
-                        unit=item.unit, frequency=item.frequency) for item in definitions.values()]
+    series_rows = [
+        dict(
+            code=item.code,
+            name=item.name,
+            source=item.source,
+            unit=item.unit,
+            frequency=item.frequency,
+        )
+        for item in definitions.values()
+    ]
     monkeypatch.setattr(main.store, "get_macro_series", lambda: series_rows)
-    monkeypatch.setattr(main.store, "get_macro_observations", lambda code, limit: [dict(
-        series_code=code, observation_date=end.isoformat(), value=1,
-        retrieved_at=now.isoformat(), metadata={"provider": definitions[code].source,
-        "provider_series_id": definitions[code].provider_series_id})])
-    evidence = [dict(id=kind, ticker="AAPL", source_type=kind,
-                     title="Current document", excerpt="Source observation",
-                     url="https://example.com/document", published_at=now.isoformat(),
-                     metadata={"storage": "supabase", "document_id": kind})
-                for kind in ("news", "filing")]
+    monkeypatch.setattr(
+        main.store,
+        "get_macro_observations",
+        lambda code, limit: [
+            dict(
+                series_code=code,
+                observation_date=end.isoformat(),
+                value=1,
+                retrieved_at=now.isoformat(),
+                metadata={
+                    "provider": definitions[code].source,
+                    "provider_series_id": definitions[code].provider_series_id,
+                },
+            )
+        ],
+    )
+    evidence = [
+        dict(
+            id=kind,
+            ticker="AAPL",
+            source_type=kind,
+            title="Current document",
+            excerpt="Source observation",
+            url="https://example.com/document",
+            published_at=now.isoformat(),
+            metadata={"storage": "supabase", "document_id": kind},
+        )
+        for kind in ("news", "filing")
+    ]
     monkeypatch.setattr(main.store, "get_evidence", lambda ticker: evidence)
     from test_debate_financial_admission import fact
-    monkeypatch.setattr(main.store, "get_financial_facts", lambda ticker: [fact(
-        period_start=(now-timedelta(days=90)).date().isoformat(),
-        period_end=(now-timedelta(days=30)).date().isoformat(),
-        filed_at=(now-timedelta(days=5)).date().isoformat())])
-    quote = MarketQuote(ticker="AAPL", close=105, open=104, high=106, low=103,
-                        previous_close=101, as_of=(now-timedelta(seconds=5)).isoformat(),
-                        retrieved_at=now.isoformat(), source="finnhub_quote")
+
+    monkeypatch.setattr(
+        main.store,
+        "get_financial_facts",
+        lambda ticker: [
+            fact(
+                period_start=(now - timedelta(days=90)).date().isoformat(),
+                period_end=(now - timedelta(days=30)).date().isoformat(),
+                filed_at=(now - timedelta(days=5)).date().isoformat(),
+            )
+        ],
+    )
+    quote = MarketQuote(
+        ticker="AAPL",
+        close=105,
+        open=104,
+        high=106,
+        low=103,
+        previous_close=101,
+        as_of=(now - timedelta(seconds=5)).isoformat(),
+        retrieved_at=now.isoformat(),
+        source="finnhub_quote",
+    )
     monkeypatch.setattr(main, "get_quote", lambda ticker: quote)
     context, factors, _ = main._debate_context("AAPL", None)
     assert context.prices[-1].close == 101
@@ -1424,169 +1478,263 @@ def test_live_snapshot_quote_is_separate_and_missing_provenance_fails(monkeypatc
 
 
 def test_interrupt_endpoint_freezes_prefix_and_rejects_invalid_requests(monkeypatch):
-    first = create_round_one(monkeypatch, user='interrupt-owner')
-    session = first['session']
-    target = first['messages'][0]['message']
+    first = create_round_one(monkeypatch, user="interrupt-owner")
+    session = first["session"]
+    target = first["messages"][0]["message"]
     endpoint = f"/debates/{session['id']}/interrupt"
-    headers = {'X-User-Id': 'interrupt-owner'}
-    payload = {'generation_id': session['active_generation_id'], 'message_id': target['id'],
-               'visible_prefix': target['content'][:8]}
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', False)
+    headers = {"X-User-Id": "interrupt-owner"}
+    payload = {
+        "generation_id": session["active_generation_id"],
+        "message_id": target["id"],
+        "visible_prefix": target["content"][:8],
+    }
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", False)
     assert client.post(endpoint, headers=headers, json=payload).status_code == 404
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
-    assert client.post(endpoint, headers={'X-User-Id': 'other'}, json=payload).status_code == 404
-    assert client.post(endpoint, headers=headers,
-                       json={**payload, 'visible_prefix': 'invented prefix'}).status_code == 409
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", True)
+    assert client.post(endpoint, headers={"X-User-Id": "other"}, json=payload).status_code == 404
+    assert (
+        client.post(
+            endpoint, headers=headers, json={**payload, "visible_prefix": "invented prefix"}
+        ).status_code
+        == 409
+    )
     stopped = client.post(endpoint, headers=headers, json=payload)
     assert stopped.status_code == 200
-    assert stopped.json()['session']['status'] == 'interrupted_awaiting_user'
-    assert stopped.json()['session']['completed_at'] is None
-    records = stopped.json()['messages']
+    assert stopped.json()["session"]["status"] == "interrupted_awaiting_user"
+    assert stopped.json()["session"]["completed_at"] is None
+    records = stopped.json()["messages"]
     assert len(records) == 1
-    assert records[0]['message']['content'] == payload['visible_prefix']
-    assert records[0]['message']['is_complete'] is False
+    assert records[0]["message"]["content"] == payload["visible_prefix"]
+    assert records[0]["message"]["is_complete"] is False
     assert client.post(endpoint, headers=headers, json=payload).json() == stopped.json()
 
 
 def test_interrupted_session_can_be_explicitly_ended(monkeypatch):
-    first = create_round_one(monkeypatch, user='end-interruption-owner')
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
-    session = first['session']
-    headers = {'X-User-Id': 'end-interruption-owner'}
-    stopped = client.post(f"/debates/{session['id']}/interrupt", headers=headers, json={
-        'generation_id': session['active_generation_id'],
-        'message_id': first['messages'][0]['message']['id'], 'visible_prefix': ''})
+    first = create_round_one(monkeypatch, user="end-interruption-owner")
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", True)
+    session = first["session"]
+    headers = {"X-User-Id": "end-interruption-owner"}
+    stopped = client.post(
+        f"/debates/{session['id']}/interrupt",
+        headers=headers,
+        json={
+            "generation_id": session["active_generation_id"],
+            "message_id": first["messages"][0]["message"]["id"],
+            "visible_prefix": "",
+        },
+    )
     assert stopped.status_code == 200
-    ended = client.post(f"/debates/{session['id']}/cancel", headers=headers,
-        json={'generation_id': stopped.json()['session']['active_generation_id']})
+    ended = client.post(
+        f"/debates/{session['id']}/cancel",
+        headers=headers,
+        json={"generation_id": stopped.json()["session"]["active_generation_id"]},
+    )
     assert ended.status_code == 202
-    assert ended.json()['session']['status'] == 'cancelled'
-    assert ended.json()['messages'][0]['message']['is_complete'] is False
+    assert ended.json()["session"]["status"] == "cancelled"
+    assert ended.json()["messages"][0]["message"]["is_complete"] is False
 
 
 def test_end_interruption_does_not_require_a_recorded_user_point(monkeypatch):
-    first = create_round_one(monkeypatch, user='end-without-point-owner')
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
-    headers = {'X-User-Id': 'end-without-point-owner'}
-    target = first['messages'][0]['message']
-    stopped = client.post(f"/debates/{first['session']['id']}/interrupt", headers=headers, json={
-        'generation_id': first['session']['active_generation_id'],
-        'message_id': target['id'], 'visible_prefix': ''})
+    first = create_round_one(monkeypatch, user="end-without-point-owner")
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", True)
+    headers = {"X-User-Id": "end-without-point-owner"}
+    target = first["messages"][0]["message"]
+    stopped = client.post(
+        f"/debates/{first['session']['id']}/interrupt",
+        headers=headers,
+        json={
+            "generation_id": first["session"]["active_generation_id"],
+            "message_id": target["id"],
+            "visible_prefix": "",
+        },
+    )
     assert stopped.status_code == 200
-    ended = client.post(f"/debates/{first['session']['id']}/end-interruption", headers=headers,
-        json={'interrupted_message_id': target['id']})
+    ended = client.post(
+        f"/debates/{first['session']['id']}/end-interruption",
+        headers=headers,
+        json={"interrupted_message_id": target["id"]},
+    )
     assert ended.status_code == 202
-    assert ended.json()['session']['status'] == 'cancelled'
-    assert ended.json()['messages'][0]['message']['is_complete'] is False
+    assert ended.json()["session"]["status"] == "cancelled"
+    assert ended.json()["messages"][0]["message"]["is_complete"] is False
 
 
 def test_before_output_stop_can_be_ended_without_an_interjection(monkeypatch):
-    monkeypatch.setattr(main.settings, 'debate_queue_enabled', True)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
     enable_preview(monkeypatch)
     response = client.post(
         "/debates",
-        headers={'X-User-Id': 'end-before-output-owner'},
+        headers={"X-User-Id": "end-before-output-owner"},
         json={
-            'ticker': 'AAPL',
-            'question': 'Which dated factors support each side?',
-            'opening_side': 'bull',
+            "ticker": "AAPL",
+            "question": "Which dated factors support each side?",
+            "opening_side": "bull",
         },
     )
     assert response.status_code == 202
     first = response.json()
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
-    headers = {'X-User-Id': 'end-before-output-owner'}
-    session = first['session']
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", True)
+    headers = {"X-User-Id": "end-before-output-owner"}
+    session = first["session"]
     stopped = client.post(
         f"/debates/{session['id']}/interrupt-before-output",
         headers=headers,
-        json={'generation_id': session['active_generation_id']},
+        json={"generation_id": session["active_generation_id"]},
     )
     assert stopped.status_code == 200
-    target = stopped.json()['messages'][-1]['message']
-    assert target['content'] == ''
-    assert target['metadata'] == {'interrupted': True, 'before_output': True}
+    target = stopped.json()["messages"][-1]["message"]
+    assert target["content"] == ""
+    assert target["metadata"] == {"interrupted": True, "before_output": True}
 
     ended = client.post(
         f"/debates/{session['id']}/end-interruption",
         headers=headers,
-        json={'interrupted_message_id': target['id']},
+        json={"interrupted_message_id": target["id"]},
     )
     assert ended.status_code == 202
-    assert ended.json()['session']['status'] == 'cancelled'
-    assert ended.json()['messages'][-1]['message']['id'] == target['id']
+    assert ended.json()["session"]["status"] == "cancelled"
+    assert ended.json()["messages"][-1]["message"]["id"] == target["id"]
 
 
-@pytest.mark.parametrize('round_number,stop_index', [(1, i) for i in range(7)] + [(2, i) for i in range(5)])
-def test_interject_then_continue_resumes_only_unfinished_plan_slots(monkeypatch, round_number, stop_index):
-    first = create_round_one(monkeypatch, user='continue-owner')
+@pytest.mark.parametrize(
+    "round_number,stop_index", [(1, i) for i in range(7)] + [(2, i) for i in range(5)]
+)
+def test_interject_then_continue_resumes_only_unfinished_plan_slots(
+    monkeypatch, round_number, stop_index
+):
+    first = create_round_one(monkeypatch, user="continue-owner")
     if round_number == 2:
-        initial_target = first['messages'][1]['message']
-        response = client.post(f"/debates/{first['session']['id']}/interventions",
-            headers={'X-User-Id': 'continue-owner'}, json={
-                'selected_message_id': initial_target['id'],
-                'selected_text': initial_target['content'][:40],
-                'question': 'Does this underweight the filing risk?'})
+        initial_target = first["messages"][1]["message"]
+        response = client.post(
+            f"/debates/{first['session']['id']}/interventions",
+            headers={"X-User-Id": "continue-owner"},
+            json={
+                "selected_message_id": initial_target["id"],
+                "selected_text": initial_target["content"][:40],
+                "question": "Does this underweight the filing risk?",
+            },
+        )
         assert response.status_code == 201
         first = response.json()
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
-    monkeypatch.setattr(main.settings, 'debate_queue_enabled', True)
-    session = first['session']
-    headers = {'X-User-Id': 'continue-owner'}
-    round_messages = [r['message'] for r in first['messages']
-                      if r['message']['round_number'] == round_number
-                      and r['message']['role'] in {'bull', 'bear', 'judge'}]
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", True)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    session = first["session"]
+    headers = {"X-User-Id": "continue-owner"}
+    round_messages = [
+        r["message"]
+        for r in first["messages"]
+        if r["message"]["round_number"] == round_number
+        and r["message"]["role"] in {"bull", "bear", "judge"}
+    ]
     target = round_messages[stop_index]
-    stopped = client.post(f"/debates/{session['id']}/interrupt", headers=headers, json={
-        'generation_id': session['active_generation_id'], 'message_id': target['id'],
-        'visible_prefix': target['content'][:8]})
+    stopped = client.post(
+        f"/debates/{session['id']}/interrupt",
+        headers=headers,
+        json={
+            "generation_id": session["active_generation_id"],
+            "message_id": target["id"],
+            "visible_prefix": target["content"][:8],
+        },
+    )
     assert stopped.status_code == 200
-    waiting_generation = stopped.json()['session']['active_generation_id']
-    point_payload = {'generation_id': waiting_generation, 'content': 'Please consider the downside.',
-                     'idempotency_key': 'point-continue-001'}
-    point_response = client.post(f"/debates/{session['id']}/interjections", headers=headers, json=point_payload)
+    waiting_generation = stopped.json()["session"]["active_generation_id"]
+    point_payload = {
+        "generation_id": waiting_generation,
+        "content": "Please consider the downside.",
+        "idempotency_key": "point-continue-001",
+    }
+    point_response = client.post(
+        f"/debates/{session['id']}/interjections", headers=headers, json=point_payload
+    )
     assert point_response.status_code == 201
-    assert point_response.json()['session']['status'] == 'interrupted_awaiting_user'
-    assert point_response.json()['job'] is None
-    assert client.post(f"/debates/{session['id']}/interjections", headers=headers, json=point_payload).json() == point_response.json()
-    point = point_response.json()['messages'][-1]['message']
-    continue_payload = {'generation_id': waiting_generation, 'interjection_id': point['id'],
-                        'idempotency_key': 'continue-001'}
-    continued = client.post(f"/debates/{session['id']}/continue", headers=headers, json=continue_payload)
+    assert point_response.json()["session"]["status"] == "interrupted_awaiting_user"
+    assert point_response.json()["job"] is None
+    assert (
+        client.post(
+            f"/debates/{session['id']}/interjections", headers=headers, json=point_payload
+        ).json()
+        == point_response.json()
+    )
+    point = point_response.json()["messages"][-1]["message"]
+    continue_payload = {
+        "generation_id": waiting_generation,
+        "interjection_id": point["id"],
+        "idempotency_key": "continue-001",
+    }
+    continued = client.post(
+        f"/debates/{session['id']}/continue", headers=headers, json=continue_payload
+    )
     assert continued.status_code == 202
     result = continued.json()
-    assert result['session']['status'] == f'queued_round_{round_number}'
-    assert result['session']['active_generation_id'] != waiting_generation
-    assert result['session']['analysis_context'] == session['analysis_context']
-    assert client.post(f"/debates/{session['id']}/continue", headers=headers, json=continue_payload).json() == result
+    assert result["session"]["status"] == f"queued_round_{round_number}"
+    assert result["session"]["active_generation_id"] != waiting_generation
+    assert result["session"]["analysis_context"] == session["analysis_context"]
+    assert (
+        client.post(
+            f"/debates/{session['id']}/continue", headers=headers, json=continue_payload
+        ).json()
+        == result
+    )
     assert main.debate_preview_service is not None
-    finished = asyncio.run(main.debate_preview_service.orchestrator.execute_job_streaming(UUID(result['job']['id'])))
-    assert finished.status == ('awaiting_user' if round_number == 1 else 'completed')
+    finished = asyncio.run(
+        main.debate_preview_service.orchestrator.execute_job_streaming(UUID(result["job"]["id"]))
+    )
+    assert finished.status == ("awaiting_user" if round_number == 1 else "completed")
     repo = main.debate_preview_service.repository
-    messages = repo.list_messages(finished.id, finished.user_id, branch_id=finished.active_branch_id)
-    assert sum(m.is_complete and m.role in {'bull', 'bear', 'judge'} for m in messages) == (7 if round_number == 1 else 12)
+    messages = repo.list_messages(
+        finished.id, finished.user_id, branch_id=finished.active_branch_id
+    )
+    assert sum(m.is_complete and m.role in {"bull", "bear", "judge"} for m in messages) == (
+        7 if round_number == 1 else 12
+    )
     assert sum(not m.is_complete for m in messages) == 1
-    job = repo.get_job(UUID(result['job']['id']))
+    job = repo.get_job(UUID(result["job"]["id"]))
     assert job.provider_request_count == (7 if round_number == 1 else 5) - stop_index
 
 
 def test_end_interruption_cancels_a_concurrently_queued_continue(monkeypatch):
-    first = create_round_one(monkeypatch, user='end-continue-owner')
-    monkeypatch.setattr(main.settings, 'debate_interruptions_enabled', True)
-    monkeypatch.setattr(main.settings, 'debate_queue_enabled', True)
-    session = first['session']
-    headers = {'X-User-Id': 'end-continue-owner'}
-    target = first['messages'][0]['message']
-    stopped = client.post(f"/debates/{session['id']}/interrupt", headers=headers, json={
-        'generation_id': session['active_generation_id'], 'message_id': target['id'], 'visible_prefix': ''}).json()
-    generation = stopped['session']['active_generation_id']
-    point = client.post(f"/debates/{session['id']}/interjections", headers=headers, json={
-        'generation_id': generation, 'content': 'Consider the risk.', 'idempotency_key': 'point-end-001'}).json()['messages'][-1]['message']
-    continuation = {'generation_id': generation, 'interjection_id': point['id'], 'idempotency_key': 'continue-end-001'}
-    assert client.post(f"/debates/{session['id']}/continue", headers=headers, json=continuation).status_code == 202
-    ended = client.post(f"/debates/{session['id']}/end-interruption", headers=headers,
-        json={'interrupted_message_id': target['id']})
+    first = create_round_one(monkeypatch, user="end-continue-owner")
+    monkeypatch.setattr(main.settings, "debate_interruptions_enabled", True)
+    monkeypatch.setattr(main.settings, "debate_queue_enabled", True)
+    session = first["session"]
+    headers = {"X-User-Id": "end-continue-owner"}
+    target = first["messages"][0]["message"]
+    stopped = client.post(
+        f"/debates/{session['id']}/interrupt",
+        headers=headers,
+        json={
+            "generation_id": session["active_generation_id"],
+            "message_id": target["id"],
+            "visible_prefix": "",
+        },
+    ).json()
+    generation = stopped["session"]["active_generation_id"]
+    point = client.post(
+        f"/debates/{session['id']}/interjections",
+        headers=headers,
+        json={
+            "generation_id": generation,
+            "content": "Consider the risk.",
+            "idempotency_key": "point-end-001",
+        },
+    ).json()["messages"][-1]["message"]
+    continuation = {
+        "generation_id": generation,
+        "interjection_id": point["id"],
+        "idempotency_key": "continue-end-001",
+    }
+    assert (
+        client.post(
+            f"/debates/{session['id']}/continue", headers=headers, json=continuation
+        ).status_code
+        == 202
+    )
+    ended = client.post(
+        f"/debates/{session['id']}/end-interruption",
+        headers=headers,
+        json={"interrupted_message_id": target["id"]},
+    )
     assert ended.status_code == 202
-    assert ended.json()['session']['status'] == 'cancelled'
+    assert ended.json()["session"]["status"] == "cancelled"
     replay = client.post(f"/debates/{session['id']}/continue", headers=headers, json=continuation)
-    assert replay.json()['session']['status'] == 'cancelled'
+    assert replay.json()["session"]["status"] == "cancelled"

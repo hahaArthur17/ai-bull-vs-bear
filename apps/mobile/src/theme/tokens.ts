@@ -76,14 +76,19 @@ export const designTokens = {
   typography: {
     fontFamily: {
       native: "System",
-      web: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, \"Segoe UI\", sans-serif",
+      web: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
     },
     display: { fontSize: 38, lineHeight: 42, fontWeight: "800" },
     pageTitle: { fontSize: 30, lineHeight: 36, fontWeight: "800" },
     sectionTitle: { fontSize: 17, lineHeight: 22, fontWeight: "800" },
     body: { fontSize: 16, lineHeight: 24, fontWeight: "400" },
     bodySmall: { fontSize: 13, lineHeight: 20, fontWeight: "400" },
-    label: { fontSize: 11, lineHeight: 16, fontWeight: "800", letterSpacing: 1.1 },
+    label: {
+      fontSize: 11,
+      lineHeight: 16,
+      fontWeight: "800",
+      letterSpacing: 1.1,
+    },
   },
   spacing: {
     xxs: 2,

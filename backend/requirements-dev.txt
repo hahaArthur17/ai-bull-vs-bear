@@ -1,0 +1,5 @@
+-r requirements.txt
+
+# The same pinned tools run locally and in CI.
+ruff==0.17.1
+bandit==1.9.4

@@ -2,11 +2,9 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import pytest
-from pydantic import ValidationError
-
 from app.domain.events import DebateEvent
 from app.domain.jobs import ClaimedDebateQueueMessage, DebateJob, DebateQueueMessage
-
+from pydantic import ValidationError
 
 NOW = datetime(2026, 8, 27, 11, 0, tzinfo=timezone.utc)
 JOB_ID = UUID("00000000-0000-4000-8000-000000000030")

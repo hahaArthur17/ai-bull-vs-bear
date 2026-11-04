@@ -43,7 +43,9 @@ class DeterministicDebateProvider:
                 "different interpretation because the signals are conditional and incomplete."
                 f"{intervention}"
             )
-            rebuttal_point = "The opponent's interpretation is not the only reading of the snapshot."
+            rebuttal_point = (
+                "The opponent's interpretation is not the only reading of the snapshot."
+            )
 
         return DebateTurnDraft(
             content=content,

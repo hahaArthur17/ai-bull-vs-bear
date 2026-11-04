@@ -33,11 +33,12 @@ export function pendingInterruptionWasSaved(
   detail: DebateSessionDetail,
   pending: PendingInterruption,
 ): boolean {
-  return detail.messages.some(({ message }) =>
-    message.id === pending.messageId
-    && !message.is_complete
-    && message.generation_id === pending.generationId
-    && message.content === pending.visiblePrefix,
+  return detail.messages.some(
+    ({ message }) =>
+      message.id === pending.messageId &&
+      !message.is_complete &&
+      message.generation_id === pending.generationId &&
+      message.content === pending.visiblePrefix,
   );
 }
 
@@ -49,20 +50,27 @@ export function pendingInterruptionIsObsolete(
   // A provider may finish the visible turn between the tap and the server
   // mutation. The generation can remain active for later turns, but this
   // exact prefix can no longer be frozen.
-  if (detail.messages.some(({ message }) =>
-    message.id === pending.messageId && message.is_complete,
-  )) return true;
-  if (pending.messageId === pending.generationId
-    && detail.messages.some(({ message }) =>
-      message.generation_id === pending.generationId
-      && ["bull", "bear", "judge"].includes(message.role)
-      && message.content.length > 0,
-    )) return true;
-  return detail.session.active_generation_id !== pending.generationId
-    || detail.session.status === "awaiting_user"
-    || detail.session.status === "completed"
-    || detail.session.status === "cancelled"
-    || detail.session.status === "failed";
+  if (
+    detail.messages.some(({ message }) => message.id === pending.messageId && message.is_complete)
+  )
+    return true;
+  if (
+    pending.messageId === pending.generationId &&
+    detail.messages.some(
+      ({ message }) =>
+        message.generation_id === pending.generationId &&
+        ["bull", "bear", "judge"].includes(message.role) &&
+        message.content.length > 0,
+    )
+  )
+    return true;
+  return (
+    detail.session.active_generation_id !== pending.generationId ||
+    detail.session.status === "awaiting_user" ||
+    detail.session.status === "completed" ||
+    detail.session.status === "cancelled" ||
+    detail.session.status === "failed"
+  );
 }
 
 type StoredPendingInterruptions = {
@@ -83,9 +91,9 @@ function isRole(value: unknown): value is PendingInterruptionRole {
 }
 
 function isPrecedingMessageIds(value: unknown): value is string[] {
-  return Array.isArray(value)
-    && value.length <= MAX_PRECEDING_MESSAGE_IDS
-    && value.every(isIdentifier);
+  return (
+    Array.isArray(value) && value.length <= MAX_PRECEDING_MESSAGE_IDS && value.every(isIdentifier)
+  );
 }
 
 function isPendingInterruption(
@@ -95,30 +103,46 @@ function isPendingInterruption(
 ): value is PendingInterruption {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Record<string, unknown>;
-  return isIdentifier(candidate.accountId)
-    && (accountId === undefined || candidate.accountId === accountId)
-    && isIdentifier(candidate.sessionId)
-    && isIdentifier(candidate.generationId)
-    && isIdentifier(candidate.messageId)
-    && isIdentifier(candidate.idempotencyKey)
-    && typeof candidate.visiblePrefix === "string"
-    && Array.from(candidate.visiblePrefix).length <= MAX_PENDING_INTERRUPTION_PREFIX_LENGTH
-    && ((isRole(candidate.role) && isPrecedingMessageIds(candidate.precedingMessageIds))
-      || (allowLegacyDisplay && candidate.role === undefined && candidate.precedingMessageIds === undefined));
-}
-
-function isStoredPendingInterruptions(value: unknown, accountId: string): value is StoredPendingInterruptions {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Record<string, unknown>;
-  if (candidate.version !== PENDING_INTERRUPTION_STORAGE_VERSION
-    || !candidate.entries || typeof candidate.entries !== "object"
-    || Array.isArray(candidate.entries)) return false;
-  return Object.entries(candidate.entries).every(([sessionId, entry]) =>
-    sessionId.length > 0 && isPendingInterruption(entry, accountId, true) && entry.sessionId === sessionId,
+  return (
+    isIdentifier(candidate.accountId) &&
+    (accountId === undefined || candidate.accountId === accountId) &&
+    isIdentifier(candidate.sessionId) &&
+    isIdentifier(candidate.generationId) &&
+    isIdentifier(candidate.messageId) &&
+    isIdentifier(candidate.idempotencyKey) &&
+    typeof candidate.visiblePrefix === "string" &&
+    Array.from(candidate.visiblePrefix).length <= MAX_PENDING_INTERRUPTION_PREFIX_LENGTH &&
+    ((isRole(candidate.role) && isPrecedingMessageIds(candidate.precedingMessageIds)) ||
+      (allowLegacyDisplay &&
+        candidate.role === undefined &&
+        candidate.precedingMessageIds === undefined))
   );
 }
 
-function copyEntries(entries: Record<string, PendingInterruption>): Record<string, PendingInterruption> {
+function isStoredPendingInterruptions(
+  value: unknown,
+  accountId: string,
+): value is StoredPendingInterruptions {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Record<string, unknown>;
+  if (
+    candidate.version !== PENDING_INTERRUPTION_STORAGE_VERSION ||
+    !candidate.entries ||
+    typeof candidate.entries !== "object" ||
+    Array.isArray(candidate.entries)
+  )
+    return false;
+  return Object.entries(candidate.entries).every(
+    ([sessionId, entry]) =>
+      sessionId.length > 0 &&
+      isPendingInterruption(entry, accountId, true) &&
+      entry.sessionId === sessionId,
+  );
+}
+
+function copyEntries(
+  entries: Record<string, PendingInterruption>,
+): Record<string, PendingInterruption> {
   const copied = Object.create(null) as Record<string, PendingInterruption>;
   for (const [sessionId, entry] of Object.entries(entries)) {
     copied[sessionId] = {
@@ -143,7 +167,9 @@ function stableHash(value: string): string {
 
 export function createPendingInterruption(input: PendingInterruptionInput): PendingInterruption {
   if (!isPendingInterruption({ ...input, idempotencyKey: "pending" })) {
-    throw new Error("Pending interruption must contain bounded account, session, generation, message, and visible prefix values.");
+    throw new Error(
+      "Pending interruption must contain bounded account, session, generation, message, and visible prefix values.",
+    );
   }
   const identity = [
     PENDING_INTERRUPTION_STORAGE_VERSION,
@@ -166,7 +192,10 @@ async function readEntries(
   const key = storageKey(accountId);
   const raw = await storage.getItem(key);
   if (raw === null) {
-    return { version: PENDING_INTERRUPTION_STORAGE_VERSION, entries: Object.create(null) };
+    return {
+      version: PENDING_INTERRUPTION_STORAGE_VERSION,
+      entries: Object.create(null),
+    };
   }
   try {
     const parsed: unknown = JSON.parse(raw);
@@ -177,7 +206,10 @@ async function readEntries(
     // Treat corrupt JSON as unrecoverable rather than retrying another account's request.
   }
   await storage.removeItem(key);
-  return { version: PENDING_INTERRUPTION_STORAGE_VERSION, entries: Object.create(null) };
+  return {
+    version: PENDING_INTERRUPTION_STORAGE_VERSION,
+    entries: Object.create(null),
+  };
 }
 
 export async function savePendingInterruption(
@@ -208,7 +240,8 @@ export async function confirmPendingInterruption(
   sessionId: string,
   expectedIdempotencyKey: string,
 ): Promise<boolean> {
-  if (!isIdentifier(accountId) || !isIdentifier(sessionId) || !isIdentifier(expectedIdempotencyKey)) return false;
+  if (!isIdentifier(accountId) || !isIdentifier(sessionId) || !isIdentifier(expectedIdempotencyKey))
+    return false;
   const stored = await readEntries(storage, accountId);
   const pending = stored.entries[sessionId];
   if (!pending || pending.idempotencyKey !== expectedIdempotencyKey) return false;

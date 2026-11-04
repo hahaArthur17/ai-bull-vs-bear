@@ -1,6 +1,6 @@
 import type { DebateDraft, DebateStreamSnapshot } from "./debateStream";
-import { presentDebateEvidence } from "./evidencePresentation.ts";
 import type { DebateEvidenceView } from "./evidencePresentation.ts";
+import { presentDebateEvidence } from "./evidencePresentation.ts";
 import type { DebateMessageRecord } from "./types.ts";
 
 export type DebateStatusTone = "neutral" | "active" | "success" | "warning" | "danger";
@@ -29,9 +29,7 @@ export function visibleDebateDrafts(drafts: DebateDraft[]): DebateDraft[] {
   return drafts.filter((draft) => draft.content.trim().length > 0);
 }
 
-export function debateMessageSections(
-  record: DebateMessageRecord,
-): DebateMessageSections {
+export function debateMessageSections(record: DebateMessageRecord): DebateMessageSections {
   const presentation = record.presentation;
   if (!presentation || !record.message.is_complete) {
     return {
@@ -53,7 +51,11 @@ export function debateMessageSections(
 
 export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCopy {
   if (snapshot.sessionStatus === "interrupted_awaiting_user") {
-    return { label: "Stopped here", detail: "Your visible text is saved. No generation resumes automatically.", tone: "neutral" };
+    return {
+      label: "Stopped here",
+      detail: "Your visible text is saved. No generation resumes automatically.",
+      tone: "neutral",
+    };
   }
   if (snapshot.sessionStatus === "cancel_requested") {
     return {
@@ -86,14 +88,14 @@ export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCo
   if (snapshot.sessionStatus === "awaiting_user") {
     return {
       label: "Waiting for your question",
-      detail: "Round 1 is complete. Ask about a point before deciding whether to continue to Round 2.",
+      detail:
+        "Round 1 is complete. Ask about a point before deciding whether to continue to Round 2.",
       tone: "success",
     };
   }
   if (snapshot.jobStatus === "retry_scheduled") {
-    const delay = snapshot.retryDelaySeconds === null
-      ? "shortly"
-      : `in ${snapshot.retryDelaySeconds}s`;
+    const delay =
+      snapshot.retryDelaySeconds === null ? "shortly" : `in ${snapshot.retryDelaySeconds}s`;
     return {
       label: "Retry",
       detail: `Attempt ${snapshot.jobAttemptCount} paused; the Worker will retry ${delay}.`,
@@ -122,11 +124,13 @@ export function debateStatusCopy(snapshot: DebateStreamSnapshot): DebateStatusCo
 }
 
 export function canCancelDebate(snapshot: DebateStreamSnapshot): boolean {
-  return snapshot.activeGenerationId !== null
-    && snapshot.sessionStatus !== "cancel_requested"
-    && (snapshot.jobStatus === "queued"
-      || snapshot.jobStatus === "running"
-      || snapshot.jobStatus === "retry_scheduled");
+  return (
+    snapshot.activeGenerationId !== null &&
+    snapshot.sessionStatus !== "cancel_requested" &&
+    (snapshot.jobStatus === "queued" ||
+      snapshot.jobStatus === "running" ||
+      snapshot.jobStatus === "retry_scheduled")
+  );
 }
 
 export function canChallengeDebate(snapshot: DebateStreamSnapshot): boolean {

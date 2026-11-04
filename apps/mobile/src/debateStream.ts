@@ -18,21 +18,10 @@ export type DebateDraft = {
 };
 
 export type DebateStreamStatus =
-  | "idle"
-  | "connecting"
-  | "live"
-  | "reconnecting"
-  | "closed"
-  | "failed";
+  "idle" | "connecting" | "live" | "reconnecting" | "closed" | "failed";
 
 export type DebateJobViewStatus =
-  | "none"
-  | "queued"
-  | "running"
-  | "retry_scheduled"
-  | "stage_completed"
-  | "failed"
-  | "cancelled";
+  "none" | "queued" | "running" | "retry_scheduled" | "stage_completed" | "failed" | "cancelled";
 
 export type DebateStreamSnapshot = {
   status: DebateStreamStatus;
@@ -118,13 +107,15 @@ export class SseFrameParser {
 function isDebateEvent(value: unknown): value is DebateEvent {
   if (!value || typeof value !== "object") return false;
   const event = value as Partial<DebateEvent>;
-  return event.version === 1
-    && typeof event.event_id === "string"
-    && typeof event.session_id === "string"
-    && Number.isInteger(event.sequence)
-    && typeof event.type === "string"
-    && !!event.payload
-    && typeof event.payload === "object";
+  return (
+    event.version === 1 &&
+    typeof event.event_id === "string" &&
+    typeof event.session_id === "string" &&
+    Number.isInteger(event.sequence) &&
+    typeof event.type === "string" &&
+    !!event.payload &&
+    typeof event.payload === "object"
+  );
 }
 
 function parseLatestSequence(xhr: XMLHttpRequest): number | null {
@@ -176,11 +167,7 @@ export class XhrDebateEventTransport implements DebateEventTransport {
       };
 
       const separator = options.url.includes("?") ? "&" : "?";
-      xhr.open(
-        "GET",
-        `${options.url}${separator}after_sequence=${options.afterSequence}`,
-        true,
-      );
+      xhr.open("GET", `${options.url}${separator}after_sequence=${options.afterSequence}`, true);
       xhr.setRequestHeader("Accept", "text/event-stream");
       if (options.accessToken) {
         xhr.setRequestHeader("Authorization", `Bearer ${options.accessToken}`);
@@ -241,10 +228,8 @@ function canonicalJobStatus(detail: DebateSessionDetail): DebateJobViewStatus {
   if (detail.job) return detail.job.status;
   if (detail.session.status === "failed") return "failed";
   if (detail.session.status === "cancelled") return "cancelled";
-  if (
-    detail.session.status === "completed"
-    || detail.session.status === "awaiting_user"
-  ) return "stage_completed";
+  if (detail.session.status === "completed" || detail.session.status === "awaiting_user")
+    return "stage_completed";
   if (detail.session.status.startsWith("queued_")) return "queued";
   if (detail.session.status.startsWith("running_")) return "running";
   return "none";
@@ -263,27 +248,39 @@ function numberPayload(event: DebateEvent, key: string): number | null {
 function sessionStatusPayload(event: DebateEvent): DebateSessionStatus | null {
   const status = stringPayload(event, "status");
   return status && SESSION_STATUSES.has(status as DebateSessionStatus)
-    ? status as DebateSessionStatus
+    ? (status as DebateSessionStatus)
     : null;
 }
 
 function isDebateMessage(value: unknown): value is DebateMessage {
   if (!value || typeof value !== "object") return false;
   const message = value as Partial<DebateMessage>;
-  return typeof message.id === "string"
-    && typeof message.generation_id === "string"
-    && Number.isInteger(message.sequence_number)
-    && typeof message.content === "string"
-    && message.is_complete === true;
+  return (
+    typeof message.id === "string" &&
+    typeof message.generation_id === "string" &&
+    Number.isInteger(message.sequence_number) &&
+    typeof message.content === "string" &&
+    message.is_complete === true
+  );
 }
 
 function isFreshness(value: unknown): boolean {
   if (!value || typeof value !== "object") return false;
   const freshness = value as Record<string, unknown>;
-  return (freshness.status === "current" || freshness.status === "stale" || freshness.status === "unknown")
-    && (freshness.age_days === undefined || freshness.age_days === null || Number.isInteger(freshness.age_days))
-    && (freshness.max_age_days === undefined || freshness.max_age_days === null || Number.isInteger(freshness.max_age_days))
-    && (freshness.evaluated_at === undefined || freshness.evaluated_at === null || typeof freshness.evaluated_at === "string");
+  return (
+    (freshness.status === "current" ||
+      freshness.status === "stale" ||
+      freshness.status === "unknown") &&
+    (freshness.age_days === undefined ||
+      freshness.age_days === null ||
+      Number.isInteger(freshness.age_days)) &&
+    (freshness.max_age_days === undefined ||
+      freshness.max_age_days === null ||
+      Number.isInteger(freshness.max_age_days)) &&
+    (freshness.evaluated_at === undefined ||
+      freshness.evaluated_at === null ||
+      typeof freshness.evaluated_at === "string")
+  );
 }
 
 function isNullableString(value: unknown): boolean {
@@ -294,33 +291,40 @@ function isDebateMessagePresentation(value: unknown): value is DebateMessagePres
   if (!value || typeof value !== "object") return false;
   const presentation = value as Record<string, unknown>;
   if (
-    typeof presentation.argument !== "string"
-    || !isNullableString(presentation.interpretation)
-    || !isNullableString(presentation.uncertainty)
-    || !Array.isArray(presentation.facts_used)
-  ) return false;
+    typeof presentation.argument !== "string" ||
+    !isNullableString(presentation.interpretation) ||
+    !isNullableString(presentation.uncertainty) ||
+    !Array.isArray(presentation.facts_used)
+  )
+    return false;
   return presentation.facts_used.every((fact) => {
     if (!fact || typeof fact !== "object") return false;
     const evidence = fact as Record<string, unknown>;
-    return typeof evidence.evidence_id === "string"
-      && (evidence.evidence_type === "news" || evidence.evidence_type === "filing" || evidence.evidence_type === "technical" || evidence.evidence_type === null)
-      && isNullableString(evidence.title)
-      && isNullableString(evidence.fact)
-      && isNullableString(evidence.source)
-      && isNullableString(evidence.date)
-      && isFreshness(evidence.freshness)
-      && isNullableString(evidence.support_span)
-      && isNullableString(evidence.source_destination)
-      && Array.isArray(evidence.missing_metadata)
-      && evidence.missing_metadata.every((item) => (
-        item === "evidence_type"
-        || item === "title"
-        || item === "fact"
-        || item === "source"
-        || item === "date"
-        || item === "support_span"
-        || item === "source_destination"
-      ));
+    return (
+      typeof evidence.evidence_id === "string" &&
+      (evidence.evidence_type === "news" ||
+        evidence.evidence_type === "filing" ||
+        evidence.evidence_type === "technical" ||
+        evidence.evidence_type === null) &&
+      isNullableString(evidence.title) &&
+      isNullableString(evidence.fact) &&
+      isNullableString(evidence.source) &&
+      isNullableString(evidence.date) &&
+      isFreshness(evidence.freshness) &&
+      isNullableString(evidence.support_span) &&
+      isNullableString(evidence.source_destination) &&
+      Array.isArray(evidence.missing_metadata) &&
+      evidence.missing_metadata.every(
+        (item) =>
+          item === "evidence_type" ||
+          item === "title" ||
+          item === "fact" ||
+          item === "source" ||
+          item === "date" ||
+          item === "support_span" ||
+          item === "source_destination",
+      )
+    );
   });
 }
 
@@ -352,10 +356,7 @@ type Reduction = {
   terminal: boolean;
 };
 
-export function reduceDebateEvent(
-  current: DebateStreamSnapshot,
-  event: DebateEvent,
-): Reduction {
+export function reduceDebateEvent(current: DebateStreamSnapshot, event: DebateEvent): Reduction {
   if (event.type === "heartbeat") return { snapshot: current, terminal: false };
   if (event.sequence <= current.lastSequence) return { snapshot: current, terminal: false };
   if (current.lastSequence > 0 && event.sequence !== current.lastSequence + 1) {
@@ -372,31 +373,29 @@ export function reduceDebateEvent(
   let jobAttemptCount = current.jobAttemptCount;
   let retryDelaySeconds = current.retryDelaySeconds;
   if (
-    (event.type === "session.created" || event.type === "job.queued")
-    && generationId
-    && (current.activeGenerationId === null || generationId === current.activeGenerationId)
+    (event.type === "session.created" || event.type === "job.queued") &&
+    generationId &&
+    (current.activeGenerationId === null || generationId === current.activeGenerationId)
   ) {
     activeGenerationId = generationId;
     drafts = {};
   }
   if (
-    (event.type === "session.cancel_requested" || event.type === "session.cancelled"
-      || event.type === "session.interrupted_awaiting_user")
-    && generationId
-    && (event.type === "session.cancelled"
+    (event.type === "session.cancel_requested" ||
+      event.type === "session.cancelled" ||
+      event.type === "session.interrupted_awaiting_user") &&
+    generationId &&
+    (event.type === "session.cancelled"
       ? generationId === current.activeGenerationId
       : stringPayload(event, "cancelled_generation_id") === current.activeGenerationId)
   ) {
     activeGenerationId = generationId;
     drafts = {};
   }
-  const isLateGeneration = generationId !== null
-    && activeGenerationId !== null
-    && generationId !== activeGenerationId;
+  const isLateGeneration =
+    generationId !== null && activeGenerationId !== null && generationId !== activeGenerationId;
   const eventJobId = event.type.startsWith("job.") ? stringPayload(event, "job_id") : null;
-  const isLateJob = eventJobId !== null
-    && current.jobId !== null
-    && eventJobId !== current.jobId;
+  const isLateJob = eventJobId !== null && current.jobId !== null && eventJobId !== current.jobId;
   if (isLateGeneration || isLateJob) {
     return {
       snapshot: { ...current, lastSequence: event.sequence },
@@ -450,20 +449,21 @@ export function reduceDebateEvent(
   }
 
   if (
-    event.type === "turn.started"
-    || event.type === "judge.started"
-    || event.type === "explanation.started"
+    event.type === "turn.started" ||
+    event.type === "judge.started" ||
+    event.type === "explanation.started"
   ) {
     const messageId = stringPayload(event, "message_id");
-    const role = event.type === "judge.started"
-      ? "judge"
-      : event.type === "explanation.started"
-        ? "explainer"
-        : event.payload.role;
+    const role =
+      event.type === "judge.started"
+        ? "judge"
+        : event.type === "explanation.started"
+          ? "explainer"
+          : event.payload.role;
     if (
-      !messageId
-      || !generationId
-      || (role !== "bull" && role !== "bear" && role !== "judge" && role !== "explainer")
+      !messageId ||
+      !generationId ||
+      (role !== "bull" && role !== "bear" && role !== "judge" && role !== "explainer")
     ) {
       throw new DebateProtocolGapError(event.sequence);
     }
@@ -478,9 +478,9 @@ export function reduceDebateEvent(
   }
 
   if (
-    event.type === "turn.delta"
-    || event.type === "judge.delta"
-    || event.type === "explanation.delta"
+    event.type === "turn.delta" ||
+    event.type === "judge.delta" ||
+    event.type === "explanation.delta"
   ) {
     const messageId = stringPayload(event, "message_id");
     const delta = stringPayload(event, "delta");
@@ -503,11 +503,11 @@ export function reduceDebateEvent(
     const supportSpan = event.payload.support_span;
     const draft = messageId ? drafts[messageId] : null;
     if (
-      !draft
-      || !messageId
-      || !evidenceId
-      || citationOrder === null
-      || (supportSpan !== undefined && supportSpan !== null && typeof supportSpan !== "string")
+      !draft ||
+      !messageId ||
+      !evidenceId ||
+      citationOrder === null ||
+      (supportSpan !== undefined && supportSpan !== null && typeof supportSpan !== "string")
     ) {
       throw new DebateProtocolGapError(event.sequence);
     }
@@ -527,29 +527,29 @@ export function reduceDebateEvent(
   }
 
   if (
-    event.type === "turn.completed"
-    || event.type === "judge.completed"
-    || event.type === "explanation.completed"
+    event.type === "turn.completed" ||
+    event.type === "judge.completed" ||
+    event.type === "explanation.completed"
   ) {
     const message = event.payload.message;
     if (!isDebateMessage(message)) throw new DebateProtocolGapError(event.sequence);
     const draft = drafts[message.id];
     if (
-      message.generation_id !== (generationId || activeGenerationId)
+      message.generation_id !== (generationId || activeGenerationId) ||
       // The current deterministic Judge sends judge.started followed directly
       // by judge.completed. A future streaming Judge supplies ordered deltas,
       // which retain the stricter exact-content check used for Turn streams.
-      || (draft && draft.content !== message.content
-        && !(event.type === "judge.completed" && draft.nextDeltaIndex === 1 && draft.content === ""))
+      (draft &&
+        draft.content !== message.content &&
+        !(event.type === "judge.completed" && draft.nextDeltaIndex === 1 && draft.content === ""))
     ) {
       throw new DebateProtocolGapError(event.sequence);
     }
-    const citations = draft?.citations || (current.canonicalMessages.find(
-      (record) => record.message.id === message.id,
-    )?.citations || []);
-    const existing = current.canonicalMessages.find(
-      (record) => record.message.id === message.id,
-    );
+    const citations =
+      draft?.citations ||
+      current.canonicalMessages.find((record) => record.message.id === message.id)?.citations ||
+      [];
+    const existing = current.canonicalMessages.find((record) => record.message.id === message.id);
     canonicalMessages = upsertMessage(canonicalMessages, {
       message,
       citations,
@@ -576,9 +576,10 @@ export function reduceDebateEvent(
       jobStatus,
       jobAttemptCount,
       retryDelaySeconds,
-      safeError: event.type === "session.failed"
-        ? stringPayload(event, "safe_error_code") || "Debate generation failed"
-        : current.safeError,
+      safeError:
+        event.type === "session.failed"
+          ? stringPayload(event, "safe_error_code") || "Debate generation failed"
+          : current.safeError,
     },
     terminal,
   };
@@ -626,10 +627,7 @@ export class DebateStreamClient {
     let initialLoadAttempts = 0;
     while (!this.stopped) {
       try {
-        await this.reloadCanonical(
-          0,
-          initialLoadAttempts === 0 ? "connecting" : "reconnecting",
-        );
+        await this.reloadCanonical(0, initialLoadAttempts === 0 ? "connecting" : "reconnecting");
         break;
       } catch (error) {
         if (this.stopped) return;
@@ -638,10 +636,9 @@ export class DebateStreamClient {
 
         this.snapshot = { ...this.snapshot, status: "reconnecting" };
         this.emit();
-        await new Promise((resolve) => setTimeout(
-          resolve,
-          Math.min(250 * 2 ** initialLoadAttempts, 2000),
-        ));
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(250 * 2 ** initialLoadAttempts, 2000)),
+        );
       }
     }
     if (this.stopped || this.isCanonicalTerminal()) return;
@@ -661,12 +658,14 @@ export class DebateStreamClient {
             const reduced = reduceDebateEvent(this.snapshot, event);
             this.snapshot = reduced.snapshot;
             terminalEvent = terminalEvent || reduced.terminal;
-            interruptedEvent = interruptedEvent
-              || (reduced.terminal && event.type === "session.interrupted_awaiting_user");
+            interruptedEvent =
+              interruptedEvent ||
+              (reduced.terminal && event.type === "session.interrupted_awaiting_user");
             this.emit();
           },
         });
-        if (!this.stopped && interruptedEvent) await this.reloadCanonical(this.snapshot.lastSequence, "closed");
+        if (!this.stopped && interruptedEvent)
+          await this.reloadCanonical(this.snapshot.lastSequence, "closed");
         if (this.stopped || terminalEvent) return;
         attempts += 1;
       } catch (error) {
@@ -709,10 +708,7 @@ export class DebateStreamClient {
     this.controller = null;
   }
 
-  private async reloadCanonical(
-    lastSequence: number,
-    status: DebateStreamStatus,
-  ): Promise<void> {
+  private async reloadCanonical(lastSequence: number, status: DebateStreamStatus): Promise<void> {
     const detail = await this.options.loadCanonical();
     this.snapshot = createCanonicalDebateSnapshot(detail, lastSequence, status);
     this.emit();

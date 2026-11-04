@@ -23,7 +23,10 @@ function stableHash(value: string): string {
  * A retryable mutation keeps the same key for the same interruption input,
  * including after a screen is recreated while a response is in flight.
  */
-export function interruptionIdempotencyKey(prefix: "interject" | "continue", identity: string): string {
+export function interruptionIdempotencyKey(
+  prefix: "interject" | "continue",
+  identity: string,
+): string {
   return `${prefix}_${stableHash(identity)}`;
 }
 
@@ -37,23 +40,28 @@ export function isInterruptionJobPending(jobStatus: DebateStreamSnapshot["jobSta
  * lock through /interrupt-before-output.
  */
 export function canStopBeforeOutput(snapshot: DebateStreamSnapshot): boolean {
-  return snapshot.activeGenerationId !== null
-    && INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "")
-    && !snapshot.canonicalMessages.some(({ message }) =>
-      message.generation_id === snapshot.activeGenerationId
-      && INTERRUPTIBLE_ROLES.has(message.role),
-    );
+  return (
+    snapshot.activeGenerationId !== null &&
+    INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "") &&
+    !snapshot.canonicalMessages.some(
+      ({ message }) =>
+        message.generation_id === snapshot.activeGenerationId &&
+        INTERRUPTIBLE_ROLES.has(message.role),
+    )
+  );
 }
 
 export function canStopVisibleDraft(
   snapshot: DebateStreamSnapshot,
   draft: DebateDraft | undefined,
 ): boolean {
-  return snapshot.activeGenerationId !== null
-    && INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "")
-    && draft !== undefined
-    && INTERRUPTIBLE_ROLES.has(draft.role)
-    && draft.generationId === snapshot.activeGenerationId;
+  return (
+    snapshot.activeGenerationId !== null &&
+    INTERRUPTIBLE_SESSION_STATUSES.has(snapshot.sessionStatus || "") &&
+    draft !== undefined &&
+    INTERRUPTIBLE_ROLES.has(draft.role) &&
+    draft.generationId === snapshot.activeGenerationId
+  );
 }
 
 /**
@@ -68,15 +76,20 @@ export function activeInterruptionDraft(
   snapshot: DebateStreamSnapshot,
   displayedDraft?: DebateDraft,
 ): DebateDraft | null {
-  if (displayedDraft && INTERRUPTIBLE_ROLES.has(displayedDraft.role)
-      && displayedDraft.generationId === snapshot.activeGenerationId) {
+  if (
+    displayedDraft &&
+    INTERRUPTIBLE_ROLES.has(displayedDraft.role) &&
+    displayedDraft.generationId === snapshot.activeGenerationId
+  ) {
     const received = snapshot.drafts[displayedDraft.messageId];
     return received || displayedDraft;
   }
-  return Object.values(snapshot.drafts).find((draft) =>
-    draft.generationId === snapshot.activeGenerationId
-    && INTERRUPTIBLE_ROLES.has(draft.role),
-  ) || null;
+  return (
+    Object.values(snapshot.drafts).find(
+      (draft) =>
+        draft.generationId === snapshot.activeGenerationId && INTERRUPTIBLE_ROLES.has(draft.role),
+    ) || null
+  );
 }
 
 /** A before-output request is valid only while the provider has no text. */
@@ -94,11 +107,16 @@ export function shouldReconnectAfterInterruptionEnd(status: DebateSessionStatus)
 }
 
 export function findInterruptedMessage(records: DebateMessageRecord[]): DebateMessageRecord | null {
-  return [...records].reverse().find((record) =>
-    !record.message.is_complete
-    && INTERRUPTIBLE_ROLES.has(record.message.role)
-    && record.message.metadata.interrupted === true,
-  ) || null;
+  return (
+    [...records]
+      .reverse()
+      .find(
+        (record) =>
+          !record.message.is_complete &&
+          INTERRUPTIBLE_ROLES.has(record.message.role) &&
+          record.message.metadata.interrupted === true,
+      ) || null
+  );
 }
 
 /**
@@ -111,10 +129,15 @@ export function findInterjection(
   interruptedMessageId: string,
   waitingGenerationId: string,
 ): DebateMessageRecord | null {
-  return [...records].reverse().find((record) =>
-    record.message.role === "user"
-    && record.message.generation_id === waitingGenerationId
-    && record.message.metadata.interjection === true
-    && record.message.metadata.interrupted_message_id === interruptedMessageId,
-  ) || null;
+  return (
+    [...records]
+      .reverse()
+      .find(
+        (record) =>
+          record.message.role === "user" &&
+          record.message.generation_id === waitingGenerationId &&
+          record.message.metadata.interjection === true &&
+          record.message.metadata.interrupted_message_id === interruptedMessageId,
+      ) || null
+  );
 }

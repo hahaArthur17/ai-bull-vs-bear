@@ -53,4 +53,3 @@ class MacroFactorProvider:
             )
             for observation in context.macro_context
         ]
-

@@ -1,14 +1,14 @@
+import httpx
 import pytest
-from fastapi.testclient import TestClient
-
 from app.main import app, settings
 from app.schemas import MarketQuote
 from app.services.analysis import AnalysisService
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.demo_store import DemoStore
 from app.services.response_cache import JsonResponseCache
+from app.services.supabase_store import SupabaseStore
+from fastapi.testclient import TestClient
 from test_cache_backend import BrokenBackend
-
 
 client = TestClient(app)
 settings.auth_mode = "demo"
@@ -34,10 +34,47 @@ def test_health_and_stock_endpoints() -> None:
     assert {stock["ticker"] for stock in stocks} == {"AAPL", "GOOG", "NVDA", "TSLA"}
     assert client.get("/stocks/AAPL/indicators").status_code == 200
     assert client.get("/stocks/AAPL/quote").json() is None
-    assert any(item["source_type"] == "technical" for item in client.get("/stocks/AAPL/evidence").json())
+    assert any(
+        item["source_type"] == "technical" for item in client.get("/stocks/AAPL/evidence").json()
+    )
     assert client.get("/stocks/AAPL/price-history").json() == []
     assert client.get("/macro/series").json() == []
     assert client.get("/macro/series/vix").json() == []
+
+
+def test_analysis_history_page_uses_a_bounded_cursor_without_shadowing_detail_routes() -> None:
+    for _ in range(3):
+        assert client.post("/analysis/AAPL", json={}).status_code == 201
+    page = client.get("/analysis/page?limit=1").json()
+    assert len(page["items"]) == 1 and page["next_offset"] == 1
+    next_page = client.get("/analysis/page?limit=1&offset=1").json()
+    assert next_page["items"][0]["analysis_id"] != page["items"][0]["analysis_id"]
+    assert client.get("/analysis/" + page["items"][0]["analysis_id"]).status_code == 200
+    assert client.get("/analysis/page?limit=101").status_code == 422
+    assert client.get("/analysis/page?offset=-1").status_code == 422
+
+
+def test_bb012_malformed_persistence_payload_returns_safe_retryable_json(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.main import current_auth
+    from app.services.auth import AuthContext
+
+    transport = httpx.MockTransport(
+        lambda request: httpx.Response(200, text="private upstream diagnostic")
+    )
+    with httpx.Client(transport=transport) as upstream:
+        monkeypatch.setattr(
+            "app.main.store", SupabaseStore("https://example.supabase.co", "anon-key", upstream)
+        )
+        # The exported ASGI app has CORS around the FastAPI instance.
+        monkeypatch.setitem(
+            app.app.dependency_overrides, current_auth, lambda: AuthContext("user-1", "user-token")
+        )
+        response = client.get("/watchlist")
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Persistence service unavailable"}
+    assert "private upstream" not in response.text
 
 
 def test_stock_search_survives_redis_outage_and_exposes_degraded_health(
@@ -284,7 +321,9 @@ def test_macro_context_endpoint_groups_cached_observations(monkeypatch: pytest.M
                 }
             ]
 
-        def get_macro_observations(self, series_code: str, limit: int = 400) -> list[dict[str, object]]:
+        def get_macro_observations(
+            self, series_code: str, limit: int = 400
+        ) -> list[dict[str, object]]:
             assert series_code == "vix"
             assert limit == 30
             return [
@@ -362,3 +401,19 @@ def test_unexpected_error_includes_cors_headers(monkeypatch: pytest.MonkeyPatch)
 
     assert response.status_code == 500
     assert response.headers["access-control-allow-origin"] == origin
+    assert response.json() == {"detail": "Internal server error"}
+
+
+def test_analysis_provider_failure_does_not_expose_upstream_details(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.services.model_provider import ProviderError
+
+    def fail(*args: object, **kwargs: object) -> None:
+        raise ProviderError("upstream echoed secret-key and private prompt")
+
+    monkeypatch.setattr("app.main.analysis_service.create", fail)
+    response = client.post("/analysis/AAPL", json={})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "Analysis service is temporarily unavailable"}

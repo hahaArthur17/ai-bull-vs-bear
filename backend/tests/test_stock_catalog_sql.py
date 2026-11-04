@@ -1,15 +1,12 @@
 from pathlib import Path
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SCHEMA_SQL = (REPOSITORY_ROOT / "backend/supabase/schema.sql").read_text(encoding="utf-8")
 MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260827_stock_catalog_coverage.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260827_stock_catalog_coverage.sql"
 ).read_text(encoding="utf-8")
 SEARCH_MIGRATION_SQL = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260827_stock_catalog_search.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260827_stock_catalog_search.sql"
 ).read_text(encoding="utf-8")
 
 

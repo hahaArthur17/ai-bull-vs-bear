@@ -5,7 +5,6 @@ from zoneinfo import ZoneInfo
 
 from app.services.indicators import COMPLETE_HISTORY_RECORDS, assess_price_history
 
-
 NEW_YORK = ZoneInfo("America/New_York")
 
 

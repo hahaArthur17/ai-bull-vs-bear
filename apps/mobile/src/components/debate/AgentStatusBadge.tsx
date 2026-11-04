@@ -1,6 +1,6 @@
 import { Text } from "react-native";
 
-import { appStyles as styles, palette } from "../../theme";
+import { palette, appStyles as styles } from "../../theme";
 import type { Claim } from "../../types";
 
 export function AgentStatusBadge({ agent }: { agent: Claim["agent"] }) {

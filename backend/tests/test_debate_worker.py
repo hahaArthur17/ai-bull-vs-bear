@@ -4,13 +4,12 @@ import asyncio
 from datetime import datetime, timedelta, timezone
 
 import pytest
-
 from app.domain.jobs import ClaimedDebateQueueMessage, DebateQueueMessage
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.streaming_debate import DeterministicStreamingDebateProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
-from app.services.debate_orchestrator import DebateOrchestrator
 from app.services.debate_event_broker import InMemoryDebateEventBroker
+from app.services.debate_orchestrator import DebateOrchestrator
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_worker import DebateWorker
 from test_debate_orchestrator import FailingProvider, StepClock, build_queued_round_one
@@ -124,13 +123,16 @@ def test_worker_executes_and_archives_only_after_durable_completion() -> None:
     assert idle.outcome == "idle"
     assert completed_session is not None and completed_session.status == "awaiting_user"
     assert completed_job is not None and completed_job.status == "completed"
-    assert len(
-        repository.list_messages(
-            session.id,
-            session.user_id,
-            branch_id=session.active_branch_id,
+    assert (
+        len(
+            repository.list_messages(
+                session.id,
+                session.user_id,
+                branch_id=session.active_branch_id,
+            )
         )
-    ) == 7
+        == 7
+    )
 
 
 def test_worker_archives_redelivery_for_an_already_terminal_job() -> None:
@@ -483,8 +485,7 @@ def test_two_workers_apply_backpressure_to_three_queued_sessions() -> None:
         first_wave = [asyncio.create_task(worker.run_once()) for worker in workers]
         await asyncio.wait_for(probe.reached_limit.wait(), timeout=1)
         statuses = [
-            repository.get_session(session.id, session.user_id).status
-            for session, _ in admitted
+            repository.get_session(session.id, session.user_id).status for session, _ in admitted
         ]
 
         assert probe.maximum_active == 2
@@ -495,8 +496,7 @@ def test_two_workers_apply_backpressure_to_three_queued_sessions() -> None:
         first_results = await asyncio.gather(*first_wave)
         third_result = await workers[0].run_once()
         final_statuses = [
-            repository.get_session(session.id, session.user_id).status
-            for session, _ in admitted
+            repository.get_session(session.id, session.user_id).status for session, _ in admitted
         ]
 
         assert [result.outcome for result in first_results] == ["completed", "completed"]
@@ -512,9 +512,7 @@ def test_worker_loop_stops_cleanly_while_queue_is_idle() -> None:
         repository = InMemoryDebateRepository()
         worker = build_worker(repository)
         stop_event = asyncio.Event()
-        task = asyncio.create_task(
-            worker.run_forever(stop_event, poll_seconds=0.1)
-        )
+        task = asyncio.create_task(worker.run_forever(stop_event, poll_seconds=0.1))
         await asyncio.sleep(0)
         stop_event.set()
         await asyncio.wait_for(task, timeout=1)

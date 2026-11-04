@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.services.analysis_context import build_analysis_context
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.response_cache import (
@@ -42,9 +41,7 @@ def test_cache_keys_hash_queries_and_version_stock_bundles() -> None:
     assert stock_search_cache_key("private   question", 20) == search_key
     assert stock_search_cache_key("private question", 10) != search_key
 
-    assert stock_bundle_cache_key("aapl", clock=lambda: 601) == (
-        "cache:stock-bundle:v1:AAPL:2"
-    )
+    assert stock_bundle_cache_key("aapl", clock=lambda: 601) == ("cache:stock-bundle:v1:AAPL:2")
 
 
 def test_standard_debate_key_is_snapshot_bound_and_rejects_private_context() -> None:
@@ -57,18 +54,27 @@ def test_standard_debate_key_is_snapshot_bound_and_rejects_private_context() -> 
 
     assert key.startswith("cache:standard-debate:v1:")
     assert "AAPL" not in key
-    assert standard_debate_snapshot_cache_key(
-        standard,
-        provider_contract=contract,
-    ) == key
-    assert standard_debate_snapshot_cache_key(
-        build_analysis_context("AAPL", as_of="2026-08-29"),
-        provider_contract=contract,
-    ) != key
-    assert standard_debate_snapshot_cache_key(
-        standard,
-        provider_contract={"providers": [{"name": "technical", "version": "2"}]},
-    ) != key
+    assert (
+        standard_debate_snapshot_cache_key(
+            standard,
+            provider_contract=contract,
+        )
+        == key
+    )
+    assert (
+        standard_debate_snapshot_cache_key(
+            build_analysis_context("AAPL", as_of="2026-08-29"),
+            provider_contract=contract,
+        )
+        != key
+    )
+    assert (
+        standard_debate_snapshot_cache_key(
+            standard,
+            provider_contract={"providers": [{"name": "technical", "version": "2"}]},
+        )
+        != key
+    )
 
     with pytest.raises(ValueError, match="standard Debate context"):
         standard_debate_snapshot_cache_key(

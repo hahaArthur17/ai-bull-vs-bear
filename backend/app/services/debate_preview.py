@@ -61,9 +61,7 @@ class DebatePreviewService:
             checkpoint_drafts=checkpoint_drafts,
             event_publisher=event_publisher,
             clock=self.clock,
-            provider_request_pacer=ProviderRequestPacer(
-                provider_min_interval_seconds
-            ),
+            provider_request_pacer=ProviderRequestPacer(provider_min_interval_seconds),
         )
 
     def create_and_execute_round_one(
@@ -332,8 +330,7 @@ class DebatePreviewService:
                     or stored_question.metadata.get("selected_message_id")
                     != str(selected_message_id)
                     or stored_question.metadata.get("selected_text") != selected_text
-                    or stored_question.metadata.get("intervention_id")
-                    != str(intervention_id)
+                    or stored_question.metadata.get("intervention_id") != str(intervention_id)
                 ):
                     raise DebateConcurrencyError(
                         "Debate challenge idempotency key conflicts with another request"

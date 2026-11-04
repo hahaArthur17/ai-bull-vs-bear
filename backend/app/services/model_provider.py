@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass
 from typing import Any, Literal, Protocol
 
+from pydantic import BaseModel, Field, ValidationError
+
 from app.config import Settings
 from app.schemas import EvidenceItem, MacroContextSnapshot, TechnicalIndicators, TokenUsage
 
@@ -14,9 +16,6 @@ class ProviderError(RuntimeError):
 
 class ProviderConfigurationError(ProviderError):
     """Raised when a provider is selected but its local configuration is missing."""
-
-
-from pydantic import BaseModel, Field, ValidationError
 
 
 class ProviderClaim(BaseModel):
@@ -55,8 +54,7 @@ class AnalysisModelProvider(Protocol):
         indicators: TechnicalIndicators,
         evidence: list[EvidenceItem],
         macro_context: list[MacroContextSnapshot],
-    ) -> ProviderResult:
-        ...
+    ) -> ProviderResult: ...
 
 
 def build_analysis_prompt(
@@ -80,20 +78,23 @@ def build_analysis_prompt(
         for item in evidence
     ]
     evidence_block = "\n".join(evidence_lines) or "(no evidence returned)"
-    macro_block = "\n".join(
-        json.dumps(
-            {
-                "code": item.code,
-                "name": item.name,
-                "source": item.source,
-                "unit": item.unit,
-                "observation_date": item.observation_date,
-                "value": item.value,
-            },
-            ensure_ascii=False,
+    macro_block = (
+        "\n".join(
+            json.dumps(
+                {
+                    "code": item.code,
+                    "name": item.name,
+                    "source": item.source,
+                    "unit": item.unit,
+                    "observation_date": item.observation_date,
+                    "value": item.value,
+                },
+                ensure_ascii=False,
+            )
+            for item in (macro_context or [])
         )
-        for item in (macro_context or [])
-    ) or "(no cached macro observations returned)"
+        or "(no cached macro observations returned)"
+    )
     question_text = question or "Explain the available signals and uncertainty."
     return f"""You are the analysis layer of an educational stock-evidence application.
 Do not give buy, sell, hold, price-target, or guaranteed-return advice. Explain
@@ -185,7 +186,16 @@ class GroqAnalysisProvider:
                 "The Groq package is not installed. Run pip install -r backend/requirements.txt."
             ) from exc
         self.model = settings.groq_model
-        self.client = Groq(api_key=settings.groq_api_key)
+        # Use one provider attempt. SDK retries would extend a failed synchronous
+        # request beyond the caller's timeout and can spend quota repeatedly.
+        self.client = Groq(
+            api_key=settings.groq_api_key,
+            timeout=settings.analysis_provider_timeout_seconds,
+            max_retries=0,
+        )
+
+    def close(self) -> None:
+        self.client.close()
 
     def generate(
         self,
@@ -205,7 +215,9 @@ class GroqAnalysisProvider:
                     },
                     {
                         "role": "user",
-                        "content": build_analysis_prompt(ticker, question, indicators, evidence, macro_context),
+                        "content": build_analysis_prompt(
+                            ticker, question, indicators, evidence, macro_context
+                        ),
                     },
                 ],
                 temperature=0.2,
@@ -216,11 +228,13 @@ class GroqAnalysisProvider:
             if not content:
                 raise ProviderError("Groq returned an empty analysis response.")
             draft = parse_provider_payload(content)
-            return ProviderResult(draft=draft, token_usage=_usage_from_response(response, self.model))
+            return ProviderResult(
+                draft=draft, token_usage=_usage_from_response(response, self.model)
+            )
         except ProviderError:
             raise
         except Exception as exc:
-            raise ProviderError(f"Groq analysis request failed: {exc}") from exc
+            raise ProviderError("Groq analysis request failed") from exc
 
 
 class GeminiAnalysisProvider:
@@ -230,14 +244,23 @@ class GeminiAnalysisProvider:
                 "GEMINI_API_KEY is missing. Add it to the local .env file or use ANALYSIS_PROVIDER=demo."
             )
         try:
-            import google.generativeai as genai
+            from google import genai
+            from google.genai import types
         except ImportError as exc:
             raise ProviderConfigurationError(
                 "The Gemini package is not installed. Run pip install -r backend/requirements.txt."
             ) from exc
-        genai.configure(api_key=settings.gemini_api_key)
         self.model_name = settings.gemini_model
-        self.model = genai.GenerativeModel(self.model_name)
+        self.client = genai.Client(
+            api_key=settings.gemini_api_key,
+            http_options=types.HttpOptions(
+                timeout=int(settings.analysis_provider_timeout_seconds * 1000),
+                retry_options=types.HttpRetryOptions(attempts=1),
+            ),
+        )
+
+    def close(self) -> None:
+        self.client.close()
 
     def generate(
         self,
@@ -248,9 +271,12 @@ class GeminiAnalysisProvider:
         macro_context: list[MacroContextSnapshot],
     ) -> ProviderResult:
         try:
-            response = self.model.generate_content(
-                build_analysis_prompt(ticker, question, indicators, evidence, macro_context),
-                generation_config={
+            response = self.client.models.generate_content(
+                model=self.model_name,
+                contents=build_analysis_prompt(
+                    ticker, question, indicators, evidence, macro_context
+                ),
+                config={
                     "temperature": 0.2,
                     "response_mime_type": "application/json",
                 },
@@ -262,7 +288,9 @@ class GeminiAnalysisProvider:
             usage = getattr(response, "usage_metadata", None)
             prompt_tokens = int(getattr(usage, "prompt_token_count", 0) or 0)
             completion_tokens = int(getattr(usage, "candidates_token_count", 0) or 0)
-            total_tokens = int(getattr(usage, "total_token_count", prompt_tokens + completion_tokens) or 0)
+            total_tokens = int(
+                getattr(usage, "total_token_count", prompt_tokens + completion_tokens) or 0
+            )
             return ProviderResult(
                 draft=draft,
                 token_usage=TokenUsage(
@@ -275,7 +303,7 @@ class GeminiAnalysisProvider:
         except ProviderError:
             raise
         except Exception as exc:
-            raise ProviderError(f"Gemini analysis request failed: {exc}") from exc
+            raise ProviderError("Gemini analysis request failed") from exc
 
 
 def build_analysis_provider(settings: Settings) -> AnalysisModelProvider:

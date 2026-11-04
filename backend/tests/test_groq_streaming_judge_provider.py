@@ -5,7 +5,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import pytest
-
 from app.domain.agents import DebateJudgeRequest, DebateJudgeStreamDelta
 from app.domain.debate import DebateMessage
 from app.providers.groq_streaming_judge import (
@@ -78,10 +77,12 @@ def test_live_judge_buffers_trailing_whitespace_before_canonical_save() -> None:
     provider = GroqStreamingJudgeProvider(
         api_key="test-key",
         model="openai/gpt-oss-20b",
-        client=FakeGroqClient([
-            chunk("[E1] Both interpretations remain uncertain.  "),
-            chunk(finish_reason="stop"),
-        ]),
+        client=FakeGroqClient(
+            [
+                chunk("[E1] Both interpretations remain uncertain.  "),
+                chunk(finish_reason="stop"),
+            ]
+        ),
     )
 
     result = collect(provider)
@@ -184,8 +185,11 @@ def test_live_judge_rejects_output_over_request_bound() -> None:
 def test_judge_completion_cap_is_forwarded_and_default_is_independent():
     from app.config import Settings
     from app.providers.debate_factory import build_debate_streaming_judge_provider
+
     client = FakeGroqClient([chunk("Uncertain evidence [E1]."), chunk(finish_reason="stop")])
-    provider = GroqStreamingJudgeProvider(api_key="test-key", model="test-model", max_completion_tokens=200, client=client)
+    provider = GroqStreamingJudgeProvider(
+        api_key="test-key", model="test-model", max_completion_tokens=200, client=client
+    )
     collect(provider)
     assert client.completions.kwargs["max_completion_tokens"] == 200
     settings = Settings(_env_file=None, debate_streaming_provider="groq")

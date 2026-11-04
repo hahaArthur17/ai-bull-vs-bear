@@ -27,7 +27,9 @@ class MacroSeriesDefinition:
 
 DEFAULT_MACRO_SERIES = (
     MacroSeriesDefinition("sp500", "S&P 500 close", "fred", "SP500", "index points", "daily"),
-    MacroSeriesDefinition("vix", "CBOE Volatility Index", "fred", "VIXCLS", "index points", "daily"),
+    MacroSeriesDefinition(
+        "vix", "CBOE Volatility Index", "fred", "VIXCLS", "index points", "daily"
+    ),
     MacroSeriesDefinition(
         "effective_fed_funds_rate",
         "Effective federal funds rate",
@@ -36,10 +38,18 @@ DEFAULT_MACRO_SERIES = (
         "percent",
         "daily",
     ),
-    MacroSeriesDefinition("treasury_2y_yield", "2-year Treasury yield", "fred", "DGS2", "percent", "daily"),
-    MacroSeriesDefinition("treasury_10y_yield", "10-year Treasury yield", "fred", "DGS10", "percent", "daily"),
-    MacroSeriesDefinition("treasury_30y_yield", "30-year Treasury yield", "fred", "DGS30", "percent", "daily"),
-    MacroSeriesDefinition("wti_spot", "WTI crude oil spot price", "eia", "PET.RWTC.D", "USD/barrel", "daily"),
+    MacroSeriesDefinition(
+        "treasury_2y_yield", "2-year Treasury yield", "fred", "DGS2", "percent", "daily"
+    ),
+    MacroSeriesDefinition(
+        "treasury_10y_yield", "10-year Treasury yield", "fred", "DGS10", "percent", "daily"
+    ),
+    MacroSeriesDefinition(
+        "treasury_30y_yield", "30-year Treasury yield", "fred", "DGS30", "percent", "daily"
+    ),
+    MacroSeriesDefinition(
+        "wti_spot", "WTI crude oil spot price", "eia", "PET.RWTC.D", "USD/barrel", "daily"
+    ),
 )
 
 
@@ -150,7 +160,9 @@ class EiaClient:
                     "source": "eia",
                     "observation_date": period,
                     "value": value,
-                    "metadata": {key: value for key, value in metadata.items() if value is not None},
+                    "metadata": {
+                        key: value for key, value in metadata.items() if value is not None
+                    },
                 }
             )
         return sorted(parsed, key=lambda item: str(item["observation_date"]))

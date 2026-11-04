@@ -1,11 +1,10 @@
-from datetime import timedelta
 import json
+from datetime import timedelta
 from urllib.parse import parse_qs
 from uuid import UUID
 
 import httpx
 import pytest
-
 from app.domain.debate import (
     DebateDraftCheckpoint,
     DebateIntervention,
@@ -15,8 +14,8 @@ from app.domain.debate import (
 from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
-    DebateRepositoryError,
     DebateQueueRepository,
+    DebateRepositoryError,
     DebateUnitOfWork,
 )
 from app.repositories.supabase_debate_repository import SupabaseDebateRepository
@@ -299,10 +298,13 @@ def test_supabase_repository_uses_service_only_atomic_creation() -> None:
         "rpc/create_debate_session_with_job",
     ]
     assert repository.get_session(session.id, USER_ID) == session
-    assert repository.get_session(
-        session.id,
-        UUID("00000000-0000-4000-8000-000000000999"),
-    ) is None
+    assert (
+        repository.get_session(
+            session.id,
+            UUID("00000000-0000-4000-8000-000000000999"),
+        )
+        is None
+    )
     assert repository.get_active_job(session.id, USER_ID) == job
 
 
@@ -323,12 +325,19 @@ def test_supabase_repository_round_trips_messages_citations_and_interventions() 
     assert repository.list_message_evidence(message.id, USER_ID) == (citation,)
     before_bulk_read = len(fake.request_paths)
     assert repository.list_messages_with_evidence(
-        session.id, USER_ID, branch_id=BRANCH_ID,
+        session.id,
+        USER_ID,
+        branch_id=BRANCH_ID,
     ) == [(message, (citation,))]
     assert fake.request_paths[before_bulk_read:] == ["debate_sessions", "debate_messages"]
-    assert repository.list_messages_with_evidence(
-        session.id, UUID("00000000-0000-4000-8000-000000000999"), branch_id=BRANCH_ID,
-    ) == []
+    assert (
+        repository.list_messages_with_evidence(
+            session.id,
+            UUID("00000000-0000-4000-8000-000000000999"),
+            branch_id=BRANCH_ID,
+        )
+        == []
+    )
 
     intervention = DebateIntervention(
         id=UUID("00000000-0000-4000-8000-000000000107"),
@@ -550,9 +559,7 @@ def test_supabase_repository_round_trips_atomic_round_two_admission() -> None:
     target = transcript[-1]
     fake = FakeDebatePostgrest()
     fake.sessions[str(awaiting.id)] = awaiting.model_dump(mode="json")
-    fake.messages = {
-        str(message.id): message.model_dump(mode="json") for message in transcript
-    }
+    fake.messages = {str(message.id): message.model_dump(mode="json") for message in transcript}
     repository = build_repository(fake)
     intervention = DebateIntervention(
         id=INTERVENTION_ID,

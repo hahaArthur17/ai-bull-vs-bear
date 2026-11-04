@@ -3,7 +3,6 @@ import test from "node:test";
 
 import { serializeExplanationRequest } from "./explanationRequest.ts";
 
-
 test("Explanation requests preserve exact selections while using the API contract names", () => {
   assert.deepEqual(
     serializeExplanationRequest({

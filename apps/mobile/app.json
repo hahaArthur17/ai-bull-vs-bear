@@ -9,11 +9,7 @@
       "resizeMode": "contain",
       "backgroundColor": "#f5f1e8"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
-    "plugins": [
-      "expo-asset"
-    ]
+    "assetBundlePatterns": ["**/*"],
+    "plugins": ["expo-asset"]
   }
 }

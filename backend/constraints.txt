@@ -1,0 +1,3 @@
+# The optional Gemini SDK uses requests/urllib3. Keep its HTTP transport above
+# the versions affected by the dependency audit, without installing it in API-only deployments.
+urllib3>=2.8.0,<3

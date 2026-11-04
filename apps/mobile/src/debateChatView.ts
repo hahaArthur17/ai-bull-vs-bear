@@ -78,9 +78,7 @@ export function shouldAutoFollowTranscript(
   return contentHeight - viewportHeight - offsetY <= threshold;
 }
 
-export function shouldAnimateTranscriptScroll(
-  reduceMotionEnabled: boolean | null,
-): boolean {
+export function shouldAnimateTranscriptScroll(reduceMotionEnabled: boolean | null): boolean {
   return reduceMotionEnabled === false;
 }
 

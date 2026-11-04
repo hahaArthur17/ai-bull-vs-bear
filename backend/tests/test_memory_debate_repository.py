@@ -2,20 +2,23 @@ from datetime import datetime, timedelta
 from uuid import UUID
 
 import pytest
-
-from app.domain.debate import DebateIntervention, DebateMessage, DebateMessageEvidence, DebateSession
+from app.domain.debate import (
+    DebateIntervention,
+    DebateMessage,
+    DebateMessageEvidence,
+    DebateSession,
+)
 from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
-    DebateRepositoryError,
     DebateQueueRepository,
+    DebateRepositoryError,
     DebateUnitOfWork,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_job_state import start_job
 from app.services.debate_state import transition_session
 from test_debate_domain import BRANCH_ID, GENERATION_ID, NOW, SESSION_ID, USER_ID, build_session
-
 
 OTHER_USER_ID = UUID("00000000-0000-4000-8000-000000000099")
 JOB_ID = UUID("00000000-0000-4000-8000-000000000100")
@@ -230,9 +233,7 @@ def test_new_agent_messages_require_the_current_running_generation() -> None:
 
     with pytest.raises(DebateConcurrencyError, match="generation"):
         repository.append_message(
-            build_message(
-                generation_id=UUID("00000000-0000-4000-8000-000000000110")
-            )
+            build_message(generation_id=UUID("00000000-0000-4000-8000-000000000110"))
         )
 
     cancel_requested = transition_session(
@@ -473,8 +474,11 @@ def test_memory_queue_atomically_admits_round_two() -> None:
     assert admitted[0].status == "queued_round_2"
     assert admitted[1].queue_message_id == 1
     assert claimed is not None and claimed.payload.job_type == "round_2"
-    assert repository.list_messages(
-        awaiting.id,
-        awaiting.user_id,
-        branch_id=awaiting.active_branch_id,
-    )[-1] == question
+    assert (
+        repository.list_messages(
+            awaiting.id,
+            awaiting.user_id,
+            branch_id=awaiting.active_branch_id,
+        )[-1]
+        == question
+    )

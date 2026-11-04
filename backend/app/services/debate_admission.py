@@ -10,7 +10,6 @@ from app.domain.debate import DebateSession
 from app.repositories.debate_repository import DebateUnitOfWork
 from app.services.cache import CacheBackend
 
-
 TERMINAL_SESSION_STATUSES = frozenset({"completed", "cancelled", "failed"})
 
 

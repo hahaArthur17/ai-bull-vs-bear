@@ -1,18 +1,16 @@
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 from html.parser import HTMLParser
-import re
 from time import monotonic, sleep
 from typing import Callable, Iterable
 
 import httpx
 
-from app.services.supabase_headers import service_headers
-
 from app.services.ingestion import fetch_rss
 from app.services.rag import build_evidence_chunks
-
+from app.services.supabase_headers import service_headers
 
 SEC_CIKS = {
     "AAPL": "0000320193",
@@ -179,10 +177,7 @@ class _FilingTextParser(HTMLParser):
             self.parts.append(data)
 
     def text(self) -> str:
-        lines = (
-            re.sub(r"\s+", " ", line).strip()
-            for line in "".join(self.parts).splitlines()
-        )
+        lines = (re.sub(r"\s+", " ", line).strip() for line in "".join(self.parts).splitlines())
         return "\n".join(line for line in lines if line)
 
 
@@ -565,8 +560,7 @@ class EvidenceWriter:
                 "financial_facts",
                 params={
                     "on_conflict": (
-                        "stock_id,taxonomy,concept,unit,period_start,period_end,"
-                        "accession_number"
+                        "stock_id,taxonomy,concept,unit,period_start,period_end,accession_number"
                     )
                 },
                 json=payloads,
@@ -624,11 +618,7 @@ def ingest_live_evidence(
     per_source_limit: int = 4,
 ) -> dict[str, int]:
     selected_tickers = tuple(
-        dict.fromkeys(
-            ticker.strip().upper()
-            for ticker in (tickers or SEC_CIKS)
-            if ticker.strip()
-        )
+        dict.fromkeys(ticker.strip().upper() for ticker in (tickers or SEC_CIKS) if ticker.strip())
     )
     unsupported = [ticker for ticker in selected_tickers if ticker not in SEC_CIKS]
     if unsupported:

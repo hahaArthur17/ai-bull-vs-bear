@@ -42,19 +42,15 @@ def build_analysis_context(
     used in deterministic tests, queued jobs, and replay fixtures.
     """
 
-    normalized_prices = tuple(
-        AnalysisPricePoint.model_validate(_mapping(item)) for item in prices
-    )
+    normalized_prices = tuple(AnalysisPricePoint.model_validate(_mapping(item)) for item in prices)
     normalized_evidence = tuple(
         AnalysisEvidenceItem.model_validate(_mapping(item)) for item in evidence
     )
     normalized_macro = tuple(
-        AnalysisMacroObservation.model_validate(_mapping(item))
-        for item in macro_context
+        AnalysisMacroObservation.model_validate(_mapping(item)) for item in macro_context
     )
     normalized_facts = tuple(
-        AnalysisFinancialFact.model_validate(_mapping(item))
-        for item in financial_facts
+        AnalysisFinancialFact.model_validate(_mapping(item)) for item in financial_facts
     )
     return AnalysisContext(
         ticker=ticker,

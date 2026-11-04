@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator, Iterable
 import json
 import re
+from collections.abc import AsyncIterator, Iterable
 from typing import Any
 
 from app.domain.agents import (
@@ -19,7 +19,6 @@ from app.services.source_attribution import (
     SourceAttributionBuffer,
     sanitize_context_text,
 )
-
 
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
 _CITATION_TOKEN_PATTERN = re.compile(r"\[E[0-9][^\]\r\n]*\]")
@@ -89,8 +88,7 @@ def _safe_upstream_failure(message: str, exc: Exception) -> GroqDebateStreamErro
     if status_code is None and response is not None:
         status_code = getattr(response, "status_code", None)
     retryable = (
-        status_code in _RETRYABLE_STATUS_CODES
-        or type(exc).__name__ in _RETRYABLE_EXCEPTION_NAMES
+        status_code in _RETRYABLE_STATUS_CODES or type(exc).__name__ in _RETRYABLE_EXCEPTION_NAMES
     )
     retry_after_seconds = None
     headers = getattr(response, "headers", None)
@@ -161,9 +159,7 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
                 _MAX_FACTOR_INTERPRETATION_CHARS,
             ),
         }
-        for observation in request.factor_snapshot.observations[
-            :_MAX_FACTOR_OBSERVATIONS
-        ]
+        for observation in request.factor_snapshot.observations[:_MAX_FACTOR_OBSERVATIONS]
     ]
     transcript = [
         {
@@ -171,10 +167,10 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
             "role": message.role,
             "round": message.round_number,
             "exchange": message.exchange_number,
-                "content": sanitize_context_text(
-                    _truncate(message.content, _MAX_TRANSCRIPT_CONTENT_CHARS) or "",
-                    excerpts,
-                ),
+            "content": sanitize_context_text(
+                _truncate(message.content, _MAX_TRANSCRIPT_CONTENT_CHARS) or "",
+                excerpts,
+            ),
         }
         for message in request.transcript[-_MAX_TRANSCRIPT_MESSAGES:]
     ]
@@ -196,9 +192,7 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
                 _truncate(point, _MAX_PREVIOUSLY_USED_POINT_CHARS) or "",
                 excerpts,
             )
-            for point in request.previously_used_points[
-                -_MAX_PREVIOUSLY_USED_POINTS:
-            ]
+            for point in request.previously_used_points[-_MAX_PREVIOUSLY_USED_POINTS:]
         ],
         "evidence": evidence,
         "factor_observations": factors,
@@ -253,7 +247,7 @@ def build_groq_debate_prompt(request: DebateTurnRequest) -> str:
         "card already displays its excerpt. Discuss only conditional interpretations, "
         "counterarguments, and missing observations. If source wording is essential, use a short "
         "verbatim quote from its supplied excerpt in that sentence with its alias, such as "
-        "[E1] The cited excerpt states: \"exact excerpt words\". Put your inference "
+        '[E1] The cited excerpt states: "exact excerpt words". Put your inference '
         "in a separate sentence. An alias alone does not verify a source claim. "
         "For a useful answer, prefer this pattern: [E1] If the development changes "
         "adoption, the financial outcome could improve; the snapshot does not measure "
@@ -392,12 +386,15 @@ class GroqStreamingDebateProvider:
     ) -> AsyncIterator[DebateTurnStreamEvent]:
         aliases = _evidence_aliases(request)
         evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
-        attribution = SourceAttributionBuffer({
-            f"[{alias}]": _truncate(
-                evidence_by_id[evidence_id].excerpt, _MAX_EVIDENCE_EXCERPT_CHARS
-            ) or ""
-            for alias, evidence_id in aliases.items()
-        })
+        attribution = SourceAttributionBuffer(
+            {
+                f"[{alias}]": _truncate(
+                    evidence_by_id[evidence_id].excerpt, _MAX_EVIDENCE_EXCERPT_CHARS
+                )
+                or ""
+                for alias, evidence_id in aliases.items()
+            }
+        )
         canonical_text = CanonicalStreamBuffer()
         try:
             stream = await self.client.chat.completions.create(

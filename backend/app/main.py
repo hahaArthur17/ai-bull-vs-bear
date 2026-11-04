@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 import logging
 from collections.abc import Iterator
+from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import Annotated
 from uuid import NAMESPACE_URL, UUID, uuid5
 
@@ -19,33 +19,33 @@ from fastapi import (
     status,
 )
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse, StreamingResponse
+from fastapi.responses import StreamingResponse
 
 from app.config import get_settings
 from app.debate_schemas import (
     DebateCancelRequest,
-    DebateInterruptRequest,
-    DebateInterruptBeforeOutputRequest,
-    DebateInterjectionRequest,
-    DebateContinueRequest,
-    DebateEndInterruptionRequest,
     DebateChallengeRequest,
+    DebateContinueRequest,
     DebateCreateRequest,
+    DebateEndInterruptionRequest,
     DebateExplanationRequest,
+    DebateInterjectionRequest,
+    DebateInterruptBeforeOutputRequest,
+    DebateInterruptRequest,
     DebateMessageRecord,
     DebateMutationResponse,
     DebateSessionDetail,
 )
-from app.services.debate_interruption import (
-    interruption_target,
-    prepare_interjection,
-    prepare_continuation,
-)
 from app.domain.debate import DebateSession
-from app.domain.explanations import ExplanationResult
 from app.domain.events import DebateEvent
+from app.domain.explanations import ExplanationResult
+from app.domain.factors import AnalysisContext, AnalysisMarketQuote, FactorSnapshot
+from app.http_errors import register_error_handlers
 from app.providers.current_factors import build_current_factor_registry
-from app.providers.debate_factory import build_debate_streaming_turn_provider, build_debate_streaming_judge_provider
+from app.providers.debate_factory import (
+    build_debate_streaming_judge_provider,
+    build_debate_streaming_turn_provider,
+)
 from app.providers.deterministic_debate import DeterministicDebateProvider
 from app.providers.explanation_factory import (
     ExplanationProviderConfigurationError,
@@ -54,22 +54,22 @@ from app.providers.explanation_factory import (
 from app.repositories.debate_repository import (
     DebateConcurrencyError,
     DebateQueueRepository,
-    DebateRepositoryError,
 )
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.repositories.supabase_debate_repository import SupabaseDebateRepository
 from app.schemas import (
+    AnalysisHistoryPage,
     AnalysisRequest,
     AnalysisResponse,
+    EvidenceItem,
     ExaminationRequest,
     ExaminationResponse,
-    EvidenceItem,
-    MarketQuote,
     MacroObservation,
     MacroSeries,
     MacroSeriesContext,
-    PricePoint,
+    MarketQuote,
     PriceHistoryPoint,
+    PricePoint,
     Stock,
     StockBundle,
     StockCoverage,
@@ -90,22 +90,29 @@ from app.services.debate_admission import (
     DebateIdempotencyReservation,
     DebateRateLimitExceeded,
 )
-from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
-from app.services.debate_evidence_admission import LiveEvidenceUnavailable, select_live_evidence
-from app.services.debate_macro_admission import LiveMacroUnavailable, require_live_macro_context
-from app.services.debate_financial_admission import LiveFinancialFactsUnavailable, select_live_financial_facts
-from app.services.debate_snapshot_provenance import quote_session, require_live_debate_history
-from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_event_broker import (
     DebateEventCursorExpired,
     InMemoryDebateEventBroker,
     format_debate_sse,
 )
-from app.services.debate_preview import DebatePreviewService
+from app.services.debate_evidence_admission import LiveEvidenceUnavailable, select_live_evidence
+from app.services.debate_financial_admission import (
+    LiveFinancialFactsUnavailable,
+    select_live_financial_facts,
+)
+from app.services.debate_interruption import (
+    interruption_target,
+    prepare_continuation,
+    prepare_interjection,
+)
+from app.services.debate_macro_admission import LiveMacroUnavailable, require_live_macro_context
+from app.services.debate_orchestrator import DebateOrchestrationError
 from app.services.debate_presentation import build_debate_message_presentation
+from app.services.debate_preview import DebatePreviewService
+from app.services.debate_snapshot_cache import StandardDebateSnapshotCache
+from app.services.debate_snapshot_provenance import quote_session, require_live_debate_history
 from app.services.debate_worker import DebateWorker
 from app.services.demo_store import DemoStore
-from app.services.review_fixture_store import ReviewFixtureStore
 from app.services.explanation import (
     ExplanationNotFound,
     ExplanationProviderError,
@@ -117,14 +124,15 @@ from app.services.explanation_admission import (
     ExplanationRateLimitExceeded,
 )
 from app.services.indicators import calculate_indicators
-from app.services.model_provider import ProviderError
 from app.services.market_data import FinnhubQuoteClient, MarketDataError, QuoteCache
+from app.services.model_provider import ProviderError
 from app.services.rag import retrieve_evidence
 from app.services.response_cache import (
     JsonResponseCache,
     stock_bundle_cache_key,
     stock_search_cache_key,
 )
+from app.services.review_fixture_store import ReviewFixtureStore
 from app.services.supabase_store import RepositoryError, SupabaseStore
 
 settings = get_settings()
@@ -146,9 +154,7 @@ else:
 analysis_service = AnalysisService(store)
 debate_event_broker = InMemoryDebateEventBroker()
 debate_streaming_turn_provider = (
-    build_debate_streaming_turn_provider(settings)
-    if settings.debate_queue_enabled
-    else None
+    build_debate_streaming_turn_provider(settings) if settings.debate_queue_enabled else None
 )
 debate_streaming_judge_provider = (
     build_debate_streaming_judge_provider(settings) if settings.debate_queue_enabled else None
@@ -200,7 +206,9 @@ else:
     )
 quote_cache = (
     QuoteCache(FinnhubQuoteClient(settings.finnhub_api_key))
-    if settings.finnhub_api_key and settings.environment != "test" and not settings.is_review_fixture
+    if settings.finnhub_api_key
+    and settings.environment != "test"
+    and not settings.is_review_fixture
     else None
 )
 cache_backend = build_cache_backend(
@@ -271,6 +279,7 @@ async def app_lifespan(_app: FastAPI):
             task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
 
+
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
@@ -279,37 +288,7 @@ app = FastAPI(
 )
 
 
-@app.exception_handler(RepositoryError)
-def repository_error_handler(request: Request, exc: RepositoryError) -> JSONResponse:
-    logger.warning("Repository request failed: %s", exc)
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={"detail": "Persistence service unavailable"},
-    )
-
-
-@app.exception_handler(DebateConcurrencyError)
-def debate_concurrency_error_handler(
-    request: Request,
-    exc: DebateConcurrencyError,
-) -> JSONResponse:
-    logger.warning("Debate request conflicted: %s", exc)
-    return JSONResponse(
-        status_code=status.HTTP_409_CONFLICT,
-        content={"detail": "Debate state changed; refresh the session and try again"},
-    )
-
-
-@app.exception_handler(DebateRepositoryError)
-def debate_repository_error_handler(
-    request: Request,
-    exc: DebateRepositoryError,
-) -> JSONResponse:
-    logger.warning("Debate persistence request failed: %s", exc)
-    return JSONResponse(
-        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        content={"detail": "Debate persistence service unavailable"},
-    )
+register_error_handlers(app)
 
 
 def current_auth(
@@ -399,7 +378,11 @@ def _debate_user_id(auth: AuthContext) -> UUID:
         raise HTTPException(status_code=401, detail="Invalid authenticated user") from exc
 
 
-def _debate_context(ticker: str, question: str | None):
+def _debate_context(
+    ticker: str,
+    question: str | None,
+) -> tuple[AnalysisContext, FactorSnapshot, str]:
+    """Capture admissible inputs once before collecting or caching any factors."""
     prices = store.get_prices(ticker)
     if not prices:
         raise HTTPException(
@@ -407,10 +390,9 @@ def _debate_context(ticker: str, question: str | None):
             detail="Debate requires a cached price snapshot",
         )
     captured_at = datetime.now(timezone.utc)
-    live_ai = (
-        settings.app_data_mode == "standard"
-        and (settings.debate_streaming_provider.strip().lower() != "deterministic"
-             or settings.debate_streaming_judge_provider.strip().lower() != "deterministic")
+    live_ai = settings.app_data_mode == "standard" and (
+        settings.debate_streaming_provider.strip().lower() != "deterministic"
+        or settings.debate_streaming_judge_provider.strip().lower() != "deterministic"
     )
     if live_ai:
         try:
@@ -427,6 +409,39 @@ def _debate_context(ticker: str, question: str | None):
         except LiveEvidenceUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
     as_of = str(prices[-1]["date"])
+    macro_context = _debate_macro_context(ticker, as_of, captured_at, live_ai=live_ai)
+    financial_facts = _debate_financial_facts(ticker, captured_at, live_ai=live_ai)
+    market_quote = None
+    if live_ai:
+        market_quote, captured_at = _debate_market_quote(ticker)
+    context = build_analysis_context(
+        ticker,
+        as_of=as_of,
+        captured_at=captured_at,
+        market_quote=market_quote,
+        prices=prices,
+        evidence=evidence,
+        financial_facts=financial_facts,
+        macro_context=macro_context,
+        question=question,
+    )
+    registry = build_current_factor_registry()
+    cached_snapshot = debate_snapshot_cache.get_or_collect(
+        context,
+        registry.collect,
+        provider_contract=registry.snapshot_contract,
+    )
+    return context, cached_snapshot.snapshot, cached_snapshot.status
+
+
+def _debate_macro_context(
+    ticker: str,
+    as_of: str,
+    captured_at: datetime,
+    *,
+    live_ai: bool,
+) -> list[dict[str, object]]:
+    """Optional in previews; live model runs require a complete dated macro set."""
     macro_context: list[dict[str, object]] = []
     try:
         for raw_series in store.get_macro_series():
@@ -453,88 +468,96 @@ def _debate_context(ticker: str, question: str | None):
                     "metadata": latest.metadata,
                 }
             )
-    except Exception as exc:
+    except (RuntimeError, ValueError, TypeError, KeyError) as exc:
         if live_ai:
-            raise HTTPException(status_code=409, detail="Live Debate macro snapshot unavailable") from exc
+            raise HTTPException(
+                status_code=409, detail="Live Debate macro snapshot unavailable"
+            ) from exc
         logger.warning("Optional macro snapshot unavailable for Debate %s", ticker)
     if live_ai:
         try:
             macro_context = require_live_macro_context(
-                macro_context, captured_at=captured_at, completed_through=as_of)
+                macro_context, captured_at=captured_at, completed_through=as_of
+            )
         except LiveMacroUnavailable as exc:
             raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return macro_context
+
+
+def _debate_financial_facts(
+    ticker: str,
+    captured_at: datetime,
+    *,
+    live_ai: bool,
+) -> list[dict[str, object]]:
     financial_facts = []
     if live_ai:
         try:
             financial_facts = select_live_financial_facts(
-                ticker, store.get_financial_facts(ticker), captured_at=captured_at,
-                cik=_require_stock(ticker).sec_cik)
+                ticker,
+                store.get_financial_facts(ticker),
+                captured_at=captured_at,
+                cik=_require_stock(ticker).sec_cik,
+            )
         except (LiveFinancialFactsUnavailable, RepositoryError) as exc:
-            raise HTTPException(status_code=409, detail="Live Debate financial snapshot unavailable") from exc
-    market_quote: dict[str, object] | None = None
-    if live_ai:
-        quote = get_quote(ticker)
-        if quote is None:
             raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Live Debate snapshot rejected: latest provider quote unavailable",
-            )
-        captured_at = datetime.now(timezone.utc)
-        try:
-            quote_time = datetime.fromisoformat(quote.as_of)
-            retrieved_at = datetime.fromisoformat(quote.retrieved_at or "")
-        except ValueError as exc:
-            raise HTTPException(status_code=409, detail="Live Debate snapshot rejected: missing quote provenance") from exc
-        if (quote_time.tzinfo is None or retrieved_at.tzinfo is None
-                or not quote_time <= retrieved_at <= captured_at):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Live Debate snapshot rejected: provider quote timestamp is inconsistent",
-            )
-        age_seconds = max(0, int((captured_at - quote_time).total_seconds()))
-        session = quote_session(quote_time)
-        # A regular-session quote older than 15 minutes cannot imply current
-        # inputs. Closed-session quotes may retain the last print through a
-        # weekend, but never indefinitely.
-        stale = age_seconds > (900 if quote_session(captured_at) == "regular" else 259_200)
-        if stale:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Live Debate snapshot rejected: latest provider quote is stale",
-            )
-        market_quote = {
-            **quote.model_dump(mode="python"),
-            "retrieved_at": retrieved_at,
-            "freshness": {
-                "status": "stale" if stale else "current",
-                "evaluated_at": captured_at.isoformat(),
-            },
-            "market_session": session,
-        }
+                status_code=409, detail="Live Debate financial snapshot unavailable"
+            ) from exc
+    return financial_facts
+
+
+def _debate_market_quote(ticker: str) -> tuple[dict[str, object], datetime]:
+    """Validate provider provenance and session-aware freshness before generation."""
+    quote = get_quote(ticker)
+    if quote is None:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live Debate snapshot rejected: latest provider quote unavailable",
+        )
+    captured_at = datetime.now(timezone.utc)
     try:
-        if market_quote is not None:
-            from app.domain.factors import AnalysisMarketQuote
-            AnalysisMarketQuote.model_validate(market_quote)
+        quote_time = datetime.fromisoformat(quote.as_of)
+        retrieved_at = datetime.fromisoformat(quote.retrieved_at or "")
     except ValueError as exc:
-        raise HTTPException(status_code=409, detail="Live Debate snapshot rejected: invalid quote") from exc
-    context = build_analysis_context(
-        ticker,
-        as_of=as_of,
-        captured_at=captured_at,
-        market_quote=market_quote,
-        prices=prices,
-        evidence=evidence,
-        financial_facts=financial_facts,
-        macro_context=macro_context,
-        question=question,
-    )
-    registry = build_current_factor_registry()
-    cached_snapshot = debate_snapshot_cache.get_or_collect(
-        context,
-        registry.collect,
-        provider_contract=registry.snapshot_contract,
-    )
-    return context, cached_snapshot.snapshot, cached_snapshot.status
+        raise HTTPException(
+            status_code=409, detail="Live Debate snapshot rejected: missing quote provenance"
+        ) from exc
+    if (
+        quote_time.tzinfo is None
+        or retrieved_at.tzinfo is None
+        or not quote_time <= retrieved_at <= captured_at
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live Debate snapshot rejected: provider quote timestamp is inconsistent",
+        )
+    age_seconds = max(0, int((captured_at - quote_time).total_seconds()))
+    session = quote_session(quote_time)
+    # A regular-session quote older than 15 minutes cannot imply current
+    # inputs. Closed-session quotes may retain the last print through a
+    # weekend, but never indefinitely.
+    stale = age_seconds > (900 if quote_session(captured_at) == "regular" else 259_200)
+    if stale:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Live Debate snapshot rejected: latest provider quote is stale",
+        )
+    market_quote = {
+        **quote.model_dump(mode="python"),
+        "retrieved_at": retrieved_at,
+        "freshness": {
+            "status": "stale" if stale else "current",
+            "evaluated_at": captured_at.isoformat(),
+        },
+        "market_session": session,
+    }
+    try:
+        AnalysisMarketQuote.model_validate(market_quote)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=409, detail="Live Debate snapshot rejected: invalid quote"
+        ) from exc
+    return market_quote, captured_at
 
 
 def _debate_session_or_404(session_id: UUID, user_id: UUID) -> DebateSession:
@@ -579,9 +602,7 @@ def _debate_detail(session: DebateSession) -> DebateSessionDetail:
             session.id,
             session.user_id,
         ),
-        execution_mode=(
-            "queued" if settings.debate_queue_enabled else "synchronous_preview"
-        ),
+        execution_mode=("queued" if settings.debate_queue_enabled else "synchronous_preview"),
     )
 
 
@@ -636,10 +657,8 @@ def _debate_sse_frames(
                 yield format_debate_sse(event)
                 # A Round 2 connection can replay the Round 1 pause. Keep
                 # streaming until this request's active generation finishes.
-                if (
-                    event.type in terminal_types
-                    and event.payload.get("generation_id")
-                    == str(session.active_generation_id)
+                if event.type in terminal_types and event.payload.get("generation_id") == str(
+                    session.active_generation_id
                 ):
                     return
             continue
@@ -739,10 +758,11 @@ def _stock_bundle_core(ticker: str) -> StockBundle:
     indicators = TechnicalIndicators.model_validate(
         calculate_indicators(ticker.upper(), [point.model_dump() for point in prices])
     )
-    evidence = [
-        EvidenceItem.model_validate(item)
-        for item in store.get_evidence(ticker)
-    ] if _coverage(stock).has_evidence else []
+    evidence = (
+        [EvidenceItem.model_validate(item) for item in store.get_evidence(ticker)]
+        if _coverage(stock).has_evidence
+        else []
+    )
     macro_context = get_macro_context(limit=60) if ticker.upper() == "AAPL" else []
     return StockBundle(
         stock=stock,
@@ -822,7 +842,9 @@ def get_indicators(ticker: str) -> TechnicalIndicators:
             status_code=status.HTTP_409_CONFLICT,
             detail="Technical indicators are unavailable for this catalog-only stock",
         )
-    return TechnicalIndicators.model_validate(calculate_indicators(ticker.upper(), store.get_prices(ticker)))
+    return TechnicalIndicators.model_validate(
+        calculate_indicators(ticker.upper(), store.get_prices(ticker))
+    )
 
 
 @app.get("/stocks/{ticker}/evidence", response_model=list[EvidenceItem])
@@ -835,7 +857,11 @@ def get_evidence(
     documents = store.get_evidence(ticker)
     if q:
         search_evidence = getattr(store, "search_evidence", None)
-        documents = search_evidence(ticker, q) if callable(search_evidence) else retrieve_evidence(documents, q)
+        documents = (
+            search_evidence(ticker, q)
+            if callable(search_evidence)
+            else retrieve_evidence(documents, q)
+        )
     return [EvidenceItem.model_validate(item) for item in documents]
 
 
@@ -884,6 +910,12 @@ def create_debate(
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
     auth: Annotated[AuthContext, Depends(current_auth)],
 ) -> DebateMutationResponse:
+    """Admit a round while keeping quota reservation and generation identity aligned.
+
+    Admission reserves quota before freezing evidence. The finally block releases
+    failed reservations; an accepted queued job keeps its idempotency identity so
+    a lost HTTP response cannot admit and charge a second generation.
+    """
     stock = _require_stock(request.ticker)
     if not _coverage(stock).can_debate:
         raise HTTPException(
@@ -1120,13 +1152,9 @@ def stream_debate_events(
     except DebateEventCursorExpired as exc:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=(
-                "Event cursor expired; reload canonical Debate messages before reconnecting"
-            ),
+            detail=("Event cursor expired; reload canonical Debate messages before reconnecting"),
             headers={
-                "X-Debate-Latest-Sequence": str(
-                    debate_event_broker.latest_sequence(session.id)
-                )
+                "X-Debate-Latest-Sequence": str(debate_event_broker.latest_sequence(session.id))
             },
         ) from exc
     return StreamingResponse(
@@ -1144,34 +1172,49 @@ def stream_debate_events(
     )
 
 
-@app.get("/debates/{session_id}/provider-attempts",
-         include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
-def debate_provider_attempts(session_id: UUID,
+@app.get(
+    "/debates/{session_id}/provider-attempts",
+    include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled,
+)
+def debate_provider_attempts(
+    session_id: UUID,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
-    auth: Annotated[AuthContext, Depends(current_auth)]) -> dict[str, object]:
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> dict[str, object]:
     if not settings.debate_interruptions_enabled:
         raise HTTPException(status_code=404, detail="Provider audit is not enabled")
     assert debate_preview_service is not None
     session = _debate_session_or_404(session_id, _debate_user_id(auth))
     rows = debate_preview_service.repository.list_provider_attempts(session.id, session.user_id)
-    return {"attempts": [row.model_dump(mode="json") for row in rows],
+    return {
+        "attempts": [row.model_dump(mode="json") for row in rows],
         "admitted_count": len(rows),
         "dispatch_attempts": sum(row.dispatched_at is not None for row in rows),
         "reported_tokens": sum(row.total_tokens or 0 for row in rows),
-        "unknown_usage_attempts": sum(row.usage_status == "unknown" for row in rows)}
+        "unknown_usage_attempts": sum(row.usage_status == "unknown" for row in rows),
+    }
 
 
-@app.post("/debates/{session_id}/interjections", response_model=DebateSessionDetail,
-          status_code=201, include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
-def interject_debate(session_id: UUID, request: DebateInterjectionRequest,
+@app.post(
+    "/debates/{session_id}/interjections",
+    response_model=DebateSessionDetail,
+    status_code=201,
+    include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled,
+)
+def interject_debate(
+    session_id: UUID,
+    request: DebateInterjectionRequest,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
-    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
     if not settings.debate_interruptions_enabled:
         raise HTTPException(status_code=404, detail="Interruption is not enabled")
     assert debate_preview_service is not None
     session = _debate_session_or_404(session_id, _debate_user_id(auth))
     repository = debate_preview_service.repository
-    transcript = repository.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
+    transcript = repository.list_messages(
+        session.id, session.user_id, branch_id=session.active_branch_id
+    )
     # Resolve an exact retry before checking the current waiting state.  The
     # point is intentionally durable across Continue/End state changes.
     point_id = uuid5(session.id, f"interject:{request.idempotency_key}")
@@ -1185,17 +1228,30 @@ def interject_debate(session_id: UUID, request: DebateInterjectionRequest,
         ):
             raise DebateConcurrencyError("Interjection key conflicts")
         return _debate_detail(session)
-    point = prepare_interjection(session, transcript, expected_generation_id=request.generation_id,
-        content=request.content, idempotency_key=request.idempotency_key, at=datetime.now(timezone.utc))
+    point = prepare_interjection(
+        session,
+        transcript,
+        expected_generation_id=request.generation_id,
+        content=request.content,
+        idempotency_key=request.idempotency_key,
+        at=datetime.now(timezone.utc),
+    )
     repository.record_interjection(point)
     return _debate_detail(_debate_session_or_404(session.id, session.user_id))
 
 
-@app.post("/debates/{session_id}/end-interruption", response_model=DebateSessionDetail,
-          status_code=202, include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
-def end_interrupted_debate(session_id: UUID, request: DebateEndInterruptionRequest,
+@app.post(
+    "/debates/{session_id}/end-interruption",
+    response_model=DebateSessionDetail,
+    status_code=202,
+    include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled,
+)
+def end_interrupted_debate(
+    session_id: UUID,
+    request: DebateEndInterruptionRequest,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
-    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
     if not settings.debate_interruptions_enabled:
         raise HTTPException(status_code=404, detail="Interruption is not enabled")
     assert debate_preview_service is not None
@@ -1204,8 +1260,9 @@ def end_interrupted_debate(session_id: UUID, request: DebateEndInterruptionReque
     # descending from this same interruption; it never ends a newer stop point.
     for _ in range(3):
         session = _debate_session_or_404(session_id, user_id)
-        transcript = debate_preview_service.repository.list_messages(session.id, user_id,
-            branch_id=session.active_branch_id)
+        transcript = debate_preview_service.repository.list_messages(
+            session.id, user_id, branch_id=session.active_branch_id
+        )
         target = interruption_target(transcript)
         if target.id != request.interrupted_message_id:
             raise DebateConcurrencyError("Interruption point changed")
@@ -1213,18 +1270,26 @@ def end_interrupted_debate(session_id: UUID, request: DebateEndInterruptionReque
             return _debate_detail(session)
         try:
             ended = debate_preview_service.orchestrator.request_cancellation(
-                session.id, user_id, session.active_generation_id)
+                session.id, user_id, session.active_generation_id
+            )
             return _debate_detail(ended)
         except DebateOrchestrationError:
             continue
     raise DebateConcurrencyError("End conflicted; retry at the current interruption")
 
 
-@app.post("/debates/{session_id}/continue", response_model=DebateSessionDetail,
-          status_code=202, include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
-def continue_debate(session_id: UUID, request: DebateContinueRequest,
+@app.post(
+    "/debates/{session_id}/continue",
+    response_model=DebateSessionDetail,
+    status_code=202,
+    include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled,
+)
+def continue_debate(
+    session_id: UUID,
+    request: DebateContinueRequest,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
-    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
     if not settings.debate_interruptions_enabled or not settings.debate_queue_enabled:
         raise HTTPException(status_code=404, detail="Queued continuation is not enabled")
     assert debate_preview_service is not None
@@ -1234,47 +1299,93 @@ def continue_debate(session_id: UUID, request: DebateContinueRequest,
     existing = repository.get_job(job_id)
     if existing is not None:
         expected_key = f"continue:{session.id}:{request.generation_id}:{request.interjection_id}:{request.idempotency_key}"
-        if existing.user_id != session.user_id or existing.session_id != session.id or existing.idempotency_key != expected_key:
+        if (
+            existing.user_id != session.user_id
+            or existing.session_id != session.id
+            or existing.idempotency_key != expected_key
+        ):
             raise DebateConcurrencyError("Continue key conflicts")
         return _debate_detail(session)
-    transcript = repository.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
-    queued, job, envelope = prepare_continuation(session, transcript,
-        expected_generation_id=request.generation_id, interjection_id=request.interjection_id,
-        idempotency_key=request.idempotency_key, at=datetime.now(timezone.utc),
-        max_attempts=settings.debate_job_max_attempts)
-    queued, job = repository.continue_interrupted(queued, job, envelope,
-        expected_generation_id=request.generation_id, interjection_id=request.interjection_id)
-    debate_event_broker.publish(session.id, "job.queued", payload={
-        "generation_id": str(queued.active_generation_id), "status": queued.status,
-        "job_id": str(job.id), "job_type": job.job_type})
+    transcript = repository.list_messages(
+        session.id, session.user_id, branch_id=session.active_branch_id
+    )
+    queued, job, envelope = prepare_continuation(
+        session,
+        transcript,
+        expected_generation_id=request.generation_id,
+        interjection_id=request.interjection_id,
+        idempotency_key=request.idempotency_key,
+        at=datetime.now(timezone.utc),
+        max_attempts=settings.debate_job_max_attempts,
+    )
+    queued, job = repository.continue_interrupted(
+        queued,
+        job,
+        envelope,
+        expected_generation_id=request.generation_id,
+        interjection_id=request.interjection_id,
+    )
+    debate_event_broker.publish(
+        session.id,
+        "job.queued",
+        payload={
+            "generation_id": str(queued.active_generation_id),
+            "status": queued.status,
+            "job_id": str(job.id),
+            "job_type": job.job_type,
+        },
+    )
     return _debate_detail(queued)
 
 
-@app.post("/debates/{session_id}/interrupt", response_model=DebateSessionDetail,
-          include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
-def interrupt_debate(session_id: UUID, request: DebateInterruptRequest,
+@app.post(
+    "/debates/{session_id}/interrupt",
+    response_model=DebateSessionDetail,
+    include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled,
+)
+def interrupt_debate(
+    session_id: UUID,
+    request: DebateInterruptRequest,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
-    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
     if not settings.debate_interruptions_enabled:
         raise HTTPException(status_code=404, detail="Interruption is not enabled")
     assert debate_preview_service is not None
     user_id = _debate_user_id(auth)
     _debate_session_or_404(session_id, user_id)
     cancelled = debate_preview_service.repository.interrupt_generation(
-        session_id, user_id, request.generation_id, request.message_id,
-        request.visible_prefix, datetime.now(timezone.utc))
-    debate_event_broker.publish(session_id, "session.interrupted_awaiting_user", payload={
-        "status": "interrupted_awaiting_user", "generation_id": str(cancelled.active_generation_id),
-        "cancelled_generation_id": str(request.generation_id), "interrupted": True,
-    })
+        session_id,
+        user_id,
+        request.generation_id,
+        request.message_id,
+        request.visible_prefix,
+        datetime.now(timezone.utc),
+    )
+    debate_event_broker.publish(
+        session_id,
+        "session.interrupted_awaiting_user",
+        payload={
+            "status": "interrupted_awaiting_user",
+            "generation_id": str(cancelled.active_generation_id),
+            "cancelled_generation_id": str(request.generation_id),
+            "interrupted": True,
+        },
+    )
     return _debate_detail(cancelled)
 
 
-@app.post("/debates/{session_id}/interrupt-before-output", response_model=DebateSessionDetail,
-          include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled)
-def interrupt_debate_before_output(session_id: UUID, request: DebateInterruptBeforeOutputRequest,
+@app.post(
+    "/debates/{session_id}/interrupt-before-output",
+    response_model=DebateSessionDetail,
+    include_in_schema=settings.debate_workflow_v2 and settings.debate_interruptions_enabled,
+)
+def interrupt_debate_before_output(
+    session_id: UUID,
+    request: DebateInterruptBeforeOutputRequest,
     _feature: Annotated[None, Depends(require_debate_workflow_v2)],
-    auth: Annotated[AuthContext, Depends(current_auth)]) -> DebateSessionDetail:
+    auth: Annotated[AuthContext, Depends(current_auth)],
+) -> DebateSessionDetail:
     """Stop a queued/running generation before its first agent output."""
     if not settings.debate_interruptions_enabled:
         raise HTTPException(status_code=404, detail="Interruption is not enabled")
@@ -1282,12 +1393,19 @@ def interrupt_debate_before_output(session_id: UUID, request: DebateInterruptBef
     user_id = _debate_user_id(auth)
     _debate_session_or_404(session_id, user_id)
     stopped = debate_preview_service.repository.interrupt_before_output_generation(
-        session_id, user_id, request.generation_id, datetime.now(timezone.utc))
-    debate_event_broker.publish(session_id, "session.interrupted_awaiting_user", payload={
-        "status": "interrupted_awaiting_user", "generation_id": str(stopped.active_generation_id),
-        "cancelled_generation_id": str(request.generation_id), "interrupted": True,
-        "before_output": True,
-    })
+        session_id, user_id, request.generation_id, datetime.now(timezone.utc)
+    )
+    debate_event_broker.publish(
+        session_id,
+        "session.interrupted_awaiting_user",
+        payload={
+            "status": "interrupted_awaiting_user",
+            "generation_id": str(stopped.active_generation_id),
+            "cancelled_generation_id": str(request.generation_id),
+            "interrupted": True,
+            "before_output": True,
+        },
+    )
     return _debate_detail(stopped)
 
 
@@ -1392,7 +1510,9 @@ def challenge_debate(
     )
 
 
-@app.post("/analysis/{ticker}", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED)
+@app.post(
+    "/analysis/{ticker}", response_model=AnalysisResponse, status_code=status.HTTP_201_CREATED
+)
 def create_analysis(
     ticker: str,
     request: AnalysisRequest,
@@ -1413,16 +1533,32 @@ def create_analysis(
     except ValueError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ProviderError as exc:
-        raise HTTPException(status_code=503, detail=str(exc)) from exc
+        logger.warning("Analysis provider failed (error_type=%s)", type(exc).__name__)
+        raise HTTPException(
+            status_code=503, detail="Analysis service is temporarily unavailable"
+        ) from exc
 
 
 @app.get("/analysis", response_model=list[AnalysisResponse])
-def list_analysis(auth: Annotated[AuthContext, Depends(current_auth)]) -> list[AnalysisResponse]:
+def list_analysis(
+    auth: Annotated[AuthContext, Depends(current_auth)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> list[AnalysisResponse]:
     return [
         item
-        for item in store.list_analyses(auth.user_id, auth.access_token)
+        for item in store.list_analyses(auth.user_id, auth.access_token, limit=limit, offset=offset)
         if isinstance(item, AnalysisResponse)
     ]
+
+
+@app.get("/analysis/page", response_model=AnalysisHistoryPage)
+def analysis_history_page(
+    auth: Annotated[AuthContext, Depends(current_auth)],
+    limit: Annotated[int, Query(ge=1, le=100)] = 50,
+    offset: Annotated[int, Query(ge=0)] = 0,
+) -> AnalysisHistoryPage:
+    return store.get_analysis_page(auth.user_id, auth.access_token, limit=limit, offset=offset)
 
 
 @app.get("/analysis/{analysis_id}", response_model=AnalysisResponse)

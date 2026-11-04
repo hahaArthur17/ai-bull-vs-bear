@@ -18,15 +18,13 @@ ALLOWED_SESSION_TRANSITIONS: Mapping[
 ] = {
     "created": frozenset({"queued_round_1", "cancel_requested", "failed"}),
     "queued_round_1": frozenset({"running_round_1", "cancel_requested", "failed"}),
-    "running_round_1": frozenset(
-        {"queued_round_1", "awaiting_user", "cancel_requested", "failed"}
-    ),
+    "running_round_1": frozenset({"queued_round_1", "awaiting_user", "cancel_requested", "failed"}),
     "awaiting_user": frozenset({"queued_round_2", "cancel_requested", "failed"}),
     "queued_round_2": frozenset({"running_round_2", "cancel_requested", "failed"}),
-    "running_round_2": frozenset(
-        {"queued_round_2", "completed", "cancel_requested", "failed"}
+    "running_round_2": frozenset({"queued_round_2", "completed", "cancel_requested", "failed"}),
+    "interrupted_awaiting_user": frozenset(
+        {"queued_round_1", "queued_round_2", "cancel_requested", "failed"}
     ),
-    "interrupted_awaiting_user": frozenset({"queued_round_1", "queued_round_2", "cancel_requested", "failed"}),
     "cancel_requested": frozenset({"cancelled", "failed"}),
     "completed": frozenset(),
     "cancelled": frozenset(),
@@ -116,9 +114,7 @@ def attach_judge_message(
         )
     if at < session.updated_at:
         raise DebateTransitionError("Judge message time cannot precede the current session state")
-    field_name = (
-        "interim_judge_message_id" if phase == "interim" else "final_judge_message_id"
-    )
+    field_name = "interim_judge_message_id" if phase == "interim" else "final_judge_message_id"
     if getattr(session, field_name) is not None:
         raise DebateTransitionError(f"The {phase} Judge message is already attached")
 

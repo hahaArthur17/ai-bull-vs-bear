@@ -1,0 +1,19 @@
+[
+  { "url": "https://www.sec.gov/Archives/edgar/data/320193/filing.htm", "safe": true },
+  { "url": "https://example.com./evidence", "safe": true },
+  { "url": "https://8.8.8.8/evidence", "safe": true },
+  { "url": "https://localhost./evidence", "safe": false },
+  { "url": "https://research.local./evidence", "safe": false },
+  { "url": "https://research.internal./evidence", "safe": false },
+  { "url": "https://printer/evidence", "safe": false },
+  { "url": "https://local%68ost/evidence", "safe": false },
+  { "url": "https://localhost。/evidence", "safe": false },
+  { "url": "https://127.1/evidence", "safe": false },
+  { "url": "https://2130706433/evidence", "safe": false },
+  { "url": "https://0x7f000001/evidence", "safe": false },
+  { "url": "https://0177.0.0.1/evidence", "safe": false },
+  { "url": "https://127.0.0.1./evidence", "safe": false },
+  { "url": "https://[::ffff:127.0.0.1]/evidence", "safe": false },
+  { "url": "https://[2002:7f00:1::]/evidence", "safe": false },
+  { "url": "https://example%00.com/evidence", "safe": false }
+]

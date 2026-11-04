@@ -2,17 +2,12 @@ import json
 from pathlib import Path
 
 import pytest
-
 from app.services.stock_catalog_seed import CatalogSeedError, render_catalog_seed_sql
 
-
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
-SNAPSHOT_PATH = (
-    REPOSITORY_ROOT / "data/catalog/sec-company-tickers-exchange-2026-08-27.json"
-)
+SNAPSHOT_PATH = REPOSITORY_ROOT / "data/catalog/sec-company-tickers-exchange-2026-08-27.json"
 SEED_MIGRATION_PATH = (
-    REPOSITORY_ROOT
-    / "backend/supabase/migrations/20260827_stock_catalog_seed.sql"
+    REPOSITORY_ROOT / "backend/supabase/migrations/20260827_stock_catalog_seed.sql"
 )
 
 

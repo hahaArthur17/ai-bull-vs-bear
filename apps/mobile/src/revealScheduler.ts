@@ -26,7 +26,8 @@ export type RevealDisplay = {
   activeMessageId: string | null;
 };
 
-const CJK_CHARACTER = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\uff00-\uffef]/u;
+const CJK_CHARACTER =
+  /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}\uff00-\uffef]/u;
 const WORD_OR_MARK = /[\p{L}\p{N}\p{M}]/u;
 
 function graphemes(value: string): string[] {
@@ -84,7 +85,6 @@ export class RevealScheduler {
     this.frozenDisplay = null;
   }
 
-
   sync(
     canonicalMessages: DebateMessageRecord[],
     drafts: Record<string, DebateDraft>,
@@ -116,8 +116,8 @@ export class RevealScheduler {
     for (const source of sources) {
       const previous = this.items.get(source.messageId);
       const units = revealUnits(source.content, source.record !== null);
-      const revealImmediately = options.immediate === true
-        || (!previous && settleNewCanonical && source.record !== null);
+      const revealImmediately =
+        options.immediate === true || (!previous && settleNewCanonical && source.record !== null);
       nextItems.set(source.messageId, {
         ...source,
         units,
@@ -140,9 +140,10 @@ export class RevealScheduler {
     if (remaining <= 0) return false;
     // Keep latency bounded if provider output arrives far faster than the
     // display cadence. This reveals an ordered prefix; it never discards text.
-    const increment = remaining > MAX_PENDING_REVEAL_UNITS
-      ? Math.min(12, Math.ceil(remaining / MAX_PENDING_REVEAL_UNITS))
-      : 1;
+    const increment =
+      remaining > MAX_PENDING_REVEAL_UNITS
+        ? Math.min(12, Math.ceil(remaining / MAX_PENDING_REVEAL_UNITS))
+        : 1;
     item.revealedUnits += increment;
     return true;
   }
@@ -184,7 +185,9 @@ export class RevealScheduler {
         messageId: item.messageId,
         generationId: item.generationId,
         role: item.role,
-        content: item.forceVisible ? item.content : item.units.slice(0, item.revealedUnits).join(""),
+        content: item.forceVisible
+          ? item.content
+          : item.units.slice(0, item.revealedUnits).join(""),
         nextDeltaIndex: 0,
         citations: item.citations,
       });

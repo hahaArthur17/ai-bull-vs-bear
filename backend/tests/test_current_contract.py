@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Any
 
 import pytest
-
 from app.config import Settings
 from app.schemas import TokenUsage
 from app.services.analysis import AnalysisService
@@ -143,4 +142,3 @@ def test_current_model_provider_boundary_receives_validated_analysis_inputs(
     assert [item.id for item in captured["evidence"]] == response.snapshot.included_evidence_ids
     assert captured["macro_context"] == response.snapshot.macro_context
     assert response.token_usage.model_name == "capturing-provider"
-

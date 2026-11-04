@@ -20,14 +20,21 @@ type HistoryScreenProps = {
   debates: DebateSessionSummary[];
   onOpen: (item: AnalysisResponse) => void;
   onOpenDebate: (session: DebateSessionSummary) => void;
+  hasMore?: boolean;
+  loadingMore?: boolean;
+  pageError?: string;
+  onLoadMore?: () => void;
 };
-
 
 export function HistoryScreen({
   history,
   debates,
   onOpen,
   onOpenDebate,
+  hasMore,
+  loadingMore,
+  pageError,
+  onLoadMore,
 }: HistoryScreenProps) {
   const hasHistory = history.length > 0 || debates.length > 0;
   const { width: viewportWidth } = useWindowDimensions();
@@ -35,21 +42,28 @@ export function HistoryScreen({
   return (
     <ScrollView contentContainerStyle={[styles.page, styles.readingPage]}>
       <Text style={styles.eyebrow}>SAVED RESEARCH · REOPENABLE</Text>
-      <Text accessibilityRole="header" style={styles.detailTitle}>History</Text>
+      <Text accessibilityRole="header" style={styles.detailTitle}>
+        History
+      </Text>
       <Text style={styles.historyIntro}>
         Reopen a canonical V2 Debate, its interim or final Judge, or a classic analysis fallback.
       </Text>
       {!hasHistory ? (
         <View style={styles.emptyCard}>
-          <Text accessibilityRole="header" style={styles.cardTitle}>Your research history is empty</Text>
+          <Text accessibilityRole="header" style={styles.cardTitle}>
+            Your research history is empty
+          </Text>
           <Text style={styles.mutedText}>
-            Choose a Debate-ready stock from Signals, review its evidence, then start Bull vs Bear. Completed runs stay here for review.
+            Choose a Debate-ready stock from Signals, review its evidence, then start Bull vs Bear.
+            Completed runs stay here for review.
           </Text>
         </View>
       ) : null}
       {debates.length > 0 ? (
         <>
-          <Text accessibilityRole="header" style={styles.historySectionTitle}>V2 CANONICAL DEBATES</Text>
+          <Text accessibilityRole="header" style={styles.historySectionTitle}>
+            V2 CANONICAL DEBATES
+          </Text>
           {debates.map((session) => {
             const copy = debateHistoryCopy(session);
             return (
@@ -63,7 +77,9 @@ export function HistoryScreen({
                 <View style={[styles.historyCopy, isWideLayout && styles.historyCopyWide]}>
                   <View style={styles.historyRowHeader}>
                     <Text style={styles.stockTicker}>{session.ticker}</Text>
-                    <Text style={[styles.historyStatus, historyStatusStyle[copy.kind]]}>{copy.label}</Text>
+                    <Text style={[styles.historyStatus, historyStatusStyle[copy.kind]]}>
+                      {copy.label}
+                    </Text>
                   </View>
                   <Text style={styles.historyTitle}>{copy.title}</Text>
                   <Text style={styles.mutedText}>{copy.detail}</Text>
@@ -79,7 +95,11 @@ export function HistoryScreen({
           })}
         </>
       ) : null}
-      {history.length > 0 ? <Text accessibilityRole="header" style={styles.historySectionTitle}>LEGACY CLASSIC ANALYSES · FALLBACK</Text> : null}
+      {history.length > 0 ? (
+        <Text accessibilityRole="header" style={styles.historySectionTitle}>
+          LEGACY CLASSIC ANALYSES · FALLBACK
+        </Text>
+      ) : null}
       {history.map((item) => (
         <FocusablePressable
           accessibilityLabel={`Open classic ${item.ticker} analysis`}
@@ -91,13 +111,28 @@ export function HistoryScreen({
           <View style={[styles.historyCopy, isWideLayout && styles.historyCopyWide]}>
             <Text style={styles.stockTicker}>{item.ticker}</Text>
             <Text style={styles.historyTitle}>Legacy Bull, Bear, and Judge synthesis</Text>
-            <Text style={styles.historyTimestamp}>{new Date(item.created_at).toLocaleString()}</Text>
+            <Text style={styles.historyTimestamp}>
+              {new Date(item.created_at).toLocaleString()}
+            </Text>
           </View>
           <View style={[styles.historyAction, isWideLayout && styles.historyActionWide]}>
             <Text style={styles.examineLink}>Review →</Text>
           </View>
         </FocusablePressable>
       ))}
+      {pageError ? <Text accessibilityLiveRegion="polite">{pageError}</Text> : null}
+      {hasMore ? (
+        <FocusablePressable
+          accessibilityRole="button"
+          disabled={loadingMore}
+          onPress={onLoadMore}
+          style={styles.questionButton}
+        >
+          <Text style={styles.questionText}>
+            {loadingMore ? "Loading older analyses…" : "Load older classic analyses"}
+          </Text>
+        </FocusablePressable>
+      ) : null}
     </ScrollView>
   );
 }

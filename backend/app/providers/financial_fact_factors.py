@@ -64,4 +64,3 @@ class FinancialFactsProvider:
             )
             for fact in context.financial_facts
         ]
-

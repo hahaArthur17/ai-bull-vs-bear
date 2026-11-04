@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import pytest
-from fastapi.testclient import TestClient
-from pydantic import ValidationError
-
 from app.config import Settings
 from app.main import app
-
+from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 SHA = "0123456789abcdef0123456789abcdef01234567"
 

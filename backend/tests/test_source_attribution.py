@@ -1,6 +1,5 @@
 from app.services.source_attribution import SourceAttributionBuffer, sanitize_source_sentence
 
-
 EXCERPTS = {
     "[E1]": "A dated article announces a new camera feature without reporting sales.",
     "[E4]": (
@@ -47,7 +46,7 @@ def test_exact_quote_must_match_the_cited_excerpt() -> None:
 
 def test_quote_does_not_authorize_an_extra_unsupported_claim() -> None:
     sentence = (
-        '[E4] The filing states that camera revenue rose and notes: '
+        "[E4] The filing states that camera revenue rose and notes: "
         '"forward-looking statements that involve risks and uncertainties". '
     )
 
@@ -58,16 +57,16 @@ def test_quote_does_not_authorize_an_extra_unsupported_claim() -> None:
 
 
 def test_alias_does_not_authorize_an_unverified_quotation_without_source_noun() -> None:
-    sentence = '[E1] The creator update “further enhanced the creative suite” for users.'
+    sentence = "[E1] The creator update “further enhanced the creative suite” for users."
 
     safe, changed = sanitize_source_sentence(sentence, EXCERPTS)
 
     assert changed is True
-    assert 'further enhanced the creative suite' not in safe
+    assert "further enhanced the creative suite" not in safe
 
 
 def test_rebuttal_may_quote_the_opponent_without_claiming_a_source_quote() -> None:
-    sentence = '[E1] The Bull claimed “higher creator demand will lift hardware sales”, but that remains unmeasured.'
+    sentence = "[E1] The Bull claimed “higher creator demand will lift hardware sales”, but that remains unmeasured."
 
     assert sanitize_source_sentence(sentence, EXCERPTS) == (sentence, False)
 
@@ -88,9 +87,7 @@ def test_attributed_statement_noun_is_not_treated_as_evidence() -> None:
 
 
 def test_unsupported_historical_sales_pattern_is_not_repeated() -> None:
-    sentence = (
-        "[E1] Past camera upgrades correlated with accessory and App Store revenue growth."
-    )
+    sentence = "[E1] Past camera upgrades correlated with accessory and App Store revenue growth."
 
     safe, changed = sanitize_source_sentence(sentence, EXCERPTS)
 
@@ -138,11 +135,14 @@ def test_stream_buffer_holds_an_unverified_attribution_across_chunks() -> None:
 
 def test_repeated_warning_for_the_same_evidence_is_shown_once() -> None:
     buffer = SourceAttributionBuffer(EXCERPTS)
-    output = buffer.push(
-        "[E4] The filing states that camera sales rose. "
-        "[E4] The filing notes that valuation also rose. "
-        "Demand remains uncertain. "
-    ) + buffer.finish()
+    output = (
+        buffer.push(
+            "[E4] The filing states that camera sales rose. "
+            "[E4] The filing notes that valuation also rose. "
+            "Demand remains uncertain. "
+        )
+        + buffer.finish()
+    )
 
     assert output.count("does not verify") == 1
     assert "Demand remains uncertain" in output
@@ -151,10 +151,12 @@ def test_repeated_warning_for_the_same_evidence_is_shown_once() -> None:
 
 def test_unattributed_warning_is_not_repeated_after_an_evidence_warning() -> None:
     buffer = SourceAttributionBuffer(EXCERPTS)
-    output = buffer.push(
-        "[E4] The filing states that camera sales rose. "
-        "The document says valuation rose too. "
-    ) + buffer.finish()
+    output = (
+        buffer.push(
+            "[E4] The filing states that camera sales rose. The document says valuation rose too. "
+        )
+        + buffer.finish()
+    )
 
     assert output.count("does not verify") == 1
     assert buffer.replacements == 2
@@ -162,11 +164,14 @@ def test_unattributed_warning_is_not_repeated_after_an_evidence_warning() -> Non
 
 def test_pronoun_cannot_attribute_a_debate_quote_to_the_previous_excerpt() -> None:
     buffer = SourceAttributionBuffer(EXCERPTS)
-    output = buffer.push(
-        'The excerpt does not report camera sales. It merely states that "camera sales rose". '
-    ) + buffer.finish()
+    output = (
+        buffer.push(
+            'The excerpt does not report camera sales. It merely states that "camera sales rose". '
+        )
+        + buffer.finish()
+    )
 
-    assert 'It merely states' not in output
+    assert "It merely states" not in output
     assert 'camera sales rose"' not in output
     assert buffer.replacements == 1
 

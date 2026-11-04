@@ -17,24 +17,20 @@ command-line options so a CI job or a developer can choose its own budget.
 from __future__ import annotations
 
 import argparse
-from contextlib import contextmanager
 import json
 import math
-import os
-from pathlib import Path
 import re
-import shutil
-import signal
 import subprocess
 import sys
-import tempfile
-import time
-from typing import Iterator
+from pathlib import Path
 
+from local_postgres import resolve_pg_bin, run_psql, temporary_postgres
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PERSISTENCE_MIGRATION = REPO_ROOT / "backend/supabase/migrations/20260827_v2_debate_persistence.sql"
-INTERRUPTION_MIGRATION = REPO_ROOT / "backend/supabase/migrations/20260909_debate_draft_interruption.sql"
+INTERRUPTION_MIGRATION = (
+    REPO_ROOT / "backend/supabase/migrations/20260909_debate_draft_interruption.sql"
+)
 TIMING_PATTERN = re.compile(r"^Time:\s*([0-9]+(?:\.[0-9]+)?)\s+ms\s*$", re.MULTILINE)
 
 SESSION_ID = "10000000-0000-0000-0000-000000000001"
@@ -126,157 +122,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def resolve_pg_bin(requested: Path | None) -> Path:
-    candidates: list[Path] = []
-    if requested is not None:
-        candidates.append(requested)
-    env_bin = os.environ.get("PG_BIN")
-    if env_bin:
-        candidates.append(Path(env_bin))
-
-    pg_config = shutil.which("pg_config")
-    if pg_config:
-        try:
-            configured_bin = subprocess.check_output(
-                [pg_config, "--bindir"],
-                text=True,
-                stderr=subprocess.STDOUT,
-                timeout=10,
-            ).strip()
-        except (OSError, subprocess.SubprocessError):
-            configured_bin = ""
-        if configured_bin:
-            candidates.append(Path(configured_bin))
-
-    candidates.extend(
-        [
-            Path("/opt/homebrew/opt/postgresql@17/bin"),
-            Path("/usr/local/opt/postgresql@17/bin"),
-        ]
-    )
-    required = ("initdb", "postgres", "pg_isready", "psql")
-    for candidate in candidates:
-        if all((candidate / executable).is_file() and os.access(candidate / executable, os.X_OK)
-               for executable in required):
-            return candidate
-    searched = ", ".join(str(item) for item in candidates if str(item))
-    raise RuntimeError(
-        "PostgreSQL tools were not found; set PG_BIN or pass --pg-bin "
-        f"(searched: {searched})"
-    )
-
-
-@contextmanager
-def temporary_postgres(pg_bin: Path) -> Iterator[tuple[Path, Path]]:
-    temporary_root = Path(tempfile.mkdtemp(prefix="wp8l5-checkpoint-pg-"))
-    data_dir = temporary_root / "data"
-    socket_dir = temporary_root / "socket"
-    log_path = temporary_root / "postgres.log"
-    socket_dir.mkdir()
-    postgres_process: subprocess.Popen[bytes] | None = None
-    log_handle = None
-    try:
-        initdb = subprocess.run(
-            [str(pg_bin / "initdb"), "-D", str(data_dir), "-A", "trust", "--no-locale"],
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
-        if initdb.returncode != 0:
-            raise RuntimeError(f"initdb failed:\n{initdb.stdout}\n{initdb.stderr}")
-
-        log_handle = log_path.open("w", encoding="utf-8")
-        postgres_process = subprocess.Popen(
-            [
-                str(pg_bin / "postgres"),
-                "-D",
-                str(data_dir),
-                "-k",
-                str(socket_dir),
-                "-h",
-                "",
-            ],
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-        )
-        ready = False
-        for _ in range(60):
-            if postgres_process.poll() is not None:
-                break
-            probe = subprocess.run(
-                [str(pg_bin / "pg_isready"), "-h", str(socket_dir), "-d", "postgres"],
-                check=False,
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            if probe.returncode == 0:
-                ready = True
-                break
-            time.sleep(0.1)
-        if not ready:
-            log_handle.flush()
-            details = log_path.read_text(encoding="utf-8", errors="replace")
-            raise RuntimeError(f"temporary PostgreSQL did not become ready:\n{details}")
-        yield data_dir, socket_dir
-    finally:
-        if postgres_process is not None:
-            if postgres_process.poll() is None:
-                postgres_process.send_signal(signal.SIGTERM)
-                try:
-                    postgres_process.wait(timeout=10)
-                except subprocess.TimeoutExpired:
-                    postgres_process.kill()
-                    postgres_process.wait(timeout=5)
-        if log_handle is not None:
-            log_handle.close()
-        shutil.rmtree(temporary_root, ignore_errors=True)
-
-
-def psql_command(pg_bin: Path, socket_dir: Path, *extra: str) -> list[str]:
-    return [
-        str(pg_bin / "psql"),
-        "-X",
-        "-v",
-        "ON_ERROR_STOP=1",
-        "-h",
-        str(socket_dir),
-        "-d",
-        "postgres",
-        *extra,
-    ]
-
-
-def run_psql(
-    pg_bin: Path,
-    socket_dir: Path,
-    *,
-    sql: str | None = None,
-    file: Path | None = None,
-    extra: tuple[str, ...] = (),
-    timeout: int = 120,
-) -> subprocess.CompletedProcess[str]:
-    command = psql_command(pg_bin, socket_dir, *extra)
-    if file is not None:
-        command.extend(("-f", str(file)))
-    environment = os.environ.copy()
-    environment["LC_ALL"] = "C"
-    result = subprocess.run(
-        command,
-        input=sql,
-        capture_output=True,
-        text=True,
-        cwd=REPO_ROOT,
-        env=environment,
-        timeout=timeout,
-    )
-    if result.returncode != 0:
-        detail = "\n".join(part for part in (result.stdout, result.stderr) if part).strip()
-        raise RuntimeError(f"psql failed with status {result.returncode}:\n{detail}")
-    return result
-
-
 def bootstrap_database(pg_bin: Path, socket_dir: Path) -> None:
     run_psql(
         pg_bin,
@@ -319,9 +164,7 @@ def make_prefixes(samples: int, delta_chars: int) -> list[str]:
     for index in range(1, samples + 1):
         label = f"d{index:04d}:"
         if len(label) > delta_chars:
-            raise ValueError(
-                f"--delta-chars must be at least {len(label)} for sample {index}"
-            )
+            raise ValueError(f"--delta-chars must be at least {len(label)} for sample {index}")
         running += label + ("x" * (delta_chars - len(label)))
         if len(running) > 6000:
             raise ValueError(
@@ -360,8 +203,7 @@ def workload_sql(prefixes: list[str]) -> str:
         "\\timing on",
     ]
     statements.extend(
-        checkpoint_statement(content, index)
-        for index, content in enumerate(prefixes, start=1)
+        checkpoint_statement(content, index) for index, content in enumerate(prefixes, start=1)
     )
     statements.extend(("\\timing off", "reset role;"))
     return "\n".join(statements) + "\n"
@@ -405,7 +247,7 @@ def persisted_checkpoint(
         pg_bin,
         socket_dir,
         extra=("-At",),
-        sql=f"""
+        sql="""
 set role service_role;
 select json_build_object(
   'row_count',(select count(*) from public.debate_draft_checkpoints),
@@ -444,8 +286,7 @@ def run_benchmark(args: argparse.Namespace) -> tuple[dict[str, object], int]:
     prefixes = make_prefixes(args.samples, args.delta_chars)
     max_requests = args.max_requests if args.max_requests is not None else args.samples
     generated_prefixes_valid = all(
-        current.startswith(previous)
-        for previous, current in zip(prefixes, prefixes[1:])
+        current.startswith(previous) for previous, current in zip(prefixes, prefixes[1:])
     )
 
     with temporary_postgres(pg_bin) as (_, socket_dir):
@@ -501,9 +342,7 @@ def run_benchmark(args: argparse.Namespace) -> tuple[dict[str, object], int]:
             "passed": summary["max_ms"] <= args.max_max_ms,
         },
     }
-    passed = prefix_progression_valid and all(
-        check["passed"] for check in budget_checks.values()
-    )
+    passed = prefix_progression_valid and all(check["passed"] for check in budget_checks.values())
     report: dict[str, object] = {
         "benchmark": "WP8L.5 draft checkpoint persistence",
         "passed": passed,

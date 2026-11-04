@@ -39,10 +39,13 @@ const nvdaBundle: StockBundle = {
 };
 
 test("Loading a saved Debate ticker replaces the stock snapshot with its matching bundle", async () => {
-  const result = await loadStockDetail({
-    getStock: async (ticker) => ({ ...nvda, ticker }),
-    getStockBundle: async () => nvdaBundle,
-  }, "NVDA");
+  const result = await loadStockDetail(
+    {
+      getStock: async (ticker) => ({ ...nvda, ticker }),
+      getStockBundle: async () => nvdaBundle,
+    },
+    "NVDA",
+  );
 
   assert.equal(result.stock.ticker, "NVDA");
   assert.equal(result.bundle?.stock.ticker, "NVDA");
@@ -50,13 +53,16 @@ test("Loading a saved Debate ticker replaces the stock snapshot with its matchin
 
 test("Catalog-only stocks do not request a missing market-data bundle", async () => {
   let bundleRequested = false;
-  const result = await loadStockDetail({
-    getStock: async () => ({ ...nvda, coverage_status: "catalog_only" }),
-    getStockBundle: async () => {
-      bundleRequested = true;
-      return nvdaBundle;
+  const result = await loadStockDetail(
+    {
+      getStock: async () => ({ ...nvda, coverage_status: "catalog_only" }),
+      getStockBundle: async () => {
+        bundleRequested = true;
+        return nvdaBundle;
+      },
     },
-  }, "NVDA");
+    "NVDA",
+  );
 
   assert.equal(result.bundle, null);
   assert.equal(bundleRequested, false);

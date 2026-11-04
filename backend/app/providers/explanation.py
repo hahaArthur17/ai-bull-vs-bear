@@ -13,11 +13,9 @@ class ExplanationProvider(Protocol):
     def generate_explanation(
         self,
         request: ExplanationAgentRequest,
-    ) -> ExplanationDraft:
-        ...
+    ) -> ExplanationDraft: ...
 
-    def close(self) -> None:
-        ...
+    def close(self) -> None: ...
 
 
 class DeterministicExplanationProvider:

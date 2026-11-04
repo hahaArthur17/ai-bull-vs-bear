@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import pytest
-
 from app.domain.factors import AnalysisContext, AnalysisPricePoint, FactorObservation
 from app.providers.technical_factors import TechnicalFactorProvider
 from app.services.factor_registry import FactorRegistry, FactorRegistryError
@@ -151,9 +150,7 @@ def test_mock_sentiment_provider_is_an_additive_extension() -> None:
     original_ids = {item.id for item in original_snapshot.observations}
     extended_ids = {item.id for item in extended_snapshot.observations}
     mock_factor = next(
-        item
-        for item in extended_snapshot.observations
-        if item.provider == "mock-sentiment"
+        item for item in extended_snapshot.observations if item.provider == "mock-sentiment"
     )
     assert original_ids <= extended_ids
     assert extended_ids - original_ids == {mock_factor.id}

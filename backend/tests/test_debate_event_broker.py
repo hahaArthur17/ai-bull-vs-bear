@@ -5,13 +5,11 @@ from threading import Thread
 from uuid import UUID
 
 import pytest
-
 from app.services.debate_event_broker import (
     DebateEventCursorExpired,
     InMemoryDebateEventBroker,
     format_debate_sse,
 )
-
 
 SESSION_A = UUID("00000000-0000-4000-8000-000000000401")
 SESSION_B = UUID("00000000-0000-4000-8000-000000000402")
@@ -24,9 +22,7 @@ class DeterministicValues:
 
     def clock(self) -> datetime:
         self.index += 1
-        return datetime(2026, 8, 28, tzinfo=timezone.utc) + timedelta(
-            seconds=self.index
-        )
+        return datetime(2026, 8, 28, tzinfo=timezone.utc) + timedelta(seconds=self.index)
 
     def identifier(self) -> UUID:
         self.index += 1

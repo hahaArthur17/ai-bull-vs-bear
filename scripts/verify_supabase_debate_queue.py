@@ -4,15 +4,13 @@
 from __future__ import annotations
 
 import asyncio
+import json
 from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-import json
 from uuid import UUID, uuid4
 
 import httpx
-
 from app.config import get_settings
-from app.domain.debate import DebateSession
 from app.domain.factors import AnalysisContext, FactorSnapshot
 from app.domain.jobs import DebateJob, DebateQueueMessage
 from app.providers.deterministic_debate import DeterministicDebateProvider
@@ -112,8 +110,8 @@ class HostedDebateQueueVerifier:
             session_ids.append(exhausted["session_id"])
             report.update(exhausted["checks"])
 
-            report["authenticated_queue_rpcs_rejected"] = (
-                self._authenticated_queue_rpcs_rejected(user_a)
+            report["authenticated_queue_rpcs_rejected"] = self._authenticated_queue_rpcs_rejected(
+                user_a
             )
         finally:
             report["canonical_cleanup_removed"] = (
@@ -226,8 +224,7 @@ class HostedDebateQueueVerifier:
 
         checks = {
             "atomic_round_one_admission_idempotent": (
-                repeated == (queued, queued_job)
-                and database_replay == (queued, queued_job)
+                repeated == (queued, queued_job) and database_replay == (queued, queued_job)
             ),
             "restarted_worker_completed_round_one": (
                 round_one_result.outcome == "completed"
@@ -237,7 +234,8 @@ class HostedDebateQueueVerifier:
                 and completed_round_one_job.status == "completed"
                 and len(messages) == 7
             ),
-            "atomic_round_two_admission_idempotent": repeated_round_two == (
+            "atomic_round_two_admission_idempotent": repeated_round_two
+            == (
                 queued_round_two,
                 round_two_job,
             ),
@@ -462,9 +460,7 @@ def main() -> None:
         json.dumps(
             {
                 "checks": checks,
-                "queue_message_ids_for_sql_cleanup": sorted(
-                    set(verifier.queue_message_ids)
-                ),
+                "queue_message_ids_for_sql_cleanup": sorted(set(verifier.queue_message_ids)),
             },
             indent=2,
             sort_keys=True,

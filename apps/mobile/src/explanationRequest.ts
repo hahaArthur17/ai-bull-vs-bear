@@ -1,6 +1,5 @@
 import type { ExplanationRequest } from "./types";
 
-
 export function serializeExplanationRequest(request: ExplanationRequest) {
   return {
     message_id: request.messageId,

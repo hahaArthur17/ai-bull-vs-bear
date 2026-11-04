@@ -7,4 +7,3 @@ def test_guardrails_rewrite_financial_advice() -> None:
     assert "buy" not in safe_text.lower()
     assert "guaranteed profit" in rewritten
     assert DISCLAIMER in safe_text
-

@@ -5,9 +5,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 from collections.abc import AsyncIterator, Sequence
 from datetime import datetime, timezone
-import json
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
@@ -29,7 +29,6 @@ from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_event_broker import InMemoryDebateEventBroker
 from app.services.debate_preview import DebatePreviewService
 from app.services.debate_worker import DebateWorker
-
 
 LIVE_TURN_REQUEST_BUDGET = 6
 LIVE_TURN_MAX_OUTPUT_CHARS = 1000
@@ -73,17 +72,12 @@ class QuotaBoundedStreamingProvider:
                 "max_output_chars": self.max_output_chars,
                 "transcript": tuple(
                     message.model_copy(
-                        update={
-                            "content": message.content[
-                                :LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE
-                            ]
-                        }
+                        update={"content": message.content[:LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE]}
                     )
                     for message in request.transcript
                 ),
                 "previously_used_points": tuple(
-                    point[:LIVE_POINT_MAX_CHARS]
-                    for point in request.previously_used_points
+                    point[:LIVE_POINT_MAX_CHARS] for point in request.previously_used_points
                 ),
             }
         )
@@ -181,9 +175,7 @@ def build_controlled_snapshot() -> tuple[AnalysisContext, FactorSnapshot]:
             as_of=as_of,
             value=1.0,
             unit="index",
-            interpretation=(
-                "The synthetic valuation input is cautionary and remains incomplete."
-            ),
+            interpretation=("The synthetic valuation input is cautionary and remains incomplete."),
             direction="cautionary",
             confidence="medium",
             provider_version="v1",
@@ -316,9 +308,7 @@ async def verify_one_live_round(
     delta_events = [event for event in events if event.type == "turn.delta"]
     completed_events = [event for event in events if event.type == "turn.completed"]
     delta_message_ids = {event.payload["message_id"] for event in delta_events}
-    completed_message_ids = {
-        event.payload["message"]["id"] for event in completed_events
-    }
+    completed_message_ids = {event.payload["message"]["id"] for event in completed_events}
     replay_cursor = events[len(events) // 2].sequence
     resumed_events = broker.replay(queued.id, after_sequence=replay_cursor)
     canonical_reload = repository.get_session(queued.id, user_id)
@@ -348,20 +338,13 @@ async def verify_one_live_round(
         ),
         "live_messages_grounded": (
             len(citations) >= LIVE_TURN_REQUEST_BUDGET
-            and all(
-                citation.evidence_id in context.allowed_evidence_ids
-                for citation in citations
-            )
+            and all(citation.evidence_id in context.allowed_evidence_ids for citation in citations)
         ),
         "ordered_live_deltas_completed": (
-            [event.sequence for event in events]
-            == list(range(1, len(events) + 1))
+            [event.sequence for event in events] == list(range(1, len(events) + 1))
             and len(completed_events) == LIVE_TURN_REQUEST_BUDGET
             and completed_message_ids <= delta_message_ids
-            and all(
-                event.payload["source"] == expected_delta_source
-                for event in delta_events
-            )
+            and all(event.payload["source"] == expected_delta_source for event in delta_events)
         ),
         "canonical_reconnect_safe": (
             bool(resumed_events)
@@ -408,9 +391,7 @@ async def verify_one_live_round(
         "completed_live_turn_requests": bounded_provider.completed_request_count,
         "max_output_characters_per_turn": bounded_provider.max_output_chars,
         "max_completion_tokens_per_turn": LIVE_TURN_MAX_COMPLETION_TOKENS,
-        "max_transcript_characters_per_message": (
-            LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE
-        ),
+        "max_transcript_characters_per_message": (LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE),
         "canonical_messages": len(messages),
         "stream_events": len(events),
         "delta_events": len(delta_events),
@@ -441,9 +422,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     if not args.confirm_live_quota:
-        raise SystemExit(
-            "Refusing live Groq requests without --confirm-live-quota (six requests)."
-        )
+        raise SystemExit("Refusing live Groq requests without --confirm-live-quota (six requests).")
     settings = get_settings()
     if settings.debate_streaming_provider.strip().lower() != "groq":
         raise SystemExit("Set DEBATE_STREAMING_PROVIDER=groq for this explicit smoke run.")

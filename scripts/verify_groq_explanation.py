@@ -4,9 +4,9 @@
 from __future__ import annotations
 
 import argparse
+import json
 from collections.abc import Sequence
 from datetime import datetime, timezone
-import json
 from typing import Any
 from uuid import NAMESPACE_URL, uuid5
 
@@ -16,7 +16,6 @@ from app.domain.explanations import ExplanationAgentRequest
 from app.domain.factors import FactorSnapshot
 from app.providers.groq_explanation import GroqExplanationProvider
 from app.services.analysis_context import build_analysis_context
-
 
 LIVE_EXPLANATION_REQUEST_BUDGET = 1
 LIVE_EXPLANATION_MAX_COMPLETION_TOKENS = 160
@@ -116,9 +115,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def main(argv: Sequence[str] | None = None) -> None:
     args = parse_args(argv)
     if not args.confirm_live_quota:
-        raise SystemExit(
-            "Refusing live Groq requests without --confirm-live-quota (one request)."
-        )
+        raise SystemExit("Refusing live Groq requests without --confirm-live-quota (one request).")
     settings = get_settings()
     if settings.explanation_provider.strip().lower() != "groq":
         raise SystemExit("Set EXPLANATION_PROVIDER=groq for this explicit smoke run.")

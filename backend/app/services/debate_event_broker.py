@@ -25,8 +25,7 @@ class DebateEventPublisher(Protocol):
         *,
         payload: dict[str, JsonValue] | None = None,
         timestamp: datetime | None = None,
-    ) -> DebateEvent:
-        ...
+    ) -> DebateEvent: ...
 
 
 class InMemoryDebateEventBroker:
@@ -158,9 +157,7 @@ class InMemoryDebateEventBroker:
             return ()
         oldest_sequence = events[0].sequence
         if after_sequence < oldest_sequence - 1:
-            raise DebateEventCursorExpired(
-                "Event cursor predates the transient replay buffer"
-            )
+            raise DebateEventCursorExpired("Event cursor predates the transient replay buffer")
         self._touch(session_id)
         return tuple(event for event in events if event.sequence > after_sequence)
 
@@ -173,7 +170,4 @@ def format_debate_sse(event: DebateEvent) -> str:
     """Encode one versioned event as a standards-compatible SSE frame."""
 
     event_id = "" if event.type == "heartbeat" else f"id: {event.sequence}\n"
-    return (
-        f"{event_id}event: {event.type}\n"
-        f"data: {event.model_dump_json()}\n\n"
-    )
+    return f"{event_id}event: {event.type}\ndata: {event.model_dump_json()}\n\n"

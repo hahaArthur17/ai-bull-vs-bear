@@ -1,8 +1,7 @@
 import pytest
-from pydantic import ValidationError
-
 from app.schemas import Stock, StockCoverage
 from app.services.demo_store import DemoStore
+from pydantic import ValidationError
 
 
 def test_demo_stocks_are_explicitly_debate_ready() -> None:

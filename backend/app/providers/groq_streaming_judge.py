@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import AsyncIterator
 import json
 import re
+from collections.abc import AsyncIterator
 from typing import Any
 
 from app.domain.agents import (
@@ -27,7 +27,6 @@ from app.services.source_attribution import (
     SourceAttributionBuffer,
     sanitize_context_text,
 )
-
 
 _CITATION_PATTERN = re.compile(r"\[E(?P<number>[1-9][0-9]?)\]")
 _CITATION_TOKEN_PATTERN = re.compile(r"\[E[0-9][^\]\r\n]*\]")
@@ -69,9 +68,7 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
                 "title": evidence_by_id[evidence_id].title[:_MAX_EVIDENCE_TITLE_CHARS],
                 "source_type": evidence_by_id[evidence_id].source_type,
                 "published_at": evidence_by_id[evidence_id].published_at,
-                "excerpt": evidence_by_id[evidence_id].excerpt[
-                    :_MAX_EVIDENCE_EXCERPT_CHARS
-                ],
+                "excerpt": evidence_by_id[evidence_id].excerpt[:_MAX_EVIDENCE_EXCERPT_CHARS],
             }
             for alias, evidence_id in aliases.items()
         ],
@@ -84,13 +81,9 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
                 "as_of": item.as_of,
                 "value": item.value,
                 "unit": item.unit,
-                "interpretation": item.interpretation[
-                    :_MAX_FACTOR_INTERPRETATION_CHARS
-                ],
+                "interpretation": item.interpretation[:_MAX_FACTOR_INTERPRETATION_CHARS],
             }
-            for item in request.factor_snapshot.observations[
-                :_MAX_FACTOR_OBSERVATIONS
-            ]
+            for item in request.factor_snapshot.observations[:_MAX_FACTOR_OBSERVATIONS]
         ],
         "unfinished_context_not_evidence": [
             {
@@ -136,7 +129,7 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
         "stating what a filing, article, report, or document says; the evidence card "
         "already displays its excerpt. When exact source wording is essential, it must "
         "be a short verbatim quote from its supplied excerpt with the matching alias, "
-        "for example [E1] The cited excerpt states: \"exact excerpt words\". "
+        'for example [E1] The cited excerpt states: "exact excerpt words". '
         "Describe other propositions as agent claims or your synthesis, not source text.\n"
         "</response_contract>"
     )
@@ -145,7 +138,9 @@ def build_groq_judge_prompt(request: DebateJudgeRequest, *, word_limit: int = 12
 def _evidence_ids(content: str, aliases: dict[str, str]) -> tuple[str, ...]:
     tokens = _CITATION_TOKEN_PATTERN.findall(content)
     cited = [match.group(0)[1:-1] for match in _CITATION_PATTERN.finditer(content)]
-    if any(token[1:-1] not in aliases for token in tokens) or any(alias not in aliases for alias in cited):
+    if any(token[1:-1] not in aliases for token in tokens) or any(
+        alias not in aliases for alias in cited
+    ):
         raise GroqDebateStreamError("Groq Judge returned an invalid evidence citation")
     return tuple(dict.fromkeys(aliases[alias] for alias in cited))
 
@@ -160,7 +155,9 @@ def _draft(request: DebateJudgeRequest, summary: str, aliases: dict[str, str]) -
         # Plain prose does not justify labelling sentence positions as structured findings.
         agreements=(),
         disagreements=(),
-        missing_evidence=("Further current evidence could change the balance between the two cases.",),
+        missing_evidence=(
+            "Further current evidence could change the balance between the two cases.",
+        ),
         evidence_ids=evidence_ids,
         evidence_strength="medium" if evidence_ids else "weak",
         uncertainty="The snapshot is dated and incomplete, so the relative strength of either case may change.",
@@ -174,9 +171,19 @@ class GroqStreamingJudgeProvider:
     name = "groq-live-judge"
     version = "v2"
 
-    def __init__(self, *, api_key: str | None, model: str, timeout_seconds: float = 45, max_completion_tokens: int = _DEFAULT_MAX_COMPLETION_TOKENS, client: Any | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        api_key: str | None,
+        model: str,
+        timeout_seconds: float = 45,
+        max_completion_tokens: int = _DEFAULT_MAX_COMPLETION_TOKENS,
+        client: Any | None = None,
+    ) -> None:
         if not api_key:
-            raise GroqDebateConfigurationError("GROQ_API_KEY is required when DEBATE_STREAMING_JUDGE_PROVIDER=groq")
+            raise GroqDebateConfigurationError(
+                "GROQ_API_KEY is required when DEBATE_STREAMING_JUDGE_PROVIDER=groq"
+            )
         if not 1 <= max_completion_tokens <= 1600:
             raise GroqDebateConfigurationError("Judge completion cap must be between 1 and 1600")
         self.max_completion_tokens = max_completion_tokens
@@ -185,22 +192,35 @@ class GroqStreamingJudgeProvider:
             try:
                 from groq import AsyncGroq
             except ImportError as exc:  # pragma: no cover
-                raise GroqDebateConfigurationError("The Groq package is required for the live Judge provider") from exc
+                raise GroqDebateConfigurationError(
+                    "The Groq package is required for the live Judge provider"
+                ) from exc
             client = AsyncGroq(api_key=api_key, timeout=timeout_seconds, max_retries=0)
         self.client = client
 
-    async def stream_judgement(self, request: DebateJudgeRequest) -> AsyncIterator[DebateJudgeStreamEvent]:
+    async def stream_judgement(
+        self, request: DebateJudgeRequest
+    ) -> AsyncIterator[DebateJudgeStreamEvent]:
         aliases = _aliases(request)
         evidence_by_id = {item.id: item for item in request.analysis_context.evidence}
-        attribution = SourceAttributionBuffer({
-            f"[{alias}]": evidence_by_id[evidence_id].excerpt[:_MAX_EVIDENCE_EXCERPT_CHARS]
-            for alias, evidence_id in aliases.items()
-        })
+        attribution = SourceAttributionBuffer(
+            {
+                f"[{alias}]": evidence_by_id[evidence_id].excerpt[:_MAX_EVIDENCE_EXCERPT_CHARS]
+                for alias, evidence_id in aliases.items()
+            }
+        )
         canonical_text = CanonicalStreamBuffer()
         try:
             stream = await self.client.chat.completions.create(
                 model=self.model,
-                messages=[{"role": "user", "content": build_groq_judge_prompt(request, word_limit=min(120, max(20, self.max_completion_tokens // 4)))}],
+                messages=[
+                    {
+                        "role": "user",
+                        "content": build_groq_judge_prompt(
+                            request, word_limit=min(120, max(20, self.max_completion_tokens // 4))
+                        ),
+                    }
+                ],
                 temperature=0.2,
                 top_p=0.9,
                 max_completion_tokens=min(request.max_output_chars, self.max_completion_tokens),
@@ -242,7 +262,9 @@ class GroqStreamingJudgeProvider:
                 for fragment in _bounded_fragments(safe_segment):
                     chunk_index += 1
                     emitted += fragment
-                    yield DebateJudgeStreamDelta(chunk_index=chunk_index, delta=fragment, source="live_provider")
+                    yield DebateJudgeStreamDelta(
+                        chunk_index=chunk_index, delta=fragment, source="live_provider"
+                    )
         except GroqDebateStreamError:
             raise
         except Exception as exc:
@@ -252,7 +274,11 @@ class GroqStreamingJudgeProvider:
             if closer is not None:
                 await closer()
         if finish_reason != "stop" or not raw.strip():
-            reason = finish_reason if finish_reason in {"length", "content_filter", "stop"} else "unknown"
+            reason = (
+                finish_reason
+                if finish_reason in {"length", "content_filter", "stop"}
+                else "unknown"
+            )
             error = GroqDebateStreamError(f"Groq Judge stream did not finish normally: {reason}")
             error.usage = usage
             raise error
@@ -265,5 +291,7 @@ class GroqStreamingJudgeProvider:
         for fragment in _bounded_fragments(safe_tail):
             chunk_index += 1
             emitted += fragment
-            yield DebateJudgeStreamDelta(chunk_index=chunk_index, delta=fragment, source="live_provider")
+            yield DebateJudgeStreamDelta(
+                chunk_index=chunk_index, delta=fragment, source="live_provider"
+            )
         yield DebateJudgeStreamCompleted(draft=_draft(request, emitted, aliases), usage=usage)

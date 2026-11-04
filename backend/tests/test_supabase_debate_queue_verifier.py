@@ -6,7 +6,6 @@ from scripts.verify_supabase_debate_persistence import AuthSession
 from scripts.verify_supabase_debate_queue import HostedDebateQueueVerifier
 from scripts.verify_supabase_migration_preflight import QUEUE_RPC_PATHS
 
-
 USER_ID = UUID("00000000-0000-4000-8000-000000000601")
 
 
@@ -33,9 +32,7 @@ def test_authenticated_queue_probe_uses_user_token_and_is_denied() -> None:
         client_factory=lambda: httpx.Client(transport=transport),
     )
     try:
-        assert verifier._authenticated_queue_rpcs_rejected(
-            AuthSession(USER_ID, "user-token")
-        )
+        assert verifier._authenticated_queue_rpcs_rejected(AuthSession(USER_ID, "user-token"))
     finally:
         for client in verifier.clients:
             client.close()

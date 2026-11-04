@@ -1,6 +1,6 @@
 import pytest
-
 from app.services.macro_data import DEFAULT_MACRO_SERIES
+
 from scripts import ingest_macro_context as macro_script
 from scripts.ingest_macro_context import (
     DEFAULT_PROVIDER_REQUEST_BUDGET,

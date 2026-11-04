@@ -1,6 +1,6 @@
 import pytest
-
 from app.providers.groq_explanation import GroqExplanationProvider
+
 from scripts.verify_groq_explanation import (
     LIVE_EXPLANATION_MAX_COMPLETION_TOKENS,
     LIVE_EXPLANATION_MAX_OUTPUT_CHARS,
@@ -13,7 +13,9 @@ from scripts.verify_groq_explanation import (
 class FakeCompletions:
     def create(self, **_kwargs):
         class Message:
-            content = "A moving average smooths observed prices; the filing is limited context [E1]."
+            content = (
+                "A moving average smooths observed prices; the filing is limited context [E1]."
+            )
 
         class Choice:
             message = Message()

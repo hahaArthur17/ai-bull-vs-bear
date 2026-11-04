@@ -10,7 +10,8 @@ def factor_key_segment(value: str, *, max_length: int = 48) -> str:
         normalized = f"x-{normalized}"
     if len(normalized) <= max_length:
         return normalized
-    digest = sha1(normalized.encode("utf-8")).hexdigest()[:8]
+    # This digest shortens a stable identifier; it does not authenticate data.
+    digest = sha1(normalized.encode("utf-8"), usedforsecurity=False).hexdigest()[:8]
     return f"{normalized[: max_length - 9]}-{digest}"
 
 
@@ -18,6 +19,5 @@ def factor_observation_id(provider: str, *parts: str) -> str:
     raw = ":".join((provider, *parts))
     if len(raw) <= 240:
         return raw
-    digest = sha1(raw.encode("utf-8")).hexdigest()[:12]
+    digest = sha1(raw.encode("utf-8"), usedforsecurity=False).hexdigest()[:12]
     return f"{raw[:227]}:{digest}"
-

@@ -11,9 +11,7 @@ import {
 } from "./liveDebateView.ts";
 import type { DebateMessageRecord } from "./types.ts";
 
-function snapshot(
-  overrides: Partial<DebateStreamSnapshot> = {},
-): DebateStreamSnapshot {
+function snapshot(overrides: Partial<DebateStreamSnapshot> = {}): DebateStreamSnapshot {
   return {
     status: "live",
     sessionStatus: "queued_round_1",
@@ -91,14 +89,16 @@ test("queued and running jobs expose visible cancellable status", () => {
 });
 
 test("a started turn without safe text does not render as a transcript bubble", () => {
-  const drafts = [{
-    messageId: "draft-1",
-    generationId: "generation-1",
-    role: "bear" as const,
-    content: "",
-    nextDeltaIndex: 1,
-    citations: [],
-  }];
+  const drafts = [
+    {
+      messageId: "draft-1",
+      generationId: "generation-1",
+      role: "bear" as const,
+      content: "",
+      nextDeltaIndex: 1,
+      citations: [],
+    },
+  ];
 
   assert.deepEqual(visibleDebateDrafts(drafts), []);
   assert.deepEqual(visibleDebateDrafts([{ ...drafts[0], content: "[E1] A visible point." }]), [
@@ -121,15 +121,23 @@ test("retry delay and failure are presented without provider details", () => {
 });
 
 test("terminal states use explicit cancelled and final labels", () => {
-  assert.equal(debateStatusCopy(snapshot({ sessionStatus: "cancelled", jobStatus: "cancelled" })).label, "Cancelled");
-  assert.equal(debateStatusCopy(snapshot({ sessionStatus: "completed", jobStatus: "stage_completed" })).label, "Final");
+  assert.equal(
+    debateStatusCopy(snapshot({ sessionStatus: "cancelled", jobStatus: "cancelled" })).label,
+    "Cancelled",
+  );
+  assert.equal(
+    debateStatusCopy(snapshot({ sessionStatus: "completed", jobStatus: "stage_completed" })).label,
+    "Final",
+  );
 });
 
 test("interim pause invites a question before an optional Round 2 challenge", () => {
-  const copy = debateStatusCopy(snapshot({
-    sessionStatus: "awaiting_user",
-    jobStatus: "stage_completed",
-  }));
+  const copy = debateStatusCopy(
+    snapshot({
+      sessionStatus: "awaiting_user",
+      jobStatus: "stage_completed",
+    }),
+  );
 
   assert.equal(copy.label, "Waiting for your question");
   assert.match(copy.detail, /before deciding whether to continue to Round 2/i);
@@ -137,10 +145,15 @@ test("interim pause invites a question before an optional Round 2 challenge", ()
 
 test("only the durable interim pause enables a round two challenge", () => {
   assert.equal(canChallengeDebate(snapshot()), false);
-  assert.equal(canChallengeDebate(snapshot({
-    sessionStatus: "awaiting_user",
-    jobStatus: "stage_completed",
-  })), true);
+  assert.equal(
+    canChallengeDebate(
+      snapshot({
+        sessionStatus: "awaiting_user",
+        jobStatus: "stage_completed",
+      }),
+    ),
+    true,
+  );
 });
 
 test("canonical Debate presentation exposes only server-authored facts and metadata", () => {
@@ -176,16 +189,22 @@ test("legacy records preserve their argument without inferring fact metadata fro
 });
 
 test("incomplete messages use the exact prefix and never expand an older presentation", () => {
-  const stopped = { ...record, message: { ...record.message, content: 'A server ', is_complete: false } };
+  const stopped = {
+    ...record,
+    message: { ...record.message, content: "A server ", is_complete: false },
+  };
   const sections = debateMessageSections(stopped);
-  assert.equal(sections.argument, 'A server ');
+  assert.equal(sections.argument, "A server ");
   assert.equal(sections.interpretation, null);
   assert.equal(sections.uncertainty, null);
   assert.deepEqual(sections.factsUsed, []);
 });
 
 test("interruption waiting is distinct from terminal cancellation and formal Round 2", () => {
-  const paused = snapshot({ sessionStatus: "interrupted_awaiting_user", jobStatus: "cancelled" });
+  const paused = snapshot({
+    sessionStatus: "interrupted_awaiting_user",
+    jobStatus: "cancelled",
+  });
   assert.equal(debateStatusCopy(paused).label, "Stopped here");
   assert.equal(canChallengeDebate(paused), false);
 });

@@ -1,8 +1,8 @@
 import React from "react";
 import { ActivityIndicator, StyleSheet, Text, TextInput, View } from "react-native";
 
-import { FocusablePressable } from "../common";
 import { colors, interaction, radii, spacing, typography } from "../../theme";
+import { FocusablePressable } from "../common";
 
 export const INTERRUPTION_VIEWPOINT_MAX_CODEPOINTS = 500;
 
@@ -55,9 +55,12 @@ export function InterruptionComposer({
   return (
     <View style={styles.card} accessibilityLabel="Interruption response">
       <Text style={styles.eyebrow}>INTERRUPTION · YOUR INPUT</Text>
-      <Text accessibilityRole="header" style={styles.title}>Add your point before deciding.</Text>
+      <Text accessibilityRole="header" style={styles.title}>
+        Add your point before deciding.
+      </Text>
       <Text style={styles.intro}>
-        Save your viewpoint as context for this interruption. Saving does not call the model; Continue resumes the debate explicitly.
+        Save your viewpoint as context for this interruption. Saving does not call the model;
+        Continue resumes the debate explicitly.
       </Text>
 
       {canExplainStoppedText ? (
@@ -78,7 +81,9 @@ export function InterruptionComposer({
         </Text>
       )}
 
-      <Text nativeID="interruption-viewpoint-label" style={styles.label}>YOUR VIEWPOINT</Text>
+      <Text nativeID="interruption-viewpoint-label" style={styles.label}>
+        YOUR VIEWPOINT
+      </Text>
       <TextInput
         accessibilityLabel="Your viewpoint"
         accessibilityLabelledBy="interruption-viewpoint-label"
@@ -96,16 +101,20 @@ export function InterruptionComposer({
         <Text style={styles.counter}>
           {codePointCount}/{INTERRUPTION_VIEWPOINT_MAX_CODEPOINTS} characters
         </Text>
-        {saved ? <Text accessibilityLiveRegion="polite" style={styles.saved}>Saved</Text> : null}
+        {saved ? (
+          <Text accessibilityLiveRegion="polite" style={styles.saved}>
+            Saved
+          </Text>
+        ) : null}
       </View>
       {atLimit ? (
-        <Text style={styles.limitNote}>
-          You have reached the 500-character limit.
-        </Text>
+        <Text style={styles.limitNote}>You have reached the 500-character limit.</Text>
       ) : null}
 
       {error ? (
-        <Text accessibilityLiveRegion="assertive" style={styles.error}>{error}</Text>
+        <Text accessibilityLiveRegion="assertive" style={styles.error}>
+          {error}
+        </Text>
       ) : null}
 
       <FocusablePressable
@@ -117,30 +126,39 @@ export function InterruptionComposer({
         onPress={onSave}
         style={[styles.primaryButton, saveDisabled && styles.disabledButton]}
       >
-        {busy === "save" ? <ActivityIndicator color={colors.content.onSignal} size="small" /> : null}
-        <Text style={styles.primaryButtonText}>{busy === "save" ? "Saving…" : saved ? "Viewpoint saved" : "Save viewpoint"}</Text>
+        {busy === "save" ? (
+          <ActivityIndicator color={colors.content.onSignal} size="small" />
+        ) : null}
+        <Text style={styles.primaryButtonText}>
+          {busy === "save" ? "Saving…" : saved ? "Viewpoint saved" : "Save viewpoint"}
+        </Text>
       </FocusablePressable>
 
       <FocusablePressable
         accessibilityHint="Resumes the debate using the saved viewpoint."
         accessibilityLabel="Continue with my point"
         accessibilityRole="button"
-        accessibilityState={{ busy: busy === "continue", disabled: continueDisabled }}
+        accessibilityState={{
+          busy: busy === "continue",
+          disabled: continueDisabled,
+        }}
         disabled={continueDisabled}
         onPress={onContinue}
         style={[styles.continueButton, continueDisabled && styles.disabledButton]}
       >
-        {busy === "continue" ? <ActivityIndicator color={colors.content.inverse} size="small" /> : null}
-        <Text style={styles.continueButtonText}>{busy === "continue" ? "Continuing…" : "Continue with my point"}</Text>
+        {busy === "continue" ? (
+          <ActivityIndicator color={colors.content.inverse} size="small" />
+        ) : null}
+        <Text style={styles.continueButtonText}>
+          {busy === "continue" ? "Continuing…" : "Continue with my point"}
+        </Text>
       </FocusablePressable>
       {!canContinue ? (
         <Text style={styles.continueNote}>
           Continue is available after the interrupted job has finished.
         </Text>
       ) : !saved ? (
-        <Text style={styles.continueNote}>
-          Save your viewpoint before continuing.
-        </Text>
+        <Text style={styles.continueNote}>Save your viewpoint before continuing.</Text>
       ) : null}
 
       <FocusablePressable

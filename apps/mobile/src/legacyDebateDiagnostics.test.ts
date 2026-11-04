@@ -4,7 +4,11 @@ import { join } from "node:path";
 import test from "node:test";
 
 test("legacy diagnostics label real provider usage without calling it demo usage", () => {
-  const source = readFileSync(join(process.cwd(), "src/screens/LegacyDebateScreen.tsx"), "utf8");
+  // JSX formatters may insert explicit spaces or wrap expressions; the labels
+  // must still identify real token counts without depending on source layout.
+  const source = readFileSync(join(process.cwd(), "src/screens/LegacyDebateScreen.tsx"), "utf8")
+    .replace(/\{\s*["'] ["']\s*\}/g, " ")
+    .replace(/\s+/g, " ");
 
   assert.match(source, /Token usage: \{analysis\.token_usage\.total_tokens\} total/);
   assert.match(source, /prompt \{analysis\.token_usage\.prompt_tokens\}/);

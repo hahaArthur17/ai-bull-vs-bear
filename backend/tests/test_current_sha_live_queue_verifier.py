@@ -15,7 +15,6 @@ from scripts.verify_current_sha_live_queue import (
     verify_current_sha_live_queue,
 )
 
-
 SESSION_ID = "10000000-0000-4000-8000-000000000901"
 BRANCH_ID = "20000000-0000-4000-8000-000000000901"
 GENERATION_ONE = "30000000-0000-4000-8000-000000000901"
@@ -92,11 +91,13 @@ def analysis_context() -> dict[str, Any]:
             }
             for code in macro_codes
         ],
-        "financial_facts": [{
-            "form": "10-Q",
-            "filed_at": "2026-07-31",
-            "period_end": "2026-06-27",
-        }],
+        "financial_facts": [
+            {
+                "form": "10-Q",
+                "filed_at": "2026-07-31",
+                "period_end": "2026-06-27",
+            }
+        ],
         "allowed_evidence_ids": ["E1", "E2"],
     }
 
@@ -141,7 +142,9 @@ def message(
         "round_number": round_number,
         "exchange_number": 0 if role == "judge" else ((sequence - 1) // 2) % 3 + 1,
         "role": role,
-        "message_kind": "summary" if role == "judge" else ("argument" if sequence in {1, 9} else "rebuttal"),
+        "message_kind": "summary"
+        if role == "judge"
+        else ("argument" if sequence in {1, 9} else "rebuttal"),
         "content": content,
         "is_complete": True,
         "metadata": {
@@ -157,15 +160,23 @@ def message(
 def record(item: dict[str, Any]) -> dict[str, Any]:
     return {
         "message": item,
-        "citations": [{
-            "message_id": item["id"],
-            "evidence_id": "E1",
-            "citation_order": 1,
-        }],
+        "citations": [
+            {
+                "message_id": item["id"],
+                "evidence_id": "E1",
+                "citation_order": 1,
+            }
+        ],
     }
 
 
-def session(status: str, *, generation_id: str = GENERATION_ONE, interim: str | None = None, final: str | None = None) -> dict[str, Any]:
+def session(
+    status: str,
+    *,
+    generation_id: str = GENERATION_ONE,
+    interim: str | None = None,
+    final: str | None = None,
+) -> dict[str, Any]:
     return {
         "id": SESSION_ID,
         "user_id": "90000000-0000-4000-8000-000000000901",
@@ -219,7 +230,13 @@ def fixture_transport(
         message(6, "bear", 1),
         message(7, "judge", 1),
     ]
-    challenge = message(8, "user", 2, content="Does this rebuttal underweight the filing risk?", generation_id=GENERATION_TWO)
+    challenge = message(
+        8,
+        "user",
+        2,
+        content="Does this rebuttal underweight the filing risk?",
+        generation_id=GENERATION_TWO,
+    )
     challenge["message_kind"] = "question"
     r2_messages = [
         message(9, "bull", 2, generation_id=GENERATION_TWO),
@@ -231,10 +248,37 @@ def fixture_transport(
     all_messages = r1_messages + [challenge] + r2_messages
     r1_records = [record(item) for item in r1_messages]
     final_records = [record(item) for item in all_messages]
-    initial_detail = {"session": session("queued_round_1"), "messages": [], "job": job("70000000-0000-4000-8000-000000000901", "round_1", max_attempts=max_attempts), "execution_mode": "queued"}
-    r1_detail = {"session": session("awaiting_user", interim=r1_messages[-1]["id"]), "messages": r1_records, "job": None, "execution_mode": "queued"}
-    challenge_detail = {"session": session("queued_round_2", generation_id=GENERATION_TWO, interim=r1_messages[-1]["id"]), "messages": r1_records + [record(challenge)], "job": job("70000000-0000-4000-8000-000000000902", "round_2", max_attempts=max_attempts), "execution_mode": "queued"}
-    final_detail = {"session": session("completed", generation_id=GENERATION_TWO, interim=r1_messages[-1]["id"], final=r2_messages[-1]["id"]), "messages": final_records, "job": None, "execution_mode": "queued"}
+    initial_detail = {
+        "session": session("queued_round_1"),
+        "messages": [],
+        "job": job("70000000-0000-4000-8000-000000000901", "round_1", max_attempts=max_attempts),
+        "execution_mode": "queued",
+    }
+    r1_detail = {
+        "session": session("awaiting_user", interim=r1_messages[-1]["id"]),
+        "messages": r1_records,
+        "job": None,
+        "execution_mode": "queued",
+    }
+    challenge_detail = {
+        "session": session(
+            "queued_round_2", generation_id=GENERATION_TWO, interim=r1_messages[-1]["id"]
+        ),
+        "messages": r1_records + [record(challenge)],
+        "job": job("70000000-0000-4000-8000-000000000902", "round_2", max_attempts=max_attempts),
+        "execution_mode": "queued",
+    }
+    final_detail = {
+        "session": session(
+            "completed",
+            generation_id=GENERATION_TWO,
+            interim=r1_messages[-1]["id"],
+            final=r2_messages[-1]["id"],
+        ),
+        "messages": final_records,
+        "job": None,
+        "execution_mode": "queued",
+    }
 
     def attempts(
         items: list[dict[str, Any]],
@@ -244,23 +288,25 @@ def fixture_transport(
     ) -> list[dict[str, Any]]:
         rows = []
         for index, item in enumerate(items, start=1):
-            rows.append({
-                "id": f"80000000-0000-4000-8000-{index + id_offset:012d}",
-                "session_id": SESSION_ID,
-                "generation_id": item["generation_id"],
-                "message_id": item["id"],
-                "role": item["role"],
-                "provider": item["metadata"]["provider"],
-                "model": item["metadata"]["model_name"],
-                "admitted_at": "2026-09-10T00:00:00Z",
-                "dispatched_at": "2026-09-10T00:00:00Z",
-                "finished_at": "2026-09-10T00:00:01Z",
-                "outcome": "completed",
-                "usage_status": "reported",
-                "prompt_tokens": 10,
-                "completion_tokens": 5,
-                "total_tokens": 15,
-            })
+            rows.append(
+                {
+                    "id": f"80000000-0000-4000-8000-{index + id_offset:012d}",
+                    "session_id": SESSION_ID,
+                    "generation_id": item["generation_id"],
+                    "message_id": item["id"],
+                    "role": item["role"],
+                    "provider": item["metadata"]["provider"],
+                    "model": item["metadata"]["model_name"],
+                    "admitted_at": "2026-09-10T00:00:00Z",
+                    "dispatched_at": "2026-09-10T00:00:00Z",
+                    "finished_at": "2026-09-10T00:00:01Z",
+                    "outcome": "completed",
+                    "usage_status": "reported",
+                    "prompt_tokens": 10,
+                    "completion_tokens": 5,
+                    "total_tokens": 15,
+                }
+            )
         # A failed provider request with no provider usage exercises the
         # unknown-use accounting path while retaining the same canonical slot.
         if include_unknown:
@@ -274,7 +320,14 @@ def fixture_transport(
 
     r1_attempts = attempts(r1_messages, include_unknown=include_r1_retry)
     r2_attempts = attempts(r2_messages, id_offset=8)
-    state = {"requests": [], "headers": [], "details": {"r1": r1_detail, "challenge": challenge_detail, "final": final_detail}, "r1_attempts": r1_attempts, "all_attempts": r1_attempts + r2_attempts, "fail_first_sse_connection": fail_first_sse_connection}
+    state = {
+        "requests": [],
+        "headers": [],
+        "details": {"r1": r1_detail, "challenge": challenge_detail, "final": final_detail},
+        "r1_attempts": r1_attempts,
+        "all_attempts": r1_attempts + r2_attempts,
+        "fail_first_sse_connection": fail_first_sse_connection,
+    }
     r1_events = [
         event(1, "session.created", {"status": "queued_round_1"}),
         event(2, "job.queued", {"status": "queued_round_1"}),
@@ -283,9 +336,33 @@ def fixture_transport(
     sequence = 3
     for item in r1_messages[:-1]:
         for event_type, payload in (
-            ("turn.started", {"message_id": item["id"], "generation_id": item["generation_id"], "round_number": 1}),
-            ("turn.delta", {"message_id": item["id"], "generation_id": item["generation_id"], "delta_index": 1, "delta": "Live ", "source": "live_provider"}),
-            ("turn.citation", {"message_id": item["id"], "generation_id": item["generation_id"], "evidence_id": "E1", "citation_order": 1}),
+            (
+                "turn.started",
+                {
+                    "message_id": item["id"],
+                    "generation_id": item["generation_id"],
+                    "round_number": 1,
+                },
+            ),
+            (
+                "turn.delta",
+                {
+                    "message_id": item["id"],
+                    "generation_id": item["generation_id"],
+                    "delta_index": 1,
+                    "delta": "Live ",
+                    "source": "live_provider",
+                },
+            ),
+            (
+                "turn.citation",
+                {
+                    "message_id": item["id"],
+                    "generation_id": item["generation_id"],
+                    "evidence_id": "E1",
+                    "citation_order": 1,
+                },
+            ),
             ("turn.completed", {"message": item, "round_number": 1}),
         ):
             sequence += 1
@@ -294,9 +371,36 @@ def fixture_transport(
     # event envelope carries the semantic phase (interim/final).
     judge = r1_messages[-1]
     for event_type, payload in (
-        ("judge.started", {"message_id": judge["id"], "generation_id": judge["generation_id"], "round_number": 1, "phase": "interim"}),
-        ("judge.delta", {"message_id": judge["id"], "generation_id": judge["generation_id"], "round_number": 1, "phase": "interim", "delta_index": 1, "delta": "Live ", "source": "live_provider"}),
-        ("turn.citation", {"message_id": judge["id"], "generation_id": judge["generation_id"], "evidence_id": "E1", "citation_order": 1}),
+        (
+            "judge.started",
+            {
+                "message_id": judge["id"],
+                "generation_id": judge["generation_id"],
+                "round_number": 1,
+                "phase": "interim",
+            },
+        ),
+        (
+            "judge.delta",
+            {
+                "message_id": judge["id"],
+                "generation_id": judge["generation_id"],
+                "round_number": 1,
+                "phase": "interim",
+                "delta_index": 1,
+                "delta": "Live ",
+                "source": "live_provider",
+            },
+        ),
+        (
+            "turn.citation",
+            {
+                "message_id": judge["id"],
+                "generation_id": judge["generation_id"],
+                "evidence_id": "E1",
+                "citation_order": 1,
+            },
+        ),
         ("judge.completed", {"message": judge, "phase": "interim"}),
     ):
         sequence += 1
@@ -305,23 +409,80 @@ def fixture_transport(
     r1_events.append(event(sequence, "session.awaiting_user", {"status": "awaiting_user"}))
     round_one_terminal_sequence = sequence
     sequence += 1
-    r2_events = [event(sequence, "job.queued", {"status": "queued_round_2", "generation_id": GENERATION_TWO})]
+    r2_events = [
+        event(sequence, "job.queued", {"status": "queued_round_2", "generation_id": GENERATION_TWO})
+    ]
     sequence += 1
-    r2_events.append(event(sequence, "job.started", {"status": "running_round_2", "generation_id": GENERATION_TWO}))
+    r2_events.append(
+        event(
+            sequence, "job.started", {"status": "running_round_2", "generation_id": GENERATION_TWO}
+        )
+    )
     for item in r2_messages[:-1]:
         for event_type, payload in (
-            ("turn.started", {"message_id": item["id"], "generation_id": item["generation_id"], "round_number": 2}),
-            ("turn.delta", {"message_id": item["id"], "generation_id": item["generation_id"], "delta_index": 1, "delta": "Live ", "source": "live_provider"}),
-            ("turn.citation", {"message_id": item["id"], "generation_id": item["generation_id"], "evidence_id": "E1", "citation_order": 1}),
+            (
+                "turn.started",
+                {
+                    "message_id": item["id"],
+                    "generation_id": item["generation_id"],
+                    "round_number": 2,
+                },
+            ),
+            (
+                "turn.delta",
+                {
+                    "message_id": item["id"],
+                    "generation_id": item["generation_id"],
+                    "delta_index": 1,
+                    "delta": "Live ",
+                    "source": "live_provider",
+                },
+            ),
+            (
+                "turn.citation",
+                {
+                    "message_id": item["id"],
+                    "generation_id": item["generation_id"],
+                    "evidence_id": "E1",
+                    "citation_order": 1,
+                },
+            ),
             ("turn.completed", {"message": item, "round_number": 2}),
         ):
             sequence += 1
             r2_events.append(event(sequence, event_type, payload))
     judge = r2_messages[-1]
     for event_type, payload in (
-        ("judge.started", {"message_id": judge["id"], "generation_id": judge["generation_id"], "round_number": 2, "phase": "final"}),
-        ("judge.delta", {"message_id": judge["id"], "generation_id": judge["generation_id"], "round_number": 2, "phase": "final", "delta_index": 1, "delta": "Live ", "source": "live_provider"}),
-        ("turn.citation", {"message_id": judge["id"], "generation_id": judge["generation_id"], "evidence_id": "E1", "citation_order": 1}),
+        (
+            "judge.started",
+            {
+                "message_id": judge["id"],
+                "generation_id": judge["generation_id"],
+                "round_number": 2,
+                "phase": "final",
+            },
+        ),
+        (
+            "judge.delta",
+            {
+                "message_id": judge["id"],
+                "generation_id": judge["generation_id"],
+                "round_number": 2,
+                "phase": "final",
+                "delta_index": 1,
+                "delta": "Live ",
+                "source": "live_provider",
+            },
+        ),
+        (
+            "turn.citation",
+            {
+                "message_id": judge["id"],
+                "generation_id": judge["generation_id"],
+                "evidence_id": "E1",
+                "citation_order": 1,
+            },
+        ),
         ("judge.completed", {"message": judge, "phase": "final"}),
     ):
         sequence += 1
@@ -339,7 +500,11 @@ def fixture_transport(
         state["headers"].append(request.headers.get("authorization"))
         if path == "/health":
             headers = {"x-commit-sha": SHA} if expose_sha_header else {}
-            return httpx.Response(200, headers=headers, json={"status": "ok", "data_mode": "standard", "debate_workflow_v2": True})
+            return httpx.Response(
+                200,
+                headers=headers,
+                json={"status": "ok", "data_mode": "standard", "debate_workflow_v2": True},
+            )
         if path == "/debates" and request.method == "POST":
             return httpx.Response(202, json=initial_detail)
         if path.endswith("/events"):
@@ -348,9 +513,7 @@ def fixture_transport(
                 raise httpx.ConnectError("simulated SSE connect failure", request=request)
             cursor = int(request.url.params.get("after_sequence", "0"))
             phase_events = (
-                state["r1_events"]
-                if cursor < round_one_terminal_sequence
-                else state["r2_events"]
+                state["r1_events"] if cursor < round_one_terminal_sequence else state["r2_events"]
             )
             if cursor == 0:
                 selected = phase_events[:1]
@@ -360,18 +523,16 @@ def fixture_transport(
                 selected = phase_events[1:]
             else:
                 selected = [item for item in phase_events if item["sequence"] > cursor]
-            return httpx.Response(200, headers={"content-type": "text/event-stream"}, content=sse(selected))
+            return httpx.Response(
+                200, headers={"content-type": "text/event-stream"}, content=sse(selected)
+            )
         if path.endswith("/interventions") and request.method == "POST":
             return httpx.Response(202, json=challenge_detail)
         if path.endswith("/provider-attempts"):
             round_two_admitted = any(
                 item[1].endswith("/interventions") for item in state["requests"]
             )
-            attempts_payload = (
-                state["all_attempts"]
-                if round_two_admitted
-                else state["r1_attempts"]
-            )
+            attempts_payload = state["all_attempts"] if round_two_admitted else state["r1_attempts"]
             return httpx.Response(
                 200,
                 json={
@@ -455,7 +616,10 @@ def test_current_sha_live_queue_verifier_uses_auth_and_resumes_sse_without_delet
     assert report["round_one_accounting"]["unknown_usage_attempts"] == 0
     assert report["cleanup"] == "skipped_no_exact_delete_endpoint"
     assert not any(method == "DELETE" for method, _, _ in state["requests"])
-    assert any(path.endswith("/events") and params.get("after_sequence") == "1" for _, path, params in state["requests"])
+    assert any(
+        path.endswith("/events") and params.get("after_sequence") == "1"
+        for _, path, params in state["requests"]
+    )
     assert state["headers"]
     assert all(value == "Bearer user-token" for value in state["headers"])
 
@@ -479,7 +643,9 @@ def test_provider_budget_refuses_round_two_when_round_one_retry_uses_the_budget(
 
     # Config validation is the hard floor for the complete 12-request flow.
     with pytest.raises(ValueError, match="at least 12"):
-        AcceptanceConfig(base_url="https://api.example.test", access_token="token", provider_request_budget=11)
+        AcceptanceConfig(
+            base_url="https://api.example.test", access_token="token", provider_request_budget=11
+        )
 
 
 def test_current_sha_mismatch_fails_before_admitting_a_debate() -> None:
@@ -578,8 +744,7 @@ def test_terminal_session_failure_stops_without_burning_reconnect_budget() -> No
 
     assert not report["passed"]
     assert report["error"] == (
-        "SSE 1 reached session.failed (debate_execution_failed) before "
-        "session.awaiting_user"
+        "SSE 1 reached session.failed (debate_execution_failed) before session.awaiting_user"
     )
     assert sum(path.endswith("/events") for _, path, _ in state["requests"]) == 2
     assert not any(path.endswith("/interventions") for _, path, _ in state["requests"])

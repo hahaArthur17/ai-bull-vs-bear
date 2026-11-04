@@ -1,6 +1,5 @@
 import httpx
 import pytest
-
 from app.services.macro_data import (
     EiaClient,
     FredClient,

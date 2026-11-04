@@ -25,7 +25,10 @@ test("discovery summary stays based on loaded stocks during a catalog search", (
   const temporarySearchResults = [stock("TSLA", "catalog_only")];
 
   assert.equal(getDiscoverySummary(loadedStocks).readyToReview, 1);
-  assert.equal(temporarySearchResults.filter((item) => item.coverage_status === "debate_ready").length, 0);
+  assert.equal(
+    temporarySearchResults.filter((item) => item.coverage_status === "debate_ready").length,
+    0,
+  );
 });
 
 test("clearing catalog search does not change the loaded-stock discovery summary", () => {
@@ -45,8 +48,20 @@ test("rapid catalog query switches cannot replace the discovery summary", () => 
 });
 
 test("coverage labels preserve partial research states in catalog results", () => {
-  assert.deepEqual(getCoveragePresentation("debate_ready"), { label: "Research ready", tone: "ready" });
-  assert.deepEqual(getCoveragePresentation("evidence_ready"), { label: "Evidence ready", tone: "ready" });
-  assert.deepEqual(getCoveragePresentation("price_cached"), { label: "Limited coverage", tone: "partial" });
-  assert.deepEqual(getCoveragePresentation("catalog_only"), { label: "Watchlist only", tone: "catalog" });
+  assert.deepEqual(getCoveragePresentation("debate_ready"), {
+    label: "Research ready",
+    tone: "ready",
+  });
+  assert.deepEqual(getCoveragePresentation("evidence_ready"), {
+    label: "Evidence ready",
+    tone: "ready",
+  });
+  assert.deepEqual(getCoveragePresentation("price_cached"), {
+    label: "Limited coverage",
+    tone: "partial",
+  });
+  assert.deepEqual(getCoveragePresentation("catalog_only"), {
+    label: "Watchlist only",
+    tone: "catalog",
+  });
 });

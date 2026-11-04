@@ -4,11 +4,11 @@ from typing import Any
 
 from app.config import Settings
 from app.providers.debate_agents import DebateStreamingJudgeProvider, DebateStreamingTurnProvider
-from app.providers.groq_streaming_judge import GroqStreamingJudgeProvider
 from app.providers.groq_streaming_debate import (
     GroqDebateConfigurationError,
     GroqStreamingDebateProvider,
 )
+from app.providers.groq_streaming_judge import GroqStreamingJudgeProvider
 from app.providers.streaming_debate import (
     DeterministicStreamingDebateProvider,
     DeterministicStreamingJudgeProvider,

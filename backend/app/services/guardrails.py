@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import re
 
-
-DISCLAIMER = "This analysis is for educational purposes only and does not constitute financial advice."
+DISCLAIMER = (
+    "This analysis is for educational purposes only and does not constitute financial advice."
+)
 
 REWRITES: dict[str, str] = {
     "you should buy": "you may wish to research",
@@ -28,4 +29,3 @@ def apply_guardrails(text: str) -> tuple[str, str, list[str]]:
     if DISCLAIMER.lower() not in safe_text.lower():
         safe_text = f"{safe_text.rstrip()}\n\n{DISCLAIMER}"
     return safe_text, status, rewritten
-

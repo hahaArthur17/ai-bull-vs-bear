@@ -6,7 +6,6 @@ from pydantic import Field, JsonValue, field_serializer, field_validator, model_
 
 from app.domain.base import AwareDatetime, ImmutableDomainModel
 
-
 FactorCategory = Literal["technical", "macro", "company", "fundamental", "other"]
 FactorDirection = Literal["supportive", "cautionary", "mixed", "neutral", "unknown"]
 FactorConfidence = Literal["low", "medium", "high"]
@@ -82,6 +81,7 @@ class AnalysisEvidenceItem(ImmutableDomainModel):
     @classmethod
     def normalize_ticker(cls, value: str) -> str:
         return value.upper()
+
 
 class AnalysisMacroObservation(ImmutableDomainModel):
     code: str = Field(min_length=1, max_length=80)
@@ -234,5 +234,4 @@ class FactorProvider(Protocol):
     version: str
     required: bool
 
-    def collect(self, context: AnalysisContext) -> list[FactorObservation]:
-        ...
+    def collect(self, context: AnalysisContext) -> list[FactorObservation]: ...

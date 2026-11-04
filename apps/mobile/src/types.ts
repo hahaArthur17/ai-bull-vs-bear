@@ -263,13 +263,7 @@ export type DebateEvidencePresentation = {
   support_span: string | null;
   source_destination: string | null;
   missing_metadata: Array<
-    | "evidence_type"
-    | "title"
-    | "fact"
-    | "source"
-    | "date"
-    | "support_span"
-    | "source_destination"
+    "evidence_type" | "title" | "fact" | "source" | "date" | "support_span" | "source_destination"
   >;
 };
 
@@ -375,4 +369,8 @@ export type DebateEvent = {
   type: DebateEventType;
   timestamp: string;
   payload: Record<string, unknown>;
+};
+export type AnalysisHistoryPage = {
+  items: AnalysisResponse[];
+  next_offset: number | null;
 };

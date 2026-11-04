@@ -27,9 +27,7 @@ def preview_text_chunks(content: str, *, max_characters: int = 96) -> tuple[str,
     start = 0
     while start < len(content):
         end = min(start + max_characters, len(content))
-        while end < len(content) and (
-            content[end].isspace() or content[end - 1].isspace()
-        ):
+        while end < len(content) and (content[end].isspace() or content[end - 1].isspace()):
             end += 1
         chunks.append(content[start:end])
         start = end

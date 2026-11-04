@@ -9,10 +9,7 @@ async def run_worker() -> None:
     if not settings.debate_queue_enabled:
         raise RuntimeError("Set DEBATE_QUEUE_ENABLED=true to run the Debate Worker")
     stop_event = asyncio.Event()
-    workers = [
-        build_configured_debate_worker()
-        for _ in range(settings.debate_worker_concurrency)
-    ]
+    workers = [build_configured_debate_worker() for _ in range(settings.debate_worker_concurrency)]
     async with asyncio.TaskGroup() as group:
         for worker in workers:
             group.create_task(

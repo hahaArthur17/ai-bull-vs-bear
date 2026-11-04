@@ -2,12 +2,11 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 import pytest
-
 from app.domain.debate import DebateDraftCheckpoint, ProviderAttempt
 from app.repositories.debate_repository import DebateConcurrencyError
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
 from app.services.debate_state import request_session_cancellation
-from test_debate_domain import BRANCH_ID, GENERATION_ID, NOW, SESSION_ID, USER_ID, build_session
+from test_debate_domain import BRANCH_ID, GENERATION_ID, NOW, SESSION_ID, USER_ID
 from test_memory_debate_repository import store_running_round_one
 
 
@@ -49,9 +48,7 @@ def test_attempt_usage_stays_unknown_until_complete_and_late_usage_keeps_failure
         build_checkpoint(message_id=message_id),
     )
 
-    dispatched = repository.mark_provider_attempt_dispatched(
-        attempt.id, NOW + timedelta(seconds=4)
-    )
+    dispatched = repository.mark_provider_attempt_dispatched(attempt.id, NOW + timedelta(seconds=4))
     failed = repository.finish_provider_attempt(
         dispatched.id, at=NOW + timedelta(seconds=5), failed=True
     )
@@ -127,7 +124,9 @@ def test_interrupt_generation_keeps_provider_attempt_ledger_for_late_settlement(
     )
     repository.mark_provider_attempt_dispatched(attempt.id, NOW + timedelta(seconds=4))
     repository.checkpoint_draft(
-        build_checkpoint(message_id=message_id).model_copy(update={"content": "Visible draft output"})
+        build_checkpoint(message_id=message_id).model_copy(
+            update={"content": "Visible draft output"}
+        )
     )
 
     interrupted = repository.interrupt_generation(
@@ -139,7 +138,9 @@ def test_interrupt_generation_keeps_provider_attempt_ledger_for_late_settlement(
         NOW + timedelta(seconds=5),
     )
     assert interrupted.status == "interrupted_awaiting_user"
-    saved_messages = repository.list_messages(session.id, session.user_id, branch_id=session.active_branch_id)
+    saved_messages = repository.list_messages(
+        session.id, session.user_id, branch_id=session.active_branch_id
+    )
     assert len(saved_messages) == 1
     assert saved_messages[0].content == "Visible draft"
 
@@ -149,7 +150,9 @@ def test_interrupt_generation_keeps_provider_attempt_ledger_for_late_settlement(
         failed=True,
     )
     assert failed.outcome == "failed"
-    assert [row.id for row in repository.list_provider_attempts(session.id, session.user_id)] == [attempt.id]
+    assert [row.id for row in repository.list_provider_attempts(session.id, session.user_id)] == [
+        attempt.id
+    ]
 
 
 def test_stop_keeps_provider_attempt_ledger_but_blocks_new_admission() -> None:
@@ -221,7 +224,8 @@ def test_admission_retry_returns_the_same_row_after_dispatch() -> None:
     checkpoint = build_checkpoint(message_id=message_id)
     admitted = repository.admit_provider_attempt(attempt, checkpoint)
     dispatched = repository.mark_provider_attempt_dispatched(
-        admitted.id, NOW + timedelta(seconds=4),
+        admitted.id,
+        NOW + timedelta(seconds=4),
     )
     repository.checkpoint_draft(checkpoint.model_copy(update={"content": "partial"}))
 

@@ -1,13 +1,13 @@
 import asyncio
 
 import pytest
-
 from app.providers.streaming_debate import DeterministicStreamingDebateProvider
+
 from scripts.verify_groq_debate_streaming import (
-    LIVE_TURN_MAX_OUTPUT_CHARS,
-    LIVE_TURN_MAX_COMPLETION_TOKENS,
-    LIVE_TURN_REQUEST_BUDGET,
     LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE,
+    LIVE_TURN_MAX_COMPLETION_TOKENS,
+    LIVE_TURN_MAX_OUTPUT_CHARS,
+    LIVE_TURN_REQUEST_BUDGET,
     QuotaBoundedStreamingProvider,
     diagnose_one_live_turn,
     parse_args,
@@ -30,10 +30,7 @@ def test_live_verifier_proves_round_persistence_order_and_reconnect_without_netw
     assert report["completed_live_turn_requests"] == LIVE_TURN_REQUEST_BUDGET
     assert report["max_output_characters_per_turn"] == LIVE_TURN_MAX_OUTPUT_CHARS
     assert report["max_completion_tokens_per_turn"] == LIVE_TURN_MAX_COMPLETION_TOKENS
-    assert (
-        report["max_transcript_characters_per_message"]
-        == LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE
-    )
+    assert report["max_transcript_characters_per_message"] == LIVE_TRANSCRIPT_MAX_CHARS_PER_MESSAGE
     assert report["canonical_messages"] == 7
     assert report["token_usage"]["total"] == 0
 
@@ -49,9 +46,7 @@ def test_quota_wrapper_rejects_an_expanded_request_or_output_budget() -> None:
 
 def test_one_turn_diagnostic_reports_completion_without_content() -> None:
     report = asyncio.run(
-        diagnose_one_live_turn(
-            DeterministicStreamingDebateProvider(max_chunk_characters=32)
-        )
+        diagnose_one_live_turn(DeterministicStreamingDebateProvider(max_chunk_characters=32))
     )
 
     assert report["completed"]

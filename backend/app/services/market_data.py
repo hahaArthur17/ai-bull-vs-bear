@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
+from math import isfinite
 from threading import Lock
 from time import monotonic, sleep
 from typing import Callable, Protocol
@@ -9,7 +10,6 @@ import httpx
 
 from app.services.indicators import validate_completed_daily_prices
 from app.services.supabase_headers import service_headers
-
 
 DEFAULT_PRICE_TICKERS = ("AAPL",)
 
@@ -255,8 +255,16 @@ class FinnhubClient:
                 params={
                     "symbol": ticker.upper(),
                     "resolution": "D",
-                    "from": int(datetime.combine(start, datetime.min.time(), tzinfo=timezone.utc).timestamp()),
-                    "to": int(datetime.combine(today, datetime.max.time(), tzinfo=timezone.utc).timestamp()),
+                    "from": int(
+                        datetime.combine(
+                            start, datetime.min.time(), tzinfo=timezone.utc
+                        ).timestamp()
+                    ),
+                    "to": int(
+                        datetime.combine(
+                            today, datetime.max.time(), tzinfo=timezone.utc
+                        ).timestamp()
+                    ),
                     "token": self.api_key,
                 },
                 timeout=self.timeout,
@@ -308,17 +316,25 @@ class FinnhubQuoteClient:
             raise MarketDataError("Finnhub rejected the request")
         try:
             payload = response.json()
-            close = float(payload["c"])
+            prices = {field: float(payload[field]) for field in ("c", "o", "h", "l", "pc")}
+            # Non-finite floats bypass ordinary <= checks and cannot be encoded
+            # in the API's JSON. Reject partial/contradictory quotes at ingestion.
+            if any(not isfinite(value) or value <= 0 for value in prices.values()):
+                raise ValueError("Quote has no valid market value")
+            if prices["l"] > min(prices["o"], prices["c"]) or prices["h"] < max(
+                prices["o"], prices["c"]
+            ):
+                raise ValueError("Quote has inconsistent OHLC prices")
             as_of = int(payload["t"])
-            if close <= 0 or as_of <= 0:
-                raise ValueError("Quote has no market value")
+            if as_of <= 0:
+                raise ValueError("Quote has no market timestamp")
             return {
                 "ticker": ticker.upper(),
-                "close": close,
-                "open": float(payload["o"]),
-                "high": float(payload["h"]),
-                "low": float(payload["l"]),
-                "previous_close": float(payload["pc"]),
+                "close": prices["c"],
+                "open": prices["o"],
+                "high": prices["h"],
+                "low": prices["l"],
+                "previous_close": prices["pc"],
                 "as_of": datetime.fromtimestamp(as_of, tz=timezone.utc).isoformat(),
                 "source": "finnhub_quote",
             }
@@ -558,6 +574,9 @@ def ingest_weekly_price_history(
 
     try:
         prices = provider.fetch_weekly(ticker.upper(), limit=limit)
-        return {"updated": {ticker.upper(): writer.upsert_weekly_prices(ticker, prices)}, "failed": []}
+        return {
+            "updated": {ticker.upper(): writer.upsert_weekly_prices(ticker, prices)},
+            "failed": [],
+        }
     except (MarketDataError, PriceCacheError):
         return {"updated": {}, "failed": [ticker.upper()]}

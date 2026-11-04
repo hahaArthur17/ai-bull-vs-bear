@@ -17,7 +17,6 @@ from app.services.macro_data import (
     ingest_macro_context,
 )
 
-
 DEFAULT_PROVIDER_REQUEST_BUDGET = len(DEFAULT_MACRO_SERIES)
 _SERIES_BY_CODE = {definition.code: definition for definition in DEFAULT_MACRO_SERIES}
 
@@ -82,9 +81,7 @@ class _ProviderRequestBudget:
 
     def verify(self) -> None:
         if self.used != self.limit:
-            raise RuntimeError(
-                "macro provider request count did not match selected series"
-            )
+            raise RuntimeError("macro provider request count did not match selected series")
 
 
 class _BudgetedFredClient:

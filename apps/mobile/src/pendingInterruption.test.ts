@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { PendingInterruptionStorage } from "./pendingInterruption.ts";
 import {
   MAX_PENDING_INTERRUPTION_PREFIX_LENGTH,
   PENDING_INTERRUPTION_STORAGE_VERSION,
@@ -12,16 +13,21 @@ import {
   pendingInterruptionWasSaved,
   savePendingInterruption,
 } from "./pendingInterruption.ts";
-import type { PendingInterruptionStorage } from "./pendingInterruption.ts";
 import type { DebateSessionDetail } from "./types.ts";
 
-function memoryStorage(): PendingInterruptionStorage & { values: Map<string, string> } {
+function memoryStorage(): PendingInterruptionStorage & {
+  values: Map<string, string>;
+} {
   const values = new Map<string, string>();
   return {
     values,
     getItem: async (key) => values.get(key) || null,
-    setItem: async (key, value) => { values.set(key, value); },
-    removeItem: async (key) => { values.delete(key); },
+    setItem: async (key, value) => {
+      values.set(key, value);
+    },
+    removeItem: async (key) => {
+      values.delete(key);
+    },
   };
 }
 
@@ -59,17 +65,25 @@ test("a completed Debate clears a Stop that reached the server too late", () => 
 test("a completed turn clears a raced Stop while later turns keep running", () => {
   const target = pending();
   const completed = {
-    id: target.messageId, generation_id: target.generationId,
-    role: "bull", content: "A completed answer.", is_complete: true,
+    id: target.messageId,
+    generation_id: target.generationId,
+    role: "bull",
+    content: "A completed answer.",
+    is_complete: true,
   };
   const detail = {
-    session: { active_generation_id: target.generationId, status: "running_round_2" },
+    session: {
+      active_generation_id: target.generationId,
+      status: "running_round_2",
+    },
     messages: [{ message: completed }],
   } as unknown as DebateSessionDetail;
   assert.equal(pendingInterruptionIsObsolete(detail, target), true);
 
   const beforeOutput = createPendingInterruption({
-    ...target, messageId: target.generationId, visiblePrefix: "",
+    ...target,
+    messageId: target.generationId,
+    visiblePrefix: "",
   });
   assert.equal(pendingInterruptionIsObsolete(detail, beforeOutput), true);
 });
@@ -92,7 +106,13 @@ test("pending interruptions preserve an empty prefix and count Unicode code poin
   await savePendingInterruption(storage, pending("account-1", "session-unicode", maxUnicodePrefix));
 
   assert.deepEqual(await loadPendingInterruption(storage, "account-1", "session-empty"), empty);
-  assert.throws(() => pending("account-1", "session-too-long", "😀".repeat(MAX_PENDING_INTERRUPTION_PREFIX_LENGTH + 1)));
+  assert.throws(() =>
+    pending(
+      "account-1",
+      "session-too-long",
+      "😀".repeat(MAX_PENDING_INTERRUPTION_PREFIX_LENGTH + 1),
+    ),
+  );
 });
 
 test("pending interruptions retain display role and exactly the visible canonical message boundary", async () => {
@@ -114,19 +134,22 @@ test("pending interruptions retain display role and exactly the visible canonica
 test("legacy records recover only their prefix with a system role and no canonical messages", async () => {
   const storage = memoryStorage();
   const key = `ai-bull-vs-bear:pending-interruptions:v${PENDING_INTERRUPTION_STORAGE_VERSION}:account-1`;
-  storage.values.set(key, JSON.stringify({
-    version: PENDING_INTERRUPTION_STORAGE_VERSION,
-    entries: {
-      "session-1": {
-        accountId: "account-1",
-        sessionId: "session-1",
-        generationId: "generation-1",
-        messageId: "message-1",
-        visiblePrefix: "Legacy prefix.",
-        idempotencyKey: "interrupt_legacy",
+  storage.values.set(
+    key,
+    JSON.stringify({
+      version: PENDING_INTERRUPTION_STORAGE_VERSION,
+      entries: {
+        "session-1": {
+          accountId: "account-1",
+          sessionId: "session-1",
+          generationId: "generation-1",
+          messageId: "message-1",
+          visiblePrefix: "Legacy prefix.",
+          idempotencyKey: "interrupt_legacy",
+        },
       },
-    },
-  }));
+    }),
+  );
 
   const recovered = await loadPendingInterruption(storage, "account-1", "session-1");
   assert.equal(recovered?.role, "system");
@@ -156,7 +179,10 @@ test("confirmation removes only the confirmed session's pending Stop", async () 
   await savePendingInterruption(storage, first);
   await savePendingInterruption(storage, second);
 
-  assert.equal(await confirmPendingInterruption(storage, "account-1", "session-1", first.idempotencyKey), true);
+  assert.equal(
+    await confirmPendingInterruption(storage, "account-1", "session-1", first.idempotencyKey),
+    true,
+  );
   assert.equal(await loadPendingInterruption(storage, "account-1", "session-1"), null);
   assert.deepEqual(await loadPendingInterruption(storage, "account-1", "session-2"), second);
 });
@@ -168,7 +194,10 @@ test("a late confirmation cannot delete a newer pending Stop", async () => {
   await savePendingInterruption(storage, original);
   await savePendingInterruption(storage, replacement);
 
-  assert.equal(await confirmPendingInterruption(storage, "account-1", "session-1", original.idempotencyKey), false);
+  assert.equal(
+    await confirmPendingInterruption(storage, "account-1", "session-1", original.idempotencyKey),
+    false,
+  );
   assert.deepEqual(await loadPendingInterruption(storage, "account-1", "session-1"), replacement);
 });
 
@@ -177,8 +206,19 @@ test("prototype-like session identifiers remain isolated records", async () => {
   const specialSession = pending("account-1", "__proto__", "First character stopped.");
   await savePendingInterruption(storage, specialSession);
 
-  assert.deepEqual(await loadPendingInterruption(storage, "account-1", "__proto__"), specialSession);
-  assert.equal(await confirmPendingInterruption(storage, "account-1", "__proto__", specialSession.idempotencyKey), true);
+  assert.deepEqual(
+    await loadPendingInterruption(storage, "account-1", "__proto__"),
+    specialSession,
+  );
+  assert.equal(
+    await confirmPendingInterruption(
+      storage,
+      "account-1",
+      "__proto__",
+      specialSession.idempotencyKey,
+    ),
+    true,
+  );
   assert.equal(await loadPendingInterruption(storage, "account-1", "__proto__"), null);
 });
 
@@ -200,16 +240,28 @@ test("invalid versions, shapes, and oversized prefixes are discarded", async () 
   assert.equal(await loadPendingInterruption(storage, "account-1", "session-1"), null);
   assert.equal(storage.values.has(key), false);
 
-  storage.values.set(key, JSON.stringify({
-    version: PENDING_INTERRUPTION_STORAGE_VERSION,
-    entries: { "session-1": { accountId: "account-2" } },
-  }));
+  storage.values.set(
+    key,
+    JSON.stringify({
+      version: PENDING_INTERRUPTION_STORAGE_VERSION,
+      entries: { "session-1": { accountId: "account-2" } },
+    }),
+  );
   assert.equal(await loadPendingInterruption(storage, "account-1", "session-1"), null);
   assert.equal(storage.values.has(key), false);
 
-  assert.throws(() => pending("account-1", "session-1", "x".repeat(MAX_PENDING_INTERRUPTION_PREFIX_LENGTH + 1)));
-  assert.throws(() => createPendingInterruption({
-    accountId: "account-1", sessionId: "session-1", generationId: "generation-1", messageId: "message-1",
-    visiblePrefix: "x", role: "bull", precedingMessageIds: Array.from({ length: 101 }, (_, index) => `message-${index}`),
-  }));
+  assert.throws(() =>
+    pending("account-1", "session-1", "x".repeat(MAX_PENDING_INTERRUPTION_PREFIX_LENGTH + 1)),
+  );
+  assert.throws(() =>
+    createPendingInterruption({
+      accountId: "account-1",
+      sessionId: "session-1",
+      generationId: "generation-1",
+      messageId: "message-1",
+      visiblePrefix: "x",
+      role: "bull",
+      precedingMessageIds: Array.from({ length: 101 }, (_, index) => `message-${index}`),
+    }),
+  );
 });

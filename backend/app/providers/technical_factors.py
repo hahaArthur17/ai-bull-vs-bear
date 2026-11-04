@@ -34,10 +34,7 @@ class TechnicalFactorProvider:
         freshness = FactorFreshness(status=freshness_status)
         source_ref = FactorSourceReference(
             source_type="price",
-            source_id=(
-                f"{latest_price.source or 'price-series'}:"
-                f"{context.ticker}:{context.as_of}"
-            ),
+            source_id=(f"{latest_price.source or 'price-series'}:{context.ticker}:{context.as_of}"),
             as_of=context.as_of,
         )
 

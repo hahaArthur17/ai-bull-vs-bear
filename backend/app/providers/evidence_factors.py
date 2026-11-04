@@ -76,4 +76,3 @@ class FilingFactorProvider(EvidenceFactorProvider):
         "This filing provides company disclosures and risks for its stated period; "
         "it does not by itself explain a daily price move."
     )
-

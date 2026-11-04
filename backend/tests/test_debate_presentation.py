@@ -111,3 +111,14 @@ def test_safe_source_destination_rejects_non_https_or_credentialed_urls() -> Non
         "/relative/evidence",
     ):
         assert safe_source_destination(unsafe) is None
+
+
+def test_source_destinations_follow_shared_browser_normalization_cases() -> None:
+    import json
+    from pathlib import Path
+
+    cases = json.loads(
+        (Path(__file__).resolve().parents[2] / "data/security/evidence-url-cases.json").read_text()
+    )
+    for case in cases:
+        assert (safe_source_destination(case["url"]) is not None) == case["safe"], case["url"]

@@ -2,7 +2,6 @@ from datetime import timedelta
 from uuid import UUID, uuid4
 
 import pytest
-
 from app.domain.explanations import ExplanationDraft
 from app.domain.factors import AnalysisContext, FactorSnapshot
 from app.providers.deterministic_debate import DeterministicDebateProvider
@@ -18,7 +17,6 @@ from app.services.explanation import (
 from app.services.guardrails import DISCLAIMER
 from test_debate_domain import NOW
 from test_memory_debate_repository import build_message, store_running_round_one
-
 
 USER_ID = UUID("00000000-0000-4000-8000-000000000701")
 
@@ -83,11 +81,14 @@ def test_explanation_is_grounded_without_mutating_debate_state() -> None:
     assert result.content.endswith(DISCLAIMER)
     assert repository.get_session(session.id, USER_ID) == session
     assert repository.get_job(job_before.id) == job_before
-    assert repository.list_messages(
-        session.id,
-        USER_ID,
-        branch_id=session.active_branch_id,
-    ) == messages_before
+    assert (
+        repository.list_messages(
+            session.id,
+            USER_ID,
+            branch_id=session.active_branch_id,
+        )
+        == messages_before
+    )
 
 
 def test_deterministic_explanation_accepts_a_long_exact_passage() -> None:
@@ -145,11 +146,14 @@ def test_interrupted_prefix_explanation_is_read_only_and_has_no_citations() -> N
     assert "interrupted Bull prefix" in result.content
     assert result.evidence_ids == ()
     assert repository.get_session(stopped.id, stopped.user_id) == stopped
-    assert repository.list_messages(
-        stopped.id,
-        stopped.user_id,
-        branch_id=stopped.active_branch_id,
-    ) == messages_before
+    assert (
+        repository.list_messages(
+            stopped.id,
+            stopped.user_id,
+            branch_id=stopped.active_branch_id,
+        )
+        == messages_before
+    )
 
 
 def test_explanation_rejects_empty_or_unmarked_incomplete_sources() -> None:

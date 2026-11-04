@@ -104,19 +104,29 @@ async def collect_debate_turn_stream(
     if completion.finish_reason != "stop":
         raise DebateTurnStreamError("Turn stream did not finish normally", usage=completion.usage)
     if not deltas:
-        raise DebateTurnStreamError("Turn stream completed without text deltas", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Turn stream completed without text deltas", usage=completion.usage
+        )
     streamed_content = "".join(deltas)
     if streamed_content != completion.draft.content:
-        raise DebateTurnStreamError("Turn stream text does not match its completed draft", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Turn stream text does not match its completed draft", usage=completion.usage
+        )
     if len(completion.draft.content) > request.max_output_chars:
-        raise DebateTurnStreamError("Completed turn exceeded its output bound", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Completed turn exceeded its output bound", usage=completion.usage
+        )
     if completion.draft.responds_to_message_id != request.rebuttal_target_message_id:
-        raise DebateTurnStreamError("Completed turn used the wrong rebuttal target", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Completed turn used the wrong rebuttal target", usage=completion.usage
+        )
     if any(
         evidence_id not in request.allowed_evidence_ids
         for evidence_id in completion.draft.evidence_ids
     ):
-        raise DebateTurnStreamError("Completed turn cited evidence outside the snapshot", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Completed turn cited evidence outside the snapshot", usage=completion.usage
+        )
     return CollectedDebateTurn(
         draft=completion.draft,
         usage=completion.usage,
@@ -158,7 +168,12 @@ async def collect_debate_judge_stream(
     except Exception as exc:
         retryable = bool(getattr(exc, "retryable", False))
         retry_after_seconds = getattr(exc, "retry_after_seconds", None)
-        if not (retryable and isinstance(retry_after_seconds, int) and not isinstance(retry_after_seconds, bool) and 1 <= retry_after_seconds <= 3600):
+        if not (
+            retryable
+            and isinstance(retry_after_seconds, int)
+            and not isinstance(retry_after_seconds, bool)
+            and 1 <= retry_after_seconds <= 3600
+        ):
             retry_after_seconds = None
         raise DebateTurnStreamError(
             "Judge provider stream failed",
@@ -177,11 +192,22 @@ async def collect_debate_judge_stream(
     if completion.finish_reason != "stop":
         raise DebateTurnStreamError("Judge stream did not finish normally", usage=completion.usage)
     if not deltas:
-        raise DebateTurnStreamError("Judge stream completed without text deltas", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Judge stream completed without text deltas", usage=completion.usage
+        )
     if "".join(deltas) != completion.draft.summary:
-        raise DebateTurnStreamError("Judge stream text does not match its completed draft", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Judge stream text does not match its completed draft", usage=completion.usage
+        )
     if len(completion.draft.summary) > request.max_output_chars:
-        raise DebateTurnStreamError("Completed Judge exceeded its output bound", usage=completion.usage)
-    if any(evidence_id not in request.allowed_evidence_ids for evidence_id in completion.draft.evidence_ids):
-        raise DebateTurnStreamError("Completed Judge cited evidence outside the snapshot", usage=completion.usage)
+        raise DebateTurnStreamError(
+            "Completed Judge exceeded its output bound", usage=completion.usage
+        )
+    if any(
+        evidence_id not in request.allowed_evidence_ids
+        for evidence_id in completion.draft.evidence_ids
+    ):
+        raise DebateTurnStreamError(
+            "Completed Judge cited evidence outside the snapshot", usage=completion.usage
+        )
     return CollectedDebateJudge(completion.draft, completion.usage, len(deltas))

@@ -2,9 +2,7 @@ import json
 from pathlib import Path
 
 import pytest
-
 from app.services.stock_catalog import CatalogSnapshotError, build_catalog_snapshot
-
 
 SOURCE_SHA256 = "a" * 64
 SNAPSHOT_PATH = (

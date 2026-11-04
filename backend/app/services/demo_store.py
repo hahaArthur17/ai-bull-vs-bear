@@ -1,11 +1,12 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import random
 from datetime import date, timedelta
+from pathlib import Path
 from threading import Lock
 
+from app.schemas import AnalysisHistoryPage, AnalysisResponse
 
 STOCKS: list[dict[str, object]] = [
     {
@@ -256,9 +257,7 @@ class DemoStore:
         normalized = (query or "").strip().lower()
         if not normalized:
             return [
-                stock.copy()
-                for stock in self._stocks
-                if stock["coverage_status"] == "debate_ready"
+                stock.copy() for stock in self._stocks if stock["coverage_status"] == "debate_ready"
             ][:bounded_limit]
 
         ranked: list[tuple[int, str, dict[str, object]]] = []
@@ -277,9 +276,7 @@ class DemoStore:
                 rank = 3
             elif len(normalized) >= 2 and any(alias.startswith(normalized) for alias in aliases):
                 rank = 4
-            elif len(normalized) >= 3 and normalized in " ".join(
-                [ticker, company_name, *aliases]
-            ):
+            elif len(normalized) >= 3 and normalized in " ".join([ticker, company_name, *aliases]):
                 rank = 5
             if rank is not None:
                 ranked.append((rank, ticker, stock))
@@ -390,5 +387,51 @@ class DemoStore:
     ) -> object | None:
         return self._analyses.get(user_id, {}).get(analysis_id)
 
-    def list_analyses(self, user_id: str, access_token: str | None = None) -> list[object]:
-        return list(self._analyses.get(user_id, {}).values())
+    def list_analyses(
+        self,
+        user_id: str,
+        access_token: str | None = None,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> list[object]:
+        rows = sorted(
+            self._analyses.get(user_id, {}).values(),
+            key=lambda item: getattr(item, "created_at", ""),
+            reverse=True,
+        )
+        start = max(0, offset)
+        return rows[start : start + max(1, min(limit, 100))]
+
+    def get_analysis_page(
+        self,
+        user_id: str,
+        access_token: str | None = None,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+    ) -> AnalysisHistoryPage:
+        rows = self.list_analyses(user_id, access_token, limit=limit, offset=offset)
+        size = max(1, min(limit, 100))
+        return AnalysisHistoryPage(
+            items=[row for row in rows if isinstance(row, AnalysisResponse)],
+            next_offset=max(0, offset) + len(rows) if len(rows) == size else None,
+        )
+
+    def find_analysis_by_claim(
+        self,
+        user_id: str,
+        claim_id: str,
+        access_token: str | None = None,
+    ) -> object | None:
+        return next(
+            (
+                item
+                for item in self._analyses.get(user_id, {}).values()
+                if any(
+                    getattr(getattr(item, side, None), "id", None) == claim_id
+                    for side in ("bull", "bear")
+                )
+            ),
+            None,
+        )

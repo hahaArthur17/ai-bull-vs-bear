@@ -8,7 +8,6 @@ from typing import Any
 from uuid import UUID
 
 import pytest
-
 from app.config import Settings
 from app.domain.agents import DebateTurnStreamDelta
 from app.domain.debate import DebateMessage
@@ -145,8 +144,7 @@ def test_live_provider_streams_plain_text_and_builds_server_owned_metadata() -> 
     result = collect(provider)
 
     assert result.draft.content == (
-        "Momentum offers a conditional constructive signal [E1], while volatility could "
-        "reverse it."
+        "Momentum offers a conditional constructive signal [E1], while volatility could reverse it."
     )
     assert result.draft.evidence_ids == ("news-1",)
     assert result.draft.confidence == "medium"
@@ -170,9 +168,7 @@ def test_live_provider_streams_plain_text_and_builds_server_owned_metadata() -> 
 
 
 def test_live_provider_accepts_a_smaller_explicit_completion_token_cap() -> None:
-    client = FakeGroqClient(
-        [chunk("A bounded grounded point [E1]."), chunk(finish_reason="stop")]
-    )
+    client = FakeGroqClient([chunk("A bounded grounded point [E1]."), chunk(finish_reason="stop")])
     provider = GroqStreamingDebateProvider(
         api_key="test-key",
         max_completion_tokens=220,
@@ -189,10 +185,12 @@ def test_live_provider_accepts_a_smaller_explicit_completion_token_cap() -> None
 def test_live_provider_buffers_trailing_whitespace_before_canonical_save() -> None:
     provider = GroqStreamingDebateProvider(
         api_key="test-key",
-        client=FakeGroqClient([
-            chunk("[E1] Demand might improve, but the result is uncertain.  "),
-            chunk(finish_reason="stop"),
-        ]),
+        client=FakeGroqClient(
+            [
+                chunk("[E1] Demand might improve, but the result is uncertain.  "),
+                chunk(finish_reason="stop"),
+            ]
+        ),
     )
 
     result = collect(provider)
@@ -360,9 +358,7 @@ def test_turn_prompt_uses_a_bounded_late_round_projection() -> None:
 
 
 def test_live_provider_defaults_to_an_800_token_completion_cap() -> None:
-    client = FakeGroqClient(
-        [chunk("A bounded grounded point [E1]."), chunk(finish_reason="stop")]
-    )
+    client = FakeGroqClient([chunk("A bounded grounded point [E1]."), chunk(finish_reason="stop")])
     provider = GroqStreamingDebateProvider(api_key="test-key", client=client)
 
     result = collect(provider, grounded_request(max_output_chars=1600))
@@ -467,9 +463,7 @@ def test_rate_limit_is_safely_classified_with_bounded_retry_after() -> None:
 def test_invalid_provider_output_remains_a_permanent_failure() -> None:
     provider = GroqStreamingDebateProvider(
         api_key="test-key",
-        client=FakeGroqClient(
-            [chunk("An uncited assertion."), chunk(finish_reason="stop")]
-        ),
+        client=FakeGroqClient([chunk("An uncited assertion."), chunk(finish_reason="stop")]),
     )
 
     with pytest.raises(DebateTurnStreamError) as error:
@@ -488,15 +482,11 @@ def test_provider_factory_defaults_off_and_requires_explicit_live_configuration(
             Settings(debate_streaming_provider="groq", groq_api_key=None)
         )
     with pytest.raises(GroqDebateConfigurationError, match="Unsupported"):
-        build_debate_streaming_turn_provider(
-            Settings(debate_streaming_provider="unknown")
-        )
+        build_debate_streaming_turn_provider(Settings(debate_streaming_provider="unknown"))
 
 
 def test_factory_builds_live_provider_with_current_model_and_mock_client() -> None:
-    client = FakeGroqClient(
-        [chunk("A grounded point [E1]."), chunk(finish_reason="stop")]
-    )
+    client = FakeGroqClient([chunk("A grounded point [E1]."), chunk(finish_reason="stop")])
     provider = build_debate_streaming_turn_provider(
         Settings(debate_streaming_provider="groq", groq_api_key="test-key"),
         groq_client=client,

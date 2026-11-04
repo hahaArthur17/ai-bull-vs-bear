@@ -2,8 +2,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import pytest
-from pydantic import ValidationError
-
 from app.domain.agents import (
     DebateJudgeDraft,
     DebateJudgeRequest,
@@ -14,7 +12,7 @@ from app.domain.debate import DebateMessage
 from app.domain.factors import FactorSnapshot
 from app.providers.debate_agents import DebateJudgeProvider, DebateTurnProvider
 from app.services.analysis_context import build_analysis_context
-
+from pydantic import ValidationError
 
 NOW = datetime(2026, 8, 27, 12, 0, tzinfo=timezone.utc)
 SESSION_ID = UUID("00000000-0000-4000-8000-000000000040")
@@ -137,4 +135,3 @@ def test_turn_and_judge_providers_are_structural_contracts() -> None:
     provider = ContractProvider()
     assert isinstance(provider, DebateTurnProvider)
     assert isinstance(provider, DebateJudgeProvider)
-

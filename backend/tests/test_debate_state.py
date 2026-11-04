@@ -2,7 +2,6 @@ from datetime import timedelta
 from uuid import UUID
 
 import pytest
-
 from app.services.debate_state import (
     DebateTransitionError,
     allowed_session_transitions,
@@ -11,7 +10,6 @@ from app.services.debate_state import (
     transition_session,
 )
 from test_debate_domain import NOW, build_session
-
 
 INTERIM_JUDGE_ID = UUID("00000000-0000-4000-8000-000000000020")
 FINAL_JUDGE_ID = UUID("00000000-0000-4000-8000-000000000021")

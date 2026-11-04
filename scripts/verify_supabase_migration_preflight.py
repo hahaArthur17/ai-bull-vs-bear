@@ -6,10 +6,8 @@ from __future__ import annotations
 import json
 
 import httpx
-
 from app.config import get_settings
 from app.services.supabase_headers import service_headers
-
 
 CATALOG_MIGRATIONS = (
     "20260827_stock_catalog_coverage.sql",
@@ -104,31 +102,23 @@ class HostedMigrationPreflight:
             raise RuntimeError("Supabase migration preflight returned an invalid schema")
         stock_definition = definitions.get("stocks")
         stock_properties = (
-            stock_definition.get("properties", {})
-            if isinstance(stock_definition, dict)
-            else {}
+            stock_definition.get("properties", {}) if isinstance(stock_definition, dict) else {}
         )
         if not isinstance(stock_properties, dict):
             stock_properties = {}
 
-        catalog_columns = {
-            column: column in stock_properties for column in CATALOG_COLUMNS
-        }
+        catalog_columns = {column: column in stock_properties for column in CATALOG_COLUMNS}
         catalog_rpc = "/rpc/search_stock_catalog" in paths
         debate_tables = {path: path in paths for path in DEBATE_TABLE_PATHS}
         debate_rpcs = {path: path in paths for path in DEBATE_RPC_PATHS}
         queue_rpcs = {path: path in paths for path in QUEUE_RPC_PATHS}
-        interruption_tables = {
-            path: path in paths for path in INTERRUPTION_TABLE_PATHS
-        }
-        interruption_rpcs = {
-            path: path in paths for path in INTERRUPTION_RPC_PATHS
-        }
+        interruption_tables = {path: path in paths for path in INTERRUPTION_TABLE_PATHS}
+        interruption_rpcs = {path: path in paths for path in INTERRUPTION_RPC_PATHS}
         catalog_deployed = all(catalog_columns.values()) and catalog_rpc
         debate_deployed = all(debate_tables.values()) and all(debate_rpcs.values())
         queue_deployed = all(queue_rpcs.values())
-        interruption_deployed = (
-            all(interruption_tables.values()) and all(interruption_rpcs.values())
+        interruption_deployed = all(interruption_tables.values()) and all(
+            interruption_rpcs.values()
         )
 
         required_migrations: list[str] = []

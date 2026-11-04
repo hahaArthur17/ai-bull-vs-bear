@@ -8,7 +8,6 @@ from pydantic import ConfigDict, Field, JsonValue, model_validator
 
 from app.domain.base import AwareDatetime, ImmutableDomainModel
 
-
 DebateEventType = Literal[
     "session.created",
     "job.queued",

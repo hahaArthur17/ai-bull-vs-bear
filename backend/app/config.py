@@ -5,7 +5,6 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 REPOSITORY_ENV_FILE = Path(__file__).resolve().parents[2] / ".env"
 
 
@@ -31,6 +30,7 @@ class Settings(BaseSettings):
     demo_user_id: str = "demo-user"
     persistence_mode: str = "demo"
     analysis_provider: str = "demo"
+    analysis_provider_timeout_seconds: float = Field(default=20, ge=5, le=120)
     # The legacy /analysis API remains the public default until V2 receives a
     # deliberate production deployment smoke test and rollback plan.
     debate_workflow_v2: bool = False
@@ -101,7 +101,7 @@ class Settings(BaseSettings):
     explanation_groq_model: str = "openai/gpt-oss-20b"
     explanation_provider_timeout_seconds: float = Field(default=20, ge=5, le=120)
     explanation_max_completion_tokens: int = Field(default=320, ge=60, le=600)
-    gemini_model: str = "gemini-2.0-flash"
+    gemini_model: str = "gemini-3.6-flash"
     cors_origins: str = "http://localhost:8081,http://localhost:19006"
 
     model_config = SettingsConfigDict(
@@ -160,9 +160,7 @@ class Settings(BaseSettings):
     @property
     def price_ticker_list(self) -> tuple[str, ...]:
         tickers = dict.fromkeys(
-            ticker.strip().upper()
-            for ticker in self.price_tickers.split(",")
-            if ticker.strip()
+            ticker.strip().upper() for ticker in self.price_tickers.split(",") if ticker.strip()
         )
         return tuple(tickers)[: self.price_max_calls_per_run]
 

@@ -11,7 +11,6 @@ import re
 import unicodedata
 from collections.abc import Mapping
 
-
 _ALIAS = re.compile(r"\[E[1-9][0-9]?\]")
 _QUOTE = re.compile(r'["“]([^"”]{20,})["”]')
 _BOUNDARY = re.compile(r"(?<=[.!?。！？])\s+|\n{2,}")
@@ -83,7 +82,9 @@ def _claims_source_support(sentence: str) -> bool:
                 continue
             if abs(assertion.start() - source.start()) > 160:
                 continue
-            between = sentence[min(source.end(), assertion.end()) : max(source.start(), assertion.start())]
+            between = sentence[
+                min(source.end(), assertion.end()) : max(source.start(), assertion.start())
+            ]
             if not _NEGATION.search(between[-25:]):
                 return True
         for noun in _ATTRIBUTED_NOUN.finditer(sentence, source.end()):
@@ -134,12 +135,12 @@ def sanitize_source_sentence(
         source_context and _PRONOUN_SOURCE_ASSERTION.search(sentence)
     )
     quoted_claim = bool(
-        _ALIAS.search(sentence)
-        and _QUOTE.search(sentence)
-        and not _DEBATE_QUOTE.search(sentence)
+        _ALIAS.search(sentence) and _QUOTE.search(sentence) and not _DEBATE_QUOTE.search(sentence)
     )
     metric_claim = bool(_METRIC.search(sentence)) and not _HYPOTHETICAL_PREFIX.search(sentence)
-    if not (source_claim or historical_claim or metric_claim or quoted_claim) or _has_supported_quote(sentence, excerpts):
+    if not (
+        source_claim or historical_claim or metric_claim or quoted_claim
+    ) or _has_supported_quote(sentence, excerpts):
         return sentence, False
     leading = re.match(r"\s*(?:\[E[1-9][0-9]?\]\s*)*", sentence)
     assert leading is not None

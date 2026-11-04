@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import date
 import re
-
+from datetime import date
 
 SEC_CATALOG_URL = "https://www.sec.gov/files/company_tickers_exchange.json"
 CATALOG_SCHEMA_VERSION = 1

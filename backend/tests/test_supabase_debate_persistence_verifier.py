@@ -8,7 +8,6 @@ from scripts.verify_supabase_debate_persistence import (
     HostedDebatePersistenceVerifier,
 )
 
-
 USER_ID = UUID("00000000-0000-4000-8000-000000000501")
 NOW = datetime(2026, 8, 29, 12, 0, tzinfo=timezone.utc)
 

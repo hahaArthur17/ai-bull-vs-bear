@@ -2,21 +2,19 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 import pytest
-
 from app.domain.agents import DebateJudgeRequest, DebateTurnRequest
 from app.domain.debate import DebateIntervention, DebateSession
 from app.domain.factors import FactorSnapshot
 from app.domain.jobs import DebateJob
 from app.providers.deterministic_debate import DeterministicDebateProvider
+from app.providers.evidence_factors import FilingFactorProvider, NewsFactorProvider
 from app.repositories.memory_debate_repository import InMemoryDebateRepository
-from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
 from app.services.debate_event_broker import InMemoryDebateEventBroker
+from app.services.debate_orchestrator import DebateOrchestrationError, DebateOrchestrator
 from app.services.debate_state import transition_session
 from app.services.factor_registry import FactorRegistry
-from app.providers.evidence_factors import FilingFactorProvider, NewsFactorProvider
 from test_current_factor_providers import build_current_context
 from test_debate_domain import BRANCH_ID, GENERATION_ID, NOW, SESSION_ID, USER_ID
-
 
 ROUND_ONE_JOB_ID = UUID("00000000-0000-4000-8000-000000000200")
 ROUND_TWO_JOB_ID = UUID("00000000-0000-4000-8000-000000000201")
@@ -161,8 +159,7 @@ def test_round_one_persists_six_mutual_turns_and_interim_judge() -> None:
     assert repository.get_job(ROUND_ONE_JOB_ID).provider_request_count == 7
     assert all(message.is_complete for message in messages)
     assert all(
-        repository.list_message_evidence(message.id, session.user_id)
-        for message in messages
+        repository.list_message_evidence(message.id, session.user_id) for message in messages
     )
 
     request_count = len(provider.turn_requests)
@@ -229,8 +226,7 @@ def test_user_challenge_runs_round_two_and_persists_final_judge() -> None:
         build_round_two_job(awaiting),
     )
     assert (
-        orchestrator.submit_challenge(challenge, build_round_two_job(awaiting))
-        == queued_round_two
+        orchestrator.submit_challenge(challenge, build_round_two_job(awaiting)) == queued_round_two
     )
     completed = orchestrator.execute_job(ROUND_TWO_JOB_ID)
     messages = repository.list_messages(
@@ -252,8 +248,7 @@ def test_user_challenge_runs_round_two_and_persists_final_judge() -> None:
     assert completed.final_judge_message_id == messages[-1].id
     assert provider.judge_requests[-1].phase == "final"
     assert all(
-        request.user_intervention == challenge.question
-        for request in provider.turn_requests[-4:]
+        request.user_intervention == challenge.question for request in provider.turn_requests[-4:]
     )
     assert repository.get_job(ROUND_TWO_JOB_ID).status == "completed"
     assert repository.get_job(ROUND_TWO_JOB_ID).provider_request_count == 5
@@ -288,11 +283,14 @@ def test_challenge_preparation_builds_records_without_mutating_persistence() -> 
     assert question.generation_id == queued.active_generation_id
     assert repository.get_session(awaiting.id, awaiting.user_id) == awaiting
     assert repository.get_job(ROUND_TWO_JOB_ID) is None
-    assert repository.list_messages(
-        awaiting.id,
-        awaiting.user_id,
-        branch_id=awaiting.active_branch_id,
-    ) == messages
+    assert (
+        repository.list_messages(
+            awaiting.id,
+            awaiting.user_id,
+            branch_id=awaiting.active_branch_id,
+        )
+        == messages
+    )
 
 
 def test_provider_failure_marks_session_and_job_with_safe_codes() -> None:
@@ -318,13 +316,16 @@ def test_provider_failure_marks_session_and_job_with_safe_codes() -> None:
     assert failed_job.status == "failed"
     assert failed_job.safe_error_code == "debate_execution_failed"
     assert failed_job.provider_request_count == 3
-    assert len(
-        repository.list_messages(
-            queued.id,
-            queued.user_id,
-            branch_id=queued.active_branch_id,
+    assert (
+        len(
+            repository.list_messages(
+                queued.id,
+                queued.user_id,
+                branch_id=queued.active_branch_id,
+            )
         )
-    ) == 2
+        == 2
+    )
 
 
 def test_presentation_contract_preserves_frozen_evidence_allowlist_rejection() -> None:
@@ -343,11 +344,14 @@ def test_presentation_contract_preserves_frozen_evidence_allowlist_rejection() -
     with pytest.raises(DebateOrchestrationError, match="execution failed"):
         orchestrator.execute_job(job.id)
 
-    assert repository.list_messages(
-        queued.id,
-        queued.user_id,
-        branch_id=queued.active_branch_id,
-    ) == []
+    assert (
+        repository.list_messages(
+            queued.id,
+            queued.user_id,
+            branch_id=queued.active_branch_id,
+        )
+        == []
+    )
     assert not any(event.type == "turn.completed" for event in broker.replay(queued.id))
 
 
@@ -385,15 +389,13 @@ def test_round_one_publishes_ordered_reconstructable_preview_events() -> None:
         deltas = [
             str(event.payload["delta"])
             for event in events
-            if event.type == "turn.delta"
-            and event.payload["message_id"] == message_id
+            if event.type == "turn.delta" and event.payload["message_id"] == message_id
         ]
         assert "".join(deltas) == message["content"]
         assert all(
             event.payload["source"] == "buffered_compatibility"
             for event in events
-            if event.type == "turn.delta"
-            and event.payload["message_id"] == message_id
+            if event.type == "turn.delta" and event.payload["message_id"] == message_id
         )
         presentation = completed_event.payload["presentation"]
         assert isinstance(presentation, dict)
@@ -433,9 +435,7 @@ def test_provider_failure_publishes_only_a_safe_terminal_event() -> None:
     events = broker.replay(queued.id)
     assert events[-1].type == "session.failed"
     assert events[-1].payload["safe_error_code"] == "debate_execution_failed"
-    assert "private provider failure" not in "".join(
-        event.model_dump_json() for event in events
-    )
+    assert "private provider failure" not in "".join(event.model_dump_json() for event in events)
 
 
 def test_transient_event_failure_does_not_block_canonical_workflow() -> None:
@@ -458,13 +458,16 @@ def test_transient_event_failure_does_not_block_canonical_workflow() -> None:
     session = orchestrator.execute_job(job.id)
 
     assert session.status == "awaiting_user"
-    assert len(
-        repository.list_messages(
-            session.id,
-            session.user_id,
-            branch_id=session.active_branch_id,
+    assert (
+        len(
+            repository.list_messages(
+                session.id,
+                session.user_id,
+                branch_id=session.active_branch_id,
+            )
         )
-    ) == 7
+        == 7
+    )
 
 
 def test_queued_cancellation_is_immediate_idempotent_and_generation_scoped() -> None:

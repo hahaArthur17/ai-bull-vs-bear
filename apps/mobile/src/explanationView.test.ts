@@ -10,7 +10,6 @@ import {
 } from "./explanationView.ts";
 import type { DebateMessageRecord } from "./types";
 
-
 const message: DebateMessageRecord = {
   message: {
     id: "message-1",
@@ -30,7 +29,6 @@ const message: DebateMessageRecord = {
   },
   citations: [],
 };
-
 
 test("Explanation terms must be exact selections from eligible messages", () => {
   assert.equal(exactExplanationTerm(message, " moving average "), "moving average");
@@ -62,7 +60,7 @@ test("Explanation terms must be exact selections from eligible messages", () => 
   );
   assert.equal(
     defaultExplanationQuestion("moving average"),
-    "What does \"moving average\" mean in this message?",
+    'What does "moving average" mean in this message?',
   );
 });
 

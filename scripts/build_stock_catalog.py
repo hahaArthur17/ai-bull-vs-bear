@@ -4,8 +4,8 @@
 from __future__ import annotations
 
 import argparse
-from hashlib import sha256
 import json
+from hashlib import sha256
 from pathlib import Path
 
 from app.services.stock_catalog import CatalogSnapshotError, build_catalog_snapshot

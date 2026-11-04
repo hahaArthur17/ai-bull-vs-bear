@@ -4,18 +4,17 @@
 from __future__ import annotations
 
 import argparse
-from math import ceil
 import json
 import platform
+from math import ceil
 from statistics import median
 from time import perf_counter_ns, sleep
-
-from fastapi.testclient import TestClient
 
 from app import main
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.demo_store import DemoStore
 from app.services.response_cache import JsonResponseCache
+from fastapi.testclient import TestClient
 
 
 class DelayedCountingStore(DemoStore):
@@ -56,9 +55,7 @@ def timed_stock_search(client: TestClient) -> tuple[float, str, object]:
     if response.status_code != 200:
         raise RuntimeError(f"Stock search returned HTTP {response.status_code}")
     payload = response.json()
-    if not isinstance(payload, list) or [item.get("ticker") for item in payload] != [
-        "AAPL"
-    ]:
+    if not isinstance(payload, list) or [item.get("ticker") for item in payload] != ["AAPL"]:
         raise RuntimeError("Stock search returned an unexpected payload")
     return elapsed_ms, response.headers["x-cache-status"], payload
 
@@ -107,8 +104,7 @@ def run_scenario(
         "requests": iterations,
         "repository_calls": store.list_stock_calls,
         "cache_status_counts": {
-            status: statuses.count(status)
-            for status in ("BYPASS", "MISS", "HIT", "DEGRADED")
+            status: statuses.count(status) for status in ("BYPASS", "MISS", "HIT", "DEGRADED")
         },
         "cold_miss_ms": round(timings[0], 3) if cache_enabled else None,
         "measured": summarize(measured_timings),

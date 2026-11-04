@@ -20,16 +20,13 @@ export function createExplanationRequestGate(): ExplanationRequestGate {
   };
 }
 
-export function exactExplanationTerm(
-  record: DebateMessageRecord,
-  term: string,
-): string | null {
+export function exactExplanationTerm(record: DebateMessageRecord, term: string): string | null {
   const selectedText = term.trim();
   if (
-    !isExplanationSource(record)
-    || !selectedText
-    || selectedText.length > 500
-    || !record.message.content.includes(selectedText)
+    !isExplanationSource(record) ||
+    !selectedText ||
+    selectedText.length > 500 ||
+    !record.message.content.includes(selectedText)
   ) {
     return null;
   }
@@ -41,12 +38,11 @@ export function exactExplanationTerm(
  * claim. Empty before-output anchors intentionally have no Explanation action.
  */
 export function isExplanationSource(record: DebateMessageRecord): boolean {
-  return record.message.is_complete || (
-    record.message.metadata.interrupted === true
-    && record.message.content.trim().length > 0
+  return (
+    record.message.is_complete ||
+    (record.message.metadata.interrupted === true && record.message.content.trim().length > 0)
   );
 }
-
 
 export function defaultExplanationQuestion(term: string): string {
   return `What does "${term}" mean in this message?`;

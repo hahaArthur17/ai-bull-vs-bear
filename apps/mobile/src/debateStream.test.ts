@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { DebateStreamSnapshot } from "./debateStream.ts";
 import {
   DebateCursorExpiredError,
   DebateStreamClient,
@@ -8,13 +9,7 @@ import {
   createCanonicalDebateSnapshot,
   reduceDebateEvent,
 } from "./debateStream.ts";
-import type { DebateStreamSnapshot } from "./debateStream.ts";
-import type {
-  DebateEvent,
-  DebateMessage,
-  DebateSessionDetail,
-} from "./types";
-
+import type { DebateEvent, DebateMessage, DebateSessionDetail } from "./types";
 
 function event(
   sequence: number,
@@ -31,7 +26,6 @@ function event(
     payload,
   };
 }
-
 
 function message(content: string): DebateMessage {
   return {
@@ -54,7 +48,6 @@ function message(content: string): DebateMessage {
   };
 }
 
-
 function detail(status: DebateSessionDetail["session"]["status"]): DebateSessionDetail {
   return {
     session: {
@@ -72,19 +65,15 @@ function detail(status: DebateSessionDetail["session"]["status"]): DebateSession
   };
 }
 
-
 test("SSE parser preserves fragmented multi-line data", () => {
   const parser = new SseFrameParser();
 
-  assert.deepEqual(parser.push("id: 1\nevent: turn.delta\ndata: {\"a\":"), []);
-  assert.deepEqual(parser.push("1}\n\n"), [
-    { id: "1", event: "turn.delta", data: "{\"a\":1}" },
-  ]);
+  assert.deepEqual(parser.push('id: 1\nevent: turn.delta\ndata: {"a":'), []);
+  assert.deepEqual(parser.push("1}\n\n"), [{ id: "1", event: "turn.delta", data: '{"a":1}' }]);
   assert.deepEqual(parser.push(": heartbeat comment\r\ndata: first\r\ndata: second\r\n\r\n"), [
     { id: null, event: "message", data: "first\nsecond" },
   ]);
 });
-
 
 test("reducer keeps deltas temporary and replaces them with canonical completion", () => {
   let snapshot: DebateStreamSnapshot = {
@@ -100,57 +89,72 @@ test("reducer keeps deltas temporary and replaces them with canonical completion
     retryDelaySeconds: null,
     safeError: null,
   };
-  snapshot = reduceDebateEvent(snapshot, event(1, "turn.started", {
-    message_id: "message-1",
-    generation_id: "generation-1",
-    role: "bull",
-  })).snapshot;
-  snapshot = reduceDebateEvent(snapshot, event(2, "turn.delta", {
-    message_id: "message-1",
-    generation_id: "generation-1",
-    delta_index: 1,
-    delta: "Grounded ",
-  })).snapshot;
-  snapshot = reduceDebateEvent(snapshot, event(3, "turn.delta", {
-    message_id: "message-1",
-    generation_id: "generation-1",
-    delta_index: 2,
-    delta: "argument.",
-  })).snapshot;
-  snapshot = reduceDebateEvent(snapshot, event(4, "turn.citation", {
-    message_id: "message-1",
-    generation_id: "generation-1",
-    evidence_id: "news-1",
-    citation_order: 1,
-    support_span: "Persisted evidence span.",
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(1, "turn.started", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+      role: "bull",
+    }),
+  ).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(2, "turn.delta", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+      delta_index: 1,
+      delta: "Grounded ",
+    }),
+  ).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(3, "turn.delta", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+      delta_index: 2,
+      delta: "argument.",
+    }),
+  ).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(4, "turn.citation", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+      evidence_id: "news-1",
+      citation_order: 1,
+      support_span: "Persisted evidence span.",
+    }),
+  ).snapshot;
 
   assert.equal(snapshot.drafts["message-1"].content, "Grounded argument.");
   assert.equal(snapshot.canonicalMessages.length, 0);
 
-  snapshot = reduceDebateEvent(snapshot, event(5, "turn.completed", {
-    generation_id: "generation-1",
-    message: message("Grounded argument."),
-    presentation: {
-      argument: "Grounded argument.",
-      facts_used: [
-        {
-          evidence_id: "news-1",
-          evidence_type: "news",
-          title: "Dated evidence",
-          fact: "A frozen evidence excerpt.",
-          source: "Review fixture news",
-          date: "2026-08-28T00:00:00Z",
-          freshness: { status: "current", age_days: 0 },
-          support_span: "Persisted evidence span.",
-          source_destination: "https://example.com/evidence",
-          missing_metadata: [],
-        },
-      ],
-      interpretation: "A bounded reading of the snapshot.",
-      uncertainty: "Future evidence can change this reading.",
-    },
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(5, "turn.completed", {
+      generation_id: "generation-1",
+      message: message("Grounded argument."),
+      presentation: {
+        argument: "Grounded argument.",
+        facts_used: [
+          {
+            evidence_id: "news-1",
+            evidence_type: "news",
+            title: "Dated evidence",
+            fact: "A frozen evidence excerpt.",
+            source: "Review fixture news",
+            date: "2026-08-28T00:00:00Z",
+            freshness: { status: "current", age_days: 0 },
+            support_span: "Persisted evidence span.",
+            source_destination: "https://example.com/evidence",
+            missing_metadata: [],
+          },
+        ],
+        interpretation: "A bounded reading of the snapshot.",
+        uncertainty: "Future evidence can change this reading.",
+      },
+    }),
+  ).snapshot;
 
   assert.deepEqual(snapshot.drafts, {});
   assert.equal(snapshot.canonicalMessages[0].message.content, "Grounded argument.");
@@ -158,7 +162,6 @@ test("reducer keeps deltas temporary and replaces them with canonical completion
   assert.equal(snapshot.canonicalMessages[0].citations[0].support_span, "Persisted evidence span.");
   assert.equal(snapshot.canonicalMessages[0].presentation?.facts_used[0].evidence_id, "news-1");
 });
-
 
 test("reducer retains loaded presentation when a compatible retained event omits it", () => {
   const loadedPresentation = {
@@ -170,11 +173,13 @@ test("reducer retains loaded presentation when a compatible retained event omits
   const snapshot: DebateStreamSnapshot = {
     status: "live",
     sessionStatus: "running_round_1",
-    canonicalMessages: [{
-      message: message("Already loaded canonical argument."),
-      citations: [],
-      presentation: loadedPresentation,
-    }],
+    canonicalMessages: [
+      {
+        message: message("Already loaded canonical argument."),
+        citations: [],
+        presentation: loadedPresentation,
+      },
+    ],
     drafts: {},
     lastSequence: 0,
     activeGenerationId: "generation-1",
@@ -185,41 +190,78 @@ test("reducer retains loaded presentation when a compatible retained event omits
     safeError: null,
   };
 
-  const reduced = reduceDebateEvent(snapshot, event(1, "turn.completed", {
-    generation_id: "generation-1",
-    message: message("Already loaded canonical argument."),
-  }));
+  const reduced = reduceDebateEvent(
+    snapshot,
+    event(1, "turn.completed", {
+      generation_id: "generation-1",
+      message: message("Already loaded canonical argument."),
+    }),
+  );
 
   assert.deepEqual(reduced.snapshot.canonicalMessages[0].presentation, loadedPresentation);
 });
 
 test("deterministic Judge completion and future ordered Judge deltas both preserve the draft contract", () => {
   let snapshot: DebateStreamSnapshot = {
-    status: "live", sessionStatus: "running_round_1", canonicalMessages: [], drafts: {}, lastSequence: 0,
-    activeGenerationId: "generation-1", jobId: null, jobStatus: "running", jobAttemptCount: 1,
-    retryDelaySeconds: null, safeError: null,
+    status: "live",
+    sessionStatus: "running_round_1",
+    canonicalMessages: [],
+    drafts: {},
+    lastSequence: 0,
+    activeGenerationId: "generation-1",
+    jobId: null,
+    jobStatus: "running",
+    jobAttemptCount: 1,
+    retryDelaySeconds: null,
+    safeError: null,
   };
-  snapshot = reduceDebateEvent(snapshot, event(1, "judge.started", {
-    message_id: "message-1", generation_id: "generation-1",
-  })).snapshot;
-  snapshot = reduceDebateEvent(snapshot, event(2, "judge.completed", {
-    generation_id: "generation-1", message: { ...message("Deterministic Judge."), role: "judge" },
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(1, "judge.started", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+    }),
+  ).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(2, "judge.completed", {
+      generation_id: "generation-1",
+      message: { ...message("Deterministic Judge."), role: "judge" },
+    }),
+  ).snapshot;
   assert.equal(snapshot.canonicalMessages[0].message.content, "Deterministic Judge.");
 
-  snapshot = { ...snapshot, canonicalMessages: [], drafts: {}, lastSequence: 0 };
-  snapshot = reduceDebateEvent(snapshot, event(1, "judge.started", {
-    message_id: "message-1", generation_id: "generation-1",
-  })).snapshot;
-  snapshot = reduceDebateEvent(snapshot, event(2, "judge.delta", {
-    message_id: "message-1", generation_id: "generation-1", delta_index: 1, delta: "Streaming Judge.",
-  })).snapshot;
-  snapshot = reduceDebateEvent(snapshot, event(3, "judge.completed", {
-    generation_id: "generation-1", message: { ...message("Streaming Judge."), role: "judge" },
-  })).snapshot;
+  snapshot = {
+    ...snapshot,
+    canonicalMessages: [],
+    drafts: {},
+    lastSequence: 0,
+  };
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(1, "judge.started", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+    }),
+  ).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(2, "judge.delta", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+      delta_index: 1,
+      delta: "Streaming Judge.",
+    }),
+  ).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(3, "judge.completed", {
+      generation_id: "generation-1",
+      message: { ...message("Streaming Judge."), role: "judge" },
+    }),
+  ).snapshot;
   assert.equal(snapshot.canonicalMessages[0].message.content, "Streaming Judge.");
 });
-
 
 test("reducer rejects a missing event or provider delta", () => {
   const snapshot: DebateStreamSnapshot = {
@@ -236,14 +278,18 @@ test("reducer rejects a missing event or provider delta", () => {
     safeError: null,
   };
 
-  assert.throws(() => reduceDebateEvent(snapshot, event(6, "turn.delta", {
-    message_id: "message-1",
-    generation_id: "generation-1",
-    delta_index: 2,
-    delta: "late",
-  })));
+  assert.throws(() =>
+    reduceDebateEvent(
+      snapshot,
+      event(6, "turn.delta", {
+        message_id: "message-1",
+        generation_id: "generation-1",
+        delta_index: 2,
+        delta: "late",
+      }),
+    ),
+  );
 });
-
 
 test("reducer advances past a late event without mutating the active generation", () => {
   const snapshot: DebateStreamSnapshot = {
@@ -269,18 +315,20 @@ test("reducer advances past a late event without mutating the active generation"
     safeError: null,
   };
 
-  const reduced = reduceDebateEvent(snapshot, event(4, "turn.delta", {
-    message_id: "old-message",
-    generation_id: "old-generation",
-    delta_index: 99,
-    delta: "must be ignored",
-  }));
+  const reduced = reduceDebateEvent(
+    snapshot,
+    event(4, "turn.delta", {
+      message_id: "old-message",
+      generation_id: "old-generation",
+      delta_index: 99,
+      delta: "must be ignored",
+    }),
+  );
 
   assert.equal(reduced.snapshot.lastSequence, 4);
   assert.equal(reduced.snapshot.drafts["message-1"].content, "current");
   assert.equal(reduced.snapshot.drafts["old-message"], undefined);
 });
-
 
 test("reducer exposes queued running retry and failure job states", () => {
   let snapshot: DebateStreamSnapshot = {
@@ -297,41 +345,52 @@ test("reducer exposes queued running retry and failure job states", () => {
     safeError: null,
   };
 
-  snapshot = reduceDebateEvent(snapshot, event(1, "job.queued", {
-    job_id: "job-1",
-    generation_id: "generation-1",
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(1, "job.queued", {
+      job_id: "job-1",
+      generation_id: "generation-1",
+    }),
+  ).snapshot;
   assert.equal(snapshot.jobStatus, "queued");
   assert.equal(snapshot.jobId, "job-1");
 
-  snapshot = reduceDebateEvent(snapshot, event(2, "job.started", {
-    job_id: "job-1",
-    generation_id: "generation-1",
-    attempt_count: 1,
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(2, "job.started", {
+      job_id: "job-1",
+      generation_id: "generation-1",
+      attempt_count: 1,
+    }),
+  ).snapshot;
   assert.equal(snapshot.jobStatus, "running");
   assert.equal(snapshot.jobAttemptCount, 1);
 
-  snapshot = reduceDebateEvent(snapshot, event(3, "job.retry_scheduled", {
-    job_id: "job-1",
-    generation_id: "generation-1",
-    attempt_count: 1,
-    retry_delay_seconds: 4,
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(3, "job.retry_scheduled", {
+      job_id: "job-1",
+      generation_id: "generation-1",
+      attempt_count: 1,
+      retry_delay_seconds: 4,
+    }),
+  ).snapshot;
   assert.equal(snapshot.jobStatus, "retry_scheduled");
   assert.equal(snapshot.retryDelaySeconds, 4);
 
-  snapshot = reduceDebateEvent(snapshot, event(4, "job.failed", {
-    job_id: "job-1",
-    generation_id: "generation-1",
-    attempt_count: 3,
-    safe_error_code: "debate_retry_exhausted",
-  })).snapshot;
+  snapshot = reduceDebateEvent(
+    snapshot,
+    event(4, "job.failed", {
+      job_id: "job-1",
+      generation_id: "generation-1",
+      attempt_count: 3,
+      safe_error_code: "debate_retry_exhausted",
+    }),
+  ).snapshot;
   assert.equal(snapshot.jobStatus, "failed");
   assert.equal(snapshot.jobAttemptCount, 3);
   assert.equal(snapshot.retryDelaySeconds, null);
 });
-
 
 test("cancellation rotates generation, clears drafts, and ignores late output", () => {
   const snapshot: DebateStreamSnapshot = {
@@ -357,33 +416,41 @@ test("cancellation rotates generation, clears drafts, and ignores late output", 
     safeError: null,
   };
 
-  const requested = reduceDebateEvent(snapshot, event(4, "session.cancel_requested", {
-    status: "cancel_requested",
-    cancelled_generation_id: "generation-1",
-    generation_id: "cancel-generation",
-  }));
+  const requested = reduceDebateEvent(
+    snapshot,
+    event(4, "session.cancel_requested", {
+      status: "cancel_requested",
+      cancelled_generation_id: "generation-1",
+      generation_id: "cancel-generation",
+    }),
+  );
   assert.equal(requested.terminal, false);
   assert.equal(requested.snapshot.activeGenerationId, "cancel-generation");
   assert.deepEqual(requested.snapshot.drafts, {});
 
-  const late = reduceDebateEvent(requested.snapshot, event(5, "turn.delta", {
-    message_id: "message-1",
-    generation_id: "generation-1",
-    delta_index: 2,
-    delta: " that must be ignored",
-  }));
+  const late = reduceDebateEvent(
+    requested.snapshot,
+    event(5, "turn.delta", {
+      message_id: "message-1",
+      generation_id: "generation-1",
+      delta_index: 2,
+      delta: " that must be ignored",
+    }),
+  );
   assert.equal(late.snapshot.lastSequence, 5);
   assert.deepEqual(late.snapshot.drafts, {});
 
-  const cancelled = reduceDebateEvent(late.snapshot, event(6, "session.cancelled", {
-    status: "cancelled",
-    generation_id: "cancel-generation",
-  }));
+  const cancelled = reduceDebateEvent(
+    late.snapshot,
+    event(6, "session.cancelled", {
+      status: "cancelled",
+      generation_id: "cancel-generation",
+    }),
+  );
   assert.equal(cancelled.terminal, true);
   assert.equal(cancelled.snapshot.status, "closed");
   assert.equal(cancelled.snapshot.sessionStatus, "cancelled");
 });
-
 
 test("canonical snapshot exposes durable session and queued job state", () => {
   const queued = detail("queued_round_1");
@@ -406,7 +473,6 @@ test("canonical snapshot exposes durable session and queued job state", () => {
   assert.equal(snapshot.jobId, "job-1");
 });
 
-
 test("client reloads canonical state at the server recovery cursor", async () => {
   let openCount = 0;
   const cursors: number[] = [];
@@ -421,10 +487,12 @@ test("client reloads canonical state at the server recovery cursor", async () =>
         cursors.push(options.afterSequence);
         openCount += 1;
         if (openCount === 1) throw new DebateCursorExpiredError(7);
-        options.onEvent(event(8, "session.awaiting_user", {
-          generation_id: "generation-1",
-          status: "awaiting_user",
-        }));
+        options.onEvent(
+          event(8, "session.awaiting_user", {
+            generation_id: "generation-1",
+            status: "awaiting_user",
+          }),
+        );
       },
     },
   });
@@ -440,8 +508,12 @@ test("Round 2 replay ignores an earlier Stop and resumes live Round 2 output", a
   const roundTwoDetail = detail("running_round_2");
   roundTwoDetail.session.active_generation_id = "generation-2";
   roundTwoDetail.job = {
-    id: "round-2-job", session_id: "session-1", job_type: "round_2",
-    status: "running", attempt_count: 1, max_attempts: 1,
+    id: "round-2-job",
+    session_id: "session-1",
+    job_type: "round_2",
+    status: "running",
+    attempt_count: 1,
+    max_attempts: 1,
   };
   const client = new DebateStreamClient({
     eventUrl: "https://example.test/debates/session-1/events",
@@ -450,52 +522,93 @@ test("Round 2 replay ignores an earlier Stop and resumes live Round 2 output", a
     onSnapshot: (snapshot) => snapshots.push(snapshot),
     transport: {
       open: async (options) => {
-        options.onEvent(event(1, "session.created", {
-          generation_id: "generation-1", status: "queued_round_1",
-        }));
+        options.onEvent(
+          event(1, "session.created", {
+            generation_id: "generation-1",
+            status: "queued_round_1",
+          }),
+        );
         options.onEvent(event(2, "job.queued", { job_id: "round-1-job" }));
-        options.onEvent(event(3, "job.started", {
-          job_id: "round-1-job", job_type: "round_1", attempt_count: 1,
-        }));
+        options.onEvent(
+          event(3, "job.started", {
+            job_id: "round-1-job",
+            job_type: "round_1",
+            attempt_count: 1,
+          }),
+        );
         assert.equal(snapshots.at(-1)?.sessionStatus, "running_round_2");
-        options.onEvent(event(4, "session.interrupted_awaiting_user", {
-          cancelled_generation_id: "generation-1",
-          generation_id: "interrupted-generation", status: "interrupted_awaiting_user",
-        }));
+        options.onEvent(
+          event(4, "session.interrupted_awaiting_user", {
+            cancelled_generation_id: "generation-1",
+            generation_id: "interrupted-generation",
+            status: "interrupted_awaiting_user",
+          }),
+        );
         assert.equal(snapshots.at(-1)?.activeGenerationId, "generation-2");
         assert.equal(snapshots.at(-1)?.sessionStatus, "running_round_2");
-        options.onEvent(event(5, "job.queued", {
-          generation_id: "resumed-generation", job_id: "resumed-job", job_type: "round_1",
-        }));
-        options.onEvent(event(6, "session.awaiting_user", {
-          generation_id: "resumed-generation", status: "awaiting_user",
-        }));
-        options.onEvent(event(7, "job.queued", {
-          generation_id: "generation-2", job_id: "round-2-job", job_type: "round_2",
-        }));
+        options.onEvent(
+          event(5, "job.queued", {
+            generation_id: "resumed-generation",
+            job_id: "resumed-job",
+            job_type: "round_1",
+          }),
+        );
+        options.onEvent(
+          event(6, "session.awaiting_user", {
+            generation_id: "resumed-generation",
+            status: "awaiting_user",
+          }),
+        );
+        options.onEvent(
+          event(7, "job.queued", {
+            generation_id: "generation-2",
+            job_id: "round-2-job",
+            job_type: "round_2",
+          }),
+        );
         assert.equal(snapshots.at(-1)?.sessionStatus, "queued_round_2");
-        options.onEvent(event(8, "job.started", {
-          job_id: "round-2-job", job_type: "round_2", attempt_count: 1,
-        }));
+        options.onEvent(
+          event(8, "job.started", {
+            job_id: "round-2-job",
+            job_type: "round_2",
+            attempt_count: 1,
+          }),
+        );
         assert.equal(snapshots.at(-1)?.sessionStatus, "running_round_2");
-        options.onEvent(event(9, "turn.started", {
-          generation_id: "generation-2", message_id: "round-2-message", role: "bull",
-        }));
-        options.onEvent(event(10, "turn.delta", {
-          generation_id: "generation-2", message_id: "round-2-message",
-          delta_index: 1, delta: "Round 2 reply",
-        }));
-        options.onEvent(event(11, "turn.completed", {
-          generation_id: "generation-2",
-          message: {
-            ...message("Round 2 reply"), id: "round-2-message",
-            generation_id: "generation-2", round_number: 2, sequence_number: 11,
-          },
-        }));
+        options.onEvent(
+          event(9, "turn.started", {
+            generation_id: "generation-2",
+            message_id: "round-2-message",
+            role: "bull",
+          }),
+        );
+        options.onEvent(
+          event(10, "turn.delta", {
+            generation_id: "generation-2",
+            message_id: "round-2-message",
+            delta_index: 1,
+            delta: "Round 2 reply",
+          }),
+        );
+        options.onEvent(
+          event(11, "turn.completed", {
+            generation_id: "generation-2",
+            message: {
+              ...message("Round 2 reply"),
+              id: "round-2-message",
+              generation_id: "generation-2",
+              round_number: 2,
+              sequence_number: 11,
+            },
+          }),
+        );
         assert.equal(snapshots.at(-1)?.canonicalMessages.at(-1)?.message.content, "Round 2 reply");
-        options.onEvent(event(12, "session.completed", {
-          generation_id: "generation-2", status: "completed",
-        }));
+        options.onEvent(
+          event(12, "session.completed", {
+            generation_id: "generation-2",
+            status: "completed",
+          }),
+        );
       },
     },
   });
@@ -525,10 +638,12 @@ test("client retries a transient canonical load failure before opening the strea
     transport: {
       open: async (options) => {
         cursors.push(options.afterSequence);
-        options.onEvent(event(1, "session.awaiting_user", {
-          generation_id: "generation-1",
-          status: "awaiting_user",
-        }));
+        options.onEvent(
+          event(1, "session.awaiting_user", {
+            generation_id: "generation-1",
+            status: "awaiting_user",
+          }),
+        );
       },
     },
   });
@@ -549,7 +664,11 @@ test("client reports an exhausted event transport as a failed stream snapshot", 
     loadCanonical: async () => detail("running_round_2"),
     onSnapshot: (snapshot) => statuses.push(snapshot.status),
     maxReconnectAttempts: 0,
-    transport: { open: async () => { throw new Error("connection closed unexpectedly"); } },
+    transport: {
+      open: async () => {
+        throw new Error("connection closed unexpectedly");
+      },
+    },
   });
 
   await client.start();
@@ -561,18 +680,24 @@ test("an interruption from another client reloads the shortened canonical transc
   let loads = 0;
   const received: DebateStreamSnapshot[] = [];
   const client = new DebateStreamClient({
-    eventUrl: "https://example.test/events", getAccessToken: async () => "test-token",
+    eventUrl: "https://example.test/events",
+    getAccessToken: async () => "test-token",
     loadCanonical: async () => {
       loads += 1;
       return detail(loads === 1 ? "running_round_1" : "interrupted_awaiting_user");
     },
     onSnapshot: (snapshot) => received.push(snapshot),
-    transport: { open: async (options) => {
-      options.onEvent(event(1, "session.interrupted_awaiting_user", {
-        status: "interrupted_awaiting_user", generation_id: "new-generation",
-        cancelled_generation_id: "generation-1",
-      }));
-    } },
+    transport: {
+      open: async (options) => {
+        options.onEvent(
+          event(1, "session.interrupted_awaiting_user", {
+            status: "interrupted_awaiting_user",
+            generation_id: "new-generation",
+            cancelled_generation_id: "generation-1",
+          }),
+        );
+      },
+    },
   });
   await client.start();
   assert.equal(loads, 2);

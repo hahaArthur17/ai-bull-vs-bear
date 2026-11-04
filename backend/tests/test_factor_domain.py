@@ -1,6 +1,4 @@
 import pytest
-from pydantic import ValidationError
-
 from app.domain.factors import (
     AnalysisContext,
     AnalysisEvidenceItem,
@@ -12,6 +10,7 @@ from app.domain.factors import (
     FactorSourceReference,
 )
 from app.services.analysis_context import build_analysis_context
+from pydantic import ValidationError
 
 
 def build_context() -> AnalysisContext:

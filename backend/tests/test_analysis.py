@@ -1,5 +1,39 @@
+import pytest
 from app.services.analysis import AnalysisService
 from app.services.demo_store import DemoStore
+from app.services.model_provider import ProviderClaim
+
+
+@pytest.mark.parametrize("citations", [[], ["invented"], ["real", "invented"]])
+def test_bb003_unsupported_provider_claim_is_withheld_without_fabricated_links(citations) -> None:
+    claim, rewritten = AnalysisService._claim_from_provider(
+        "bull",
+        ProviderClaim(
+            text="Revenue doubled last quarter.",
+            evidence_ids=citations,
+            risk_meaning="New results may differ.",
+            confidence="high",
+        ),
+        {"real"},
+    )
+    assert "Revenue doubled" not in claim.text
+    assert claim.evidence_ids == []
+    assert claim.confidence == "low" and claim.signal_strength == "weak"
+    assert rewritten
+
+
+def test_bb003_valid_source_membership_is_preserved_without_adding_other_sources() -> None:
+    claim, rewritten = AnalysisService._claim_from_provider(
+        "bear",
+        ProviderClaim(
+            text="A conditional interpretation",
+            evidence_ids=["real", "real"],
+            risk_meaning="Uncertainty remains.",
+        ),
+        {"real", "unrelated"},
+    )
+    assert claim.evidence_ids == ["real"]
+    assert not rewritten
 
 
 def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
@@ -8,7 +42,9 @@ def test_analysis_contains_bull_bear_evidence_and_trace() -> None:
     assert response.ticker == "AAPL"
     assert response.bull.evidence_ids
     assert response.bear.evidence_ids
-    assert {item.id for item in response.evidence} >= set(response.bull.evidence_ids + response.bear.evidence_ids)
+    assert {item.id for item in response.evidence} >= set(
+        response.bull.evidence_ids + response.bear.evidence_ids
+    )
     assert response.snapshot.price.as_of == response.indicators.as_of
     assert response.snapshot.price.source == "demo_fallback"
     assert response.snapshot.missing_current_evidence == ["news", "filing"]
@@ -151,9 +187,9 @@ class MacroSnapshotStore(DemoStore):
 def test_analysis_freezes_macro_context_known_at_the_close() -> None:
     response = AnalysisService(MacroSnapshotStore()).create("AAPL")
 
-    assert [(item.code, item.observation_date, item.value) for item in response.snapshot.macro_context] == [
-        ("vix", "2000-01-03", 24.5)
-    ]
+    assert [
+        (item.code, item.observation_date, item.value) for item in response.snapshot.macro_context
+    ] == [("vix", "2000-01-03", 24.5)]
     assert "CBOE Volatility Index (2000-01-03)" in response.bull.text
     assert "does not establish why this stock moved" in response.bull.text
     assert "CBOE Volatility Index (2000-01-03)" in response.bear.text
@@ -212,11 +248,7 @@ def test_analysis_supplements_relevant_retrieval_with_current_source_coverage() 
 
 class ExternalOnlySearchStore(SourceCoverageStore):
     def search_evidence(self, ticker: str, query: str) -> list[dict[str, object]]:
-        return [
-            item
-            for item in super().get_evidence(ticker)
-            if item["source_type"] == "filing"
-        ]
+        return [item for item in super().get_evidence(ticker) if item["source_type"] == "filing"]
 
 
 def test_analysis_restores_technical_context_when_vector_search_omits_it() -> None:
@@ -226,3 +258,52 @@ def test_analysis_restores_technical_context_when_vector_search_omits_it() -> No
     assert {item.id for item in response.evidence} >= set(
         response.bull.evidence_ids + response.bear.evidence_ids
     )
+
+
+@pytest.mark.parametrize(
+    "generation_fails,cleanup_fails", [(False, False), (True, False), (True, True), (False, True)]
+)
+def test_analysis_releases_provider_connections_without_masking_generation_errors(
+    monkeypatch: pytest.MonkeyPatch,
+    generation_fails: bool,
+    cleanup_fails: bool,
+) -> None:
+    from app.config import Settings
+    from app.schemas import TokenUsage
+    from app.services.model_provider import ProviderError, ProviderResult, parse_provider_payload
+
+    closed = []
+
+    class RequestProvider:
+        def generate(self, *args: object) -> ProviderResult:
+            if generation_fails:
+                raise ProviderError("Controlled generation failure")
+            return ProviderResult(
+                draft=parse_provider_payload("""{
+                  "bull": {"text":"A conditional reading", "risk_meaning":"Evidence is limited"},
+                  "bear": {"text":"Another conditional reading", "risk_meaning":"New risks may emerge"},
+                  "judge": {"summary":"Evidence is mixed", "uncertainty":"You should buy this stock"}
+                }"""),
+                token_usage=TokenUsage(
+                    model_name="test", prompt_tokens=0, completion_tokens=0, total_tokens=0
+                ),
+            )
+
+        def close(self) -> None:
+            closed.append(True)
+            if cleanup_fails:
+                raise RuntimeError("Controlled cleanup failure")
+
+    monkeypatch.setattr(
+        "app.services.analysis.build_analysis_provider", lambda settings: RequestProvider()
+    )
+    service = AnalysisService(DemoStore(), Settings(analysis_provider="test"))
+    if generation_fails:
+        with pytest.raises(ProviderError, match="Controlled generation failure"):
+            service.create("AAPL")
+        assert not service.store.list_analyses("demo-user")
+    else:
+        result = service.create("AAPL")
+        assert "you should buy" not in result.judge.uncertainty.lower()
+        assert result.guardrail_status == "rewritten"
+    assert closed == [True]

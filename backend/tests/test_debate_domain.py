@@ -2,8 +2,6 @@ from datetime import datetime, timezone
 from uuid import UUID
 
 import pytest
-from pydantic import ValidationError
-
 from app.domain.debate import (
     DebateIntervention,
     DebateMessage,
@@ -12,7 +10,7 @@ from app.domain.debate import (
 )
 from app.domain.factors import FactorSnapshot
 from app.services.analysis_context import build_analysis_context
-
+from pydantic import ValidationError
 
 NOW = datetime(2026, 8, 27, 10, 0, tzinfo=timezone.utc)
 SESSION_ID = UUID("00000000-0000-4000-8000-000000000001")

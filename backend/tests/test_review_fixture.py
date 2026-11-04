@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import httpx
 import pytest
-from fastapi.testclient import TestClient
-
 from app.config import Settings
 from app.services.analysis import AnalysisService
 from app.services.cache import LocalCacheBackend, ResilientCacheBackend
 from app.services.response_cache import JsonResponseCache
 from app.services.review_fixture_store import REVIEW_FIXTURE_NOTICE, ReviewFixtureStore
+from fastapi.testclient import TestClient
 
 
 def test_review_fixture_settings_are_local_only_and_override_dotenv_provider_flags() -> None:
@@ -80,7 +79,9 @@ def test_review_fixture_scenarios_and_macro_series_are_deterministic() -> None:
     }
     assert all(item["metadata"]["simulated"] is True for item in series)
     assert len(first.get_macro_observations("vix", limit=400)) == 77
-    assert first.get_macro_observations("vix", limit=7) == second.get_macro_observations("vix", limit=7)
+    assert first.get_macro_observations("vix", limit=7) == second.get_macro_observations(
+        "vix", limit=7
+    )
 
 
 def test_review_fixture_analysis_and_api_never_use_external_clients(
@@ -116,8 +117,7 @@ def test_review_fixture_analysis_and_api_never_use_external_clients(
     assert payload["indicators"]["history"]["provenance"] == "review_fixture"
     assert len(payload["macro_context"]) == 7
     assert all(
-        context["series"]["metadata"]["simulated"] is True
-        for context in payload["macro_context"]
+        context["series"]["metadata"]["simulated"] is True for context in payload["macro_context"]
     )
 
     analysis = AnalysisService(fixture, fixture_settings).create("AAPL")
@@ -128,7 +128,11 @@ def test_review_fixture_analysis_and_api_never_use_external_clients(
         "review fixture" in str(item.metadata.get("source", "")).lower()
         for item in analysis.evidence
     )
-    assert all(item.freshness.status == "current" for item in analysis.evidence if item.source_type != "technical")
+    assert all(
+        item.freshness.status == "current"
+        for item in analysis.evidence
+        if item.source_type != "technical"
+    )
 
     debate = client.post(
         "/debates",
@@ -140,15 +144,10 @@ def test_review_fixture_analysis_and_api_never_use_external_clients(
     assert debate_payload["execution_mode"] == "synchronous_preview"
     assert len(debate_payload["messages"]) == 7
     citations = [
-        citation
-        for message in debate_payload["messages"]
-        for citation in message["citations"]
+        citation for message in debate_payload["messages"] for citation in message["citations"]
     ]
     assert citations
-    assert all(
-        citation["evidence_id"].startswith("review-aapl-")
-        for citation in citations
-    )
+    assert all(citation["evidence_id"].startswith("review-aapl-") for citation in citations)
     presentations = [message["presentation"] for message in debate_payload["messages"]]
     assert all(presentation["argument"] for presentation in presentations)
     assert all(
@@ -157,9 +156,7 @@ def test_review_fixture_analysis_and_api_never_use_external_clients(
         for fact in presentation["facts_used"]
     )
     assert all(
-        fact["fact"]
-        for presentation in presentations
-        for fact in presentation["facts_used"]
+        fact["fact"] for presentation in presentations for fact in presentation["facts_used"]
     )
     assert all(
         fact["source_destination"] is None or fact["source_destination"].startswith("https://")
@@ -168,8 +165,14 @@ def test_review_fixture_analysis_and_api_never_use_external_clients(
     )
     session_id = debate_payload["session"]["id"]
     headers = {"X-User-Id": "fixture-v2-test"}
-    assert client.get(f"/debates/{session_id}", headers=headers).json()["messages"] == debate_payload["messages"]
-    assert client.get(f"/debates/{session_id}/messages", headers=headers).json() == debate_payload["messages"]
+    assert (
+        client.get(f"/debates/{session_id}", headers=headers).json()["messages"]
+        == debate_payload["messages"]
+    )
+    assert (
+        client.get(f"/debates/{session_id}/messages", headers=headers).json()
+        == debate_payload["messages"]
+    )
 
     assert client.get("/stocks/MSFT/bundle").status_code == 409
     goog = client.get("/stocks/GOOG/bundle").json()

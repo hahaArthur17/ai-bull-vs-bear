@@ -41,6 +41,7 @@ htmlcov/
 .tox/
 .nox/
 .coverage
+test-results/
 .coverage.*
 .cache
 nosetests.xml
@@ -149,6 +150,8 @@ activemq-data/
 
 # Environments
 .env
+.env.*
+!.env.example
 .envrc
 node_modules/
 .expo/

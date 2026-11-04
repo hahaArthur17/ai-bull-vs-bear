@@ -4,7 +4,6 @@ from typing import Literal, TypeAlias
 
 from pydantic import BaseModel, Field
 
-
 CoverageStatus: TypeAlias = Literal[
     "catalog_only",
     "price_cached",
@@ -277,3 +276,8 @@ class ExaminationResponse(BaseModel):
     answer: str
     evidence: list[EvidenceItem]
     disclaimer: str
+
+
+class AnalysisHistoryPage(BaseModel):
+    items: list[AnalysisResponse]
+    next_offset: int | None = None

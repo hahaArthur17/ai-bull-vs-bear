@@ -1,3 +1,4 @@
+import pytest
 from app.services.ingestion import parse_rss
 
 
@@ -32,3 +33,22 @@ def test_parse_rss_keeps_ids_stable_when_feed_order_changes() -> None:
     reordered = parse_rss(f"<rss><channel>{new_item}{first_item}</channel></rss>", "AAPL")
 
     assert original[0]["id"] == reordered[1]["id"]
+
+
+@pytest.mark.parametrize(
+    "entity",
+    [
+        '<!ENTITY secret "expanded attacker-controlled entity">',
+        '<!ENTITY secret SYSTEM "file:///etc/passwd">',
+        '<!ENTITY secret SYSTEM "https://example.com/private">',
+    ],
+)
+def test_rss_rejects_entities_before_processing_feed_content(entity: str) -> None:
+    xml = f"<!DOCTYPE rss [{entity}]><rss><channel><item><title>&secret;</title></item></channel></rss>"
+    with pytest.raises(ValueError, match="Unsafe or invalid RSS feed"):
+        parse_rss(xml, "AAPL")
+
+
+def test_malformed_rss_has_a_stable_import_error() -> None:
+    with pytest.raises(ValueError, match="Unsafe or invalid RSS feed"):
+        parse_rss("<rss>", "AAPL")

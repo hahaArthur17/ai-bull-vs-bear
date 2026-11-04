@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import dataclass
 import logging
+from dataclasses import dataclass
 from typing import Literal
 from uuid import UUID
 
+from app.domain.debate import DebateSession
+from app.domain.jobs import ClaimedDebateQueueMessage, DebateJob
 from app.repositories.debate_repository import (
     DebateQueueRepository,
     DebateRepositoryError,
@@ -17,7 +19,6 @@ from app.services.debate_orchestrator import (
     DebateOrchestrator,
     DebateRetryableOrchestrationError,
 )
-
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +100,23 @@ class DebateWorker:
                 read_count=claimed.read_count,
             )
 
+        settled = await self._settle_existing_job(claimed, job, session)
+        if settled is not None:
+            return settled
+        if job.status == "running":
+            recovered = await self._recover_running_job(claimed, job, session)
+            if isinstance(recovered, DebateWorkerResult):
+                return recovered
+            job = recovered
+        return await self._execute_claim(claimed, job)
+
+    async def _settle_existing_job(
+        self,
+        claimed: ClaimedDebateQueueMessage,
+        job: DebateJob,
+        session: DebateSession,
+    ) -> DebateWorkerResult | None:
+        """Archive settled work and confirm cancellation before any provider call."""
         if job.status in {"completed", "cancelled", "failed"}:
             if job.status == "cancelled" and session.status == "cancel_requested":
                 await asyncio.to_thread(
@@ -107,12 +125,10 @@ class DebateWorker:
                     session.user_id,
                     session.active_generation_id,
                 )
-            await self._archive(queue_message_id)
+            await self._archive(claimed.queue_message_id)
             return DebateWorkerResult(
-                outcome=(
-                    "cancelled" if job.status == "cancelled" else "skipped_terminal"
-                ),
-                queue_message_id=queue_message_id,
+                outcome=("cancelled" if job.status == "cancelled" else "skipped_terminal"),
+                queue_message_id=claimed.queue_message_id,
                 job_id=job.id,
                 read_count=claimed.read_count,
             )
@@ -123,113 +139,83 @@ class DebateWorker:
                 session.user_id,
                 session.active_generation_id,
             )
-            await self._archive(queue_message_id)
+            await self._archive(claimed.queue_message_id)
             return DebateWorkerResult(
                 outcome="cancelled",
-                queue_message_id=queue_message_id,
+                queue_message_id=claimed.queue_message_id,
                 job_id=job.id,
                 read_count=claimed.read_count,
             )
-        if job.status == "running":
-            if claimed.read_count <= 1:
-                # A running row on its first delivery may still belong to an
-                # active consumer. Only redelivery proves its visibility lease
-                # expired and makes recovery safe.
-                return DebateWorkerResult(
-                    outcome="deferred_running",
-                    queue_message_id=queue_message_id,
-                    job_id=job.id,
-                    read_count=claimed.read_count,
-                )
-            if session.status in {"cancel_requested", "interrupted_awaiting_user"}:
-                cancelled_job = cancel_job(
-                    job,
-                    at=max(job.updated_at, session.updated_at),
-                )
-                await asyncio.to_thread(
-                    self.repository.update_job,
-                    cancelled_job,
-                    expected_status="running",
-                )
-                if session.status == "cancel_requested":
-                    await asyncio.to_thread(
-                        self.orchestrator.request_cancellation,
-                        session.id,
-                        session.user_id,
-                        session.active_generation_id,
-                    )
-                await self._archive(queue_message_id)
-                return DebateWorkerResult(
-                    outcome="cancelled",
-                    queue_message_id=queue_message_id,
-                    job_id=job.id,
-                    read_count=claimed.read_count,
-                )
-            if job.attempt_count >= job.max_attempts:
-                await self._fail_exhausted(job.id, job.attempt_count)
-                await self._archive(queue_message_id)
-                return DebateWorkerResult(
-                    outcome="failed",
-                    queue_message_id=queue_message_id,
-                    job_id=job.id,
-                    read_count=claimed.read_count,
-                )
-            _, job = await asyncio.to_thread(
-                self.queue.requeue_running_job,
-                job.id,
-                expected_attempt_count=job.attempt_count,
-            )
+        return None
 
-        try:
-            finished_session = await self.orchestrator.execute_job_streaming(job.id)
-        except DebateRetryableOrchestrationError as exc:
-            current_job = await asyncio.to_thread(self.repository.get_job, job.id)
-            if current_job is None or current_job.status != "running":
-                raise DebateRepositoryError(
-                    "Retryable Debate execution did not retain a running Job"
-                )
-            if current_job.attempt_count >= current_job.max_attempts:
-                await self._fail_exhausted(current_job.id, current_job.attempt_count)
-                await self._archive(queue_message_id)
-                return DebateWorkerResult(
-                    outcome="failed",
-                    queue_message_id=queue_message_id,
-                    job_id=current_job.id,
-                    read_count=claimed.read_count,
-                )
-            retried_session, retried_job = await asyncio.to_thread(
-                self.queue.requeue_running_job,
-                current_job.id,
-                expected_attempt_count=current_job.attempt_count,
-                provider_request_count=exc.provider_request_count,
-                prompt_tokens=exc.prompt_tokens,
-                completion_tokens=exc.completion_tokens,
-            )
-            retry_delay_seconds = self._retry_delay_seconds(
-                current_job.attempt_count,
-                exc.retry_after_seconds,
-            )
-            retried = await asyncio.to_thread(
-                self.queue.retry_job_message,
-                queue_message_id,
-                delay_seconds=retry_delay_seconds,
-            )
-            if not retried:
-                raise DebateRepositoryError(
-                    "Worker could not reschedule its Queue message"
-                )
-            self.orchestrator.publish_retry_scheduled(
-                retried_session,
-                retried_job,
-                retry_delay_seconds=retry_delay_seconds,
-            )
+    async def _recover_running_job(
+        self,
+        claimed: ClaimedDebateQueueMessage,
+        job: DebateJob,
+        session: DebateSession,
+    ) -> DebateJob | DebateWorkerResult:
+        """Only redelivery after a visibility lease expires may recover running work."""
+        if claimed.read_count <= 1:
+            # A running row on its first delivery may still belong to an
+            # active consumer. Only redelivery proves its visibility lease
+            # expired and makes recovery safe.
             return DebateWorkerResult(
-                outcome="retry_scheduled",
-                queue_message_id=queue_message_id,
-                job_id=current_job.id,
+                outcome="deferred_running",
+                queue_message_id=claimed.queue_message_id,
+                job_id=job.id,
                 read_count=claimed.read_count,
-                retry_delay_seconds=retry_delay_seconds,
             )
+        if session.status in {"cancel_requested", "interrupted_awaiting_user"}:
+            cancelled_job = cancel_job(
+                job,
+                at=max(job.updated_at, session.updated_at),
+            )
+            await asyncio.to_thread(
+                self.repository.update_job,
+                cancelled_job,
+                expected_status="running",
+            )
+            if session.status == "cancel_requested":
+                await asyncio.to_thread(
+                    self.orchestrator.request_cancellation,
+                    session.id,
+                    session.user_id,
+                    session.active_generation_id,
+                )
+            await self._archive(claimed.queue_message_id)
+            return DebateWorkerResult(
+                outcome="cancelled",
+                queue_message_id=claimed.queue_message_id,
+                job_id=job.id,
+                read_count=claimed.read_count,
+            )
+        if job.attempt_count >= job.max_attempts:
+            await self._fail_exhausted(job.id, job.attempt_count)
+            await self._archive(claimed.queue_message_id)
+            return DebateWorkerResult(
+                outcome="failed",
+                queue_message_id=claimed.queue_message_id,
+                job_id=job.id,
+                read_count=claimed.read_count,
+            )
+        _, job = await asyncio.to_thread(
+            self.queue.requeue_running_job,
+            job.id,
+            expected_attempt_count=job.attempt_count,
+        )
+
+        return job
+
+    async def _execute_claim(
+        self,
+        claimed: ClaimedDebateQueueMessage,
+        job: DebateJob,
+    ) -> DebateWorkerResult:
+        queue_message_id = claimed.queue_message_id
+        try:
+            await self.orchestrator.execute_job_streaming(job.id)
+        except DebateRetryableOrchestrationError as exc:
+            return await self._schedule_retry(claimed, job, exc)
         except DebateOrchestrationError:
             current_job = await asyncio.to_thread(self.repository.get_job, job.id)
             if current_job is not None and current_job.status == "failed":
@@ -258,6 +244,57 @@ class DebateWorker:
             queue_message_id=queue_message_id,
             job_id=job.id,
             read_count=claimed.read_count,
+        )
+
+    async def _schedule_retry(
+        self,
+        claimed: ClaimedDebateQueueMessage,
+        job: DebateJob,
+        exc: DebateRetryableOrchestrationError,
+    ) -> DebateWorkerResult:
+        """Persist retry accounting before making the same queue message visible again."""
+        current_job = await asyncio.to_thread(self.repository.get_job, job.id)
+        if current_job is None or current_job.status != "running":
+            raise DebateRepositoryError("Retryable Debate execution did not retain a running Job")
+        if current_job.attempt_count >= current_job.max_attempts:
+            await self._fail_exhausted(current_job.id, current_job.attempt_count)
+            await self._archive(claimed.queue_message_id)
+            return DebateWorkerResult(
+                outcome="failed",
+                queue_message_id=claimed.queue_message_id,
+                job_id=current_job.id,
+                read_count=claimed.read_count,
+            )
+        retried_session, retried_job = await asyncio.to_thread(
+            self.queue.requeue_running_job,
+            current_job.id,
+            expected_attempt_count=current_job.attempt_count,
+            provider_request_count=exc.provider_request_count,
+            prompt_tokens=exc.prompt_tokens,
+            completion_tokens=exc.completion_tokens,
+        )
+        retry_delay_seconds = self._retry_delay_seconds(
+            current_job.attempt_count,
+            exc.retry_after_seconds,
+        )
+        retried = await asyncio.to_thread(
+            self.queue.retry_job_message,
+            claimed.queue_message_id,
+            delay_seconds=retry_delay_seconds,
+        )
+        if not retried:
+            raise DebateRepositoryError("Worker could not reschedule its Queue message")
+        self.orchestrator.publish_retry_scheduled(
+            retried_session,
+            retried_job,
+            retry_delay_seconds=retry_delay_seconds,
+        )
+        return DebateWorkerResult(
+            outcome="retry_scheduled",
+            queue_message_id=claimed.queue_message_id,
+            job_id=current_job.id,
+            read_count=claimed.read_count,
+            retry_delay_seconds=retry_delay_seconds,
         )
 
     async def run_until_idle(self, *, max_messages: int = 10) -> list[DebateWorkerResult]:

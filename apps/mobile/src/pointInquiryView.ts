@@ -17,10 +17,7 @@ export function canPrepareRoundTwoChallenge({
   question: string;
   explaining: boolean;
 }): boolean {
-  return canChallenge
-    && selectedTextIsValid
-    && question.trim().length > 0
-    && !explaining;
+  return canChallenge && selectedTextIsValid && question.trim().length > 0 && !explaining;
 }
 
 export function canSubmitRoundTwoChallenge({
@@ -36,9 +33,11 @@ export function canSubmitRoundTwoChallenge({
   question: string;
   challenging: boolean;
 }): boolean {
-  return mode === "challenge"
-    && canChallenge
-    && selectedTextIsValid
-    && question.trim().length > 0
-    && !challenging;
+  return (
+    mode === "challenge" &&
+    canChallenge &&
+    selectedTextIsValid &&
+    question.trim().length > 0 &&
+    !challenging
+  );
 }

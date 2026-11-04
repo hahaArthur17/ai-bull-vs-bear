@@ -58,10 +58,7 @@ class ExplanationService:
         )
         source_is_explainable = source is not None and (
             source.is_complete
-            or (
-                source.metadata.get("interrupted") is True
-                and bool(source.content.strip())
-            )
+            or (source.metadata.get("interrupted") is True and bool(source.content.strip()))
         )
         if not source_is_explainable:
             raise ExplanationNotFound("Debate explanation source was not found")
@@ -92,8 +89,7 @@ class ExplanationService:
         except Exception as exc:
             raise ExplanationProviderError("Explanation provider failed safely") from exc
         if any(
-            evidence_id not in request.allowed_evidence_ids
-            for evidence_id in draft.evidence_ids
+            evidence_id not in request.allowed_evidence_ids for evidence_id in draft.evidence_ids
         ):
             raise ExplanationValidationError(
                 "Explanation cited evidence outside the selected message"

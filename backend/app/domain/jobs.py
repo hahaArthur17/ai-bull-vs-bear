@@ -7,7 +7,6 @@ from pydantic import Field, model_validator
 
 from app.domain.base import AwareDatetime, ImmutableDomainModel
 
-
 DebateJobType = Literal["round_1", "round_2", "explanation", "replay"]
 DebateJobStatus = Literal["queued", "running", "completed", "failed", "cancelled"]
 
