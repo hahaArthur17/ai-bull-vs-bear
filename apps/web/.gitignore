@@ -1,0 +1,19 @@
+# Web-local dependencies, generated output and reports.
+node_modules/
+dist/
+coverage/
+playwright-report/
+test-results/
+.vite/
+*.tsbuildinfo
+.DS_Store
+
+# Local environment files; commit only the public example.
+.env
+.env.*
+!.env.example
+
+# The repository's Python template ignores every lib/ directory.
+# This Web source directory must remain trackable.
+!src/lib/
+!src/lib/**
