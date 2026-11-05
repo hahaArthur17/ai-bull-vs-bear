@@ -2,7 +2,9 @@
 
 面向 Web 前端求职的独立客户端；后续可以连接现有后端，扩展为 Full Stack 展示。
 
-当前状态：**G1–G6 的 Web 功能已实现，正在最终验证和独立发布**。原项目检查点为 `f804d10`，标签为 `baseline/pre-web-2026-11-05`，开发分支为 `codex/web-portfolio`；检查点、标签及分支已推送。创建：2026-11-04；更新：2026-11-05（Pacific/Auckland）。实际验证与发布结果以[开发进度](docs/progress.md)为准。
+当前状态：**Web Demo 已实现、验证并独立上线**。原项目检查点为 `f804d10`，标签为 `baseline/pre-web-2026-11-05`，开发分支为 `codex/web-portfolio`；检查点、标签及分支已推送。创建：2026-11-04；更新：2026-11-05（Pacific/Auckland）。实际验证与发布结果以[开发进度](docs/progress.md)为准。
+
+公开演示：[打开 Counterpoint](https://counterpoint-research.silly-titan-8618.chatgpt.site)。研究数据、脚本回放和反馈提交均为明确标注的 Demo；反馈不会发送给开发者。
 
 ## 本地运行
 
