@@ -17,3 +17,6 @@ test-results/
 # This Web source directory must remain trackable.
 !src/lib/
 !src/lib/**
+
+# Local visual history; keep all screenshot versions out of Git.
+/design-snapshots/
