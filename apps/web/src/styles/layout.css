@@ -104,7 +104,6 @@
   padding: 0 42px;
 }
 .demo-pill {
-  display: inline-flex;
   align-items: center;
   gap: 6px;
   border: 1px solid var(--border);
@@ -198,6 +197,16 @@
   }
   .hero-stat {
     padding: 0 14px;
+  }
+  .stock-table td,
+  .stock-table th {
+    padding-right: 10px;
+    padding-left: 10px;
+  }
+  .stock-table td:last-child,
+  .stock-table th:last-child {
+    padding-right: 6px;
+    padding-left: 6px;
   }
   .mini-market {
     grid-template-columns: 1fr;

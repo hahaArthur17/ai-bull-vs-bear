@@ -8,7 +8,12 @@ import { WatchlistButton } from "@/features/watchlist/components/watchlist-butto
 export function StockTable({ stocks }: { stocks: Stock[] }) {
   return (
     <div className="surface overflow-hidden">
-      <div className="overflow-x-auto">
+      <div
+        className="relative overflow-x-auto"
+        role="region"
+        aria-label="Research companies"
+        tabIndex={0}
+      >
         <table className="stock-table">
           <caption className="sr-only">
             Research stocks with synthetic prices, changes and coverage
@@ -31,9 +36,11 @@ export function StockTable({ stocks }: { stocks: Stock[] }) {
                 <td className="company-cell">
                   <Link
                     to={`/stocks/${stock.ticker}`}
-                    className="group flex min-w-40 items-center gap-3"
+                    className="group flex min-w-28 items-center gap-2 sm:min-w-40 sm:gap-3"
                   >
-                    <span className="stock-symbol">{stock.ticker.slice(0, 2)}</span>
+                    <span className="stock-symbol !size-8 shrink-0 sm:!size-10">
+                      {stock.ticker.slice(0, 2)}
+                    </span>
                     <span className="min-w-0">
                       <span className="flex items-center gap-2 text-xs font-semibold">
                         {stock.ticker}
