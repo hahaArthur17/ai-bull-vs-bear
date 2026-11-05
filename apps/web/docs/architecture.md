@@ -1,6 +1,6 @@
 # 工程架构与目录职责
 
-创建：2026-11-04；更新：2026-11-05。本文描述目标架构；当前只建立目录与规划，不代表其中的实现文件已经存在。
+创建：2026-11-04；更新：2026-11-05。本文记录已实现的 Web Demo 架构与后续接口边界；实际验证和发布结果见 [progress.md](progress.md)。
 
 ## 1. 应用边界
 
@@ -82,7 +82,7 @@ apps/web/
         └── fixtures/
 ```
 
-目录占位用 `.gitkeep` 保存。G1 再增加 `package.json`、锁文件、`components.json`、`index.html`、Vite/TS/ESLint/Vitest/Playwright 配置以及 `src/main.tsx` 等实现文件。上述配置文件当前不伪造为空的可运行配置。
+工程已包含独立 `package.json`、锁文件、`components.json`、`index.html`、Vite/TS/ESLint/Vitest/Playwright 配置和 `src/main.tsx`。已有实现的目录已移除 `.gitkeep`；保留的空目录仅代表后续可扩展位置。
 
 根 `.gitignore` 来自 Python 模板，包含会忽略所有同名目录的 `lib/` 规则。Web 局部 `.gitignore` 已为 `src/lib` 添加例外；后续配置 Git 时要继续检查新增源文件是否被意外忽略。
 
