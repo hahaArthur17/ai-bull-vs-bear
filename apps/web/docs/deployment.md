@@ -1,6 +1,6 @@
 # 独立部署与发布计划
 
-创建：2026-11-04；更新：2026-11-05（Pacific/Auckland）。状态：Sites 云端项目已创建，项目身份与静态输出配置已保存；发布及公开访问验收待完成。未记录成功部署回执前，不把预期地址写成已上线作品。
+创建：2026-11-04；更新：2026-11-05（Pacific/Auckland）。状态：Sites 版本 1 已成功公开发布，项目身份、来源与线上验收结果见第 7 节。
 
 ## 1. 发布拓扑
 
@@ -37,7 +37,7 @@ npm run build
 npm run preview -- --port 4173
 ```
 
-Sites 发布时保存对应来源版本并上传/打包已经构建的 `dist`，使用项目已有身份发布；记录成功回执中的版本、部署标识与准确 URL。当前只确认项目和 manifest 已存在，不把它们等同于站点已经公开可访问。
+Sites 发布时保存对应来源版本并上传/打包已经构建的 `dist`，使用项目已有身份发布；记录成功回执中的版本、部署标识与准确 URL。版本 1 已获得成功部署回执，并完成公开 HTTP 和浏览器抽查。
 
 后续若迁移到 Vercel 或 Render，继续独立指定 `apps/web`、`npm ci`、`npm run build` 和 `dist`，补齐该平台的 SPA 回退、环境变量和部署源配置即可。无需迁移或覆盖原 `apps/mobile` 与后端服务，也不在本文件预设新平台账户、价格或配额。
 
@@ -167,4 +167,4 @@ GitHub 是保留完整阶段历史的主仓库。Sites 使用独立发布镜像�
 - [Playwright：webServer](https://playwright.dev/docs/test-webserver)
 - [Playwright：Service Workers](https://playwright.dev/docs/service-workers)
 
-后续更换托管平台或开启真实接口时，重新核对对应平台配置与实际接收能力；本次 Sites 项目已建立的事实与待完成的发布结果应分别记录。
+后续更换托管平台或开启真实接口时，重新核对对应平台配置与实际接收能力；每次后续发布均记录实际来源、部署回执和验证范围。

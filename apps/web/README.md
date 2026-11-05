@@ -112,6 +112,6 @@ apps/web/
 
 ## 独立发布
 
-本轮采用 Sites 静态托管，项目身份已保存在 `.openai/hosting.json`，输出目录为 `dist`；发布完成与公开访问验收仍待记录。可用 URL、发布提交、部署版本与验证范围写入[发布记录](docs/deployment.md#7-发布记录与验收)。
+本轮采用 Sites 静态托管，项目身份已保存在 `.openai/hosting.json`，输出目录为 `dist`；版本 1 已成功公开发布并完成线上抽查。可用 URL、发布提交、部署版本与验证范围写入[发布记录](docs/deployment.md#7-发布记录与验收)。
 
 这是一套独立 Web 工程，现有手机端和后端继续保留。以后可以把同一静态产物迁移到 Vercel 或 Render 等支持 SPA 的托管服务，无需把整个仓库拆成三个仓库。
